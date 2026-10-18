@@ -71,6 +71,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hasDragged = useRef(false);
   const dragStart = useRef({ clientX: 0, clientY: 0, x: 0, y: 0 });
   const rafId = useRef<number | null>(null);
+  const mousePos = useRef({ x: 0, y: 0 });
 
   // Active filter definition
   const activeFilterDef = useMemo<FilterDefinition>(() => {
@@ -220,9 +221,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       x: transformRef.current.x,
       y: transformRef.current.y
     };
+
+    if (tooltipRef.current) {
+      tooltipRef.current.style.display = 'none';
+    }
+    if (hoveredCountry) {
+      setHoveredCountry(null);
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    mousePos.current = { x: e.clientX, y: e.clientY };
+
     if (isDragging.current) {
       const dx = e.clientX - dragStart.current.clientX;
       const dy = e.clientY - dragStart.current.clientY;
@@ -249,6 +259,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         });
       }
 
+      if (tooltipRef.current) {
+        tooltipRef.current.style.display = 'none';
+      }
+      if (hoveredCountry) {
+        setHoveredCountry(null);
+      }
+      return;
+    }
+
+    // Verify if the pointer is currently directly over a country SVG path
+    const target = e.target as Element | null;
+    const isOverCountry = Boolean(target && target.classList && target.classList.contains('country-path'));
+
+    if (!isOverCountry) {
+      if (hoveredCountry) {
+        setHoveredCountry(null);
+      }
       if (tooltipRef.current) {
         tooltipRef.current.style.display = 'none';
       }
@@ -425,7 +452,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             }}
           >
             {/* Seamless ocean backdrop across all periodic world cycles */}
-            <rect x={-2 * MAP_W} y={0} width={7 * MAP_W} height={MAP_H} fill="#0b0e14" />
+            <rect
+              x={-2 * MAP_W}
+              y={0}
+              width={7 * MAP_W}
+              height={MAP_H}
+              fill="#0b0e14"
+              onMouseEnter={() => {
+                if (hoveredCountry) setHoveredCountry(null);
+                if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+              }}
+            />
 
             {/* Continuous periodic world copies */}
             {WORLD_COPIES.map((copyIdx) => (
@@ -450,8 +487,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       d={pathD}
                       className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
                       fill={fillColor}
-                      onMouseEnter={() => {
+                      onMouseEnter={(e) => {
                         if (isDragging.current) return;
+                        mousePos.current = { x: e.clientX, y: e.clientY };
                         if (countryMeta) {
                           setHoveredCountry(countryMeta);
                         } else {
@@ -480,6 +518,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                             keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
                           });
                         }
+                        if (tooltipRef.current) {
+                          tooltipRef.current.style.display = 'flex';
+                          tooltipRef.current.style.left = `${e.clientX}px`;
+                          tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (isDragging.current) return;
+                        if (hoveredCountry) {
+                          setHoveredCountry(null);
+                        }
+                        if (tooltipRef.current) {
+                          tooltipRef.current.style.display = 'none';
+                        }
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -500,7 +552,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       {/* Floating Hover Tooltip */}
       {hoveredCountry && (
-        <div ref={tooltipRef} className="map-tooltip">
+        <div
+          ref={(node) => {
+            tooltipRef.current = node;
+            if (node) {
+              node.style.left = `${mousePos.current.x}px`;
+              node.style.top = `${mousePos.current.y - 12}px`;
+            }
+          }}
+          className="map-tooltip"
+        >
           <div className="tooltip-header">
             <span className="tooltip-flag">{hoveredCountry.flag}</span>
             <div>
