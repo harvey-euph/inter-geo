@@ -36,10 +36,19 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
   }
 ];
 
-export function getLODLevel(k: number): LODLevel {
-  if (k >= 6.5) return 'L3';
-  if (k >= 3.2) return 'L2';
-  return 'L1';
+export const LOD_LEVEL_ORDER: Record<LODLevel, number> = {
+  L1: 1,
+  L2: 2,
+  L3: 3
+};
+
+export function getLODLevel(k: number, maxLevel: LODLevel = 'L3'): LODLevel {
+  const calculated: LODLevel = k >= 6.5 ? 'L3' : k >= 3.2 ? 'L2' : 'L1';
+
+  if (LOD_LEVEL_ORDER[calculated] > LOD_LEVEL_ORDER[maxLevel]) {
+    return maxLevel;
+  }
+  return calculated;
 }
 
 export interface PrefectureDetail {

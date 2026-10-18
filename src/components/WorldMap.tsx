@@ -8,7 +8,7 @@ import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry } from '../data/countries';
-import { getLODLevel } from '../types/lod';
+import { getLODLevel, LOD_LEVEL_ORDER } from '../types/lod';
 import type { LODLevel, PrefectureDetail, MunicipalityDetail } from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
@@ -106,6 +106,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Level of Detail (LOD) tracking: L1 (Country), L2 (Prefecture), L3 (Municipality)
   const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
+  const [maxLODLevel, setMaxLODLevel] = useState<LODLevel>('L3');
   const [zoomK, setZoomK] = useState<number>(1.0);
 
   // Sub-national hover states
@@ -342,10 +343,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
       setZoomK(Number(initialK.toFixed(1)));
-      setLodLevel(getLODLevel(initialK));
+      setLodLevel(getLODLevel(initialK, maxLODLevel));
       applyTransform(false);
     }
-  }, [loading, wrapX, clampY, applyTransform]);
+  }, [loading, wrapX, clampY, applyTransform, maxLODLevel]);
 
   // Zoom directly into a prefecture at L3 (called from Drawer)
   useEffect(() => {
@@ -365,6 +366,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.y = clampY(targetY, targetK, vh);
 
           setZoomK(Number(targetK.toFixed(1)));
+          setMaxLODLevel('L3');
           setLodLevel('L3');
           applyTransform(true);
         }
@@ -490,7 +492,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    const nextLOD = getLODLevel(newK);
+    const nextLOD = getLODLevel(newK, maxLODLevel);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
@@ -516,7 +518,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    const nextLOD = getLODLevel(newK);
+    const nextLOD = getLODLevel(newK, maxLODLevel);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
@@ -536,8 +538,45 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     setActiveRegion('world');
     setZoomK(Number(kMin.toFixed(1)));
-    setLodLevel(getLODLevel(kMin));
+    setLodLevel(getLODLevel(kMin, maxLODLevel));
     applyTransform(true);
+  };
+
+  // Draggable continuous slider zoom adjustment
+  const handleSliderZoom = useCallback(
+    (targetK: number) => {
+      const { k, x, y } = transformRef.current;
+      const vh = viewportSize.current.h;
+      const vw = viewportSize.current.w;
+      const kMin = vh / MAP_H;
+      const newK = Math.min(Math.max(targetK, kMin), 14);
+
+      const cx = vw / 2;
+      const cy = vh / 2;
+      const ratio = newK / k;
+      const newX = cx - (cx - x) * ratio;
+      const newY = cy - (cy - y) * ratio;
+
+      transformRef.current.k = newK;
+      transformRef.current.x = wrapX(newX, newK);
+      transformRef.current.y = clampY(newY, newK, vh);
+
+      const nextLOD = getLODLevel(newK, maxLODLevel);
+      if (nextLOD !== lodLevel) {
+        setLodLevel(nextLOD);
+      }
+      setZoomK(Number(newK.toFixed(1)));
+      applyTransform(false);
+    },
+    [wrapX, clampY, applyTransform, lodLevel, maxLODLevel]
+  );
+
+  // Set maximum allowed LOD level (最細層級限制)
+  const handleSetMaxLOD = (level: LODLevel) => {
+    setMaxLODLevel(level);
+    const currentK = transformRef.current.k;
+    const nextLOD = getLODLevel(currentK, level);
+    setLodLevel(nextLOD);
   };
 
   // One-click Jump to specific Level of Detail (LOD)
@@ -572,6 +611,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(targetY, targetK, vh);
 
     setZoomK(Number(targetK.toFixed(1)));
+    // If jumping to higher level than current max, elevate max to respect user intent
+    if (LOD_LEVEL_ORDER[targetLevel] > LOD_LEVEL_ORDER[maxLODLevel]) {
+      setMaxLODLevel(targetLevel);
+    }
     setLodLevel(targetLevel);
     applyTransform(true);
   };
@@ -594,7 +637,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(targetY, targetK, vh);
 
     setZoomK(Number(targetK.toFixed(1)));
-    setLodLevel(getLODLevel(targetK));
+    setLodLevel(getLODLevel(targetK, maxLODLevel));
     applyTransform(true);
   };
 
@@ -799,16 +842,40 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     if (!pathD) return null;
                     const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
                     const isSelected = selectedPrefecture && selectedPrefecture.id === id;
-                    const fill = isHovered ? '#10b981' : isSelected ? '#f59e0b' : '#1e293b';
+
+                    // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
+                    let fill = '#1e293b';
+                    let pathClass = 'prefecture-path';
+                    let stroke = '#475569';
+                    let strokeWidth = 0.6;
+
+                    if (isSelected) {
+                      fill = '#38bdf8';
+                      pathClass += ' selected';
+                      stroke = '#38bdf8';
+                      strokeWidth = 1.2;
+                    } else if (isHovered) {
+                      // 深橘 (Deep Orange)
+                      fill = '#f97316';
+                      pathClass += ' hovered hovered-deep';
+                      stroke = '#ffffff';
+                      strokeWidth = 1.4;
+                    } else if (hoveredPrefecture) {
+                      // 淺橘 (Light Orange) - 日本其他都道府縣
+                      fill = 'rgba(251, 146, 60, 0.16)';
+                      pathClass += ' parent-l1-hovered';
+                      stroke = 'rgba(251, 146, 60, 0.35)';
+                      strokeWidth = 0.6;
+                    }
 
                     return (
                       <path
                         key={`${copyIdx}-pref-${id}`}
                         d={pathD}
-                        className={`prefecture-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                        className={pathClass}
                         fill={fill}
-                        stroke="#475569"
-                        strokeWidth={0.6}
+                        stroke={stroke}
+                        strokeWidth={strokeWidth}
                         onMouseEnter={(e) => {
                           if (isDragging.current) return;
                           mousePos.current = { x: e.clientX, y: e.clientY };
@@ -860,16 +927,47 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     if (!pathD) return null;
                     const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
                     const isSelected = selectedMunicipality && selectedMunicipality.code === code;
-                    const fill = isHovered ? '#f59e0b' : isSelected ? '#38bdf8' : '#1e2433';
+                    const isParentPref = hoveredMunicipality && hoveredMunicipality.pref === pref;
+
+                    // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
+                    let fill = '#1e2433';
+                    let pathClass = 'municipality-path';
+                    let stroke = 'rgba(255, 255, 255, 0.2)';
+                    let strokeWidth = 0.35;
+
+                    if (isSelected) {
+                      fill = '#38bdf8';
+                      pathClass += ' selected';
+                      stroke = '#38bdf8';
+                      strokeWidth = 1.0;
+                    } else if (isHovered) {
+                      // 1. 深橘 (Deep Orange) - 當前懸停的市區町村
+                      fill = '#f97316';
+                      pathClass += ' hovered hovered-deep';
+                      stroke = '#ffffff';
+                      strokeWidth = 1.3;
+                    } else if (isParentPref) {
+                      // 2. 中橘 (Medium Orange) - 所屬都道府縣內其他市區町村
+                      fill = 'rgba(234, 88, 12, 0.42)';
+                      pathClass += ' parent-l2-hovered';
+                      stroke = 'rgba(251, 146, 60, 0.65)';
+                      strokeWidth = 0.45;
+                    } else if (hoveredMunicipality) {
+                      // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
+                      fill = 'rgba(251, 146, 60, 0.13)';
+                      pathClass += ' parent-l1-hovered';
+                      stroke = 'rgba(251, 146, 60, 0.22)';
+                      strokeWidth = 0.35;
+                    }
 
                     return (
                       <path
                         key={`${copyIdx}-muni-${code}`}
                         d={pathD}
-                        className={`municipality-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                        className={pathClass}
                         fill={fill}
-                        stroke="rgba(255, 255, 255, 0.2)"
-                        strokeWidth={0.35}
+                        stroke={stroke}
+                        strokeWidth={strokeWidth}
                         onMouseEnter={(e) => {
                           if (isDragging.current) return;
                           mousePos.current = { x: e.clientX, y: e.clientY };
@@ -899,6 +997,52 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       />
                     );
                   })}
+
+                {/* L2 Parent Prefecture Boundary Outline Glow at L3 */}
+                {lodLevel === 'L3' &&
+                  hoveredMunicipality &&
+                  (() => {
+                    const parentPref = prefecturePathData.find(
+                      (p) => p.nameJa === hoveredMunicipality.pref
+                    );
+                    if (!parentPref?.pathD) return null;
+                    return (
+                      <path
+                        key={`${copyIdx}-parent-pref-outline`}
+                        d={parentPref.pathD}
+                        fill="none"
+                        stroke="#f97316"
+                        strokeWidth={1.4}
+                        style={{
+                          pointerEvents: 'none',
+                          filter: 'drop-shadow(0 0 6px rgba(249, 115, 22, 0.75))'
+                        }}
+                      />
+                    );
+                  })()}
+
+                {/* Top Overlay for Hovered Municipality to ensure stroke is not obscured */}
+                {lodLevel === 'L3' &&
+                  hoveredMunicipality &&
+                  (() => {
+                    const targetMuni = municipalityPathData.find(
+                      (m) => m.code === hoveredMunicipality.code
+                    );
+                    if (!targetMuni?.pathD) return null;
+                    return (
+                      <path
+                        key={`${copyIdx}-hovered-muni-ontop`}
+                        d={targetMuni.pathD}
+                        fill="#f97316"
+                        stroke="#ffffff"
+                        strokeWidth={1.4}
+                        style={{
+                          pointerEvents: 'none',
+                          filter: 'drop-shadow(0 0 8px rgba(249, 115, 22, 0.95))'
+                        }}
+                      />
+                    );
+                  })()}
               </g>
             ))}
           </g>
@@ -1021,7 +1165,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       <PrecisionHUD
         currentLOD={lodLevel}
         currentZoomK={zoomK}
+        maxLOD={maxLODLevel}
+        onSetMaxLOD={handleSetMaxLOD}
         onJumpToLOD={handleJumpToLOD}
+        onZoomChange={handleSliderZoom}
       />
 
       {/* Filter Legend Card */}
