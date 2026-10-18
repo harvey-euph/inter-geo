@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { geoNaturalEarth1, geoPath } from 'd3-geo';
+import { geoMercator, geoPath } from 'd3-geo';
 import * as topojson from 'topojson-client';
 import type { Topology, Objects } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
@@ -19,21 +19,30 @@ interface WorldMapProps {
 
 type GeoFeature = Feature<Geometry, { name: string }> & { id: string };
 
+// Region centers in local Mercator coordinates (W=1000, H=1000)
 interface RegionPreset {
   nameZh: string;
-  k: number;
-  x: number;
-  y: number;
+  cx: number;
+  cy: number;
+  zoomMultiplier: number;
 }
 
 const REGION_PRESETS: Record<string, RegionPreset> = {
-  world: { nameZh: '全球', k: 1, x: 0, y: 0 },
-  europe: { nameZh: '歐洲', k: 3.4, x: -750, y: 280 },
-  asia: { nameZh: '亞洲', k: 2.2, x: -680, y: -20 },
-  americas: { nameZh: '美洲', k: 1.5, x: 300, y: -30 },
-  africa: { nameZh: '非洲', k: 2.0, x: -300, y: -120 },
-  oceania: { nameZh: '大洋洲', k: 2.4, x: -1100, y: -450 }
+  world: { nameZh: '全球', cx: 500, cy: 450, zoomMultiplier: 1.0 },
+  europe: { nameZh: '歐洲', cx: 542, cy: 330, zoomMultiplier: 2.8 },
+  asia: { nameZh: '亞洲', cx: 764, cy: 396, zoomMultiplier: 2.2 },
+  americas: { nameZh: '美洲', cx: 264, cy: 458, zoomMultiplier: 1.8 },
+  africa: { nameZh: '非洲', cx: 556, cy: 494, zoomMultiplier: 2.0 },
+  oceania: { nameZh: '大洋洲', cx: 889, cy: 572, zoomMultiplier: 2.4 }
 };
+
+// Base map dimensions (Standard Web Mercator square)
+const MAP_W = 1000;
+const MAP_H = 1000;
+const MERCATOR_SCALE = MAP_W / (2 * Math.PI); // 159.15494309
+
+// World copies rendered side-by-side for infinite continuous periodic wrapping
+const WORLD_COPIES = [-1, 0, 1, 2, 3];
 
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
@@ -46,15 +55,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [loading, setLoading] = useState(true);
   const [activeRegion, setActiveRegion] = useState('world');
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gRef = useRef<SVGGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  // Performance: keep pan/zoom transform entirely in ref to avoid re-rendering 240+ SVG paths during drag!
+  // Store container dimensions
+  const viewportSize = useRef({ w: 1200, h: 800 });
+
+  // Transform stored in ref for direct 120fps GPU manipulation
   const transformRef = useRef({ k: 1, x: 0, y: 0 });
   const isDragging = useRef(false);
   const hasDragged = useRef(false);
-  const dragStart = useRef({ x: 0, y: 0 });
+  const dragStart = useRef({ clientX: 0, clientY: 0, x: 0, y: 0 });
   const rafId = useRef<number | null>(null);
 
   // Active filter definition
@@ -62,19 +75,60 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return FILTERS.find((f) => f.id === activeFilterId) || FILTERS[0];
   }, [activeFilterId]);
 
-  // Apply GPU hardware-accelerated transform directly to the SVG group element
+  // Periodic horizontal wrap: ensures x is always continuously periodic within [-worldW, 0)
+  const wrapX = useCallback((rawX: number, k: number) => {
+    const worldW = MAP_W * k;
+    if (worldW <= 0) return 0;
+    return ((rawX % worldW) + worldW) % worldW - worldW;
+  }, []);
+
+  // Strict vertical clamping: map edges stick flush to top (North Pole) and bottom (South Pole)
+  const clampY = useCallback((rawY: number, k: number, vh: number) => {
+    const worldH = MAP_H * k;
+    const minY = vh - worldH;
+    const maxY = 0;
+    if (minY >= maxY) return 0; // If map is exactly flush or smaller
+    return Math.min(maxY, Math.max(minY, rawY));
+  }, []);
+
+  // Apply GPU hardware-accelerated transform directly to SVG group element
   const applyTransform = useCallback((animate = false) => {
     if (!gRef.current) return;
     const { k, x, y } = transformRef.current;
     if (animate) {
-      gRef.current.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+      gRef.current.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
     } else {
       gRef.current.style.transition = 'none';
     }
     gRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${k})`;
   }, []);
 
-  // Load TopoJSON data - 110m is ultra-lightweight (107KB) and renders at 120 FPS
+  // Set up Web Mercator Projection
+  const projection = useMemo(() => {
+    return geoMercator()
+      .scale(MERCATOR_SCALE)
+      .translate([MAP_W / 2, MAP_H / 2]);
+  }, []);
+
+  const pathGenerator = useMemo(() => {
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // Pre-calculate paths and map country data
+  const countryPathData = useMemo(() => {
+    return features.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
+      return {
+        pathD,
+        countryMeta,
+        id: feature.id,
+        name: feature.properties?.name || 'Unknown'
+      };
+    });
+  }, [features, pathGenerator]);
+
+  // Load TopoJSON data
   useEffect(() => {
     let isMounted = true;
     fetch('/data/countries-110m.json')
@@ -103,64 +157,89 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   }, []);
 
-  // Initial transform apply when loaded
+  // ResizeObserver to detect container dimensions and clamp/scale appropriately
   useEffect(() => {
-    if (!loading) {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          viewportSize.current = { w: width, h: height };
+
+          // Minimum zoom required to vertically cover the container with zero vertical empty space
+          const kMin = height / MAP_H;
+          const currentK = transformRef.current.k;
+          const newK = Math.max(currentK, kMin);
+          transformRef.current.k = newK;
+
+          // Clamp Y strictly
+          transformRef.current.y = clampY(transformRef.current.y, newK, height);
+          transformRef.current.x = wrapX(transformRef.current.x, newK);
+          applyTransform(false);
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clampY, wrapX, applyTransform]);
+
+  // Initial map positioning once loaded
+  useEffect(() => {
+    if (!loading && containerRef.current) {
+      const vh = containerRef.current.clientHeight || 800;
+      const vw = containerRef.current.clientWidth || 1200;
+      viewportSize.current = { w: vw, h: vh };
+
+      const kMin = vh / MAP_H;
+      const initialK = Math.max(kMin, 1.0);
+      transformRef.current.k = initialK;
+
+      // Center horizontally on Europe/Africa meridian, vertically centered in bounds
+      const initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
+      const initialY = clampY((vh - MAP_H * initialK) / 2, initialK, vh);
+
+      transformRef.current.x = initialX;
+      transformRef.current.y = initialY;
       applyTransform(false);
     }
-  }, [loading, applyTransform]);
+  }, [loading, wrapX, clampY, applyTransform]);
 
-  // Set up D3 Projection
-  const width = 960;
-  const height = 500;
-
-  const projection = useMemo(() => {
-    return geoNaturalEarth1()
-      .scale(155)
-      .translate([width / 2, height / 2 + 10]);
-  }, [width, height]);
-
-  const pathGenerator = useMemo(() => {
-    return geoPath().projection(projection);
-  }, [projection]);
-
-  // Pre-calculate paths and map country data
-  const countryPathData = useMemo(() => {
-    return features.map((feature) => {
-      const pathD = pathGenerator(feature) || '';
-      const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
-      return {
-        pathD,
-        countryMeta,
-        id: feature.id,
-        name: feature.properties?.name || 'Unknown'
-      };
-    });
-  }, [features, pathGenerator]);
-
-  // High Performance Mouse Pan Handling
+  // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     isDragging.current = true;
     hasDragged.current = false;
     dragStart.current = {
-      x: e.clientX - transformRef.current.x,
-      y: e.clientY - transformRef.current.y
+      clientX: e.clientX,
+      clientY: e.clientY,
+      x: transformRef.current.x,
+      y: transformRef.current.y
     };
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDragging.current) {
-      const deltaX = Math.abs(e.clientX - (dragStart.current.x + transformRef.current.x));
-      const deltaY = Math.abs(e.clientY - (dragStart.current.y + transformRef.current.y));
-      if (deltaX > 3 || deltaY > 3) {
+      const dx = e.clientX - dragStart.current.clientX;
+      const dy = e.clientY - dragStart.current.clientY;
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         hasDragged.current = true;
       }
 
-      transformRef.current.x = e.clientX - dragStart.current.x;
-      transformRef.current.y = e.clientY - dragStart.current.y;
+      const rawX = dragStart.current.x + dx;
+      const rawY = dragStart.current.y + dy;
 
-      // Direct GPU transform via requestAnimationFrame - zero React re-render!
+      const k = transformRef.current.k;
+      const vh = viewportSize.current.h;
+
+      // Continuous periodic horizontal wrapping
+      transformRef.current.x = wrapX(rawX, k);
+      // Strict vertical clamping: sticks flush to container borders
+      transformRef.current.y = clampY(rawY, k, vh);
+
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           applyTransform(false);
@@ -168,14 +247,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         });
       }
 
-      // Hide tooltip during active pan for smooth visuals
       if (tooltipRef.current) {
         tooltipRef.current.style.display = 'none';
       }
       return;
     }
 
-    // Direct DOM update for floating tooltip - zero React re-render on mouse movement!
+    // Direct DOM tooltip update
     if (tooltipRef.current) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
@@ -191,43 +269,63 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   };
 
-  // High Performance Wheel Zoom (zooming towards mouse pointer)
+  // Wheel zoom centered on mouse pointer
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
-    const rect = svgRef.current?.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
 
     const { k, x, y } = transformRef.current;
-    const newK = Math.min(Math.max(k * zoomFactor, 0.85), 14);
+    const vh = viewportSize.current.h;
+    const kMin = vh / MAP_H;
+
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+    const newK = Math.min(Math.max(k * zoomFactor, kMin), 14);
+
+    // Zoom anchored to mouse position
     const ratio = newK / k;
+    const newX = mx - (mx - x) * ratio;
+    const newY = my - (my - y) * ratio;
 
-    const newX = mouseX - (mouseX - x) * ratio;
-    const newY = mouseY - (mouseY - y) * ratio;
+    transformRef.current.k = newK;
+    transformRef.current.x = wrapX(newX, newK);
+    transformRef.current.y = clampY(newY, newK, vh);
 
-    transformRef.current = { k: newK, x: newX, y: newY };
     applyTransform(false);
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
     const factor = direction === 'in' ? 1.35 : 0.74;
     const { k, x, y } = transformRef.current;
-    const newK = Math.min(Math.max(k * factor, 0.85), 14);
+    const vh = viewportSize.current.h;
+    const vw = viewportSize.current.w;
+    const kMin = vh / MAP_H;
+    const newK = Math.min(Math.max(k * factor, kMin), 14);
 
-    const cx = width / 2;
-    const cy = height / 2;
+    const cx = vw / 2;
+    const cy = vh / 2;
     const newX = cx - (cx - x) * (newK / k);
     const newY = cy - (cy - y) * (newK / k);
 
-    transformRef.current = { k: newK, x: newX, y: newY };
+    transformRef.current.k = newK;
+    transformRef.current.x = wrapX(newX, newK);
+    transformRef.current.y = clampY(newY, newK, vh);
+
     applyTransform(true);
   };
 
   const handleResetZoom = () => {
-    transformRef.current = { k: 1, x: 0, y: 0 };
+    const vh = viewportSize.current.h;
+    const vw = viewportSize.current.w;
+    const kMin = vh / MAP_H;
+
+    transformRef.current.k = kMin;
+    transformRef.current.x = wrapX(vw / 2 - (MAP_W / 2) * kMin, kMin);
+    transformRef.current.y = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
+
     setActiveRegion('world');
     applyTransform(true);
   };
@@ -236,7 +334,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const preset = REGION_PRESETS[key];
     if (!preset) return;
     setActiveRegion(key);
-    transformRef.current = { k: preset.k, x: preset.x, y: preset.y };
+
+    const vh = viewportSize.current.h;
+    const vw = viewportSize.current.w;
+    const kMin = vh / MAP_H;
+    const targetK = Math.max(kMin * preset.zoomMultiplier, preset.zoomMultiplier);
+
+    const targetX = vw / 2 - preset.cx * targetK;
+    const targetY = vh / 2 - preset.cy * targetK;
+
+    transformRef.current.k = targetK;
+    transformRef.current.x = wrapX(targetX, targetK);
+    transformRef.current.y = clampY(targetY, targetK, vh);
+
     applyTransform(true);
   };
 
@@ -247,7 +357,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (isSelected) return '#f59e0b';
 
       if (!countryMeta) {
-        return '#1a1f2b'; // Dark neutral for territories without official Street View
+        return '#1a1f2b';
       }
 
       const filterColor = activeFilterDef.getColor(countryMeta);
@@ -258,6 +368,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className="svg-map-wrapper"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -301,12 +412,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         <svg
           ref={svgRef}
           className="world-svg"
-          viewBox={`0 0 ${width} ${height}`}
-          preserveAspectRatio="xMidYMid meet"
+          style={{ width: '100%', height: '100%', display: 'block' }}
         >
-          {/* Deep Ocean Backdrop */}
-          <rect width={width} height={height} fill="#0b0e14" />
-
           {/* Map Group with Direct GPU CSS Transform */}
           <g
             ref={gRef}
@@ -315,73 +422,81 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               willChange: 'transform'
             }}
           >
-            {countryPathData.map(({ pathD, countryMeta, id, name }) => {
-              if (!pathD) return null;
+            {/* Seamless ocean backdrop across all periodic world cycles */}
+            <rect x={-2 * MAP_W} y={0} width={7 * MAP_W} height={MAP_H} fill="#0b0e14" />
 
-              const isHovered =
-                hoveredCountry &&
-                (hoveredCountry.id === countryMeta?.id ||
-                  (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
-              const isSelected =
-                selectedCountry &&
-                (selectedCountry.id === countryMeta?.id ||
-                  (countryMeta && selectedCountry.iso2 === countryMeta.iso2));
+            {/* Continuous periodic world copies */}
+            {WORLD_COPIES.map((copyIdx) => (
+              <g key={copyIdx} transform={`translate(${copyIdx * MAP_W}, 0)`}>
+                {countryPathData.map(({ pathD, countryMeta, id, name }) => {
+                  if (!pathD) return null;
 
-              const fillColor = getCountryFill(countryMeta, !!isHovered, !!isSelected);
+                  const isHovered =
+                    hoveredCountry &&
+                    (hoveredCountry.id === countryMeta?.id ||
+                      (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
+                  const isSelected =
+                    selectedCountry &&
+                    (selectedCountry.id === countryMeta?.id ||
+                      (countryMeta && selectedCountry.iso2 === countryMeta.iso2));
 
-              return (
-                <path
-                  key={id || name}
-                  d={pathD}
-                  className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
-                  fill={fillColor}
-                  onMouseEnter={() => {
-                    if (isDragging.current) return;
-                    if (countryMeta) {
-                      setHoveredCountry(countryMeta);
-                    } else {
-                      setHoveredCountry({
-                        id: String(id),
-                        iso2: '',
-                        iso3: '',
-                        name,
-                        nameZh: name,
-                        flag: '🌐',
-                        continent: 'Asia',
-                        region: '無官方街景覆蓋',
-                        drivingSide: 'right',
-                        coverage: 'none',
-                        cameraGens: [],
-                        plateType: 'white',
-                        plateDesc: '無街景',
-                        roadLines: ['white_dashed'],
-                        roadLinesDesc: '無街景',
-                        carMeta: ['none'],
-                        carMetaDesc: '無街景',
-                        poleDesc: '無資料',
-                        bollardDesc: '無資料',
-                        language: '當地語言',
-                        tld: '',
-                        keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
-                      });
-                    }
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Prevent accidental click when dragging/panning
-                    if (hasDragged.current) return;
-                    if (countryMeta) {
-                      onSelectCountry(countryMeta);
-                    }
-                  }}
-                />
-              );
-            })}
+                  const fillColor = getCountryFill(countryMeta, !!isHovered, !!isSelected);
+
+                  return (
+                    <path
+                      key={`${copyIdx}-${id || name}`}
+                      d={pathD}
+                      className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                      fill={fillColor}
+                      onMouseEnter={() => {
+                        if (isDragging.current) return;
+                        if (countryMeta) {
+                          setHoveredCountry(countryMeta);
+                        } else {
+                          setHoveredCountry({
+                            id: String(id),
+                            iso2: '',
+                            iso3: '',
+                            name,
+                            nameZh: name,
+                            flag: '🌐',
+                            continent: 'Asia',
+                            region: '無官方街景覆蓋',
+                            drivingSide: 'right',
+                            coverage: 'none',
+                            cameraGens: [],
+                            plateType: 'white',
+                            plateDesc: '無街景',
+                            roadLines: ['white_dashed'],
+                            roadLinesDesc: '無街景',
+                            carMeta: ['none'],
+                            carMetaDesc: '無街景',
+                            poleDesc: '無資料',
+                            bollardDesc: '無資料',
+                            language: '當地語言',
+                            tld: '',
+                            keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
+                          });
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Prevent accidental click when dragging/panning
+                        if (hasDragged.current) return;
+                        if (countryMeta) {
+                          onSelectCountry(countryMeta);
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </g>
+            ))}
           </g>
         </svg>
       )}
 
-      {/* Floating Hover Tooltip with direct DOM ref positioning */}
+      {/* Floating Hover Tooltip */}
       {hoveredCountry && (
         <div ref={tooltipRef} className="map-tooltip">
           <div className="tooltip-header">

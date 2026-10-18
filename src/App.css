@@ -1,22 +1,24 @@
 .app-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
   background-color: var(--bg-main);
   color: var(--text-primary);
 }
 
 /* Header */
 .app-header {
-  height: 60px;
+  height: 52px;
+  min-height: 52px;
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  position: sticky;
-  top: 0;
+  padding: 0 20px;
   z-index: 40;
 }
 
@@ -134,7 +136,9 @@
   display: flex;
   position: relative;
   overflow: hidden;
-  height: calc(100vh - 60px);
+  height: calc(100vh - 52px);
+  height: calc(100dvh - 52px);
+  width: 100%;
 }
 
 /* Map Section */
@@ -145,18 +149,26 @@
   flex-direction: column;
   overflow: hidden;
   background-color: #0b0e14;
+  height: 100%;
+  width: 100%;
 }
 
-/* Filter Bar */
+/* Floating Filter Bar HUD */
 .filter-bar-container {
-  padding: 12px 20px;
-  background-color: rgba(24, 26, 32, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border-color);
-  z-index: 10;
+  position: absolute;
+  top: 14px;
+  left: 20px;
+  right: 20px;
+  padding: 10px 16px;
+  background-color: rgba(20, 24, 33, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  z-index: 25;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .filter-pills-row {
@@ -383,7 +395,7 @@
 .filter-legend-card {
   position: absolute;
   left: 20px;
-  top: 80px;
+  top: 105px;
   background-color: rgba(24, 26, 32, 0.9);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
