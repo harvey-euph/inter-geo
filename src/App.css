@@ -998,33 +998,147 @@
   color: var(--text-secondary);
 }
 
-.precision-slider-val {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 12px;
+.precision-reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.precision-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .precision-gauge-track {
   position: relative;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
   overflow: visible;
-  cursor: pointer;
   touch-action: none;
   user-select: none;
-  transition: background 0.15s ease;
+  margin: 18px 0 20px 0;
 }
 
-.precision-gauge-track:hover {
-  background: rgba(255, 255, 255, 0.18);
+.track-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  transition: width 0.08s ease-out, left 0.08s ease-out;
+}
+
+.track-zone.zone-l1 {
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.4), rgba(56, 189, 248, 0.7));
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+.track-zone.zone-l2 {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.45), rgba(16, 185, 129, 0.75));
+}
+
+.track-zone.zone-l3 {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.45), rgba(245, 158, 11, 0.8));
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
 }
 
 .precision-gauge-fill {
-  height: 100%;
-  border-radius: 4px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 5px;
+  opacity: 0.35;
   pointer-events: none;
   transition: width 0.08s ease-out;
+}
+
+.threshold-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  z-index: 6;
+  touch-action: none;
+  user-select: none;
+  transition: transform 0.1s ease;
+}
+
+.threshold-handle:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  z-index: 8;
+}
+
+.threshold-handle.dragging {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.22);
+  z-index: 12;
+}
+
+.threshold-notch {
+  width: 6px;
+  height: 18px;
+  border-radius: 3px;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  transition: all 0.15s ease;
+}
+
+.threshold-handle.handle-l2 .threshold-notch {
+  background: #10b981;
+  border: 1px solid #34d399;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.threshold-handle.handle-l3 .threshold-notch {
+  background: #f59e0b;
+  border: 1px solid #fbbf24;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+.threshold-tag {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 2px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.threshold-tag.tag-l2 {
+  background: rgba(16, 185, 129, 0.95);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.threshold-tag.tag-l3 {
+  background: rgba(245, 158, 11, 0.95);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .precision-gauge-thumb {
@@ -1034,12 +1148,12 @@
   height: 18px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid;
+  border: 2.5px solid;
   transform: translate(-50%, -50%);
   cursor: grab;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
-  z-index: 10;
+  z-index: 9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1048,14 +1162,16 @@
 }
 
 .precision-gauge-thumb:hover {
-  transform: translate(-50%, -50%) scale(1.15);
+  transform: translate(-50%, -50%) scale(1.18);
+  z-index: 10;
 }
 
 .precision-gauge-thumb:active,
 .precision-gauge-thumb.dragging {
   cursor: grabbing;
-  transform: translate(-50%, -50%) scale(1.25);
-  box-shadow: 0 0 12px currentColor;
+  transform: translate(-50%, -50%) scale(1.28);
+  box-shadow: 0 0 14px currentColor;
+  z-index: 15;
 }
 
 .thumb-grip-dot {
@@ -1066,15 +1182,20 @@
   pointer-events: none;
 }
 
-.gauge-marker {
+.zoom-tag {
   position: absolute;
-  top: -2px;
-  width: 2px;
-  height: 12px;
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: 1px;
+  top: 100%;
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
   pointer-events: none;
-  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .precision-snap-row {

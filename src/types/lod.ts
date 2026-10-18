@@ -36,14 +36,29 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
   }
 ];
 
+export interface CustomLODThresholds {
+  l2Threshold: number;
+  l3Threshold: number;
+}
+
+export const DEFAULT_LOD_THRESHOLDS: CustomLODThresholds = {
+  l2Threshold: 3.2,
+  l3Threshold: 6.5
+};
+
 export const LOD_LEVEL_ORDER: Record<LODLevel, number> = {
   L1: 1,
   L2: 2,
   L3: 3
 };
 
-export function getLODLevel(k: number, maxLevel: LODLevel = 'L3'): LODLevel {
-  const calculated: LODLevel = k >= 6.5 ? 'L3' : k >= 3.2 ? 'L2' : 'L1';
+export function getLODLevel(
+  k: number,
+  maxLevel: LODLevel = 'L3',
+  thresholds: CustomLODThresholds = DEFAULT_LOD_THRESHOLDS
+): LODLevel {
+  const calculated: LODLevel =
+    k >= thresholds.l3Threshold ? 'L3' : k >= thresholds.l2Threshold ? 'L2' : 'L1';
 
   if (LOD_LEVEL_ORDER[calculated] > LOD_LEVEL_ORDER[maxLevel]) {
     return maxLevel;

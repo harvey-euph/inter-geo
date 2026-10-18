@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { Layers, ZoomIn, MapPin, SlidersHorizontal, Lock } from 'lucide-react';
-import { LOD_THRESHOLDS, type LODLevel } from '../types/lod';
+import { Layers, ZoomIn, MapPin, SlidersHorizontal, Lock, RotateCcw } from 'lucide-react';
+import { LOD_THRESHOLDS, DEFAULT_LOD_THRESHOLDS, type LODLevel, type CustomLODThresholds } from '../types/lod';
 
 interface PrecisionHUDProps {
   currentLOD: LODLevel;
   currentZoomK: number;
   maxLOD: LODLevel;
+  lodThresholds: CustomLODThresholds;
+  onUpdateThresholds: (thresholds: CustomLODThresholds) => void;
   onSetMaxLOD: (level: LODLevel) => void;
   onJumpToLOD: (level: LODLevel) => void;
   onZoomChange: (targetK: number) => void;
@@ -15,56 +17,67 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
   currentLOD,
   currentZoomK,
   maxLOD,
+  lodThresholds,
+  onUpdateThresholds,
   onSetMaxLOD,
   onJumpToLOD,
   onZoomChange
 }) => {
-  const [isDragging, setIsDragging] = useState(false);
+  const [activeDragTarget, setActiveDragTarget] = useState<'zoom' | 'l2' | 'l3' | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
   const currentThreshold = LOD_THRESHOLDS.find((t) => t.level === currentLOD) || LOD_THRESHOLDS[0];
 
-  // Calculate percentage of zoom scale within [1.0, 14.0]
-  const zoomPercent = Math.min(
-    100,
-    Math.max(0, ((currentZoomK - 1.0) / (14.0 - 1.0)) * 100)
-  );
+  const kToPercent = (k: number) => Math.min(100, Math.max(0, ((k - 1.0) / (14.0 - 1.0)) * 100));
 
-  const updateZoomFromPointer = (clientX: number) => {
-    if (!trackRef.current) return;
+  const zoomPercent = kToPercent(currentZoomK);
+  const l2Percent = kToPercent(lodThresholds.l2Threshold);
+  const l3Percent = kToPercent(lodThresholds.l3Threshold);
+
+  const getKFromClientX = (clientX: number): number => {
+    if (!trackRef.current) return 1.0;
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    const targetK = Number((1.0 + ratio * (14.0 - 1.0)).toFixed(1));
-    onZoomChange(targetK);
+    return Number((1.0 + ratio * (14.0 - 1.0)).toFixed(1));
   };
 
-  const handleThumbPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    setActiveDragTarget(target);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleThumbPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    updateZoomFromPointer(e.clientX);
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
+    if (activeDragTarget !== target) return;
+    const k = getKFromClientX(e.clientX);
+
+    if (target === 'zoom') {
+      onZoomChange(k);
+    } else if (target === 'l2') {
+      const clampedL2 = Math.min(Math.max(1.5, k), lodThresholds.l3Threshold - 0.5);
+      onUpdateThresholds({
+        ...lodThresholds,
+        l2Threshold: Number(clampedL2.toFixed(1))
+      });
+    } else if (target === 'l3') {
+      const clampedL3 = Math.min(Math.max(lodThresholds.l2Threshold + 0.5, k), 13.0);
+      onUpdateThresholds({
+        ...lodThresholds,
+        l3Threshold: Number(clampedL3.toFixed(1))
+      });
+    }
   };
 
-  const handleThumbPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDragging) {
-      setIsDragging(false);
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activeDragTarget) {
+      setActiveDragTarget(null);
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         // ignore
       }
     }
-  };
-
-  const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only handle track click if not dragging
-    if (isDragging) return;
-    updateZoomFromPointer(e.clientX);
   };
 
   return (
@@ -120,66 +133,119 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         </div>
       </div>
 
-      {/* Draggable Continuous Zoom & Level Slider Bar */}
+      {/* Multi-Point Draggable Slider (Thresholds + Zoom) */}
       <div className="precision-gauge-container">
         <div className="precision-slider-header">
           <div className="precision-slider-label">
             <SlidersHorizontal size={11} color="var(--text-muted)" />
-            <span>滑動調節倍率：</span>
+            <span>拖動門檻點或倍率：</span>
           </div>
-          <span className="precision-slider-val" style={{ color: currentThreshold.color }}>
-            {currentZoomK.toFixed(1)}×
-          </span>
+          <button
+            type="button"
+            className="precision-reset-btn"
+            onClick={() => onUpdateThresholds(DEFAULT_LOD_THRESHOLDS)}
+            title="恢復預設門檻 (L2: 3.2x, L3: 6.5x)"
+          >
+            <RotateCcw size={10} />
+            <span>重設門檻</span>
+          </button>
         </div>
 
-        {/* Track: Clicking anywhere jumps/snaps cleanly */}
+        {/* Multi-Handle Interactive Track */}
         <div
           ref={trackRef}
           className="precision-gauge-track"
-          onClick={handleTrackClick}
-          title="點擊軌道跳轉倍率，或拖動圓形滑塊"
+          title="分別拖動綠色 L2 門檻點、橘色 L3 門檻點、或圓形倍率點"
         >
-          {/* Active Fill */}
+          {/* Level Zone Color Bands on Track */}
+          <div
+            className="track-zone zone-l1"
+            style={{
+              left: 0,
+              width: `${l2Percent}%`
+            }}
+            title={`L1 國家區間 (1.0x ~ ${lodThresholds.l2Threshold}x)`}
+          />
+          <div
+            className="track-zone zone-l2"
+            style={{
+              left: `${l2Percent}%`,
+              width: `${Math.max(0, l3Percent - l2Percent)}%`
+            }}
+            title={`L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`}
+          />
+          <div
+            className="track-zone zone-l3"
+            style={{
+              left: `${l3Percent}%`,
+              width: `${Math.max(0, 100 - l3Percent)}%`
+            }}
+            title={`L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ 14.0x)`}
+          />
+
+          {/* Current Zoom Fill Overlay */}
           <div
             className="precision-gauge-fill"
             style={{
               width: `${zoomPercent}%`,
-              backgroundColor: currentThreshold.color,
-              boxShadow: `0 0 10px ${currentThreshold.color}88`
+              backgroundColor: currentThreshold.color
             }}
           />
 
-          {/* Interactive Drag Handle Thumb (專屬拖動對象) */}
+          {/* POINT 1: L2 Threshold Draggable Handle (門檻點 1) */}
           <div
-            className={`precision-gauge-thumb ${isDragging ? 'dragging' : ''}`}
+            className={`threshold-handle handle-l2 ${activeDragTarget === 'l2' ? 'dragging' : ''}`}
+            style={{ left: `${l2Percent}%` }}
+            onPointerDown={(e) => handlePointerDown(e, 'l2')}
+            onPointerMove={(e) => handlePointerMove(e, 'l2')}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            title={`拖動調整 L2 門檻 (目前: ${lodThresholds.l2Threshold}x)`}
+          >
+            <div className="threshold-tag tag-l2">
+              L2 {lodThresholds.l2Threshold}×
+            </div>
+            <div className="threshold-notch notch-l2" />
+          </div>
+
+          {/* POINT 2: L3 Threshold Draggable Handle (門檻點 2) */}
+          <div
+            className={`threshold-handle handle-l3 ${activeDragTarget === 'l3' ? 'dragging' : ''}`}
+            style={{ left: `${l3Percent}%` }}
+            onPointerDown={(e) => handlePointerDown(e, 'l3')}
+            onPointerMove={(e) => handlePointerMove(e, 'l3')}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            title={`拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x)`}
+          >
+            <div className="threshold-tag tag-l3">
+              L3 {lodThresholds.l3Threshold}×
+            </div>
+            <div className="threshold-notch notch-l3" />
+          </div>
+
+          {/* POINT 3: Current Map Zoom Magnification Handle (當前倍率點) */}
+          <div
+            className={`precision-gauge-thumb ${activeDragTarget === 'zoom' ? 'dragging' : ''}`}
             style={{
               left: `${zoomPercent}%`,
               borderColor: currentThreshold.color,
               color: currentThreshold.color
             }}
-            onPointerDown={handleThumbPointerDown}
-            onPointerMove={handleThumbPointerMove}
-            onPointerUp={handleThumbPointerUp}
-            onPointerCancel={handleThumbPointerUp}
-            title="拖動滑塊調整倍率"
+            onPointerDown={(e) => handlePointerDown(e, 'zoom')}
+            onPointerMove={(e) => handlePointerMove(e, 'zoom')}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            title={`拖動調整地圖縮放倍率 (目前: ${currentZoomK.toFixed(1)}x)`}
           >
             <div className="thumb-grip-dot" />
+            <div className="zoom-tag" style={{ borderColor: currentThreshold.color }}>
+              {currentZoomK.toFixed(1)}×
+            </div>
           </div>
-
-          {/* Threshold Boundary Visual Markers */}
-          <div
-            className="gauge-marker"
-            style={{ left: '16.92%' }}
-            title="L2 門檻 (3.2x)"
-          />
-          <div
-            className="gauge-marker"
-            style={{ left: '42.31%' }}
-            title="L3 門檻 (6.5x)"
-          />
         </div>
 
-        {/* Level 倍率切換按鈕 (清楚好按，不干擾拖動) */}
+        {/* Level 倍率快捷按鈕 */}
         <div className="precision-snap-row">
           <button
             type="button"
@@ -188,7 +254,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
               e.stopPropagation();
               onZoomChange(1.0);
             }}
-            title="點擊切換至 L1 初始倍率 (1.0x)"
+            title="點擊切換至 1.0x (L1)"
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#38bdf8' }} />
             <span>1.0× (L1)</span>
@@ -199,12 +265,12 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             className={`precision-snap-chip ${currentLOD === 'L2' ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(3.2);
+              onZoomChange(lodThresholds.l2Threshold);
             }}
-            title="點擊切換至 L2 都道府縣門檻 (3.2x)"
+            title={`點擊切換至目前 L2 門檻 (${lodThresholds.l2Threshold}x)`}
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#10b981' }} />
-            <span>3.2× (L2)</span>
+            <span>{lodThresholds.l2Threshold}× (L2)</span>
           </button>
 
           <button
@@ -212,12 +278,12 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             className={`precision-snap-chip ${currentLOD === 'L3' ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(6.5);
+              onZoomChange(lodThresholds.l3Threshold);
             }}
-            title="點擊切換至 L3 市區町村門檻 (6.5x)"
+            title={`點擊切換至目前 L3 門檻 (${lodThresholds.l3Threshold}x)`}
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#f59e0b' }} />
-            <span>6.5× (L3)</span>
+            <span>{lodThresholds.l3Threshold}× (L3)</span>
           </button>
 
           <button
