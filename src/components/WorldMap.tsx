@@ -583,54 +583,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [lodLevel]
   );
 
-  // One-click Jump to specific Level of Detail (LOD)
-  const handleJumpToLOD = (targetLevel: LODLevel) => {
-    const vh = viewportSize.current.h;
-    const vw = viewportSize.current.w;
-    const kMin = vh / MAP_H;
-
-    let targetK = 1.0;
-    let cx = MAP_W / 2;
-    let cy = MAP_H / 2;
-
-    if (targetLevel === 'L1') {
-      targetK = Math.max(kMin, 1.0);
-      cx = MAP_W / 2;
-      cy = MAP_H / 2;
-    } else if (targetLevel === 'L2') {
-      let l2T = lodThresholds.l2Threshold;
-      if (!isFinite(l2T)) {
-        l2T = DEFAULT_LOD_THRESHOLDS.l2Threshold;
-        setLodThresholds((prev) => ({ ...prev, l2Threshold: DEFAULT_LOD_THRESHOLDS.l2Threshold }));
-      }
-      targetK = Math.max(l2T + 0.3, 3.5);
-      cx = 882.0; // Center of Japan
-      cy = 392.0;
-    } else if (targetLevel === 'L3') {
-      let l3T = lodThresholds.l3Threshold;
-      if (!isFinite(l3T)) {
-        l3T = DEFAULT_LOD_THRESHOLDS.l3Threshold;
-        setLodThresholds((prev) => ({
-          l2Threshold: isFinite(prev.l2Threshold) ? prev.l2Threshold : DEFAULT_LOD_THRESHOLDS.l2Threshold,
-          l3Threshold: DEFAULT_LOD_THRESHOLDS.l3Threshold
-        }));
-      }
-      targetK = Math.max(l3T + 0.5, 7.8);
-      cx = 888.2; // Tokyo & Kanto Region
-      cy = 393.7;
-    }
-
-    const targetX = vw / 2 - cx * targetK;
-    const targetY = vh / 2 - cy * targetK;
-
-    transformRef.current.k = targetK;
-    transformRef.current.x = wrapX(targetX, targetK);
-    transformRef.current.y = clampY(targetY, targetK, vh);
-
-    setZoomK(Number(targetK.toFixed(1)));
-    setLodLevel(targetLevel);
-    applyTransform(true);
-  };
 
   const handleSelectRegion = (key: string) => {
     const preset = REGION_PRESETS[key];
@@ -1134,7 +1086,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         currentZoomK={zoomK}
         lodThresholds={lodThresholds}
         onUpdateThresholds={handleUpdateThresholds}
-        onJumpToLOD={handleJumpToLOD}
         onZoomChange={handleSliderZoom}
       />
 
