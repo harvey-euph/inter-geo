@@ -1200,7 +1200,7 @@
 
 .precision-snap-row {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   justify-content: space-between;
   margin-top: 4px;
 }
@@ -1210,12 +1210,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 4px 2px;
+  gap: 2.5px;
+  padding: 4px 1px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 9.5px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
   cursor: pointer;
@@ -1230,9 +1230,9 @@
 }
 
 .precision-snap-chip.active {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
-  border-color: currentColor;
+  border-color: rgba(255, 255, 255, 0.45);
   font-weight: 700;
 }
 

@@ -8,7 +8,7 @@ import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry } from '../data/countries';
-import { getLODLevel, LOD_LEVEL_ORDER, DEFAULT_LOD_THRESHOLDS } from '../types/lod';
+import { getLODLevel, LOD_LEVEL_ORDER, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThresholds } from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
@@ -482,7 +482,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const kMin = vh / MAP_H;
 
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
-    const newK = Math.min(Math.max(k * zoomFactor, kMin), 14);
+    const newK = Math.min(Math.max(k * zoomFactor, kMin), MAX_ZOOM_K);
 
     // Zoom anchored to mouse position
     const ratio = newK / k;
@@ -508,7 +508,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const vh = viewportSize.current.h;
     const vw = viewportSize.current.w;
     const kMin = vh / MAP_H;
-    const newK = Math.min(Math.max(k * factor, kMin), 14);
+    const newK = Math.min(Math.max(k * factor, kMin), MAX_ZOOM_K);
 
     const cx = vw / 2;
     const cy = vh / 2;
@@ -550,7 +550,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const vh = viewportSize.current.h;
       const vw = viewportSize.current.w;
       const kMin = vh / MAP_H;
-      const newK = Math.min(Math.max(targetK, kMin), 14);
+      const newK = Math.min(Math.max(targetK, kMin), MAX_ZOOM_K);
 
       const cx = vw / 2;
       const cy = vh / 2;

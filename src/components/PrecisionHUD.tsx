@@ -1,6 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Layers, ZoomIn, MapPin, SlidersHorizontal, Lock, RotateCcw } from 'lucide-react';
-import { LOD_THRESHOLDS, DEFAULT_LOD_THRESHOLDS, type LODLevel, type CustomLODThresholds } from '../types/lod';
+import {
+  LOD_THRESHOLDS,
+  DEFAULT_LOD_THRESHOLDS,
+  MIN_ZOOM_K,
+  MAX_ZOOM_K,
+  type LODLevel,
+  type CustomLODThresholds
+} from '../types/lod';
 
 interface PrecisionHUDProps {
   currentLOD: LODLevel;
@@ -28,17 +35,29 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
 
   const currentThreshold = LOD_THRESHOLDS.find((t) => t.level === currentLOD) || LOD_THRESHOLDS[0];
 
-  const kToPercent = (k: number) => Math.min(100, Math.max(0, ((k - 1.0) / (14.0 - 1.0)) * 100));
+  // Logarithmic scaling: ensures threshold points (3.2x, 6.5x) have plenty of room to drag even with max 120x
+  const kToPercent = (k: number) => {
+    const clamped = Math.min(MAX_ZOOM_K, Math.max(MIN_ZOOM_K, k));
+    const ratio = Math.log(clamped / MIN_ZOOM_K) / Math.log(MAX_ZOOM_K / MIN_ZOOM_K);
+    return Math.min(100, Math.max(0, ratio * 100));
+  };
 
   const zoomPercent = kToPercent(currentZoomK);
   const l2Percent = kToPercent(lodThresholds.l2Threshold);
   const l3Percent = kToPercent(lodThresholds.l3Threshold);
 
   const getKFromClientX = (clientX: number): number => {
-    if (!trackRef.current) return 1.0;
+    if (!trackRef.current) return MIN_ZOOM_K;
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    return Number((1.0 + ratio * (14.0 - 1.0)).toFixed(1));
+    const rawK = MIN_ZOOM_K * Math.exp(ratio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
+    if (rawK < 10) {
+      return Number(rawK.toFixed(1));
+    } else if (rawK < 50) {
+      return Number((Math.round(rawK * 2) / 2).toFixed(1));
+    } else {
+      return Math.round(rawK);
+    }
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
@@ -61,7 +80,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         l2Threshold: Number(clampedL2.toFixed(1))
       });
     } else if (target === 'l3') {
-      const clampedL3 = Math.min(Math.max(lodThresholds.l2Threshold + 0.5, k), 13.0);
+      const clampedL3 = Math.min(Math.max(lodThresholds.l2Threshold + 0.5, k), 40.0);
       onUpdateThresholds({
         ...lodThresholds,
         l3Threshold: Number(clampedL3.toFixed(1))
@@ -180,7 +199,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
               left: `${l3Percent}%`,
               width: `${Math.max(0, 100 - l3Percent)}%`
             }}
-            title={`L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ 14.0x)`}
+            title={`L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`}
           />
 
           {/* Current Zoom Fill Overlay */}
@@ -249,15 +268,15 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         <div className="precision-snap-row">
           <button
             type="button"
-            className={`precision-snap-chip ${currentLOD === 'L1' ? 'active' : ''}`}
+            className={`precision-snap-chip ${currentLOD === 'L1' && currentZoomK < lodThresholds.l2Threshold ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(1.0);
+              onZoomChange(MIN_ZOOM_K);
             }}
-            title="點擊切換至 1.0x (L1)"
+            title="點擊切換至 1.0x (L1 全球國家視野)"
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#38bdf8' }} />
-            <span>1.0× (L1)</span>
+            <span>1.0×</span>
           </button>
 
           <button
@@ -270,12 +289,12 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             title={`點擊切換至目前 L2 門檻 (${lodThresholds.l2Threshold}x)`}
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#10b981' }} />
-            <span>{lodThresholds.l2Threshold}× (L2)</span>
+            <span>{lodThresholds.l2Threshold}×</span>
           </button>
 
           <button
             type="button"
-            className={`precision-snap-chip ${currentLOD === 'L3' ? 'active' : ''}`}
+            className={`precision-snap-chip ${currentLOD === 'L3' && currentZoomK < 50 ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               onZoomChange(lodThresholds.l3Threshold);
@@ -283,19 +302,31 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             title={`點擊切換至目前 L3 門檻 (${lodThresholds.l3Threshold}x)`}
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#f59e0b' }} />
-            <span>{lodThresholds.l3Threshold}× (L3)</span>
+            <span>{lodThresholds.l3Threshold}×</span>
           </button>
 
           <button
             type="button"
-            className="precision-snap-chip"
+            className={`precision-snap-chip ${Math.abs(currentZoomK - 100) < 1 ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(14.0);
+              onZoomChange(100.0);
             }}
-            title="點擊切換至最大縮放倍率 (14.0x)"
+            title="點擊切換至 100x 超高精細倍率"
           >
-            <span>14.0×</span>
+            <span>100×</span>
+          </button>
+
+          <button
+            type="button"
+            className={`precision-snap-chip ${Math.abs(currentZoomK - MAX_ZOOM_K) < 0.5 ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoomChange(MAX_ZOOM_K);
+            }}
+            title={`點擊切換至最大縮放極限 (${MAX_ZOOM_K}x)`}
+          >
+            <span>{MAX_ZOOM_K}×</span>
           </button>
         </div>
       </div>

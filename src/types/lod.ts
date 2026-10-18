@@ -9,6 +9,9 @@ export interface LODThreshold {
   color: string;
 }
 
+export const MIN_ZOOM_K = 1.0;
+export const MAX_ZOOM_K = 120.0;
+
 export const LOD_THRESHOLDS: LODThreshold[] = [
   {
     level: 'L1',
@@ -29,7 +32,7 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
   {
     level: 'L3',
     minK: 6.5,
-    maxK: 14.0,
+    maxK: MAX_ZOOM_K,
     labelZh: 'L3 · 市區町村',
     sublabelZh: '1900+ 市町村細緻行政區與海岸線',
     color: '#f59e0b'
