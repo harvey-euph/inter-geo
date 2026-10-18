@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { geoMercator, geoPath } from 'd3-geo';
+import { geoMercator, geoPath, geoArea } from 'd3-geo';
 import * as topojson from 'topojson-client';
 import type { Topology, Objects } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
@@ -53,6 +53,36 @@ const MERCATOR_SCALE = MAP_W / (2 * Math.PI); // 159.15494309
 
 // World copies rendered side-by-side for infinite continuous periodic wrapping
 const WORLD_COPIES = [-1, 0, 1, 2, 3];
+
+// Safeguard to ensure any inverted polygon winding (which causes D3 to project the entire globe) is corrected
+function normalizeFeatureWinding<P>(feature: Feature<Geometry, P>): Feature<Geometry, P> {
+  if (!feature.geometry) return feature;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const area = geoArea(feature as any);
+    if (area > 2 * Math.PI) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const geom = feature.geometry as any;
+      if (geom.type === 'Polygon') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        geom.coordinates = geom.coordinates.map((ring: any) => ring.slice().reverse());
+      } else if (geom.type === 'MultiPolygon') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        geom.coordinates = geom.coordinates.map((poly: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (geoArea({ type: 'Polygon', coordinates: poly } as any) > 2 * Math.PI) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return poly.map((ring: any) => ring.slice().reverse());
+          }
+          return poly;
+        });
+      }
+    }
+  } catch {
+    // fallback gracefully
+  }
+  return feature;
+}
 
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
@@ -236,7 +266,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           topology.objects.japan
         ) as unknown as { features: Feature<Geometry, { id: number; nam: string; nam_ja: string }>[] };
         if (prefsGeo && prefsGeo.features) {
-          setJapanPrefectureFeatures(prefsGeo.features);
+          const sanitized = prefsGeo.features.map(normalizeFeatureWinding);
+          setJapanPrefectureFeatures(sanitized);
         }
       })
       .catch((err) => {
@@ -253,7 +284,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           topology.objects.municipalities
         ) as unknown as { features: Feature<Geometry, { code: string; pref: string; city: string; gun?: string }>[] };
         if (munisGeo && munisGeo.features) {
-          setJapanMunicipalityFeatures(munisGeo.features);
+          const sanitized = munisGeo.features.map(normalizeFeatureWinding);
+          setJapanMunicipalityFeatures(sanitized);
         }
       })
       .catch((err) => {
