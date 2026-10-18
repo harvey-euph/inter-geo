@@ -187,7 +187,69 @@ export const COUNTRIES_DATA: CountryData[] = [
       "路邊啤酒廣告招牌密度極高（Cambodia Beer, Anchor, Ganzberg）",
       "高腳木屋與深紅沃土路面"
     ],
-    confusedWith: ["Thailand", "Laos"]
+    confusedWith: ["Thailand", "Laos", "Vietnam"]
+  },
+  {
+    id: "704",
+    iso2: "VN",
+    iso3: "VNM",
+    name: "Vietnam",
+    nameZh: "越南",
+    flag: "🇻🇳",
+    continent: "Asia",
+    region: "東南亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白底黑字長方牌或方牌，前長後方；商用與機車常見黃底黑字牌",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "道路中央常有黃色雙實線或單黃線，路緣有白實線",
+    carMeta: ["none"],
+    carMetaDesc: "Gen 4 車輛與景點 Trekker 背包客步行街景，車頭多無明顯特徵",
+    poleTypes: ["standard"],
+    poleDesc: "圓柱形水泥電桿，城市街頭纏繞著極為壯觀、密如蛛網的黑色電纜線束",
+    bollardDesc: "紅白相間或紅黑相間之方形／圓柱水泥警示矮墩",
+    language: "越南語（國語字 Tiếng Việt，拉丁字母加上豐富的聲調符號如 đ, ă, â, ê, ô, ơ, ư）",
+    tld: ".vn",
+    keyHints: [
+      "靠右行駛 (Right Drive) + 震撼級密度的摩托車大軍！",
+      "招牌文字充滿獨特國語字變音記號（如 Phở, Đà Nẵng, Cà phê）",
+      "街道常懸掛紅底金黃五角星國旗與鐮刀鐵鎚黨旗",
+      "極度狹窄細長的深進透天洋房（筒房 Nhà ống）"
+    ],
+    confusedWith: ["Cambodia", "Thailand", "Laos", "Taiwan"]
+  },
+  {
+    id: "418",
+    iso2: "LA",
+    iso3: "LAO",
+    name: "Laos",
+    nameZh: "寮國 (老撾)",
+    flag: "🇱🇦",
+    continent: "Asia",
+    region: "東南亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "yellow_both",
+    plateDesc: "私家車常見黃底黑字雙行方牌，上方有寮文字母標示省份",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "中央單黃虛線或白虛線，路面品質普遍斑駁乾燥",
+    carMeta: ["none"],
+    carMetaDesc: "Gen 3 街景車，無特殊外掛車架",
+    poleTypes: ["standard"],
+    poleDesc: "八角形或圓形水泥電桿",
+    bollardDesc: "紅白相間圓頂水泥矮墩",
+    language: "寮語（Lao，字母與泰文極為相似，但線條筆畫更圓弧圓潤）",
+    tld: ".la",
+    keyHints: [
+      "靠右行駛（Right Drive，東南亞中與左行的泰國最快區分指標！）",
+      "寮文字母線條極為圓潤弧形，如同一顆顆圓圓的小豆子",
+      "路旁隨處可見 Beerlao（寮國啤酒）黃底紅字經典招牌",
+      "湄公河沿岸熱帶山林風情、法式殖民洋樓與寺廟"
+    ],
+    confusedWith: ["Thailand", "Cambodia", "Vietnam"]
   },
   {
     id: "458",
@@ -1505,6 +1567,68 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Cyprus", "Italy", "Turkey"]
   },
   {
+    id: "196",
+    iso2: "CY",
+    iso3: "CYP",
+    name: "Cyprus",
+    nameZh: "賽普勒斯",
+    flag: "🇨🇾",
+    continent: "Europe",
+    region: "南歐/地中海",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "標準歐盟藍條車牌（前後皆白）；但觀光出租車（Rental Car）為醒目的『紅色車牌 (Red Plate, Z字開頭)』！",
+    roadLines: ["white_dashed", "white_solid", "yellow_single"],
+    roadLinesDesc: "中央全白虛線或實線，城鎮路緣帶有英式禁止停車單黃線或雙黃線",
+    carMeta: ["none"],
+    carMetaDesc: "標準 Google 車，地中海陽光明媚強烈",
+    poleTypes: ["wooden"],
+    poleDesc: "英式木質電桿，頂端帶有黑色金屬橫架或斜拉金屬線 (Stay wire)",
+    bollardDesc: "白色圓柱形防撞警示柱，嵌有紅色/白色長方形反光片",
+    language: "希臘語（Ελληνικά）與英語雙語路牌；北部地區使用土耳其語（Türkçe）",
+    tld: ".cy",
+    keyHints: [
+      "歐洲極少數『靠左行駛 (Left Drive)』國家（全歐僅英、愛、馬、賽 4 國！）",
+      "希臘字母招牌 + 靠左行駛 ＝ 100% 絕對是賽普勒斯！",
+      "醒目的『紅色出租車牌 (Red Rental Plate)』是經典秒殺特徵",
+      "英式道路標誌與 Transport 字體、地中海乾燥灌木丘陵與白牆平頂房"
+    ],
+    confusedWith: ["Greece", "Malta", "United Kingdom", "Turkey"]
+  },
+  {
+    id: "470",
+    iso2: "MT",
+    iso3: "MLT",
+    name: "Malta",
+    nameZh: "馬爾他",
+    flag: "🇲🇹",
+    continent: "Europe",
+    region: "南歐/地中海",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟藍條白牌，帶有『M』國碼",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "道路標線全白，狹窄蜿蜒的石板路與城鎮窄巷",
+    carMeta: ["none"],
+    carMetaDesc: "標準 Google 車",
+    poleTypes: ["metal", "standard"],
+    poleDesc: "金屬柱或嵌於石牆上的電線支架",
+    bollardDesc: "黑白相間或金屬警示矮柱",
+    language: "馬爾他語（Malti，獨特的閃語族語源拉丁文字，如 ħ, ċ, ġ, ż）與英語雙官方語言",
+    tld: ".mt",
+    keyHints: [
+      "靠左行駛 (Left Drive) 的歐洲地中海微型島國！",
+      "全島清一色暖黃色蜂蜜石灰岩 (Globigerina Limestone) 建築！",
+      "彩色封閉式木造凸窗陽台 (Gallarija) 極度搶眼",
+      "英語與馬爾他語雙語路標，濃厚英倫殖民與地中海交融氣息"
+    ],
+    confusedWith: ["Cyprus", "Italy", "United Kingdom", "Greece"]
+  },
+  {
     id: "792",
     iso2: "TR",
     iso3: "TUR",
@@ -2780,7 +2904,28 @@ const NAME_ALIASES: Record<string, string> = {
   'hk': '344',
   // Tunisia
   'tunisia': '788',
-  'tn': '788'
+  'tn': '788',
+  // Vietnam
+  'vietnam': '704',
+  'viet nam': '704',
+  'vn': '704',
+  'vnm': '704',
+  // Cyprus & Northern Cyprus (both polygons map to Cyprus 196)
+  'cyprus': '196',
+  'cy': '196',
+  'cyp': '196',
+  'n. cyprus': '196',
+  'northern cyprus': '196',
+  'north cyprus': '196',
+  // Laos
+  'laos': '418',
+  'lao': '418',
+  'la': '418',
+  'lao pdr': '418',
+  // Malta
+  'malta': '470',
+  'mt': '470',
+  'mlt': '470'
 };
 
 // Flexible lookup helper: matches numeric ISO, names, Alpha codes, or aliases
