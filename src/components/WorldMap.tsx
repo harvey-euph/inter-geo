@@ -11,6 +11,7 @@ import { findCountry } from '../data/countries';
 
 interface WorldMapProps {
   activeFilterId: string;
+  isFilterExpanded?: boolean;
   selectedCountry: CountryData | null;
   onSelectCountry: (country: CountryData | null) => void;
   hoveredCountry: CountryData | null;
@@ -46,6 +47,7 @@ const WORLD_COPIES = [-1, 0, 1, 2, 3];
 
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
+  isFilterExpanded = false,
   selectedCountry,
   onSelectCountry,
   hoveredCountry,
@@ -534,7 +536,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       )}
 
       {/* Filter Legend Card */}
-      <div className="filter-legend-card">
+      <div className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''}`}>
         <div className="legend-title">
           <Compass size={14} color="#38bdf8" />
           <span>{activeFilterDef.nameZh}</span>

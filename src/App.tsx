@@ -10,6 +10,7 @@ import './App.css';
 
 export function App() {
   const [activeFilterId, setActiveFilterId] = useState<string>('none');
+  const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
@@ -30,8 +31,12 @@ export function App() {
 
   return (
     <div className="app-layout">
-      {/* Top Navigation */}
+      {/* Top Navigation Headline with Collapsed Filters */}
       <Header
+        activeFilterId={activeFilterId}
+        onSelectFilter={(filterId) => setActiveFilterId(filterId)}
+        isFilterExpanded={isFilterExpanded}
+        onToggleFilterExpanded={() => setIsFilterExpanded((prev) => !prev)}
         onSelectCountry={(country) => setSelectedCountry(country)}
         onOpenQuiz={() => setIsQuizOpen(true)}
       />
@@ -39,15 +44,18 @@ export function App() {
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
-          {/* Top Filter Bar */}
+          {/* Collapsible Floating Filter Bar Window */}
           <FilterBar
             activeFilterId={activeFilterId}
             onSelectFilter={(filterId) => setActiveFilterId(filterId)}
+            isExpanded={isFilterExpanded}
+            onCollapse={() => setIsFilterExpanded(false)}
           />
 
           {/* Clean Raw SVG World Map */}
           <WorldMap
             activeFilterId={activeFilterId}
+            isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
             onSelectCountry={(country) => setSelectedCountry(country)}
             hoveredCountry={hoveredCountry}
