@@ -939,19 +939,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       fill = '#38bdf8';
                       pathClass += ' selected';
                       stroke = '#38bdf8';
-                      strokeWidth = 1.0;
+                      strokeWidth = 0.8;
                     } else if (isHovered) {
                       // 1. 深橘 (Deep Orange) - 當前懸停的市區町村
                       fill = '#f97316';
                       pathClass += ' hovered hovered-deep';
                       stroke = '#ffffff';
-                      strokeWidth = 1.3;
+                      strokeWidth = 0.8;
                     } else if (isParentPref) {
                       // 2. 中橘 (Medium Orange) - 所屬都道府縣內其他市區町村
-                      fill = 'rgba(234, 88, 12, 0.42)';
+                      fill = 'rgba(234, 88, 12, 0.35)';
                       pathClass += ' parent-l2-hovered';
-                      stroke = 'rgba(251, 146, 60, 0.65)';
-                      strokeWidth = 0.45;
+                      stroke = 'rgba(251, 146, 60, 0.5)';
+                      strokeWidth = 0.35;
                     } else if (hoveredMunicipality) {
                       // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
                       fill = 'rgba(251, 146, 60, 0.13)';
@@ -997,52 +997,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       />
                     );
                   })}
-
-                {/* L2 Parent Prefecture Boundary Outline Glow at L3 */}
-                {lodLevel === 'L3' &&
-                  hoveredMunicipality &&
-                  (() => {
-                    const parentPref = prefecturePathData.find(
-                      (p) => p.nameJa === hoveredMunicipality.pref
-                    );
-                    if (!parentPref?.pathD) return null;
-                    return (
-                      <path
-                        key={`${copyIdx}-parent-pref-outline`}
-                        d={parentPref.pathD}
-                        fill="none"
-                        stroke="#f97316"
-                        strokeWidth={1.4}
-                        style={{
-                          pointerEvents: 'none',
-                          filter: 'drop-shadow(0 0 6px rgba(249, 115, 22, 0.75))'
-                        }}
-                      />
-                    );
-                  })()}
-
-                {/* Top Overlay for Hovered Municipality to ensure stroke is not obscured */}
-                {lodLevel === 'L3' &&
-                  hoveredMunicipality &&
-                  (() => {
-                    const targetMuni = municipalityPathData.find(
-                      (m) => m.code === hoveredMunicipality.code
-                    );
-                    if (!targetMuni?.pathD) return null;
-                    return (
-                      <path
-                        key={`${copyIdx}-hovered-muni-ontop`}
-                        d={targetMuni.pathD}
-                        fill="#f97316"
-                        stroke="#ffffff"
-                        strokeWidth={1.4}
-                        style={{
-                          pointerEvents: 'none',
-                          filter: 'drop-shadow(0 0 8px rgba(249, 115, 22, 0.95))'
-                        }}
-                      />
-                    );
-                  })()}
               </g>
             ))}
           </g>
