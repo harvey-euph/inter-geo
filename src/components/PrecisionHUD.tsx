@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Layers, ZoomIn, MapPin, SlidersHorizontal, Lock, RotateCcw } from 'lucide-react';
+import { Layers, ZoomIn, MapPin, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import {
   LOD_THRESHOLDS,
   DEFAULT_LOD_THRESHOLDS,
@@ -12,10 +12,8 @@ import {
 interface PrecisionHUDProps {
   currentLOD: LODLevel;
   currentZoomK: number;
-  maxLOD: LODLevel;
   lodThresholds: CustomLODThresholds;
   onUpdateThresholds: (thresholds: CustomLODThresholds) => void;
-  onSetMaxLOD: (level: LODLevel) => void;
   onJumpToLOD: (level: LODLevel) => void;
   onZoomChange: (targetK: number) => void;
 }
@@ -23,10 +21,8 @@ interface PrecisionHUDProps {
 export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
   currentLOD,
   currentZoomK,
-  maxLOD,
   lodThresholds,
   onUpdateThresholds,
-  onSetMaxLOD,
   onJumpToLOD,
   onZoomChange
 }) => {
@@ -35,30 +31,25 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
 
   const currentThreshold = LOD_THRESHOLDS.find((t) => t.level === currentLOD) || LOD_THRESHOLDS[0];
 
-  // Logarithmic scaling: ensures threshold points (3.2x, 6.5x) have plenty of room to drag even with max 120x
-  const kToPercent = (k: number) => {
+  const isL2Inf = !isFinite(lodThresholds.l2Threshold);
+  const isL3Inf = !isFinite(lodThresholds.l3Threshold);
+
+  // Continuous logarithmic scaling for zoom handle (0% ~ 100%)
+  const zoomPercent = Math.min(
+    100,
+    Math.max(0, (Math.log(currentZoomK / MIN_ZOOM_K) / Math.log(MAX_ZOOM_K / MIN_ZOOM_K)) * 100)
+  );
+
+  // Thresholds use 0% ~ 94% for finite zoom values, with 95% ~ 100% reserved as the Infinity (∞) snap zone
+  const thresholdKToPercent = (k: number) => {
+    if (!isFinite(k)) return 100;
     const clamped = Math.min(MAX_ZOOM_K, Math.max(MIN_ZOOM_K, k));
     const ratio = Math.log(clamped / MIN_ZOOM_K) / Math.log(MAX_ZOOM_K / MIN_ZOOM_K);
-    return Math.min(100, Math.max(0, ratio * 100));
+    return Math.min(94, Math.max(0, ratio * 94));
   };
 
-  const zoomPercent = kToPercent(currentZoomK);
-  const l2Percent = kToPercent(lodThresholds.l2Threshold);
-  const l3Percent = kToPercent(lodThresholds.l3Threshold);
-
-  const getKFromClientX = (clientX: number): number => {
-    if (!trackRef.current) return MIN_ZOOM_K;
-    const rect = trackRef.current.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    const rawK = MIN_ZOOM_K * Math.exp(ratio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
-    if (rawK < 10) {
-      return Number(rawK.toFixed(1));
-    } else if (rawK < 50) {
-      return Number((Math.round(rawK * 2) / 2).toFixed(1));
-    } else {
-      return Math.round(rawK);
-    }
-  };
+  const l2Percent = isL2Inf ? (isL3Inf ? 92 : 100) : thresholdKToPercent(lodThresholds.l2Threshold);
+  const l3Percent = isL3Inf ? 100 : thresholdKToPercent(lodThresholds.l3Threshold);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
     e.preventDefault();
@@ -69,22 +60,56 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
     if (activeDragTarget !== target) return;
-    const k = getKFromClientX(e.clientX);
+    if (!trackRef.current) return;
+
+    const rect = trackRef.current.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
 
     if (target === 'zoom') {
-      onZoomChange(k);
+      const rawK = MIN_ZOOM_K * Math.exp(ratio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
+      let roundedK = Number(rawK.toFixed(1));
+      if (rawK >= 50) roundedK = Math.round(rawK);
+      onZoomChange(roundedK);
     } else if (target === 'l2') {
-      const clampedL2 = Math.min(Math.max(1.5, k), lodThresholds.l3Threshold - 0.5);
-      onUpdateThresholds({
-        ...lodThresholds,
-        l2Threshold: Number(clampedL2.toFixed(1))
-      });
+      if (ratio >= 0.91) {
+        // Dragged to far right: L2 threshold becomes Infinity (and forces L3 to Infinity)
+        onUpdateThresholds({
+          l2Threshold: Infinity,
+          l3Threshold: Infinity
+        });
+      } else {
+        const normRatio = ratio / 0.94;
+        const rawK = MIN_ZOOM_K * Math.exp(normRatio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
+        const maxL2 = isFinite(lodThresholds.l3Threshold) ? lodThresholds.l3Threshold - 0.5 : 80.0;
+        const clampedL2 = Math.min(Math.max(1.5, rawK), maxL2);
+        onUpdateThresholds({
+          ...lodThresholds,
+          l2Threshold: Number(clampedL2.toFixed(1))
+        });
+      }
     } else if (target === 'l3') {
-      const clampedL3 = Math.min(Math.max(lodThresholds.l2Threshold + 0.5, k), 40.0);
-      onUpdateThresholds({
-        ...lodThresholds,
-        l3Threshold: Number(clampedL3.toFixed(1))
-      });
+      if (ratio >= 0.94) {
+        // Dragged to far right: L3 threshold becomes Infinity (never activates L3)
+        onUpdateThresholds({
+          ...lodThresholds,
+          l3Threshold: Infinity
+        });
+      } else {
+        const normRatio = ratio / 0.94;
+        const rawK = MIN_ZOOM_K * Math.exp(normRatio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
+        const minL3 = isFinite(lodThresholds.l2Threshold) ? lodThresholds.l2Threshold + 0.5 : 2.0;
+        const clampedL3 = Math.max(minL3, rawK);
+
+        let newL2 = lodThresholds.l2Threshold;
+        if (!isFinite(newL2) || newL2 >= clampedL3) {
+          newL2 = Math.max(1.5, Math.min(DEFAULT_LOD_THRESHOLDS.l2Threshold, clampedL3 - 0.5));
+        }
+
+        onUpdateThresholds({
+          l2Threshold: Number(newL2.toFixed(1)),
+          l3Threshold: Number(clampedL3.toFixed(1))
+        });
+      }
     }
   };
 
@@ -117,26 +142,37 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
       <div className="precision-tiers">
         {LOD_THRESHOLDS.map((t) => {
           const isActive = t.level === currentLOD;
+          const isDisabled =
+            (t.level === 'L2' && isL2Inf) ||
+            (t.level === 'L3' && isL3Inf);
+
           return (
             <button
               key={t.level}
-              className={`precision-tier-btn ${isActive ? 'active' : ''}`}
+              className={`precision-tier-btn ${isActive ? 'active' : ''} ${isDisabled ? 'tier-disabled' : ''}`}
               style={{
                 borderColor: isActive ? t.color : 'transparent',
                 backgroundColor: isActive ? `${t.color}22` : 'rgba(255, 255, 255, 0.04)',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)'
+                color: isActive ? '#ffffff' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)'
               }}
               onClick={() => onJumpToLOD(t.level)}
-              title={`點擊快速跳轉至 ${t.labelZh} 視野`}
+              title={
+                isDisabled
+                  ? `點擊跳轉至 ${t.labelZh} (將自動恢復該層級門檻)`
+                  : `點擊快速跳轉至 ${t.labelZh} 視野`
+              }
             >
               <span
                 className="tier-dot"
                 style={{
-                  backgroundColor: t.color,
+                  backgroundColor: isDisabled ? '#64748b' : t.color,
                   boxShadow: isActive ? `0 0 8px ${t.color}` : 'none'
                 }}
               />
-              <span className="tier-name">{t.level}</span>
+              <span className="tier-name">
+                {t.level}
+                {isDisabled && ' (∞)'}
+              </span>
             </button>
           );
         })}
@@ -148,7 +184,11 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           {currentThreshold.labelZh}
         </div>
         <div className="precision-level-sub">
-          {currentThreshold.sublabelZh}
+          {isL3Inf && currentLOD === 'L2'
+            ? '已設定 L3 門檻為 ∞，放大時停在都道府縣層級，不切入市町村'
+            : isL2Inf
+            ? '已設定門檻為 ∞，全倍率僅顯示 L1 國家層級'
+            : currentThreshold.sublabelZh}
         </div>
       </div>
 
@@ -157,7 +197,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         <div className="precision-slider-header">
           <div className="precision-slider-label">
             <SlidersHorizontal size={11} color="var(--text-muted)" />
-            <span>拖動門檻點或倍率：</span>
+            <span>拖動門檻點（拉至最右側 ∞ 停用該層）：</span>
           </div>
           <button
             type="button"
@@ -174,32 +214,46 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         <div
           ref={trackRef}
           className="precision-gauge-track"
-          title="分別拖動綠色 L2 門檻點、橘色 L3 門檻點、或圓形倍率點"
+          title="分別拖動綠色 L2 門檻點、橘色 L3 門檻點、或圓形倍率點。門檻拉至最右端即為 ∞ 永遠不顯示。"
         >
           {/* Level Zone Color Bands on Track */}
           <div
             className="track-zone zone-l1"
             style={{
               left: 0,
-              width: `${l2Percent}%`
+              width: `${isL2Inf ? 100 : l2Percent}%`
             }}
-            title={`L1 國家區間 (1.0x ~ ${lodThresholds.l2Threshold}x)`}
+            title={
+              isL2Inf
+                ? 'L1 國家區間 (全倍率僅顯示國家，L2 與 L3 均為 ∞)'
+                : `L1 國家區間 (1.0x ~ ${lodThresholds.l2Threshold}x)`
+            }
           />
           <div
             className="track-zone zone-l2"
             style={{
               left: `${l2Percent}%`,
-              width: `${Math.max(0, l3Percent - l2Percent)}%`
+              width: `${isL2Inf ? 0 : isL3Inf ? 100 - l2Percent : Math.max(0, l3Percent - l2Percent)}%`
             }}
-            title={`L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`}
+            title={
+              isL2Inf
+                ? 'L2 都道府縣 (已設為 ∞ 停用)'
+                : isL3Inf
+                ? `L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ∞，市區町村已停用)`
+                : `L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`
+            }
           />
           <div
             className="track-zone zone-l3"
             style={{
               left: `${l3Percent}%`,
-              width: `${Math.max(0, 100 - l3Percent)}%`
+              width: `${isL3Inf ? 0 : Math.max(0, 100 - l3Percent)}%`
             }}
-            title={`L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`}
+            title={
+              isL3Inf
+                ? 'L3 市區町村 (已設為 ∞ 停用，永遠不顯示)'
+                : `L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`
+            }
           />
 
           {/* Current Zoom Fill Overlay */}
@@ -213,16 +267,20 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
 
           {/* POINT 1: L2 Threshold Draggable Handle (門檻點 1) */}
           <div
-            className={`threshold-handle handle-l2 ${activeDragTarget === 'l2' ? 'dragging' : ''}`}
+            className={`threshold-handle handle-l2 ${activeDragTarget === 'l2' ? 'dragging' : ''} ${isL2Inf ? 'is-infinity' : ''}`}
             style={{ left: `${l2Percent}%` }}
             onPointerDown={(e) => handlePointerDown(e, 'l2')}
             onPointerMove={(e) => handlePointerMove(e, 'l2')}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            title={`拖動調整 L2 門檻 (目前: ${lodThresholds.l2Threshold}x)`}
+            title={
+              isL2Inf
+                ? 'L2 門檻: ∞ (永遠不顯示都道府縣，向左拖動可恢復)'
+                : `拖動調整 L2 門檻 (目前: ${lodThresholds.l2Threshold}x，拉至最右端可停用)`
+            }
           >
-            <div className="threshold-tag tag-l2">
-              L2 {lodThresholds.l2Threshold}×
+            <div className={`threshold-tag tag-l2 ${isL2Inf ? 'is-infinity' : ''}`}>
+              {isL2Inf ? 'L2 ∞' : `L2 ${lodThresholds.l2Threshold}×`}
             </div>
             <div className="threshold-notch notch-l2" />
           </div>
@@ -235,10 +293,14 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             onPointerMove={(e) => handlePointerMove(e, 'l3')}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            title={`拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x)`}
+            title={
+              isL3Inf
+                ? 'L3 門檻: ∞ (永遠不顯示市區町村，向左拖動可恢復)'
+                : `拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x，拉至最右端可停用)`
+            }
           >
-            <div className="threshold-tag tag-l3">
-              L3 {lodThresholds.l3Threshold}×
+            <div className={`threshold-tag tag-l3 ${isL3Inf ? 'is-infinity' : ''}`}>
+              {isL3Inf ? 'L3 ∞' : `L3 ${lodThresholds.l3Threshold}×`}
             </div>
             <div className="threshold-notch notch-l3" />
           </div>
@@ -268,7 +330,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         <div className="precision-snap-row">
           <button
             type="button"
-            className={`precision-snap-chip ${currentLOD === 'L1' && currentZoomK < lodThresholds.l2Threshold ? 'active' : ''}`}
+            className={`precision-snap-chip ${currentLOD === 'L1' && (isL2Inf || currentZoomK < lodThresholds.l2Threshold) ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               onZoomChange(MIN_ZOOM_K);
@@ -282,27 +344,41 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           <button
             type="button"
             className={`precision-snap-chip ${currentLOD === 'L2' ? 'active' : ''}`}
+            disabled={isL2Inf}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(lodThresholds.l2Threshold);
+              if (isFinite(lodThresholds.l2Threshold)) {
+                onZoomChange(lodThresholds.l2Threshold);
+              }
             }}
-            title={`點擊切換至目前 L2 門檻 (${lodThresholds.l2Threshold}x)`}
+            title={
+              isL2Inf
+                ? 'L2 門檻已設為 ∞ (停用)'
+                : `點擊切換至目前 L2 門檻 (${lodThresholds.l2Threshold}x)`
+            }
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#10b981' }} />
-            <span>{lodThresholds.l2Threshold}×</span>
+            <span>{isL2Inf ? 'L2: ∞' : `${lodThresholds.l2Threshold}×`}</span>
           </button>
 
           <button
             type="button"
             className={`precision-snap-chip ${currentLOD === 'L3' && currentZoomK < 50 ? 'active' : ''}`}
+            disabled={isL3Inf}
             onClick={(e) => {
               e.stopPropagation();
-              onZoomChange(lodThresholds.l3Threshold);
+              if (isFinite(lodThresholds.l3Threshold)) {
+                onZoomChange(lodThresholds.l3Threshold);
+              }
             }}
-            title={`點擊切換至目前 L3 門檻 (${lodThresholds.l3Threshold}x)`}
+            title={
+              isL3Inf
+                ? 'L3 門檻已設為 ∞ (停用)'
+                : `點擊切換至目前 L3 門檻 (${lodThresholds.l3Threshold}x)`
+            }
           >
             <span className="snap-chip-dot" style={{ backgroundColor: '#f59e0b' }} />
-            <span>{lodThresholds.l3Threshold}×</span>
+            <span>{isL3Inf ? 'L3: ∞' : `${lodThresholds.l3Threshold}×`}</span>
           </button>
 
           <button
@@ -328,51 +404,6 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           >
             <span>{MAX_ZOOM_K}×</span>
           </button>
-        </div>
-      </div>
-
-      {/* Max Allowed LOD Setting (我想看到的最細層級) */}
-      <div className="precision-max-section">
-        <div className="precision-section-label">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Lock size={11} color="var(--text-muted)" />
-            <span>最細顯示層級限制：</span>
-          </div>
-          <span className="precision-max-hint">
-            {maxLOD === 'L3' && '可切至市町村'}
-            {maxLOD === 'L2' && '停在都道府縣'}
-            {maxLOD === 'L1' && '僅保留國家'}
-          </span>
-        </div>
-        <div className="precision-max-pills">
-          {(['L1', 'L2', 'L3'] as LODLevel[]).map((lvl) => {
-            const isSelected = maxLOD === lvl;
-            const threshold = LOD_THRESHOLDS.find((t) => t.level === lvl);
-            return (
-              <button
-                key={lvl}
-                className={`max-lod-btn ${isSelected ? 'active' : ''}`}
-                style={{
-                  borderColor: isSelected ? threshold?.color : 'rgba(255, 255, 255, 0.1)',
-                  backgroundColor: isSelected ? `${threshold?.color}25` : 'rgba(255, 255, 255, 0.04)',
-                  color: isSelected ? '#ffffff' : 'var(--text-secondary)'
-                }}
-                onClick={() => onSetMaxLOD(lvl)}
-                title={`將地圖最細層級限制為 ${lvl} (${threshold?.labelZh})，放大時不會切入更細行政區`}
-              >
-                <span
-                  className="max-lod-dot"
-                  style={{
-                    backgroundColor: threshold?.color,
-                    boxShadow: isSelected ? `0 0 6px ${threshold?.color}` : 'none'
-                  }}
-                />
-                <span className="max-lod-name">
-                  {lvl} {lvl === 'L1' ? '國家' : lvl === 'L2' ? '都道府縣' : '市町村'}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 

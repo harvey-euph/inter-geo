@@ -8,7 +8,7 @@ import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry } from '../data/countries';
-import { getLODLevel, LOD_LEVEL_ORDER, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
+import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThresholds } from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
@@ -106,7 +106,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Level of Detail (LOD) tracking: L1 (Country), L2 (Prefecture), L3 (Municipality)
   const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
-  const [maxLODLevel, setMaxLODLevel] = useState<LODLevel>('L3');
   const [lodThresholds, setLodThresholds] = useState<CustomLODThresholds>(DEFAULT_LOD_THRESHOLDS);
   const [zoomK, setZoomK] = useState<number>(1.0);
 
@@ -344,10 +343,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
       setZoomK(Number(initialK.toFixed(1)));
-      setLodLevel(getLODLevel(initialK, maxLODLevel, lodThresholds));
+      setLodLevel(getLODLevel(initialK, lodThresholds));
       applyTransform(false);
     }
-  }, [loading, wrapX, clampY, applyTransform, maxLODLevel, lodThresholds]);
+  }, [loading, wrapX, clampY, applyTransform, lodThresholds]);
 
   // Zoom directly into a prefecture at L3 (called from Drawer)
   useEffect(() => {
@@ -367,7 +366,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.y = clampY(targetY, targetK, vh);
 
           setZoomK(Number(targetK.toFixed(1)));
-          setMaxLODLevel('L3');
           setLodLevel('L3');
           applyTransform(true);
         }
@@ -493,7 +491,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    const nextLOD = getLODLevel(newK, maxLODLevel, lodThresholds);
+    const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
@@ -519,7 +517,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    const nextLOD = getLODLevel(newK, maxLODLevel, lodThresholds);
+    const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
@@ -539,7 +537,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     setActiveRegion('world');
     setZoomK(Number(kMin.toFixed(1)));
-    setLodLevel(getLODLevel(kMin, maxLODLevel, lodThresholds));
+    setLodLevel(getLODLevel(kMin, lodThresholds));
     applyTransform(true);
   };
 
@@ -562,35 +560,27 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = wrapX(newX, newK);
       transformRef.current.y = clampY(newY, newK, vh);
 
-      const nextLOD = getLODLevel(newK, maxLODLevel, lodThresholds);
+      const nextLOD = getLODLevel(newK, lodThresholds);
       if (nextLOD !== lodLevel) {
         setLodLevel(nextLOD);
       }
       setZoomK(Number(newK.toFixed(1)));
       applyTransform(false);
     },
-    [wrapX, clampY, applyTransform, lodLevel, maxLODLevel, lodThresholds]
+    [wrapX, clampY, applyTransform, lodLevel, lodThresholds]
   );
-
-  // Set maximum allowed LOD level (最細層級限制)
-  const handleSetMaxLOD = (level: LODLevel) => {
-    setMaxLODLevel(level);
-    const currentK = transformRef.current.k;
-    const nextLOD = getLODLevel(currentK, level, lodThresholds);
-    setLodLevel(nextLOD);
-  };
 
   // Update dynamic custom LOD thresholds
   const handleUpdateThresholds = useCallback(
     (newThresholds: CustomLODThresholds) => {
       setLodThresholds(newThresholds);
       const currentK = transformRef.current.k;
-      const nextLOD = getLODLevel(currentK, maxLODLevel, newThresholds);
+      const nextLOD = getLODLevel(currentK, newThresholds);
       if (nextLOD !== lodLevel) {
         setLodLevel(nextLOD);
       }
     },
-    [maxLODLevel, lodLevel]
+    [lodLevel]
   );
 
   // One-click Jump to specific Level of Detail (LOD)
@@ -608,11 +598,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       cx = MAP_W / 2;
       cy = MAP_H / 2;
     } else if (targetLevel === 'L2') {
-      targetK = Math.max(lodThresholds.l2Threshold + 0.3, 3.5);
+      let l2T = lodThresholds.l2Threshold;
+      if (!isFinite(l2T)) {
+        l2T = DEFAULT_LOD_THRESHOLDS.l2Threshold;
+        setLodThresholds((prev) => ({ ...prev, l2Threshold: DEFAULT_LOD_THRESHOLDS.l2Threshold }));
+      }
+      targetK = Math.max(l2T + 0.3, 3.5);
       cx = 882.0; // Center of Japan
       cy = 392.0;
     } else if (targetLevel === 'L3') {
-      targetK = Math.max(lodThresholds.l3Threshold + 0.5, 7.2);
+      let l3T = lodThresholds.l3Threshold;
+      if (!isFinite(l3T)) {
+        l3T = DEFAULT_LOD_THRESHOLDS.l3Threshold;
+        setLodThresholds((prev) => ({
+          l2Threshold: isFinite(prev.l2Threshold) ? prev.l2Threshold : DEFAULT_LOD_THRESHOLDS.l2Threshold,
+          l3Threshold: DEFAULT_LOD_THRESHOLDS.l3Threshold
+        }));
+      }
+      targetK = Math.max(l3T + 0.5, 7.8);
       cx = 888.2; // Tokyo & Kanto Region
       cy = 393.7;
     }
@@ -625,10 +628,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(targetY, targetK, vh);
 
     setZoomK(Number(targetK.toFixed(1)));
-    // If jumping to higher level than current max, elevate max to respect user intent
-    if (LOD_LEVEL_ORDER[targetLevel] > LOD_LEVEL_ORDER[maxLODLevel]) {
-      setMaxLODLevel(targetLevel);
-    }
     setLodLevel(targetLevel);
     applyTransform(true);
   };
@@ -651,7 +650,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(targetY, targetK, vh);
 
     setZoomK(Number(targetK.toFixed(1)));
-    setLodLevel(getLODLevel(targetK, maxLODLevel, lodThresholds));
+    setLodLevel(getLODLevel(targetK, lodThresholds));
     applyTransform(true);
   };
 
@@ -1133,10 +1132,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       <PrecisionHUD
         currentLOD={lodLevel}
         currentZoomK={zoomK}
-        maxLOD={maxLODLevel}
         lodThresholds={lodThresholds}
         onUpdateThresholds={handleUpdateThresholds}
-        onSetMaxLOD={handleSetMaxLOD}
         onJumpToLOD={handleJumpToLOD}
         onZoomChange={handleSliderZoom}
       />
