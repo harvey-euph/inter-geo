@@ -410,6 +410,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           tooltipRef.current.style.display = 'none';
         }
       }}
+      onClick={(e) => {
+        if (hasDragged.current) return;
+        const target = e.target as Element | null;
+        if (target?.closest('.map-controls, .region-presets, .filter-legend-card')) {
+          return;
+        }
+        onSelectCountry(null);
+      }}
     >
       {loading ? (
         <div
@@ -461,6 +469,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               onMouseEnter={() => {
                 if (hoveredCountry) setHoveredCountry(null);
                 if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+              }}
+              onClick={() => {
+                if (!hasDragged.current) {
+                  onSelectCountry(null);
+                }
               }}
             />
 
@@ -539,6 +552,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         if (hasDragged.current) return;
                         if (countryMeta) {
                           onSelectCountry(countryMeta);
+                        } else {
+                          onSelectCountry(null);
                         }
                       }}
                     />
