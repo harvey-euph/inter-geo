@@ -38,20 +38,19 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
     onZoomChange(targetK);
   };
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleThumbPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
-    updateZoomFromPointer(e.clientX);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleThumbPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
     updateZoomFromPointer(e.clientX);
   };
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleThumbPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isDragging) {
       setIsDragging(false);
       try {
@@ -60,6 +59,12 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
         // ignore
       }
     }
+  };
+
+  const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only handle track click if not dragging
+    if (isDragging) return;
+    updateZoomFromPointer(e.clientX);
   };
 
   return (
@@ -127,14 +132,12 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           </span>
         </div>
 
+        {/* Track: Clicking anywhere jumps/snaps cleanly */}
         <div
           ref={trackRef}
-          className={`precision-gauge-track ${isDragging ? 'dragging' : ''}`}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          title="按住並左右拖曳倍率條，或點擊刻度跳轉"
+          className="precision-gauge-track"
+          onClick={handleTrackClick}
+          title="點擊軌道跳轉倍率，或拖動圓形滑塊"
         >
           {/* Active Fill */}
           <div
@@ -146,7 +149,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
             }}
           />
 
-          {/* Interactive Glowing Slider Thumb */}
+          {/* Interactive Drag Handle Thumb (專屬拖動對象) */}
           <div
             className={`precision-gauge-thumb ${isDragging ? 'dragging' : ''}`}
             style={{
@@ -154,34 +157,80 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
               borderColor: currentThreshold.color,
               color: currentThreshold.color
             }}
-          />
+            onPointerDown={handleThumbPointerDown}
+            onPointerMove={handleThumbPointerMove}
+            onPointerUp={handleThumbPointerUp}
+            onPointerCancel={handleThumbPointerUp}
+            title="拖動滑塊調整倍率"
+          >
+            <div className="thumb-grip-dot" />
+          </div>
 
-          {/* Threshold Boundary Markers */}
+          {/* Threshold Boundary Visual Markers */}
           <div
             className="gauge-marker"
             style={{ left: '16.92%' }}
-            title="點擊跳轉至 L2 門檻 (3.2x)"
-            onClick={(e) => {
-              e.stopPropagation();
-              onZoomChange(3.2);
-            }}
+            title="L2 門檻 (3.2x)"
           />
           <div
             className="gauge-marker"
             style={{ left: '42.31%' }}
-            title="點擊跳轉至 L3 門檻 (6.5x)"
+            title="L3 門檻 (6.5x)"
+          />
+        </div>
+
+        {/* Level 倍率切換按鈕 (清楚好按，不干擾拖動) */}
+        <div className="precision-snap-row">
+          <button
+            type="button"
+            className={`precision-snap-chip ${currentLOD === 'L1' ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoomChange(1.0);
+            }}
+            title="點擊切換至 L1 初始倍率 (1.0x)"
+          >
+            <span className="snap-chip-dot" style={{ backgroundColor: '#38bdf8' }} />
+            <span>1.0× (L1)</span>
+          </button>
+
+          <button
+            type="button"
+            className={`precision-snap-chip ${currentLOD === 'L2' ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoomChange(3.2);
+            }}
+            title="點擊切換至 L2 都道府縣門檻 (3.2x)"
+          >
+            <span className="snap-chip-dot" style={{ backgroundColor: '#10b981' }} />
+            <span>3.2× (L2)</span>
+          </button>
+
+          <button
+            type="button"
+            className={`precision-snap-chip ${currentLOD === 'L3' ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               onZoomChange(6.5);
             }}
-          />
-        </div>
+            title="點擊切換至 L3 市區町村門檻 (6.5x)"
+          >
+            <span className="snap-chip-dot" style={{ backgroundColor: '#f59e0b' }} />
+            <span>6.5× (L3)</span>
+          </button>
 
-        <div className="gauge-labels">
-          <span onClick={() => onZoomChange(1.0)} style={{ cursor: 'pointer' }}>1.0x</span>
-          <span onClick={() => onZoomChange(3.2)} style={{ cursor: 'pointer', color: '#10b981' }}>3.2x (L2)</span>
-          <span onClick={() => onZoomChange(6.5)} style={{ cursor: 'pointer', color: '#f59e0b' }}>6.5x (L3)</span>
-          <span onClick={() => onZoomChange(14.0)} style={{ cursor: 'pointer' }}>14.0x</span>
+          <button
+            type="button"
+            className="precision-snap-chip"
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoomChange(14.0);
+            }}
+            title="點擊切換至最大縮放倍率 (14.0x)"
+          >
+            <span>14.0×</span>
+          </button>
         </div>
       </div>
 
