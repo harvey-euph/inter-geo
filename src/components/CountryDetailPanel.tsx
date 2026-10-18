@@ -115,19 +115,21 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
         </div>
 
         {/* Poles & Infrastructure */}
-        <div className="intel-card">
-          <div className="intel-card-header">
-            <Layers size={16} color="#14b8a6" />
-            <span style={{ color: '#2dd4bf' }}>電線桿與道路設施 (Poles & Infrastructure)</span>
-          </div>
-          <div className="intel-card-body">{country.poleDesc}</div>
-          {country.bollardDesc && (
-            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-              <strong>🚧 防撞警示柱 (Bollards)：</strong>
-              {country.bollardDesc}
+        {(country.poleDesc || country.bollardDesc) && (
+          <div className="intel-card">
+            <div className="intel-card-header">
+              <Layers size={16} color="#14b8a6" />
+              <span style={{ color: '#2dd4bf' }}>電線桿與道路設施 (Poles & Infrastructure)</span>
             </div>
-          )}
-        </div>
+            {country.poleDesc && <div className="intel-card-body">{country.poleDesc}</div>}
+            {country.bollardDesc && (
+              <div style={{ marginTop: country.poleDesc ? 6 : 0, fontSize: 12, color: 'var(--text-secondary)' }}>
+                <strong>🚧 防撞警示柱 (Bollards)：</strong>
+                {country.bollardDesc}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Road Markings */}
         <div className="intel-card">

@@ -63,8 +63,8 @@ export interface CountryData {
   carMeta: CarMeta[];
   carMetaDesc: string;
   poleTypes?: PoleType[];
-  poleDesc: string;
-  bollardDesc: string;
+  poleDesc?: string;
+  bollardDesc?: string;
   language: string;
   tld: string;
   keyHints: string[];

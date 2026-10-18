@@ -1,7 +1,9 @@
 import type { CountryData } from '../types/geo';
 
 export const COUNTRIES_DATA: CountryData[] = [
-  // --- 東亞 / 亞洲 ---
+  // ==========================================
+  // --- 亞洲 (Asia) ---
+  // ==========================================
   {
     id: "158",
     iso2: "TW",
@@ -15,21 +17,21 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "white",
-    plateDesc: "前白後白長方形牌，機車多為白底黑字或黃紅大重機",
+    plateDesc: "前白後白長方形牌，機車密度極高，大重機有黃紅牌",
     roadLines: ["yellow_double", "white_solid"],
-    roadLinesDesc: "中央常為雙黃實線或黃虛線，路側白實線",
+    roadLinesDesc: "中央常為雙黃實線或黃虛線，路側白實線，山區有落石警告",
     carMeta: ["none"],
-    carMetaDesc: "無特殊車頂行李架，通常為一般 Google 街景車",
+    carMetaDesc: "無特殊車頂架，多為一般 Google 街景車",
     poleTypes: ["striped", "standard"],
-    poleDesc: "電線桿底部常有『黃黑相間斜紋』警示貼紙或反光漆（最經典特徵），桿上有台電標牌（紅藍條碼或坐標）",
+    poleDesc: "電線桿底部常有『黃黑相間斜斑馬紋』防撞警示貼紙（最經典特徵），桿上有台電坐標牌與條碼",
     bollardDesc: "白色圓柱或方形反光導標，少數山區有黃黑相間防撞桿",
     language: "繁體中文（Traditional Chinese）、注音符號",
     tld: ".tw",
     keyHints: [
-      "電線桿底部經典『黃黑斜斑馬紋』防撞貼紙",
-      "全境繁體中文（門牌、招牌常標有『里』『路』『段』『巷』）",
-      "機車密度極高，隨處可見機車專用停等區與兩段式左轉標誌",
-      "常有『綠色人行道標線』或高山山林茂密植被（中橫/阿里山）"
+      "電線桿底部標誌性『黃黑斜紋』防撞貼紙（秒殺特徵）",
+      "全境繁體中文招牌，門牌常標有『里』『路』『段』『巷』『弄』",
+      "隨處可見機車專用停等區與兩段式左轉標誌",
+      "高山茂密植被，路邊偶見綠色人行道標線"
     ],
     confusedWith: ["Japan", "South Korea", "Hong Kong"]
   },
@@ -48,19 +50,19 @@ export const COUNTRIES_DATA: CountryData[] = [
     plateType: "yellow_kei",
     plateDesc: "一般乘用車白底綠字，輕型車（Kei car）極具辨識度之『亮黃底黑字』",
     roadLines: ["white_solid", "yellow_single"],
-    roadLinesDesc: "中央線常為白虛線或單實黃線，車道極為平整潔淨",
+    roadLinesDesc: "中央線常為白虛線或單實黃線，柏油鋪面極為平整潔淨",
     carMeta: ["low_cam"],
-    carMetaDesc: "極具特色的『低視角鏡頭 (Low Cam)』！視角比一般車輛矮，容易看到更多車頭或地面",
+    carMetaDesc: "經典特徵：『低視角鏡頭 (Low Cam)』！鏡頭高度較矮，地面視角逼近",
     poleTypes: ["round_holes", "striped"],
-    poleDesc: "灰色水泥桿，常附帶繁雜變壓器與多層次電線，桿底有垂直編號金屬鐵牌或黃黑相間防撞套管",
-    bollardDesc: "多樣化，常見白柱頂端紅白反光片，或金屬柱狀反光導標",
+    poleDesc: "灰色圓形混凝土柱，附帶多層次變壓器與電線，桿底有黃黑斑馬防撞套管或垂直金屬名牌",
+    bollardDesc: "白柱頂部紅白反光片，或金屬柱狀反光導標",
     language: "日文（平假名、片假名、漢字）",
     tld: ".jp",
     keyHints: [
-      "靠左行駛 (Left-Hand Driving) + Low Cam 低相機高度",
-      "到處可見黃色車牌之輕型車 (Kei Cars)",
-      "道路柏油品質極高，人孔蓋常有精緻花紋與城市標誌",
-      "後視鏡反光鏡（凸面鏡）非常普遍，圓形或黃色外框"
+      "靠左行駛 (Left Drive) + Low Cam 低相機高度",
+      "隨處可見亮黃色車牌之輕型車 (Kei Cars)",
+      "道路人孔蓋常有精緻城市彩繪花紋",
+      "彎道反光凸面鏡密度極高，多為圓形黃框或橙框"
     ],
     confusedWith: ["Taiwan", "South Korea"]
   },
@@ -81,18 +83,49 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["yellow_double", "white_solid"],
     roadLinesDesc: "雙黃中央線，路緣常有黃線或紅白相間減速帶",
     carMeta: ["none"],
-    carMetaDesc: "標準 Google 街景車，或偶有車頭可見白色車身",
+    carMetaDesc: "標準 Google 街景車",
     poleTypes: ["standard"],
-    poleDesc: "水泥圓桿，桿上常貼有韓語數字與警告標語，電線排列整齊",
-    bollardDesc: "黃色或白色塑膠彈性防撞桿，中央常有同心圓反光圈",
+    poleDesc: "水泥圓柱，桿上常貼有韓語數字與警告標語",
+    bollardDesc: "黃色或白色塑膠彈性防撞桿，中央常有反光圈",
     language: "韓文（諺文 Hangul，圈圈與直線文字結構）",
     tld: ".kr",
     keyHints: [
       "韓文字母（圓圈、方塊與直線組合），招牌密度極高",
       "鄉村常見大面積波浪金屬彩色屋頂（藍色、橘紅色）",
-      "靠右行駛，且現代城市公寓外牆通常漆有超大號建築編號（如 101, 102）"
+      "靠右行駛，公寓外牆漆有超大號建築編號（如 101, 102）"
     ],
-    confusedWith: ["Japan", "Taiwan", "China"]
+    confusedWith: ["Japan", "Taiwan"]
+  },
+  {
+    id: "608",
+    iso2: "PH",
+    iso3: "PHL",
+    name: "Philippines",
+    nameZh: "菲律賓",
+    flag: "🇵🇭",
+    continent: "Asia",
+    region: "東南亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白底綠字或白底黑字牌，舊牌多為綠底",
+    roadLines: ["yellow_single", "white_dashed"],
+    roadLinesDesc: "中央線常見單黃線或無標線，路邊白實線",
+    carMeta: ["none"],
+    carMetaDesc: "標準 Google 車身",
+    poleTypes: ["wooden", "standard"],
+    poleDesc: "木桿與粗糙水泥桿並存，上方黑色電纜纏繞繁雜",
+    bollardDesc: "黑黃或紅白矮墩",
+    language: "英語（English）與他加祿語（Tagalog / Filipino）",
+    tld: ".ph",
+    keyHints: [
+      "東南亞唯一靠右行駛的群島國！",
+      "路牌、廣告與店家招牌幾乎 100% 全英文（例如 Barangay, Sari-sari store）",
+      "色彩極其艷麗的改裝吉普尼（Jeepney）與帶邊斗的三輪摩托車（Tricycle）滿街跑",
+      "天主教教堂極多，熱帶椰林與火山起伏群島景觀"
+    ],
+    confusedWith: ["Indonesia", "Malaysia", "Thailand"]
   },
   {
     id: "764",
@@ -107,21 +140,21 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "white",
-    plateDesc: "白底黑字長方牌，營業車或計程車常有黃色或綠色牌",
+    plateDesc: "白底黑字長方牌，營業車有黃色或綠色牌",
     roadLines: ["yellow_double", "yellow_single", "white_dashed"],
     roadLinesDesc: "中央常見黃實線或黃虛線，外側白實線",
     carMeta: ["none"],
-    carMetaDesc: "多為標準 Google 鏡頭，少數地區可見白車車身",
+    carMetaDesc: "多為標準 Google 鏡頭",
     poleTypes: ["ladder_holes", "standard"],
-    poleDesc: "方形方形水泥桿！泰國電線桿截面多為『四方形』而非圓形，此為東南亞極強特徵",
-    bollardDesc: "白色圓頂水泥矮墩，正面塗有黑色圓圈與數字（里程碑）",
-    language: "泰文（流暢弧線無圓圈結構字型）",
+    poleDesc: "泰國標誌：『正方形斷面水泥電線桿』！東南亞少見的方柱電桿",
+    bollardDesc: "白色圓頂水泥矮石墩，正面塗有黑色圓圈與公里數",
+    language: "泰文（弧形優雅無圈圈字體）",
     tld: ".th",
     keyHints: [
-      "靠左行駛 (Left-Hand Driving) + 泰文字母",
-      "電線桿是『正方形方形柱』，鄉村有許多平頂木柱",
-      "路旁常有國王/王室肖像金黃色牌匾與佛寺尖頂建築",
-      "路邊隨處可見皮卡貨車 (Pick-up trucks) 與彩色嘟嘟車"
+      "靠左行駛 (Left Drive) + 泰文字母",
+      "電線桿是『四方形混凝土柱』而非圓柱",
+      "路旁常有王室金黃色相框牌匾與泰式佛寺尖頂",
+      "皮卡車（Pick-up trucks）滿街跑"
     ],
     confusedWith: ["Cambodia", "Laos", "Malaysia"]
   },
@@ -138,21 +171,21 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "white",
-    plateDesc: "白底藍字或深色字，上方有一排小高棉字",
+    plateDesc: "白底深色字長方牌，上方有一行小高棉字",
     roadLines: ["yellow_single", "white_dashed"],
-    roadLinesDesc: "常為單黃中央線，路況多為紅土路緣",
+    roadLinesDesc: "單黃中央線，路緣多為紅土地質",
     carMeta: ["roof_rack"],
     carMetaDesc: "部分地區街景車可見紅色/藍色車身或車頂橫桿",
     poleTypes: ["round_holes"],
-    poleDesc: "圓形水泥柱，常見多個圓形通氣孔",
-    bollardDesc: "紅頂白身圓柱，或紅白相間警示標柱",
-    language: "高棉文（Khmer，筆畫波浪繁複有捲曲小尾巴）",
+    poleDesc: "圓形水泥柱，常見多個圓形通風孔",
+    bollardDesc: "紅頂白身圓柱墩",
+    language: "高棉文（Khmer，筆畫波浪繁複有小捲尾巴）",
     tld: ".kh",
     keyHints: [
       "靠右行駛（注意：泰國左行，柬埔寨右行！）",
-      "高棉文字比泰文更繁複且有許多波浪腳",
-      "路邊啤酒廣告招牌極多（Cambodia Beer, Anchor, Ganzberg）",
-      "鄉村大量高腳木屋與紅土地質"
+      "高棉文字波浪小尾巴比泰文更繁複",
+      "路邊啤酒廣告招牌密度極高（Cambodia Beer, Anchor, Ganzberg）",
+      "高腳木屋與深紅沃土路面"
     ],
     confusedWith: ["Thailand", "Laos"]
   },
@@ -169,23 +202,23 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "white",
-    plateDesc: "黑底白字牌（前後皆為黑底白字，極具特色！）",
+    plateDesc: "『黑底白字』車牌（前後皆為黑底白字，極具特色！）",
     roadLines: ["white_dashed", "white_solid"],
-    roadLinesDesc: "中央線幾乎全為白線（虛線或雙白線）",
+    roadLinesDesc: "中央線幾乎全為白線（虛線或雙白線，無黃線）",
     carMeta: ["none"],
-    carMetaDesc: "無特殊車架，標準 Google 鏡頭",
+    carMetaDesc: "無特殊車架，標準 Google 車",
     poleTypes: ["striped"],
-    poleDesc: "圓形黑木桿或金屬桿，路標背面常貼有黑白貼紙條碼",
+    poleDesc: "圓形木桿或金屬桿，路標背面常貼有黑白貼紙條碼",
     bollardDesc: "黑白相間矮柱，頂部有圓形反光片",
-    language: "馬來語（拉丁字母 Bahasa Melayu）、英文、華文、淡米爾文",
+    language: "馬來語（拉丁字母 Bahasa Melayu）、英文、華文",
     tld: ".my",
     keyHints: [
       "靠左行駛 + 黑底白字車牌（前後皆黑底！）",
       "路牌皆為拉丁字母馬來文，常出現 JALAN (路) 或 LALUAN",
-      "雙向白線而非黃線，路邊常見大量油棕櫚樹種植園 (Oil Palms)",
-      "與印尼區別：馬來西亞路況整齊平整，路標多為深綠色或藍色"
+      "雙向中央線為白線，滿山遍野之油棕櫚樹園 (Oil Palms)",
+      "路面平整整潔，路標多為深綠色或深藍色"
     ],
-    confusedWith: ["Indonesia", "Singapore", "Thailand"]
+    confusedWith: ["Indonesia", "Singapore"]
   },
   {
     id: "360",
@@ -200,23 +233,85 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "white",
-    plateDesc: "黑底白字牌，牌照分為三組數字/文字，中間有白色小白點",
+    plateDesc: "黑底白字牌，牌號分為三組數字，中間有小小白點",
     roadLines: ["yellow_single", "white_dashed"],
-    roadLinesDesc: "主要幹道常有單實黃線，鄉村路面較狹窄",
+    roadLinesDesc: "幹道常有單實黃線，鄉村路面較狹窄",
     carMeta: ["roof_rack"],
     carMetaDesc: "部分地區 Google 車可見黑色頂架或銀色車頂桿",
     poleTypes: ["ladder_holes", "striped"],
-    poleDesc: "混凝土桿或木桿，路邊路緣石（Curb）極常塗成『黑白相間』或『紅白相間』！",
-    bollardDesc: "紅白相間或黑白相間水泥梯形矮石墩",
+    poleDesc: "混凝土桿，路邊路緣石（Curb）極常塗成『黑白斑馬相間』或『紅白相間』！",
+    bollardDesc: "黑白相間或紅白相間梯形水泥矮墩",
     language: "印尼語（拉丁字母 Bahasa Indonesia）",
     tld: ".id",
     keyHints: [
       "靠左行駛 + 黑底白字三段式車牌",
-      "路緣石 (Curbs) 常見極高頻率的『黑白相間條紋塗漆』",
-      "鄉村隨處可見 Pertamina 迷你加油機 (Pertamini) 與香菸大型廣告看板",
-      "地名常見『Jl.』(Jalan) 與祈禱室/清真寺尖頂喇叭"
+      "路緣石 (Curbs) 超常漆成『黑白相間條紋塗漆』",
+      "隨處可見 Pertamini 迷你加油小玻璃箱與香菸大看板",
+      "地名常見『Jl.』與清真寺金屬喇叭屋頂"
     ],
     confusedWith: ["Malaysia", "Philippines"]
+  },
+  {
+    id: "702",
+    iso2: "SG",
+    iso3: "SGP",
+    name: "Singapore",
+    nameZh: "新加坡",
+    flag: "🇸🇬",
+    continent: "Asia",
+    region: "東南亞",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "yellow_rear",
+    plateDesc: "前白後黃長牌，或前後黑底白字牌",
+    roadLines: ["white_dashed", "yellow_single"],
+    roadLinesDesc: "道路極度整潔，中央全白線，路緣有雙黃線或鋸齒黃線",
+    carMeta: ["none"],
+    carMetaDesc: "標準高畫質街景",
+    poleTypes: ["metal"],
+    poleDesc: "現代化銀灰色金屬路燈桿",
+    bollardDesc: "精美反光防撞導柱",
+    language: "英語、華語、馬來語、淡米爾語",
+    tld: ".sg",
+    keyHints: [
+      "靠左行駛 + 極致花園城市綠化（路樹修剪極整齊）",
+      "ERP (Electronic Road Pricing) 電子收費龍門架",
+      "路牌為綠底白字或白底黑字全英文，字體為標準 Transport 字型",
+      "隨處可見的政府組屋（HDB）現代集合住宅"
+    ],
+    confusedWith: ["Malaysia", "Hong Kong"]
+  },
+  {
+    id: "344",
+    iso2: "HK",
+    iso3: "HKG",
+    name: "Hong Kong",
+    nameZh: "香港",
+    flag: "🇭🇰",
+    continent: "Asia",
+    region: "東亞",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "yellow_rear",
+    plateDesc: "前白後黃牌照（完全比照英國標準格式）",
+    roadLines: ["white_dashed", "yellow_single"],
+    roadLinesDesc: "路面常漆有大字『望左 LOOK LEFT』或『望右 LOOK RIGHT』",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["metal"],
+    poleDesc: "銀色金屬桿或黑漆金屬柱",
+    bollardDesc: "白色或黃色反光柱",
+    language: "繁體中文、英文雙語",
+    tld: ".hk",
+    keyHints: [
+      "靠左行駛 + 前白後黃車牌",
+      "地面文字『望左 LOOK LEFT』『望右 LOOK RIGHT』",
+      "雙層巴士、紅色豐田金冠 Comfort 計程車",
+      "極高密度的繁體中文街頭招牌與摩天高樓"
+    ],
+    confusedWith: ["Taiwan", "United Kingdom", "Singapore"]
   },
   {
     id: "496",
@@ -231,21 +326,21 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen3"],
     plateType: "white",
-    plateDesc: "長方形白底黑字牌，左側有紅色索永布國徽",
+    plateDesc: "白牌帶紅色索永布國徽",
     roadLines: ["white_dashed"],
-    roadLinesDesc: "非鋪裝沙土草原路極多，鋪裝道路多為簡單白線",
+    roadLinesDesc: "無鋪裝草原土路極多，鋪裝道路多為簡單白虛線",
     carMeta: ["tent", "roof_rack"],
-    carMetaDesc: "經典神級 Meta：車頂上有『黑色帳篷/露營裝備 (Tent Car)』或金屬置物架裹著繩索！",
+    carMetaDesc: "無敵 Meta：車頂上有『黑色包布露營帳篷/行李架 (Tent Car)』！",
     poleTypes: ["wooden"],
-    poleDesc: "單根木頭電線桿，常常由多根木桿搭成 A 字形支撐",
-    bollardDesc: "極少見，大多為廣闊無邊界的大草原或戈壁沙漠",
-    language: "蒙古語（西里爾字母 Cyrillic）",
+    poleDesc: "粗糙木桿，常搭成 A 字形防風支架",
+    bollardDesc: "極少見",
+    language: "蒙古語（西里爾字母 Cyrillic，特有 Ү 与 Ө 字母）",
     tld: ".mn",
     keyHints: [
       "車頂有超明顯的包布露營架/帳篷 (Roof Tent Meta)",
-      "遼闊大草原、藍天白雲、遠處散落蒙古包 (Ger)",
-      "文字全為西里爾字母，有特殊的 Ү 与 Ө 字母",
-      "地貌極度乾燥、荒涼或起伏草原丘陵"
+      "無垠大草原、遠處散落白色蒙古包 (Ger)",
+      "西里爾文字中含有特有的 Ү 与 Ө 字母",
+      "地貌極度乾燥、荒涼或草原丘陵"
     ],
     confusedWith: ["Kyrgyzstan", "Russia", "Kazakhstan"]
   },
@@ -264,21 +359,114 @@ export const COUNTRIES_DATA: CountryData[] = [
     plateType: "red_strip",
     plateDesc: "白牌左側有『紅色垂直長條』帶國旗，非常醒目！",
     roadLines: ["white_dashed", "white_solid"],
-    roadLinesDesc: "路況通常是白線，路面常有補丁或裂縫",
+    roadLinesDesc: "全白標線，路面多修補痕跡",
     carMeta: ["roof_rack", "curved_mirrors"],
-    carMetaDesc: "無敵 Meta：Google 車頂有一圈『金屬長條架』，且車頭可清楚看見『銀色後照鏡』！",
+    carMetaDesc: "無敵 Meta：Google 車頂有『金屬長條架』，且車頭可看見『銀色突出後照鏡』！",
     poleTypes: ["ladder_holes", "round_holes"],
-    poleDesc: "典型前蘇聯灰色水泥電線桿，多孔或下粗上細",
-    bollardDesc: "黑白相間金屬柱或水泥柱，頂部帶紅色反光斜條",
+    poleDesc: "前蘇聯灰色水泥電桿，多孔桿",
+    bollardDesc: "黑白相間柱附紅斜條",
     language: "吉爾吉斯語、俄語（西里爾字母）",
     tld: ".kg",
     keyHints: [
-      "街景車可見金屬車頂架 + 兩側突出之車頭後照鏡",
+      "街景車金屬車頂架 + 兩側突出之車頭後照鏡",
       "車牌左邊有明顯『紅色垂直條紋』(Red Strip Plate)",
-      "背景常有雄偉積雪之天山山脈，壯麗乾燥高山峽谷",
+      "雄偉積雪之天山山脈與乾旱高山峽谷",
       "西里爾文字招牌，常有傳統氈帽 (Ak-kalpak)"
     ],
     confusedWith: ["Mongolia", "Russia", "Kazakhstan"]
+  },
+  {
+    id: "398",
+    iso2: "KZ",
+    iso3: "KAZ",
+    name: "Kazakhstan",
+    nameZh: "哈薩克",
+    flag: "🇰🇿",
+    continent: "Asia",
+    region: "中亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4"],
+    plateType: "white",
+    plateDesc: "白底黑字長牌，左側有哈薩克國旗與金鷹圖案",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "道路標線全白，多線道平整寬闊",
+    carMeta: ["none"],
+    carMetaDesc: "2024 年官方正式大範圍推出 Gen 4 高畫質街景！",
+    poleTypes: ["round_holes", "standard"],
+    poleDesc: "蘇聯式灰色水泥電線桿，底部偶有白漆",
+    bollardDesc: "黑白相間金屬柱附紅反光片",
+    language: "哈薩克語、俄語（西里爾字母，有特有字母 ә, ғ, қ, ң, ө, ұ, ү, һ, і）",
+    tld: ".kz",
+    keyHints: [
+      "2024 年全新上線的官方 Gen 4 超高畫質街景！",
+      "極其開闊遼闊的歐亞大草原（Steppe），地平線無邊無際",
+      "車牌左側帶哈薩克國旗圖騰（青天金鷹）",
+      "清真寺青色圓頂與蘇聯式規劃現代寬闊林蔭大道"
+    ],
+    confusedWith: ["Russia", "Kyrgyzstan", "Mongolia"]
+  },
+  {
+    id: "356",
+    iso2: "IN",
+    iso3: "IND",
+    name: "India",
+    nameZh: "印度",
+    flag: "🇮🇳",
+    continent: "Asia",
+    region: "南亞",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen4"],
+    plateType: "white",
+    plateDesc: "自用車白底黑字，商業營業用車為亮黃底黑字牌",
+    roadLines: ["white_dashed", "yellow_single"],
+    roadLinesDesc: "路況多變，主要公路劃設全白線或單黃線",
+    carMeta: ["none"],
+    carMetaDesc: "官方全面推出 Gen 4 超高畫質街景，畫質極佳",
+    poleTypes: ["standard", "ladder_holes"],
+    poleDesc: "混凝土桿或角鐵拼裝電線桿",
+    bollardDesc: "紅白相間水泥矮石樁",
+    language: "英語、印地語（Hindi 天城文）及各邦語言（如泰米爾、泰盧固等）",
+    tld: ".in",
+    keyHints: [
+      "靠左行駛 (Left Drive) + 全面 Gen 4 超高畫質",
+      "滿大街綠黃配色的自動嘟嘟三輪車 (Auto-rickshaws)",
+      "英文招牌與印度各邦特殊文字並列（如天城文、孟加拉文、南印圓體字）",
+      "路牌多為藍底白字或綠底白字"
+    ],
+    confusedWith: ["Bangladesh", "Sri Lanka", "Bhutan"]
+  },
+  {
+    id: "050",
+    iso2: "BD",
+    iso3: "BGD",
+    name: "Bangladesh",
+    nameZh: "孟加拉",
+    flag: "🇧🇩",
+    continent: "Asia",
+    region: "南亞",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "綠底白字（天然氣 CNG 車輛）或白底藍字",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "中央線常為白虛線，鄉村路況多水坑泥路",
+    carMeta: ["curved_mirrors"],
+    carMetaDesc: "街景車偶爾可見突出之車頭側後視鏡",
+    poleTypes: ["standard"],
+    poleDesc: "水泥圓柱桿",
+    bollardDesc: "紅白相間矮墩",
+    language: "孟加拉語（Bengali，字母頂端有一條橫直線連貫）",
+    tld: ".bd",
+    keyHints: [
+      "靠左行駛 + 孟加拉文字招牌（如 'বাংলা'，頂部橫線貫穿）",
+      "滿街都是綠色鐵絲防盜籠的天然氣三輪嘟嘟車 (Green CNG Auto-rickshaws)",
+      "極高人口密度、河流密佈的水鄉平原三角洲地形",
+      "車身手繪彩繪圖案非常繁複繽紛的改裝卡車與人力三輪車"
+    ],
+    confusedWith: ["India", "Sri Lanka"]
   },
   {
     id: "064",
@@ -293,23 +481,23 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen3"],
     plateType: "red_strip",
-    plateDesc: "極具特色的『深紅底白字/黃字』車牌！",
+    plateDesc: "『深紅底白字/黃字』車牌（Red License Plates）！",
     roadLines: ["white_dashed"],
-    roadLinesDesc: "狹窄蜿蜒高山公路，白線或無標線",
+    roadLinesDesc: "高山峽谷蜿蜒公路，白線或無標線",
     carMeta: ["none"],
-    carMetaDesc: "偶有皮卡車身，車頂無特殊架",
+    carMetaDesc: "無特殊車架",
     poleTypes: ["standard"],
     poleDesc: "木桿或金屬桿，常纏有五彩經幡",
-    bollardDesc: "紅白相間矮墩或山道防護石塊",
-    language: "宗喀語（Dzongkha 藏文字體）與英文並行",
+    bollardDesc: "紅白相間矮石塊",
+    language: "宗喀語（Dzongkha 藏文字體）與英文雙語並列",
     tld: ".bt",
     keyHints: [
-      "全境深紅底車牌 (Red License Plates)",
-      "藏文文字招牌與傳統藏傳佛教木刻雕花窗櫺建築 (Dzong 建築風格)",
-      "靠左行駛，高海拔喜馬拉雅山脈蜿蜒山路",
-      "街上男女常身著傳統服飾『幗 (Gho)』與『旗拉 (Kira)』"
+      "全境深紅底車牌 (Red Plates)",
+      "傳統藏傳佛教木刻雕花窗櫺建築 (Dzong 建築風格)",
+      "靠左行駛，喜馬拉雅高山懸崖公路",
+      "男女身著傳統服飾『幗 (Gho)』與『旗拉 (Kira)』"
     ],
-    confusedWith: ["India", "Nepal", "Tibet"]
+    confusedWith: ["India", "Nepal"]
   },
   {
     id: "144",
@@ -324,21 +512,21 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen3"],
     plateType: "white",
-    plateDesc: "前白後黃，左側有省份英文縮寫（如 WP 代表西部省）",
+    plateDesc: "前白後黃長牌，左側有省份英文縮寫（如 WP 代表西部省）",
     roadLines: ["white_dashed", "yellow_single"],
     roadLinesDesc: "中央線常見黃線或白虛線",
     carMeta: ["low_cam", "roof_rack"],
-    carMetaDesc: "Low Cam 低鏡頭視角！且車頂常露出黑色行李架或藍白車身",
+    carMetaDesc: "Low Cam 低鏡頭視角！且車頂常露出黑色行李架",
     poleTypes: ["ladder_holes"],
-    poleDesc: "方形或多孔水泥柱",
-    bollardDesc: "白色半圓頭水泥矮柱",
-    language: "僧伽羅語（Sinhala，圓弧形像小蘋果的文字）、淡米爾語、英語",
+    poleDesc: "方形或穿孔水泥柱",
+    bollardDesc: "白色圓頭水泥矮石柱",
+    language: "僧伽羅語（Sinhala，圓弧形小蘋果字體）、淡米爾語、英語",
     tld: ".lk",
     keyHints: [
       "靠左行駛 + Low Cam 低鏡頭視角",
-      "僧伽羅文字（圓潤可愛，如 'ක', 'ය', 'ල'）",
-      "滿街都是 Tuk-Tuk 三輪機車，熱帶茂密椰子樹與綠意",
-      "三語並列的路牌（僧伽羅文、淡米爾文、英文）"
+      "僧伽羅文字（圓潤如小蘋果，如 'ක', 'ය', 'ල'）",
+      "三語並列的路牌（僧伽羅文、淡米爾文、英文）",
+      "滿大街 Tuk-Tuk 三輪車與鬱鬱蔥蔥的熱帶椰林"
     ],
     confusedWith: ["India", "Thailand"]
   },
@@ -355,26 +543,206 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "yellow_both",
-    plateDesc: "前後皆為極醒目的『亮黃底黑字牌』，左側有歐盟式藍條帶國旗！",
+    plateDesc: "前後皆為『亮黃底黑字牌』，左側有藍條帶國旗！",
     roadLines: ["white_dashed", "white_solid"],
     roadLinesDesc: "路況極好，標準白虛線與路邊紅白相間停車禁行線",
     carMeta: ["none"],
     carMetaDesc: "標準 Google 街景車",
     poleTypes: ["metal", "standard"],
-    poleDesc: "銀色鍍鋅金屬柱或圓柱水泥桿",
+    poleDesc: "銀色金屬柱或圓柱水泥桿",
     bollardDesc: "白色矮柱附黑帶與反光片",
-    language: "希伯來文（Hebrew，右至左書寫方形字母）、阿拉伯文、英文",
+    language: "希伯來文（Hebrew，右至左方形字母）、阿拉伯文、英文",
     tld: ".il",
     keyHints: [
-      "前後雙黃色車牌 (Yellow Plates front and back) 帶左側藍條",
+      "前後雙黃色車牌 (Yellow Plates) 帶左側藍條",
       "三語路標：希伯來文、阿拉伯文、英文",
       "路緣石常見『紅藍相間』或『紅白相間』塗漆",
-      "地中海/中東乾旱與現代綠化景觀，住宅常裝有太陽能熱水板"
+      "地中海乾旱與現代綠化，屋頂常裝有太陽能熱水板"
     ],
     confusedWith: ["Jordan", "Palestine", "Greece"]
   },
+  {
+    id: "784",
+    iso2: "AE",
+    iso3: "ARE",
+    name: "United Arab Emirates",
+    nameZh: "阿聯酋",
+    flag: "🇦🇪",
+    continent: "Asia",
+    region: "中東",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白底長牌或寬方牌，標有各酋長國英文（如 Dubai, Abu Dhabi）",
+    roadLines: ["yellow_single", "white_dashed"],
+    roadLinesDesc: "路面極平整，多線道高速公路劃設標準全白虛線",
+    carMeta: ["none"],
+    carMetaDesc: "標準高畫質街景",
+    poleTypes: ["metal"],
+    poleDesc: "現代化銀灰色金屬路燈桿",
+    bollardDesc: "白色金屬反光導標",
+    language: "阿拉伯語（Arabic）、英語",
+    tld: ".ae",
+    keyHints: [
+      "極其現代化的摩天大樓群（杜拜、阿布達比）與浩瀚沙漠公路",
+      "路標 100% 採用阿拉伯文與英文雙語並列",
+      "公路中間常有人工精心灌溉綠化的綠色草皮與椰棗樹帶",
+      "豪車超跑密度極高"
+    ],
+    confusedWith: ["Qatar", "Jordan", "Israel"]
+  },
+  {
+    id: "400",
+    iso2: "JO",
+    iso3: "JOR",
+    name: "Jordan",
+    nameZh: "約旦",
+    flag: "🇯🇴",
+    continent: "Asia",
+    region: "中東",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "長方形白牌，中央刻有英文字母『JORDAN』",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "乾燥柏油路，白虛線為主",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["wooden", "metal"],
+    poleDesc: "木桿或金屬桿",
+    bollardDesc: "紅白相間或石柱",
+    language: "阿拉伯語、英語",
+    tld: ".jo",
+    keyHints: [
+      "車牌中央清晰印有英文字『JORDAN』",
+      "極為乾燥多石的土黃色沙漠丘陵與古老砂岩景貌",
+      "計程車全為亮黃色，側面漆有綠色字體",
+      "阿拉伯文路牌標示，房屋多為米黃色平頂石屋"
+    ],
+    confusedWith: ["Israel", "United Arab Emirates", "Tunisia"]
+  },
+  {
+    id: "634",
+    iso2: "QA",
+    iso3: "QAT",
+    name: "Qatar",
+    nameZh: "卡達",
+    flag: "🇶🇦",
+    continent: "Asia",
+    region: "中東",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4"],
+    plateType: "white",
+    plateDesc: "白底長牌，左側帶有卡達國旗的栗色/酒紅色豎條與國徽",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，超平整高速公路",
+    carMeta: ["none"],
+    carMetaDesc: "Gen 4 超高畫質街景",
+    language: "阿拉伯語、英語",
+    tld: ".qa",
+    keyHints: [
+      "Gen 4 高畫質，超現代化多哈濱海路與波灣天際線",
+      "車牌左邊有酒紅色斜長條帶國旗圖騰",
+      "全境平坦乾燥沙漠與人造棕櫚綠洲"
+    ],
+    confusedWith: ["United Arab Emirates", "Jordan"]
+  },
+  {
+    id: "512",
+    iso2: "OM",
+    iso3: "OMN",
+    name: "Oman",
+    nameZh: "阿曼",
+    flag: "🇴🇲",
+    continent: "Asia",
+    region: "中東",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4"],
+    plateType: "white",
+    plateDesc: "白底黑字牌，營業車為黃底，左側帶有阿曼彎刀雙劍國徽",
+    roadLines: ["yellow_double", "white_solid"],
+    roadLinesDesc: "主要公路中央多劃設雙黃線，路側白線",
+    carMeta: ["none"],
+    carMetaDesc: "Gen 4 高畫質街景",
+    language: "阿拉伯語、英語",
+    tld: ".om",
+    keyHints: [
+      "壯麗無比的乾燥黑褐色裸露岩石峽谷與哈賈爾山脈 (Hajar Mountains)",
+      "極整潔平坦的現代多線道沙漠公路，中央為雙黃線",
+      "所有住宅均保持低矮優雅的純白或米黃色傳統阿拉伯拱門外觀"
+    ],
+    confusedWith: ["United Arab Emirates", "Jordan"]
+  },
 
-  // --- 歐洲 ---
+  // ==========================================
+  // --- 歐洲 (Europe) ---
+  // ==========================================
+  {
+    id: "643",
+    iso2: "RU",
+    iso3: "RUS",
+    name: "Russia",
+    nameZh: "俄羅斯",
+    flag: "🇷🇺",
+    continent: "Europe",
+    region: "東歐/北亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白底黑字長方牌，右側有俄羅斯白藍紅小國旗與『RUS』代碼",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "道路標線全白（雙向單線中央為白長虛線或雙白線，極少黃線）",
+    carMeta: ["none"],
+    carMetaDesc: "車尾常可見一根黑色的『長天線 (Antenna)』或露出白色/銀色車身",
+    poleTypes: ["round_holes", "ladder_holes"],
+    poleDesc: "蘇聯式灰色混凝土圓桿或多孔柱，高壓電塔常為巨大鋼結構桁架",
+    bollardDesc: "白色圓柱頂部帶有黑色斜切面，正面嵌長方形垂直白/紅反光片",
+    language: "俄語（Russian，西里爾字母 Cyrillic）",
+    tld: ".ru",
+    keyHints: [
+      "全境西里爾字母（與烏克蘭區別：俄語絕無字母 'i', 'ï', 'є'）",
+      "公路筆直穿越無窮無盡的白樺林（Birch trees）與針葉林（Taiga）",
+      "城鎮充斥蘇聯時代預製板住宅大樓（Khrushchyovka）與地上天然氣黃色管線",
+      "車牌右側有 RUS 與白藍紅國旗標誌"
+    ],
+    confusedWith: ["Ukraine", "Belarus", "Kazakhstan", "Kyrgyzstan"]
+  },
+  {
+    id: "804",
+    iso2: "UA",
+    iso3: "UKR",
+    name: "Ukraine",
+    nameZh: "烏克蘭",
+    flag: "🇺🇦",
+    continent: "Europe",
+    region: "東歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白牌左側有藍黃雙色條紋（烏克蘭國旗）帶 UA 標識",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "全白標線，路況多補丁裂痕",
+    carMeta: ["none"],
+    carMetaDesc: "部分地區（如中部/西部）街景車尾可見紅色車身 (Red car meta)",
+    poleTypes: ["round_holes", "striped"],
+    poleDesc: "混凝土桿底部極常塗上『白色油漆』防撞，且常漆有藍黃雙色國旗圖案",
+    bollardDesc: "黑白相間矮柱帶紅反光標",
+    language: "烏克蘭語（Cyrillic，特有字母：『i』, 『ï』, 『є』, 『ґ』）",
+    tld: ".ua",
+    keyHints: [
+      "秒殺字母：在西里爾文中看到拉丁外觀的『i』或帶雙點的『ï』，100% 烏克蘭！",
+      "路邊護欄、橋墩、電桿常漆有鮮明藍黃色國旗漆",
+      "遼闊極其肥沃的平坦黑土平原（Chernozem）與金黃向日葵田",
+      "街景車後方偶爾可見鮮紅色車尾"
+    ],
+    confusedWith: ["Russia", "Poland", "Bulgaria"]
+  },
   {
     id: "826",
     iso2: "GB",
@@ -402,7 +770,7 @@ export const COUNTRIES_DATA: CountryData[] = [
       "靠左行駛 + 『前白後黃』車牌（看路上其他車輛尾部全黃！）",
       "路面上常漆有大字『LOOK LEFT』『SLOW』『GIVE WAY』或黃色網狀交岔口",
       "紅磚聯排住宅 (Terraced houses)、石造煙囪",
-      "圓環 (Roundabout) 密度全球最高"
+      "圓環 (Roundabout) 密度極高"
     ],
     confusedWith: ["Ireland", "Australia", "New Zealand"]
   },
@@ -433,7 +801,7 @@ export const COUNTRIES_DATA: CountryData[] = [
       "靠左行駛 + 車尾是『白牌』(而非英國的黃牌)",
       "路緣是『黃色虛線』(Dashed yellow shoulder line)",
       "路標雙語並列：上層為斜體愛爾蘭文，下層為英文字",
-      "限速標誌為公里 (km/h)，路標為黃色菱形警告標誌 (英國是三角框)"
+      "限速標誌為公里 (km/h)，路標為黃色菱形警告標誌"
     ],
     confusedWith: ["United Kingdom"]
   },
@@ -454,7 +822,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed"],
     roadLinesDesc: "白虛線中間線，路緣虛線間隔長（約 3 公尺一段）",
     carMeta: ["none"],
-    carMetaDesc: "標準車身，有時後鏡頭稍微模糊",
+    carMetaDesc: "標準車身",
     poleTypes: ["ladder_holes", "wooden"],
     poleDesc: "木桿上常有金屬角鋼支架，或頂部帶有淺藍色塑膠保護蓋",
     bollardDesc: "白色圓柱頂部帶『紅色整圈凹槽反光條』(French Bollard)",
@@ -493,11 +861,100 @@ export const COUNTRIES_DATA: CountryData[] = [
     tld: ".de",
     keyHints: [
       "德國防撞柱：白柱 + 黑色平斜頂 + 正面白色垂直長條反光條",
-      "街道名稱招牌多為深藍色底白字，字體為 Fraktur 或 DIN 字體，常以『-straße』結尾",
+      "街道名稱招牌多為深藍色底白字，常以『-straße』結尾",
       "路邊隨處可見紅色圓框速度限制牌與黃色菱形先行權 (Priority) 標誌",
-      "玻璃回收箱 (Glascontainer) 按顏色分三桶（白綠棕）常在街角出現"
+      "垃圾回收箱按顏色分三桶（白綠棕）常在街角出現"
     ],
     confusedWith: ["Austria", "Switzerland", "Poland"]
+  },
+  {
+    id: "528",
+    iso2: "NL",
+    iso3: "NLD",
+    name: "Netherlands",
+    nameZh: "荷蘭",
+    flag: "🇳🇱",
+    continent: "Europe",
+    region: "西歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "yellow_both",
+    plateDesc: "前後皆為極醒目的『亮黃底黑字牌』帶左側藍條（Yellow Plates front and back）",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "道路標線全白，路面鋪設極其整齊平整",
+    carMeta: ["none"],
+    carMetaDesc: "標準街景車",
+    poleTypes: ["metal"],
+    poleDesc: "地下管線普及，路燈為精美銀灰色金屬桿",
+    bollardDesc: "紅白相間或紅黑導標",
+    language: "荷蘭語（Dutch，雙母音如 aa, ee, oo, uu，常見 Straat, Weg）",
+    tld: ".nl",
+    keyHints: [
+      "前後皆為黃色車牌 (Yellow license plates both front and back)",
+      "全世界密度最高的獨立紅磚色自行車專用道（Fietspad）",
+      "運河密佈、紅磚人字砌成的道路、紅磚傾斜山牆屋頂",
+      "地勢極其平坦，幾乎完全看不到山陵"
+    ],
+    confusedWith: ["Belgium", "Germany", "United Kingdom"]
+  },
+  {
+    id: "056",
+    iso2: "BE",
+    iso3: "BEL",
+    name: "Belgium",
+    nameZh: "比利時",
+    flag: "🇧🇪",
+    continent: "Europe",
+    region: "西歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "歐洲唯一『紅字白牌（Red characters on white plate）』！帶左側歐盟藍條",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，路況常有補丁或老舊混凝土塊接縫",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["ladder_holes", "metal"],
+    poleDesc: "混凝土桿或金屬桿",
+    bollardDesc: "白色圓柱帶紅白反光環",
+    language: "荷蘭語（北部法蘭德斯）、法語（南部瓦隆尼亞）",
+    tld: ".be",
+    keyHints: [
+      "車牌文字為『紅色字體』(Red text license plates)",
+      "高速公路夜間照明燈極為密集且高聳（全世界最密集路燈國之一）",
+      "北部路標全荷蘭文，南部路標全法文",
+      "連排紅磚老宅，路面上常有老舊混凝土塊拼裝路面"
+    ],
+    confusedWith: ["France", "Netherlands"]
+  },
+  {
+    id: "442",
+    iso2: "LU",
+    iso3: "LUX",
+    name: "Luxembourg",
+    nameZh: "盧森堡",
+    flag: "🇱🇺",
+    continent: "Europe",
+    region: "西歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "yellow_both",
+    plateDesc: "前後皆為黃底黑字牌帶歐盟藍條（字體比荷蘭牌稍細長）",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，柏油路面極新極平整",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    language: "盧森堡語、法語、德語",
+    tld: ".lu",
+    keyHints: [
+      "前後皆為黃色車牌，但路標與招牌以法語為主",
+      "全境綠意丘陵城堡景觀，豪車密度極高",
+      "黃牌但有法式地名（如 Rue, Avenue）"
+    ],
+    confusedWith: ["Netherlands", "France", "Belgium"]
   },
   {
     id: "040",
@@ -808,6 +1265,308 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Bulgaria", "Moldova", "Hungary"]
   },
   {
+    id: "100",
+    iso2: "BG",
+    iso3: "BGR",
+    name: "Bulgaria",
+    nameZh: "保加利亞",
+    flag: "🇧🇬",
+    continent: "Europe",
+    region: "東南歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟白牌帶 BG 藍條（使用西里爾字母但車牌是歐盟藍條！）",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線",
+    carMeta: ["none"],
+    carMetaDesc: "早期 Gen 3 常見樹木凋零的深秋/冬季街景 (Winter coverage)",
+    poleTypes: ["ladder_holes", "round_holes"],
+    poleDesc: "混凝土多孔桿",
+    bollardDesc: "白柱黑頂附紅色反光片",
+    language: "保加利亞語（Bulgarian，西里爾字母）",
+    tld: ".bg",
+    keyHints: [
+      "歐盟成員國中少數完全使用西里爾字母的國家（車牌帶歐盟星環藍條！）",
+      "秋冬光禿落葉的無樹葉季節街景很常見",
+      "鄉村平頂紅磚房與巴爾幹山脈起伏山巒"
+    ],
+    confusedWith: ["North Macedonia", "Serbia", "Romania"]
+  },
+  {
+    id: "191",
+    iso2: "HR",
+    iso3: "HRV",
+    name: "Croatia",
+    nameZh: "克羅埃西亞",
+    flag: "🇭🇷",
+    continent: "Europe",
+    region: "南歐/巴爾幹",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟白牌，左側帶 HR 藍條，中間帶有紅白棋盤格國徽",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，路況優良",
+    carMeta: ["none"],
+    carMetaDesc: "標準街景車",
+    poleTypes: ["standard"],
+    poleDesc: "金屬柱或簡潔混凝土柱",
+    bollardDesc: "紅白相間或黑頂白柱",
+    language: "克羅埃西亞語（Croatian，č, ć, ž, š, đ）",
+    tld: ".hr",
+    keyHints: [
+      "特有字母『đ』(d with stroke)",
+      "亞得里亞海迷人的石造紅瓦海邊村落、喀斯特石灰岩地貌",
+      "車牌上有紅白格子盾牌徽章"
+    ],
+    confusedWith: ["Slovenia", "Serbia", "Montenegro"]
+  },
+  {
+    id: "705",
+    iso2: "SI",
+    iso3: "SVN",
+    name: "Slovenia",
+    nameZh: "斯洛維尼亞",
+    flag: "🇸🇮",
+    continent: "Europe",
+    region: "中歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟牌帶綠色細外邊框與城市徽章（Green border around plate）",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，柏油鋪面極佳",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["wooden", "standard"],
+    poleDesc: "木桿與金屬桿",
+    bollardDesc: "白身斜切黑頂",
+    language: "斯洛維尼亞語（Slovene，č, š, ž）",
+    tld: ".si",
+    keyHints: [
+      "車牌四周有一圈非常醒目的『翠綠色細外邊框』",
+      "阿爾卑斯木屋與清澈湖泊山峰（特里格拉夫山 Triglav），極似奧地利但使用斯拉夫文字",
+      "路況整潔度在巴爾幹/東歐中排名第一"
+    ],
+    confusedWith: ["Austria", "Croatia", "Slovakia"]
+  },
+  {
+    id: "688",
+    iso2: "RS",
+    iso3: "SRB",
+    name: "Serbia",
+    nameZh: "塞爾維亞",
+    flag: "🇷🇸",
+    continent: "Europe",
+    region: "南歐/巴爾幹",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "白牌帶 SRB 藍條（非歐盟星環，而是塞爾維亞國徽）",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["ladder_holes"],
+    poleDesc: "混凝土穿孔桿",
+    bollardDesc: "白身黑頂帶紅長方反光片",
+    language: "塞爾維亞語（Serbian，西里爾字母與拉丁字母雙軌通行）",
+    tld: ".rs",
+    keyHints: [
+      "路標上常同時出現『西里爾字母』與『拉丁字母』並列",
+      "車牌左邊有藍條但不是歐盟（無黃色星星環）",
+      "平坦的多瑙河盆地平原與東歐巴爾幹老城街景"
+    ],
+    confusedWith: ["Bulgaria", "Montenegro", "Croatia"]
+  },
+  {
+    id: "499",
+    iso2: "ME",
+    iso3: "MNE",
+    name: "Montenegro",
+    nameZh: "蒙特內哥羅",
+    flag: "🇲🇪",
+    continent: "Europe",
+    region: "南歐/巴爾幹",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "eu_blue",
+    plateDesc: "白牌帶 MNE 藍條與雙頭鷹國徽",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白標線",
+    carMeta: ["rifts"],
+    carMetaDesc: "經典 Meta：天空常有縫合圓形接縫（Sky Rift）",
+    poleTypes: ["ladder_holes"],
+    poleDesc: "混凝土桿",
+    bollardDesc: "黑頂白柱附反光標",
+    language: "蒙特內哥羅語（拉丁與西里爾）",
+    tld: ".me",
+    keyHints: [
+      "天空裂縫光暈 (Sky Rift)",
+      "極為險峻的黑色峽谷山脈（如塔拉河峽谷）與科托爾峽灣沿海風光",
+      "車牌左側帶有 MNE 藍條"
+    ],
+    confusedWith: ["Albania", "Serbia", "Croatia"]
+  },
+  {
+    id: "807",
+    iso2: "MK",
+    iso3: "MKD",
+    name: "North Macedonia",
+    nameZh: "北馬其頓",
+    flag: "🇲🇰",
+    continent: "Europe",
+    region: "南歐/巴爾幹",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "eu_blue",
+    plateDesc: "白牌帶 NMK 藍條與紅色盾牌",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["ladder_holes"],
+    poleDesc: "混凝土多孔桿",
+    language: "馬其頓語（Cyrillic，特有字母 ѓ, ќ, ѕ, џ）",
+    tld: ".mk",
+    keyHints: [
+      "西里爾字母中有特有的帶尖音符字母『ѓ』與『ќ』",
+      "乾燥多石巴爾幹山丘，沿途清真寺與東正教堂交織"
+    ],
+    confusedWith: ["Bulgaria", "Serbia", "Greece"]
+  },
+  {
+    id: "008",
+    iso2: "AL",
+    iso3: "ALB",
+    name: "Albania",
+    nameZh: "阿爾巴尼亞",
+    flag: "🇦🇱",
+    continent: "Europe",
+    region: "南歐/巴爾幹",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "red_strip",
+    plateDesc: "早期車牌『前後皆帶紅色雙垂直側條』！新牌則為歐盟藍條但帶雙頭鷹徽",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，路況參差不齊",
+    carMeta: ["rifts"],
+    carMetaDesc: "部分 Gen 3 街景在天空中可見明顯拼接裂縫或圓環光暈",
+    poleTypes: ["ladder_holes"],
+    poleDesc: "水泥桿，多孔桿，偶見電線纏繞複雜",
+    bollardDesc: "白柱黑頂，正面帶有垂直紅長條反光條",
+    language: "阿爾巴尼亞語（Shqip，特有雙字母組合 ll, rr, dh, th 與 ë, ç）",
+    tld: ".al",
+    keyHints: [
+      "舊車牌前後帶有醒目的『紅色垂直條帶 (Red strips on license plate)』",
+      "滿大街都是舊款賓士 (Mercedes-Benz) 轎車！",
+      "隨處可見冷戰時期遺留的圓頂水泥軍事碉堡 (Bunkers)",
+      "阿爾巴尼亞文字充滿『ë』與『Rruga』(街道)"
+    ],
+    confusedWith: ["Montenegro", "North Macedonia", "Greece"]
+  },
+  {
+    id: "300",
+    iso2: "GR",
+    iso3: "GRC",
+    name: "Greece",
+    nameZh: "希臘",
+    flag: "🇬🇷",
+    continent: "Europe",
+    region: "南歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟白牌，GR 藍條",
+    roadLines: ["yellow_single", "white_dashed"],
+    roadLinesDesc: "乾燥柏油路，路面常反白偏黃",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["wooden"],
+    poleDesc: "木桿上常有金屬黃色接地牌",
+    bollardDesc: "白身黑斜頂帶紅白反光片",
+    language: "希臘語（Greek Alphabet，α, β, γ, δ, ε, Ω...）",
+    tld: ".gr",
+    keyHints: [
+      "希臘字母招牌（唯一完全使用希臘字母的國家！）",
+      "路標通常雙語：上排為黃色希臘文，下排為白色拉丁英文字",
+      "路邊隨處可見微型金屬小教堂神龕 (Kandylakia)",
+      "陽光強烈、乾燥橄欖樹、白牆藍頂海島建築或多石山嶺"
+    ],
+    confusedWith: ["Cyprus", "Italy", "Turkey"]
+  },
+  {
+    id: "792",
+    iso2: "TR",
+    iso3: "TUR",
+    name: "Turkey",
+    nameZh: "土耳其",
+    flag: "🇹🇷",
+    continent: "Europe",
+    region: "南歐/西亞",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "白底長牌，左側帶有 TR 藍條（非歐盟，但設計相似）",
+    roadLines: ["white_dashed", "white_solid"],
+    roadLinesDesc: "道路標線全白，多線道平整寬闊",
+    carMeta: ["none"],
+    carMetaDesc: "標準 Google 車",
+    poleTypes: ["metal", "standard"],
+    poleDesc: "灰色金屬柱或水泥柱",
+    bollardDesc: "白色扁柱頂部黑斜角，帶紅色長方形反光片",
+    language: "土耳其語（Turkish，特有無點的『ı』與帶點的『i』，以及 ğ, ş, ç）",
+    tld: ".tr",
+    keyHints: [
+      "秒殺文字：看到無點的字母『ı』(Dotless i) 100% 土耳其！",
+      "到處飄揚的鮮紅色土耳其星月國旗與阿塔圖克肖像",
+      "清真寺高聳宣禮塔 (Minarets) 遍布城鄉天際線",
+      "路標為深藍色底白字，路邊常有紅色圓框限速牌"
+    ],
+    confusedWith: ["Greece", "Bulgaria", "Romania"]
+  },
+  {
+    id: "208",
+    iso2: "DK",
+    iso3: "DNK",
+    name: "Denmark",
+    nameZh: "丹麥",
+    flag: "🇩🇰",
+    continent: "Europe",
+    region: "北歐",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "eu_blue",
+    plateDesc: "歐盟白牌，外圈有一圈『鮮紅色細邊框』(Red border around plate)！",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線，中央虛線與路邊虛線",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["wooden", "metal"],
+    poleDesc: "木桿較少，路邊路牌多裝在兩根平行的白柱上",
+    bollardDesc: "黃黑相間或白身紅標的小導標",
+    language: "丹麥語（Danish，æ, ø, å）",
+    tld: ".dk",
+    keyHints: [
+      "車牌四周有一圈非常醒目的『鮮紅色細外框』(Red border)",
+      "警告標誌為『黃底紅框』(Yellow diamond warning signs)",
+      "地勢極其平坦，風力發電機滿布，傳統茅草屋頂與紅磚農舍",
+      "路標常掛在兩根獨立白色金屬方柱上"
+    ],
+    confusedWith: ["Sweden", "Norway", "Germany"]
+  },
+  {
     id: "578",
     iso2: "NO",
     iso3: "NOR",
@@ -853,7 +1612,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     plateType: "eu_blue",
     plateDesc: "標準歐盟白牌，無特殊顏色",
     roadLines: ["white_dashed"],
-    roadLinesDesc: "全白線！中央線是短白虛線，路緣兩側是長白虛線（短虛線與密虛線組合）",
+    roadLinesDesc: "全白線！中央線是短白虛線，路緣兩側是短白虛線（短虛線與密虛線組合）",
     carMeta: ["none"],
     carMetaDesc: "標準車身",
     poleTypes: ["wooden"],
@@ -917,7 +1676,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed", "yellow_single"],
     roadLinesDesc: "中央線常為長白虛線，一號環島公路單線道極多",
     carMeta: ["none"],
-    carMetaDesc: "標準車身，偶有大輪胎越野車",
+    carMetaDesc: "標準車身",
     poleTypes: ["wooden"],
     poleDesc: "單支細木桿，常常有斜拉鋼索",
     bollardDesc: "冰島秒殺神柱：『亮黃色柱身 + 頂部白色帶紅白反光片』(Bright yellow bollards)！",
@@ -927,7 +1686,7 @@ export const COUNTRIES_DATA: CountryData[] = [
       "防撞柱是極亮眼的『鮮黃色細柱 (Yellow Bollards)』，全球最易認！",
       "特有古老字母『ð (Eth)』與『þ (Thorn)』",
       "地貌完全無樹木（極度缺乏高大喬木），黑色火山岩苔原、瀑布與冰川山丘",
-      "道路常常在狹窄橋樑前出現『EINBREIÐ BRÚ』(單線橋) 警告牌"
+      "道路常在狹窄橋樑前出現『EINBREIÐ BRÚ』(單線橋) 警告牌"
     ],
     confusedWith: ["Faroe Islands", "Norway"]
   },
@@ -1025,69 +1784,37 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Latvia", "Poland", "Estonia"]
   },
   {
-    id: "008",
-    iso2: "AL",
-    iso3: "ALB",
-    name: "Albania",
-    nameZh: "阿爾巴尼亞",
-    flag: "🇦🇱",
-    continent: "Europe",
-    region: "南歐/巴爾幹",
+    id: "304",
+    iso2: "GL",
+    iso3: "GRL",
+    name: "Greenland",
+    nameZh: "格陵蘭",
+    flag: "🇬🇱",
+    continent: "Americas",
+    region: "北極圈",
     drivingSide: "right",
     coverage: "official",
-    cameraGens: ["gen4", "gen3"],
-    plateType: "red_strip",
-    plateDesc: "早期車牌『前後皆帶紅色雙垂直側條』！新牌則為歐盟藍條但帶雙頭鷹徽",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "丹麥規格車牌，帶有 GR 字母標識",
     roadLines: ["white_dashed"],
-    roadLinesDesc: "全白線，路面品質參差不齊",
-    carMeta: ["rifts"],
-    carMetaDesc: "經典 Sky Rift：部分 Gen 3 街景在天空中可見明顯拼接裂縫或圓環光暈",
-    poleTypes: ["ladder_holes"],
-    poleDesc: "水泥桿，多孔桿，偶見電線纏繞複雜",
-    bollardDesc: "白柱黑頂，正面帶有垂直紅長條反光條",
-    language: "阿爾巴尼亞語（Shqip，特有雙字母組合 ll, rr, dh, th 與 ë, ç）",
-    tld: ".al",
-    keyHints: [
-      "舊車牌前後帶有醒目的『紅色垂直條帶 (Red strips on license plate)』",
-      "看到滿街都是舊款賓士 (Mercedes-Benz) 轎車！阿爾巴尼亞是全球賓士密度最高國之一",
-      "路邊隨處可見冷戰時期遺留的圓頂水泥軍事碉堡 (Bunkers)",
-      "阿爾巴尼亞文字充滿『ë』與『Rruga』(街道)"
-    ],
-    confusedWith: ["Montenegro", "North Macedonia", "Greece"]
-  },
-  {
-    id: "300",
-    iso2: "GR",
-    iso3: "GRC",
-    name: "Greece",
-    nameZh: "希臘",
-    flag: "🇬🇷",
-    continent: "Europe",
-    region: "南歐",
-    drivingSide: "right",
-    coverage: "official",
-    cameraGens: ["gen4", "gen3"],
-    plateType: "eu_blue",
-    plateDesc: "歐盟白牌，GR 藍條",
-    roadLines: ["yellow_single", "white_dashed"],
-    roadLinesDesc: "路況普遍乾燥，路面有時呈淡白色或偏黃反光",
+    roadLinesDesc: "大部分為無標線未鋪裝石子路",
     carMeta: ["none"],
-    carMetaDesc: "標準車身",
-    poleTypes: ["wooden"],
-    poleDesc: "木桿上常有金屬黃色接地牌",
-    bollardDesc: "白身黑斜頂帶紅白反光片",
-    language: "希臘語（Greek Alphabet，α, β, γ, δ, ε, Ω...）",
-    tld: ".gr",
+    carMetaDesc: "皮卡車或沙灘車 Quad / 徒步背包攝影",
+    language: "格陵蘭語（Kalaallisut）、丹麥語",
+    tld: ".gl",
     keyHints: [
-      "希臘字母招牌（唯一完全使用希臘字母的國家！）",
-      "路標通常雙語：上排為黃色希臘文，下排為白色拉丁英文字",
-      "路邊隨處可見微型金屬小教堂神龕 (Kandylakia)，紀念交通事故平安",
-      "陽光強烈、乾燥橄欖樹、白牆藍頂海島建築或多石山嶺"
+      "北極壯美冰原峽灣、海灣中漂浮巨大冰山浮冰",
+      "村落全為五顏六色的單棟木造平房（紅黃藍綠）",
+      "全境完全沒有任何樹木，道路極少且不互通",
+      "滿大街可見雪橇犬與雪地摩托車"
     ],
-    confusedWith: ["Cyprus", "Italy", "Turkey"]
+    confusedWith: ["Iceland", "Faroe Islands", "Norway"]
   },
 
-  // --- 美洲 ---
+  // ==========================================
+  // --- 美洲 (Americas) ---
+  // ==========================================
   {
     id: "840",
     iso2: "US",
@@ -1213,6 +1940,89 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Mexico", "Colombia", "Dominican Republic"]
   },
   {
+    id: "591",
+    iso2: "PA",
+    iso3: "PAN",
+    name: "Panama",
+    nameZh: "巴拿馬",
+    flag: "🇵🇦",
+    continent: "Americas",
+    region: "中美洲",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "美規寬方牌，每年更換不同底色與年份文字",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "中央雙黃線，路緣白實線",
+    carMeta: ["none"],
+    carMetaDesc: "標準 Google 車身",
+    poleTypes: ["standard"],
+    poleDesc: "圓柱水泥桿",
+    language: "西班牙語（停車為 ALTO）",
+    tld: ".pa",
+    keyHints: [
+      "中美洲唯一擁有超高摩天大樓現代金融天際線的國家（巴拿馬城）",
+      "停車標誌為『ALTO』",
+      "熱帶加勒比海氣候，海運貨櫃車多"
+    ],
+    confusedWith: ["Costa Rica", "Colombia", "Guatemala"]
+  },
+  {
+    id: "214",
+    iso2: "DO",
+    iso3: "DOM",
+    name: "Dominican Republic",
+    nameZh: "多明尼加",
+    flag: "🇩🇴",
+    continent: "Americas",
+    region: "加勒比海",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "美規長方形牌",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "中央雙黃線",
+    carMeta: ["back_black"],
+    carMetaDesc: "車尾露出黑色保險桿或白車車頭",
+    language: "西班牙語",
+    tld: ".do",
+    keyHints: [
+      "加勒比熱帶海島，棕櫚樹與色彩繽紛的單層矮木房",
+      "滿大街機車載客計程車『Motoconcho』",
+      "棒球運動極其普及，街頭常見棒球塗鴉與海報"
+    ],
+    confusedWith: ["Puerto Rico", "Guatemala", "Mexico"]
+  },
+  {
+    id: "630",
+    iso2: "PR",
+    iso3: "PRI",
+    name: "Puerto Rico",
+    nameZh: "波多黎各",
+    flag: "🇵🇷",
+    continent: "Americas",
+    region: "加勒比海",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "美規寬方牌，上方有波多黎各島嶼圖案",
+    roadLines: ["yellow_double", "white_solid"],
+    roadLinesDesc: "標準美國道路系統標線（中央雙黃線、鑽石標誌）",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    language: "西班牙語、英語",
+    tld: ".pr",
+    keyHints: [
+      "美屬自由邦：使用美規標線與號誌，但招牌 100% 全西班牙語",
+      "速度限制標牌單位是英里 (MPH)，但公路里程牌以公里 (km) 標記！",
+      "加勒比海島嶼氣候與五彩石板老城（聖胡安）"
+    ],
+    confusedWith: ["Dominican Republic", "United States", "Mexico"]
+  },
+  {
     id: "170",
     iso2: "CO",
     iso3: "COL",
@@ -1242,6 +2052,94 @@ export const COUNTRIES_DATA: CountryData[] = [
       "安地斯山脈陡峭青翠山巒，紅磚未粉刷房屋"
     ],
     confusedWith: ["Ecuador", "Peru", "Mexico"]
+  },
+  {
+    id: "218",
+    iso2: "EC",
+    iso3: "ECU",
+    name: "Ecuador",
+    nameZh: "厄瓜多",
+    flag: "🇪🇨",
+    continent: "Americas",
+    region: "南美",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "長方形白牌，上方帶有各省名稱，計程車與商業車多為橘黃底牌",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "雙黃線極為常見",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["standard"],
+    poleDesc: "水泥圓柱桿",
+    bollardDesc: "黑黃防撞指示箭頭 (Chevrons)",
+    language: "西班牙語（PARE）",
+    tld: ".ec",
+    keyHints: [
+      "雙黃中央線 + 彎道常有黑黃相間箭頭 (Chevrons)",
+      "計程車全為亮黃色，車頂帶有城市名與車牌號頂燈",
+      "安地斯高山雲霧林，路標背面沒有哥倫比亞的金屬十字架"
+    ],
+    confusedWith: ["Colombia", "Peru"]
+  },
+  {
+    id: "604",
+    iso2: "PE",
+    iso3: "PER",
+    name: "Peru",
+    nameZh: "秘魯",
+    flag: "🇵🇪",
+    continent: "Americas",
+    region: "南美",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "yellow_both",
+    plateDesc: "前後長方形白牌帶中央彩色秘魯國旗，商用車帶黃條",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "雙黃線，路側常有無標線碎石",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    poleTypes: ["ladder_holes", "striped"],
+    poleDesc: "標誌桿秒殺：路標金屬立柱常塗有『黑白相間條紋塗漆 (Black and white striped sign posts)』！",
+    bollardDesc: "紅白相間或紅身白反光柱",
+    language: "西班牙語（PARE）、克丘亞語",
+    tld: ".pe",
+    keyHints: [
+      "路標立柱是『黑白斑馬紋塗漆』(Black and white striped sign poles)",
+      "海岸線極端乾旱無植被之土黃色沙丘山陵 (Lima 灰濛濛天空)",
+      "大量 Mototaxi (改裝三輪機車計程車)",
+      "建築外牆多為紅磚裸露未粉刷，頂部常留有凸出之鋼筋柱"
+    ],
+    confusedWith: ["Bolivia", "Ecuador", "Colombia"]
+  },
+  {
+    id: "068",
+    iso2: "BO",
+    iso3: "BOL",
+    name: "Bolivia",
+    nameZh: "玻利維亞",
+    flag: "🇧🇴",
+    continent: "Americas",
+    region: "南美",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "白底黑字長方牌帶藍色頂條與國旗",
+    roadLines: ["yellow_double", "white_dashed"],
+    roadLinesDesc: "中央雙黃線，許多高山未鋪裝碎石路",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    language: "西班牙語、克丘亞語、艾馬拉語",
+    tld: ".bo",
+    keyHints: [
+      "高海拔安地斯阿爾蒂普拉諾高原 (Altiplano)，氣候乾燥寒冷",
+      "未粉刷裸露紅磚房屋比例極高",
+      "原住民婦女身著傳統澎澎百褶裙與圓頂硬禮帽 (Bowler hats)"
+    ],
+    confusedWith: ["Peru", "Ecuador"]
   },
   {
     id: "076",
@@ -1337,38 +2235,38 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Argentina", "Peru"]
   },
   {
-    id: "604",
-    iso2: "PE",
-    iso3: "PER",
-    name: "Peru",
-    nameZh: "秘魯",
-    flag: "🇵🇪",
+    id: "858",
+    iso2: "UY",
+    iso3: "URY",
+    name: "Uruguay",
+    nameZh: "烏拉圭",
+    flag: "🇺🇾",
     continent: "Americas",
     region: "南美",
     drivingSide: "right",
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
-    plateType: "yellow_both",
-    plateDesc: "前後長方形白牌帶中央彩色秘魯國旗，部分商用車帶黃條",
-    roadLines: ["yellow_double", "white_dashed"],
-    roadLinesDesc: "雙黃線，路側常有無標線碎石",
+    plateType: "white",
+    plateDesc: "Mercosur 牌，左側有各省名稱 (如 Montevideo, Canelones)",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "道路中央常為全白虛線",
     carMeta: ["none"],
     carMetaDesc: "標準車身",
-    poleTypes: ["ladder_holes", "striped"],
-    poleDesc: "標誌桿秒殺：路標金屬立柱常塗有『黑白相間條紋塗漆 (Black and white striped sign posts)』！",
-    bollardDesc: "紅白相間或紅身白反光柱",
-    language: "西班牙語（PARE）、克丘亞語",
-    tld: ".pe",
+    poleTypes: ["standard"],
+    poleDesc: "三聯柱水泥電桿 (Trifurcated poles，三根桿立在一起)",
+    language: "西班牙語",
+    tld: ".uy",
     keyHints: [
-      "路標立柱是『黑白斑馬紋塗漆』(Black and white striped sign poles)",
-      "海岸線極端乾旱無植被之土黃色沙丘山陵 (Lima 灰濛濛天空)",
-      "大量 Mototaxi (改裝三輪機車計程車)",
-      "建築外牆多為紅磚裸露未粉刷，頂部常留有凸出之鋼筋柱"
+      "平坦開闊的起伏草原丘陵，孤立生長的棕櫚樹 (Butia palms)",
+      "南美全白標線，電線桿常為三根水泥桿組成的三角結構",
+      "平靜整潔的鄉村牧場氛圍"
     ],
-    confusedWith: ["Bolivia", "Ecuador", "Colombia"]
+    confusedWith: ["Argentina", "Brazil"]
   },
 
-  // --- 大洋洲 ---
+  // ==========================================
+  // --- 大洋洲 (Oceania) ---
+  // ==========================================
   {
     id: "036",
     iso2: "AU",
@@ -1432,7 +2330,9 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Australia", "United Kingdom"]
   },
 
-  // --- 非洲 ---
+  // ==========================================
+  // --- 非洲 (Africa) ---
+  // ==========================================
   {
     id: "710",
     iso2: "ZA",
@@ -1494,6 +2394,60 @@ export const COUNTRIES_DATA: CountryData[] = [
       "路邊廣告隨處可見『M-PESA』行動支付綠色店面"
     ],
     confusedWith: ["Uganda", "South Africa", "Nigeria"]
+  },
+  {
+    id: "800",
+    iso2: "UG",
+    iso3: "UGA",
+    name: "Uganda",
+    nameZh: "烏干達",
+    flag: "🇺🇬",
+    continent: "Africa",
+    region: "東非",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "yellow_both",
+    plateDesc: "前白後黃長方牌，營業車有黃牌",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "中央白虛線或無標線",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身（無肯亞的涉水喉！）",
+    language: "英語、斯瓦希里語、盧干達語",
+    tld: ".ug",
+    keyHints: [
+      "靠左行駛 + 東非茂密起伏翠綠丘陵（與肯亞相比更綠、香蕉林更多）",
+      "路旁充斥香蕉種植園 (Matooke) 與紅土地質",
+      "車頭絕對沒有肯亞的黑色涉水喉！"
+    ],
+    confusedWith: ["Kenya", "Rwanda", "Ghana"]
+  },
+  {
+    id: "646",
+    iso2: "RW",
+    iso3: "RWA",
+    name: "Rwanda",
+    nameZh: "盧安達",
+    flag: "🇷🇼",
+    continent: "Africa",
+    region: "東非",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen4", "gen3"],
+    plateType: "white",
+    plateDesc: "白牌或黃牌帶 RW 標識",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白標線",
+    carMeta: ["roof_rack"],
+    carMetaDesc: "Google 車頂露出金屬橫桿 (Roof rack)",
+    language: "盧安達語 (Kinyarwanda)、法語、英語",
+    tld: ".rw",
+    keyHints: [
+      "靠右行駛（千丘之國 Land of a Thousand Hills）",
+      "道路極度乾淨平整，山坡梯田整齊修剪",
+      "街頭常見許多騎乘載重自行車運送黃色塑膠水桶或香蕉的民眾"
+    ],
+    confusedWith: ["Uganda", "Kenya"]
   },
   {
     id: "288",
@@ -1618,21 +2572,248 @@ export const COUNTRIES_DATA: CountryData[] = [
       "與南非差別：波札那極平坦，無南非連綿山脈與黃色路肩線"
     ],
     confusedWith: ["South Africa", "Namibia", "Eswatini"]
+  },
+  {
+    id: "748",
+    iso2: "SZ",
+    iso3: "SWZ",
+    name: "eSwatini",
+    nameZh: "史瓦帝尼",
+    flag: "🇸🇿",
+    continent: "Africa",
+    region: "南部非洲",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen3", "gen2"],
+    plateType: "white",
+    plateDesc: "白底黑字帶史瓦帝尼傳統黑白盾牌國徽",
+    roadLines: ["white_dashed", "yellow_single"],
+    roadLinesDesc: "路況良好，起伏山路",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    language: "英語、史瓦濟語 (siSwati)",
+    tld: ".sz",
+    keyHints: [
+      "靠左行駛，南部非洲青翠陡峭高山風景",
+      "車牌右側有傳統史瓦濟黑白戰盾",
+      "路邊常常可見黃線路肩或白色虛線"
+    ],
+    confusedWith: ["South Africa", "Lesotho"]
+  },
+  {
+    id: "426",
+    iso2: "LS",
+    iso3: "LSO",
+    name: "Lesotho",
+    nameZh: "賴索托",
+    flag: "🇱🇸",
+    continent: "Africa",
+    region: "南部非洲",
+    drivingSide: "left",
+    coverage: "official",
+    cameraGens: ["gen3", "gen2"],
+    plateType: "white",
+    plateDesc: "白牌藍字帶有特有的巴索托草帽 (Mokorotlo) 標誌",
+    roadLines: ["white_dashed", "yellow_single"],
+    roadLinesDesc: "蜿蜒壯觀之高山公路",
+    carMeta: ["none"],
+    carMetaDesc: "標準車身",
+    language: "塞索托語 (Sesotho)、英語",
+    tld: ".ls",
+    keyHints: [
+      "靠左行駛，全境位於 1000 公尺以上的天空王國 (Kingdom in the Sky)",
+      "滿山完全沒有高大樹木的壯美高山苔原丘陵",
+      "牧羊人身披厚重傳統巴索托羊毛毛毯 (Basotho Blanket) 與錐形草帽"
+    ],
+    confusedWith: ["South Africa", "eSwatini"]
+  },
+  {
+    id: "788",
+    iso2: "TN",
+    iso3: "TUN",
+    name: "Tunisia",
+    nameZh: "突尼西亞",
+    flag: "🇹🇳",
+    continent: "Africa",
+    region: "北非",
+    drivingSide: "right",
+    coverage: "official",
+    cameraGens: ["gen3"],
+    plateType: "white",
+    plateDesc: "黑底白字長牌，中間帶有阿拉伯文字",
+    roadLines: ["white_dashed"],
+    roadLinesDesc: "全白線",
+    carMeta: ["none"],
+    carMetaDesc: "多數為突尼西亞本島與傑爾巴島",
+    language: "阿拉伯語、法語",
+    tld: ".tn",
+    keyHints: [
+      "北非唯一的官方車載街景國！",
+      "靠右行駛 + 黑底白字阿拉伯車牌",
+      "路牌為阿拉伯文與法文雙語對照",
+      "地中海橄欖樹林、純白牆面與天藍色木門 (Sidi Bou Said 風格)"
+    ],
+    confusedWith: ["Jordan", "Senegal", "France"]
   }
 ];
 
-// Helper to look up country data flexibly by ID or name
-export function findCountry(idOrName: string | number): CountryData | undefined {
-  const queryStr = String(idOrName).trim().toLowerCase();
-  const queryNum = parseInt(queryStr, 10);
+// Comprehensive alias dictionary to match ANY TopoJSON name or ISO code variants
+const NAME_ALIASES: Record<string, string> = {
+  // Russia
+  'russia': '643',
+  'russian federation': '643',
+  'ru': '643',
+  'rus': '643',
+  // Philippines
+  'philippines': '608',
+  'the philippines': '608',
+  'ph': '608',
+  'phl': '608',
+  // Ukraine
+  'ukraine': '804',
+  'ua': '804',
+  'ukr': '804',
+  // Kazakhstan
+  'kazakhstan': '398',
+  'kz': '398',
+  'kaz': '398',
+  // India
+  'india': '356',
+  'in': '356',
+  'ind': '356',
+  // Bangladesh
+  'bangladesh': '050',
+  'bd': '050',
+  'bgd': '050',
+  // USA
+  'united states of america': '840',
+  'united states': '840',
+  'usa': '840',
+  'us': '840',
+  // Dominican Republic
+  'dominican rep.': '214',
+  'dominican republic': '214',
+  'do': '214',
+  // Macedonia
+  'macedonia': '807',
+  'north macedonia': '807',
+  'mk': '807',
+  // eSwatini
+  'eswatini': '748',
+  'swaziland': '748',
+  'sz': '748',
+  // Turkey
+  'turkey': '792',
+  'türkiye': '792',
+  'tr': '792',
+  // Greenland
+  'greenland': '304',
+  'gl': '304',
+  // Netherlands
+  'netherlands': '528',
+  'the netherlands': '528',
+  'holland': '528',
+  'nl': '528',
+  // Belgium
+  'belgium': '056',
+  'be': '056',
+  // Luxembourg
+  'luxembourg': '442',
+  'lu': '442',
+  // Denmark
+  'denmark': '208',
+  'dk': '208',
+  // Bulgaria
+  'bulgaria': '100',
+  'bg': '100',
+  // Croatia
+  'croatia': '191',
+  'hr': '191',
+  // Slovenia
+  'slovenia': '705',
+  'si': '705',
+  // Serbia
+  'serbia': '688',
+  'rs': '688',
+  // Montenegro
+  'montenegro': '499',
+  'me': '499',
+  // UAE
+  'united arab emirates': '784',
+  'uae': '784',
+  'ae': '784',
+  // Jordan
+  'jordan': '400',
+  'jo': '400',
+  // Qatar
+  'qatar': '634',
+  'qa': '634',
+  // Oman
+  'oman': '512',
+  'om': '512',
+  // Uganda
+  'uganda': '800',
+  'ug': '800',
+  // Rwanda
+  'rwanda': '646',
+  'rw': '646',
+  // Uruguay
+  'uruguay': '858',
+  'uy': '858',
+  // Bolivia
+  'bolivia': '068',
+  'bo': '068',
+  // Ecuador
+  'ecuador': '218',
+  'ec': '218',
+  // Panama
+  'panama': '591',
+  'pa': '591',
+  // Puerto Rico
+  'puerto rico': '630',
+  'pr': '630',
+  // Singapore
+  'singapore': '702',
+  'sg': '702',
+  // Hong Kong
+  'hong kong': '344',
+  'hk': '344',
+  // Tunisia
+  'tunisia': '788',
+  'tn': '788'
+};
 
+// Flexible lookup helper: matches numeric ISO, names, Alpha codes, or aliases
+export function findCountry(idOrName: string | number | undefined): CountryData | undefined {
+  if (!idOrName) return undefined;
+
+  const rawStr = String(idOrName).trim();
+  const cleanStr = rawStr.toLowerCase();
+  const queryNum = parseInt(rawStr, 10);
+
+  // 1. Direct numeric ISO comparison (handles '643' === 643, '032' === 32, etc.)
+  if (!isNaN(queryNum)) {
+    const numMatch = COUNTRIES_DATA.find((c) => parseInt(c.id, 10) === queryNum);
+    if (numMatch) return numMatch;
+  }
+
+  // 2. Check alias map
+  if (NAME_ALIASES[cleanStr]) {
+    const targetId = parseInt(NAME_ALIASES[cleanStr], 10);
+    const aliasMatch = COUNTRIES_DATA.find((c) => parseInt(c.id, 10) === targetId);
+    if (aliasMatch) return aliasMatch;
+  }
+
+  // 3. Exact or loose string match on name, Chinese name, or ISO codes
   return COUNTRIES_DATA.find((c) => {
-    if (!isNaN(queryNum) && parseInt(c.id, 10) === queryNum) return true;
-    if (c.id === queryStr) return true;
-    if (c.iso2.toLowerCase() === queryStr) return true;
-    if (c.iso3.toLowerCase() === queryStr) return true;
-    if (c.name.toLowerCase() === queryStr) return true;
-    if (c.nameZh === queryStr) return true;
+    if (c.name.toLowerCase() === cleanStr) return true;
+    if (c.nameZh === rawStr) return true;
+    if (c.iso2.toLowerCase() === cleanStr) return true;
+    if (c.iso3.toLowerCase() === cleanStr) return true;
+    // Normalized comparison
+    const normC = c.name.toLowerCase().replace(/[^a-z]/g, '');
+    const normQ = cleanStr.replace(/[^a-z]/g, '');
+    if (normC && normQ && normC === normQ) return true;
     return false;
   });
 }
