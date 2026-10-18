@@ -128,6 +128,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const dragStart = useRef({ clientX: 0, clientY: 0, x: 0, y: 0 });
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
+  const isInitializedRef = useRef(false);
 
   // Active filter definition
   const activeFilterDef = useMemo<FilterDefinition>(() => {
@@ -326,9 +327,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return () => ro.disconnect();
   }, [clampY, wrapX, applyTransform]);
 
-  // Initial map positioning once loaded
+  // Initial map positioning once loaded (runs only once upon initial load)
   useEffect(() => {
-    if (!loading && containerRef.current) {
+    if (!loading && containerRef.current && !isInitializedRef.current) {
+      isInitializedRef.current = true;
       const vh = containerRef.current.clientHeight || 800;
       const vw = containerRef.current.clientWidth || 1200;
       viewportSize.current = { w: vw, h: vh };
