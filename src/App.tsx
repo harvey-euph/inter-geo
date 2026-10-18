@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { WorldMap } from './components/WorldMap';
 import { CountryDetailPanel } from './components/CountryDetailPanel';
 import { QuizModal } from './components/QuizModal';
 import type { CountryData } from './types/geo';
+import type { PrefectureDetail, MunicipalityDetail } from './types/lod';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import './App.css';
 
@@ -12,20 +13,60 @@ export function App() {
   const [activeFilterId, setActiveFilterId] = useState<string>('none');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
+  const [selectedPrefecture, setSelectedPrefecture] = useState<PrefectureDetail | null>(null);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
+
+  const zoomToPrefectureRef = useRef<((prefId: number) => void) | null>(null);
+
+  const handleSelectCountry = (country: CountryData | null) => {
+    setSelectedCountry(country);
+    if (country) {
+      setSelectedPrefecture(null);
+      setSelectedMunicipality(null);
+    }
+  };
+
+  const handleSelectPrefecture = (pref: PrefectureDetail | null) => {
+    setSelectedPrefecture(pref);
+    if (pref) {
+      setSelectedCountry(null);
+      setSelectedMunicipality(null);
+    }
+  };
+
+  const handleSelectMunicipality = (muni: MunicipalityDetail | null) => {
+    setSelectedMunicipality(muni);
+    if (muni) {
+      setSelectedCountry(null);
+      setSelectedPrefecture(null);
+    }
+  };
+
+  const handleClosePanel = () => {
+    setSelectedCountry(null);
+    setSelectedPrefecture(null);
+    setSelectedMunicipality(null);
+  };
 
   const handleSelectCountryByName = (name: string) => {
     const found = findCountry(name);
     if (found) {
-      setSelectedCountry(found);
+      handleSelectCountry(found);
     }
   };
 
   const handleSelectCountryByIso2 = (iso2: string) => {
     const found = COUNTRIES_DATA.find((c) => c.iso2 === iso2);
     if (found) {
-      setSelectedCountry(found);
+      handleSelectCountry(found);
+    }
+  };
+
+  const handleZoomToPrefecture = (prefId: number) => {
+    if (zoomToPrefectureRef.current) {
+      zoomToPrefectureRef.current(prefId);
     }
   };
 
@@ -37,7 +78,7 @@ export function App() {
         onSelectFilter={(filterId) => setActiveFilterId(filterId)}
         isFilterExpanded={isFilterExpanded}
         onToggleFilterExpanded={() => setIsFilterExpanded((prev) => !prev)}
-        onSelectCountry={(country) => setSelectedCountry(country)}
+        onSelectCountry={handleSelectCountry}
         onOpenQuiz={() => setIsQuizOpen(true)}
       />
 
@@ -52,22 +93,30 @@ export function App() {
             onCollapse={() => setIsFilterExpanded(false)}
           />
 
-          {/* Clean Raw SVG World Map */}
+          {/* Clean Raw SVG World Map with Dynamic LOD Precision Tracking */}
           <WorldMap
             activeFilterId={activeFilterId}
             isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
-            onSelectCountry={(country) => setSelectedCountry(country)}
+            onSelectCountry={handleSelectCountry}
+            selectedPrefecture={selectedPrefecture}
+            onSelectPrefecture={handleSelectPrefecture}
+            selectedMunicipality={selectedMunicipality}
+            onSelectMunicipality={handleSelectMunicipality}
             hoveredCountry={hoveredCountry}
             setHoveredCountry={setHoveredCountry}
+            zoomToPrefectureRef={zoomToPrefectureRef}
           />
         </section>
 
-        {/* Side Detail Dossier Panel */}
+        {/* Side Detail Dossier Panel (Supports Country, Prefecture L2, Municipality L3) */}
         <CountryDetailPanel
           country={selectedCountry}
-          onClose={() => setSelectedCountry(null)}
+          prefecture={selectedPrefecture}
+          municipality={selectedMunicipality}
+          onClose={handleClosePanel}
           onSelectCountryName={handleSelectCountryByName}
+          onZoomToPrefecture={handleZoomToPrefecture}
         />
       </div>
 

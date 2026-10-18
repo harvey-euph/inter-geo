@@ -3,19 +3,28 @@ import { geoMercator, geoPath } from 'd3-geo';
 import * as topojson from 'topojson-client';
 import type { Topology, Objects } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
-import { ZoomIn, ZoomOut, RotateCcw, Compass } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry } from '../data/countries';
+import { getLODLevel } from '../types/lod';
+import type { LODLevel, PrefectureDetail, MunicipalityDetail } from '../types/lod';
+import { JAPAN_PREFECTURES } from '../data/japanData';
+import { PrecisionHUD } from './PrecisionHUD';
 
 interface WorldMapProps {
   activeFilterId: string;
   isFilterExpanded?: boolean;
   selectedCountry: CountryData | null;
   onSelectCountry: (country: CountryData | null) => void;
+  selectedPrefecture?: PrefectureDetail | null;
+  onSelectPrefecture?: (pref: PrefectureDetail | null) => void;
+  selectedMunicipality?: MunicipalityDetail | null;
+  onSelectMunicipality?: (muni: MunicipalityDetail | null) => void;
   hoveredCountry: CountryData | null;
   setHoveredCountry: (country: CountryData | null) => void;
+  zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
 }
 
 type GeoFeature = Feature<Geometry, { name: string }> & { id: string };
@@ -50,12 +59,28 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   isFilterExpanded = false,
   selectedCountry,
   onSelectCountry,
+  selectedPrefecture,
+  onSelectPrefecture,
+  selectedMunicipality,
+  onSelectMunicipality,
   hoveredCountry,
-  setHoveredCountry
+  setHoveredCountry,
+  zoomToPrefectureRef
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
+  const [japanPrefectureFeatures, setJapanPrefectureFeatures] = useState<Feature<Geometry, { id: number; nam: string; nam_ja: string }>[]>([]);
+  const [japanMunicipalityFeatures, setJapanMunicipalityFeatures] = useState<Feature<Geometry, { code: string; pref: string; city: string; gun?: string }>[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [activeRegion, setActiveRegion] = useState('world');
+
+  // Level of Detail (LOD) tracking: L1 (Country), L2 (Prefecture), L3 (Municipality)
+  const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
+  const [zoomK, setZoomK] = useState<number>(1.0);
+
+  // Sub-national hover states
+  const [hoveredPrefecture, setHoveredPrefecture] = useState<PrefectureDetail | null>(null);
+  const [hoveredMunicipality, setHoveredMunicipality] = useState<MunicipalityDetail | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -117,7 +142,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return geoPath().projection(projection);
   }, [projection]);
 
-  // Pre-calculate paths and map country data
+  // Pre-calculate paths for L1 Countries
   const countryPathData = useMemo(() => {
     return features.map((feature) => {
       const pathD = pathGenerator(feature) || '';
@@ -131,9 +156,56 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     });
   }, [features, pathGenerator]);
 
-  // Load TopoJSON data
+  // Pre-calculate paths for L2 Japan 47 Prefectures (都道府縣)
+  const prefecturePathData = useMemo(() => {
+    return japanPrefectureFeatures.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      const prefId = Number(feature.properties?.id);
+      const prefMeta = JAPAN_PREFECTURES[prefId];
+      let centroid: [number, number] = [882, 392];
+      try {
+        const c = pathGenerator.centroid(feature);
+        if (c && !isNaN(c[0]) && !isNaN(c[1])) {
+          centroid = c;
+        }
+      } catch {
+        // fallback
+      }
+
+      return {
+        pathD,
+        prefMeta,
+        id: prefId,
+        nameJa: feature.properties?.nam_ja || prefMeta?.nameJa || '',
+        nameEn: feature.properties?.nam || prefMeta?.nameEn || '',
+        centroid
+      };
+    });
+  }, [japanPrefectureFeatures, pathGenerator]);
+
+  // Pre-calculate paths for L3 Japan 1906 Municipalities (市區町村)
+  const municipalityPathData = useMemo(() => {
+    return japanMunicipalityFeatures.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      const code = String(feature.properties?.code || feature.id || '');
+      const pref = String(feature.properties?.pref || '');
+      const city = String(feature.properties?.city || '');
+      const gun = String(feature.properties?.gun || '');
+      return {
+        pathD,
+        code,
+        pref,
+        city,
+        gun
+      };
+    });
+  }, [japanMunicipalityFeatures, pathGenerator]);
+
+  // Load TopoJSON datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
     let isMounted = true;
+
+    // 1. Load L1 World Countries
     fetch('/data/countries-110m.json')
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load map data');
@@ -151,7 +223,41 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         setLoading(false);
       })
       .catch((err) => {
-        console.error('Map loading error:', err);
+        console.error('L1 Map loading error:', err);
+      });
+
+    // 2. Load L2 Japan 47 Prefectures
+    fetch('/data/japan-prefectures.json')
+      .then((res) => res.json())
+      .then((topology: Topology<Objects>) => {
+        if (!isMounted) return;
+        const prefsGeo = topojson.feature(
+          topology,
+          topology.objects.japan
+        ) as unknown as { features: Feature<Geometry, { id: number; nam: string; nam_ja: string }>[] };
+        if (prefsGeo && prefsGeo.features) {
+          setJapanPrefectureFeatures(prefsGeo.features);
+        }
+      })
+      .catch((err) => {
+        console.warn('L2 Prefectures loading notice:', err);
+      });
+
+    // 3. Load L3 Japan Municipalities
+    fetch('/data/japan-municipalities.json')
+      .then((res) => res.json())
+      .then((topology: Topology<Objects>) => {
+        if (!isMounted) return;
+        const munisGeo = topojson.feature(
+          topology,
+          topology.objects.municipalities
+        ) as unknown as { features: Feature<Geometry, { code: string; pref: string; city: string; gun?: string }>[] };
+        if (munisGeo && munisGeo.features) {
+          setJapanMunicipalityFeatures(munisGeo.features);
+        }
+      })
+      .catch((err) => {
+        console.warn('L3 Municipalities loading notice:', err);
       });
 
     return () => {
@@ -160,7 +266,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   }, []);
 
-  // ResizeObserver to detect container dimensions and clamp/scale appropriately
+  // Update container size on resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -171,13 +277,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (width > 0 && height > 0) {
           viewportSize.current = { w: width, h: height };
 
-          // Minimum zoom required to vertically cover the container with zero vertical empty space
           const kMin = height / MAP_H;
           const currentK = transformRef.current.k;
           const newK = Math.max(currentK, kMin);
           transformRef.current.k = newK;
 
-          // Clamp Y strictly
           transformRef.current.y = clampY(transformRef.current.y, newK, height);
           transformRef.current.x = wrapX(transformRef.current.x, newK);
           applyTransform(false);
@@ -200,15 +304,41 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const initialK = Math.max(kMin, 1.0);
       transformRef.current.k = initialK;
 
-      // Center horizontally on Europe/Africa meridian, vertically centered in bounds
       const initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
       const initialY = clampY((vh - MAP_H * initialK) / 2, initialK, vh);
 
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
+      setZoomK(Number(initialK.toFixed(1)));
+      setLodLevel(getLODLevel(initialK));
       applyTransform(false);
     }
   }, [loading, wrapX, clampY, applyTransform]);
+
+  // Zoom directly into a prefecture at L3 (called from Drawer)
+  useEffect(() => {
+    if (zoomToPrefectureRef) {
+      zoomToPrefectureRef.current = (prefId: number) => {
+        const target = prefecturePathData.find((p) => p.id === prefId);
+        if (target) {
+          const [cx, cy] = target.centroid;
+          const targetK = 7.8;
+          const vh = viewportSize.current.h;
+          const vw = viewportSize.current.w;
+          const targetX = vw / 2 - cx * targetK;
+          const targetY = vh / 2 - cy * targetK;
+
+          transformRef.current.k = targetK;
+          transformRef.current.x = wrapX(targetX, targetK);
+          transformRef.current.y = clampY(targetY, targetK, vh);
+
+          setZoomK(Number(targetK.toFixed(1)));
+          setLodLevel('L3');
+          applyTransform(true);
+        }
+      };
+    }
+  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, applyTransform]);
 
   // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -225,9 +355,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (tooltipRef.current) {
       tooltipRef.current.style.display = 'none';
     }
-    if (hoveredCountry) {
-      setHoveredCountry(null);
-    }
+    if (hoveredCountry) setHoveredCountry(null);
+    if (hoveredPrefecture) setHoveredPrefecture(null);
+    if (hoveredMunicipality) setHoveredMunicipality(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -262,20 +392,25 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (tooltipRef.current) {
         tooltipRef.current.style.display = 'none';
       }
-      if (hoveredCountry) {
-        setHoveredCountry(null);
-      }
+      if (hoveredCountry) setHoveredCountry(null);
+      if (hoveredPrefecture) setHoveredPrefecture(null);
+      if (hoveredMunicipality) setHoveredMunicipality(null);
       return;
     }
 
-    // Verify if the pointer is currently directly over a country SVG path
+    // Verify if pointer is directly over a country, prefecture, or municipality path
     const target = e.target as Element | null;
-    const isOverCountry = Boolean(target && target.classList && target.classList.contains('country-path'));
+    const isOverShape = Boolean(
+      target?.classList &&
+      (target.classList.contains('country-path') ||
+       target.classList.contains('prefecture-path') ||
+       target.classList.contains('municipality-path'))
+    );
 
-    if (!isOverCountry) {
-      if (hoveredCountry) {
-        setHoveredCountry(null);
-      }
+    if (!isOverShape) {
+      if (hoveredCountry) setHoveredCountry(null);
+      if (hoveredPrefecture) setHoveredPrefecture(null);
+      if (hoveredMunicipality) setHoveredMunicipality(null);
       if (tooltipRef.current) {
         tooltipRef.current.style.display = 'none';
       }
@@ -298,7 +433,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   };
 
-  // Wheel zoom centered on mouse pointer
+  // Wheel zoom centered on mouse pointer with Level of Detail (LOD) tracking
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const rect = containerRef.current?.getBoundingClientRect();
@@ -323,6 +458,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
+    const nextLOD = getLODLevel(newK);
+    if (nextLOD !== lodLevel) {
+      setLodLevel(nextLOD);
+    }
+    setZoomK(Number(newK.toFixed(1)));
+
     applyTransform(false);
   };
 
@@ -343,6 +484,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
+    const nextLOD = getLODLevel(newK);
+    if (nextLOD !== lodLevel) {
+      setLodLevel(nextLOD);
+    }
+    setZoomK(Number(newK.toFixed(1)));
+
     applyTransform(true);
   };
 
@@ -356,6 +503,44 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
 
     setActiveRegion('world');
+    setZoomK(Number(kMin.toFixed(1)));
+    setLodLevel(getLODLevel(kMin));
+    applyTransform(true);
+  };
+
+  // One-click Jump to specific Level of Detail (LOD)
+  const handleJumpToLOD = (targetLevel: LODLevel) => {
+    const vh = viewportSize.current.h;
+    const vw = viewportSize.current.w;
+    const kMin = vh / MAP_H;
+
+    let targetK = 1.0;
+    let cx = MAP_W / 2;
+    let cy = MAP_H / 2;
+
+    if (targetLevel === 'L1') {
+      targetK = Math.max(kMin, 1.0);
+      cx = MAP_W / 2;
+      cy = MAP_H / 2;
+    } else if (targetLevel === 'L2') {
+      targetK = 4.2;
+      cx = 882.0; // Center of Japan
+      cy = 392.0;
+    } else if (targetLevel === 'L3') {
+      targetK = 7.8;
+      cx = 888.2; // Tokyo & Kanto Region
+      cy = 393.7;
+    }
+
+    const targetX = vw / 2 - cx * targetK;
+    const targetY = vh / 2 - cy * targetK;
+
+    transformRef.current.k = targetK;
+    transformRef.current.x = wrapX(targetX, targetK);
+    transformRef.current.y = clampY(targetY, targetK, vh);
+
+    setZoomK(Number(targetK.toFixed(1)));
+    setLodLevel(targetLevel);
     applyTransform(true);
   };
 
@@ -376,6 +561,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(targetX, targetK);
     transformRef.current.y = clampY(targetY, targetK, vh);
 
+    setZoomK(Number(targetK.toFixed(1)));
+    setLodLevel(getLODLevel(targetK));
     applyTransform(true);
   };
 
@@ -405,7 +592,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onWheel={handleWheel}
       onMouseLeave={() => {
         isDragging.current = false;
-        setHoveredCountry(null);
+        if (hoveredCountry) setHoveredCountry(null);
+        if (hoveredPrefecture) setHoveredPrefecture(null);
+        if (hoveredMunicipality) setHoveredMunicipality(null);
         if (tooltipRef.current) {
           tooltipRef.current.style.display = 'none';
         }
@@ -413,10 +602,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onClick={(e) => {
         if (hasDragged.current) return;
         const target = e.target as Element | null;
-        if (target?.closest('.map-controls, .region-presets, .filter-legend-card')) {
+        if (target?.closest('.map-controls, .region-presets, .filter-legend-card, .precision-hud')) {
           return;
         }
         onSelectCountry(null);
+        if (onSelectPrefecture) onSelectPrefecture(null);
+        if (onSelectMunicipality) onSelectMunicipality(null);
       }}
     >
       {loading ? (
@@ -443,7 +634,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               animation: 'spin 0.8s linear infinite'
             }}
           />
-          <span style={{ color: 'var(--text-secondary)' }}>正在載入世界向量地圖...</span>
+          <span style={{ color: 'var(--text-secondary)' }}>正在載入世界高精度向量圖資...</span>
         </div>
       ) : (
         <svg
@@ -468,11 +659,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               fill="#0b0e14"
               onMouseEnter={() => {
                 if (hoveredCountry) setHoveredCountry(null);
+                if (hoveredPrefecture) setHoveredPrefecture(null);
+                if (hoveredMunicipality) setHoveredMunicipality(null);
                 if (tooltipRef.current) tooltipRef.current.style.display = 'none';
               }}
               onClick={() => {
                 if (!hasDragged.current) {
                   onSelectCountry(null);
+                  if (onSelectPrefecture) onSelectPrefecture(null);
+                  if (onSelectMunicipality) onSelectMunicipality(null);
                 }
               }}
             />
@@ -480,8 +675,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             {/* Continuous periodic world copies */}
             {WORLD_COPIES.map((copyIdx) => (
               <g key={copyIdx} transform={`translate(${copyIdx * MAP_W}, 0)`}>
+                {/* 1. L1 Layer: Countries (Japan is replaced at L2 & L3 for higher precision) */}
                 {countryPathData.map(({ pathD, countryMeta, id, name }) => {
                   if (!pathD) return null;
+                  const isJapan = String(id) === '392' || name === 'Japan' || countryMeta?.id === '392';
+                  if (isJapan && lodLevel !== 'L1') return null;
 
                   const isHovered =
                     hoveredCountry &&
@@ -503,6 +701,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       onMouseEnter={(e) => {
                         if (isDragging.current) return;
                         mousePos.current = { x: e.clientX, y: e.clientY };
+                        setHoveredPrefecture(null);
+                        setHoveredMunicipality(null);
                         if (countryMeta) {
                           setHoveredCountry(countryMeta);
                         } else {
@@ -548,10 +748,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Prevent accidental click when dragging/panning
                         if (hasDragged.current) return;
                         if (countryMeta) {
                           onSelectCountry(countryMeta);
+                          if (onSelectPrefecture) onSelectPrefecture(null);
+                          if (onSelectMunicipality) onSelectMunicipality(null);
                         } else {
                           onSelectCountry(null);
                         }
@@ -559,14 +760,121 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     />
                   );
                 })}
+
+                {/* 2. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
+                {lodLevel === 'L2' &&
+                  prefecturePathData.map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
+                    if (!pathD) return null;
+                    const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
+                    const isSelected = selectedPrefecture && selectedPrefecture.id === id;
+                    const fill = isHovered ? '#10b981' : isSelected ? '#f59e0b' : '#1e293b';
+
+                    return (
+                      <path
+                        key={`${copyIdx}-pref-${id}`}
+                        d={pathD}
+                        className={`prefecture-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                        fill={fill}
+                        stroke="#475569"
+                        strokeWidth={0.6}
+                        onMouseEnter={(e) => {
+                          if (isDragging.current) return;
+                          mousePos.current = { x: e.clientX, y: e.clientY };
+                          setHoveredCountry(null);
+                          setHoveredMunicipality(null);
+                          if (prefMeta) {
+                            setHoveredPrefecture(prefMeta);
+                          } else {
+                            setHoveredPrefecture({
+                              id,
+                              nameJa,
+                              nameZh: nameJa,
+                              nameEn,
+                              region: '日本',
+                              capital: '',
+                              areaCode: '0x',
+                              plates: [],
+                              proClues: ['日本都道府縣行政區'],
+                              landscapeDesc: ''
+                            });
+                          }
+                          if (tooltipRef.current) {
+                            tooltipRef.current.style.display = 'flex';
+                            tooltipRef.current.style.left = `${e.clientX}px`;
+                            tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          if (isDragging.current) return;
+                          if (hoveredPrefecture) setHoveredPrefecture(null);
+                          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasDragged.current) return;
+                          if (prefMeta && onSelectPrefecture) {
+                            onSelectPrefecture(prefMeta);
+                            onSelectCountry(null);
+                            if (onSelectMunicipality) onSelectMunicipality(null);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+
+                {/* 3. L3 Layer: Japan 1,906 市區町村 (Municipalities) Ultra-Precision Outlines */}
+                {lodLevel === 'L3' &&
+                  municipalityPathData.map(({ pathD, code, pref, city, gun }) => {
+                    if (!pathD) return null;
+                    const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
+                    const isSelected = selectedMunicipality && selectedMunicipality.code === code;
+                    const fill = isHovered ? '#f59e0b' : isSelected ? '#38bdf8' : '#1e2433';
+
+                    return (
+                      <path
+                        key={`${copyIdx}-muni-${code}`}
+                        d={pathD}
+                        className={`municipality-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                        fill={fill}
+                        stroke="rgba(255, 255, 255, 0.2)"
+                        strokeWidth={0.35}
+                        onMouseEnter={(e) => {
+                          if (isDragging.current) return;
+                          mousePos.current = { x: e.clientX, y: e.clientY };
+                          setHoveredCountry(null);
+                          setHoveredPrefecture(null);
+                          setHoveredMunicipality({ code, pref, gun, city, nameZh: `${pref} ${city}` });
+                          if (tooltipRef.current) {
+                            tooltipRef.current.style.display = 'flex';
+                            tooltipRef.current.style.left = `${e.clientX}px`;
+                            tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          if (isDragging.current) return;
+                          if (hoveredMunicipality) setHoveredMunicipality(null);
+                          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasDragged.current) return;
+                          if (onSelectMunicipality) {
+                            onSelectMunicipality({ code, pref, gun, city, nameZh: `${pref} ${city}` });
+                            onSelectCountry(null);
+                            if (onSelectPrefecture) onSelectPrefecture(null);
+                          }
+                        }}
+                      />
+                    );
+                  })}
               </g>
             ))}
           </g>
         </svg>
       )}
 
-      {/* Floating Hover Tooltip */}
-      {hoveredCountry && (
+      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, and Municipality) */}
+      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality) && (
         <div
           ref={(node) => {
             tooltipRef.current = node;
@@ -577,58 +885,159 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           }}
           className="map-tooltip"
         >
-          <div className="tooltip-header">
-            <span className="tooltip-flag">{hoveredCountry.flag}</span>
-            <div>
-              <div className="tooltip-name">{hoveredCountry.nameZh}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hoveredCountry.name}</div>
-            </div>
-          </div>
-          <div className="tooltip-meta">
-            <span className="tooltip-badge">
-              {hoveredCountry.drivingSide === 'left' ? '🚗 靠左行駛' : '🚙 靠右行駛'}
-            </span>
-            {hoveredCountry.coverage === 'official' ? (
-              <span className="tooltip-badge" style={{ color: '#10b981' }}>官方街景</span>
-            ) : (
-              <span className="tooltip-badge" style={{ color: '#94a3b8' }}>無官方街景</span>
-            )}
-          </div>
-          {hoveredCountry.keyHints && hoveredCountry.keyHints.length > 0 && (
-            <div
-              style={{
-                fontSize: 11,
-                color: '#93c5fd',
-                marginTop: 4,
-                lineHeight: 1.3,
-                borderTop: '1px solid var(--border-color)',
-                paddingTop: 4
-              }}
-            >
-              💡 {hoveredCountry.keyHints[0]}
-            </div>
+          {/* L2 Prefecture Tooltip */}
+          {hoveredPrefecture && (
+            <>
+              <div className="tooltip-header">
+                <span className="tooltip-flag" role="img" aria-label="pref">🗾</span>
+                <div>
+                  <div className="tooltip-name">{hoveredPrefecture.nameZh} ({hoveredPrefecture.nameJa})</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {hoveredPrefecture.nameEn} · {hoveredPrefecture.region}
+                  </div>
+                </div>
+              </div>
+              <div className="tooltip-meta">
+                <span className="tooltip-badge" style={{ color: '#34d399', borderColor: '#10b981' }}>
+                  <Phone size={10} style={{ display: 'inline', marginRight: 3 }} />
+                  市外局番: {hoveredPrefecture.areaCode}
+                </span>
+                <span className="tooltip-badge" style={{ color: '#60a5fa' }}>
+                  首府: {hoveredPrefecture.capital}
+                </span>
+              </div>
+              {hoveredPrefecture.proClues && hoveredPrefecture.proClues.length > 0 && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: '#93c5fd',
+                    marginTop: 4,
+                    lineHeight: 1.3,
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: 4
+                  }}
+                >
+                  💡 {hoveredPrefecture.proClues[0]}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* L3 Municipality Tooltip */}
+          {hoveredMunicipality && (
+            <>
+              <div className="tooltip-header">
+                <span className="tooltip-flag" role="img" aria-label="muni">🏙️</span>
+                <div>
+                  <div className="tooltip-name">{hoveredMunicipality.pref} · {hoveredMunicipality.city}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {hoveredMunicipality.gun ? `${hoveredMunicipality.gun} · ` : ''}JIS #{hoveredMunicipality.code}
+                  </div>
+                </div>
+              </div>
+              <div className="tooltip-meta">
+                <span className="tooltip-badge" style={{ color: '#fbbf24' }}>
+                  市區町村
+                </span>
+                <span className="tooltip-badge" style={{ color: '#38bdf8' }}>
+                  點擊展開詳細
+                </span>
+              </div>
+            </>
+          )}
+
+          {/* L1 Country Tooltip */}
+          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && (
+            <>
+              <div className="tooltip-header">
+                <span className="tooltip-flag">{hoveredCountry.flag}</span>
+                <div>
+                  <div className="tooltip-name">{hoveredCountry.nameZh}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hoveredCountry.name}</div>
+                </div>
+              </div>
+              <div className="tooltip-meta">
+                <span className="tooltip-badge">
+                  {hoveredCountry.drivingSide === 'left' ? '🚗 靠左行駛' : '🚙 靠右行駛'}
+                </span>
+                {hoveredCountry.coverage === 'official' ? (
+                  <span className="tooltip-badge" style={{ color: '#10b981' }}>官方街景</span>
+                ) : (
+                  <span className="tooltip-badge" style={{ color: '#94a3b8' }}>無官方街景</span>
+                )}
+              </div>
+              {hoveredCountry.keyHints && hoveredCountry.keyHints.length > 0 && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: '#93c5fd',
+                    marginTop: 4,
+                    lineHeight: 1.3,
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: 4
+                  }}
+                >
+                  💡 {hoveredCountry.keyHints[0]}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
+      {/* Floating Precision LOD Tracker HUD */}
+      <PrecisionHUD
+        currentLOD={lodLevel}
+        currentZoomK={zoomK}
+        onJumpToLOD={handleJumpToLOD}
+      />
+
       {/* Filter Legend Card */}
       <div className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''}`}>
         <div className="legend-title">
-          <Compass size={14} color="#38bdf8" />
           <span>{activeFilterDef.nameZh}</span>
         </div>
-        <div className="legend-items-list">
+        <div className="legend-items">
           {activeFilterDef.legend.map((item) => (
-            <div key={item.key} className="legend-item-row">
+            <div key={item.key} className="legend-item">
               <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
-              <span>{item.labelZh}</span>
+              <span className="legend-label">{item.labelZh}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Region Presets Toolbar */}
-      <div className="region-presets-bar">
+      {/* Map Control Buttons */}
+      <div className="map-controls">
+        <button
+          className="map-control-btn"
+          onClick={() => handleZoom('in')}
+          title="放大地圖 (Zoom In)"
+        >
+          <ZoomIn size={18} />
+        </button>
+        <button
+          className="map-control-btn"
+          onClick={() => handleZoom('out')}
+          title="縮小地圖 (Zoom Out)"
+        >
+          <ZoomOut size={18} />
+        </button>
+        <button
+          className="map-control-btn"
+          onClick={handleResetZoom}
+          title="還原縮放比例 (Reset View)"
+        >
+          <RotateCcw size={16} />
+        </button>
+      </div>
+
+      {/* Region Presets Floating Navigation */}
+      <div className="region-presets">
+        <div className="region-presets-label">
+          <Compass size={13} style={{ display: 'inline', marginRight: 4 }} />
+          大洲視野
+        </div>
         {Object.entries(REGION_PRESETS).map(([key, preset]) => (
           <button
             key={key}
@@ -638,31 +1047,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             {preset.nameZh}
           </button>
         ))}
-      </div>
-
-      {/* Zoom / Map Controls */}
-      <div className="map-controls-panel">
-        <button
-          className="map-control-btn"
-          onClick={() => handleZoom('in')}
-          title="放大 (或滾輪向前)"
-        >
-          <ZoomIn size={18} />
-        </button>
-        <button
-          className="map-control-btn"
-          onClick={() => handleZoom('out')}
-          title="縮小 (或滾輪向後)"
-        >
-          <ZoomOut size={18} />
-        </button>
-        <button
-          className="map-control-btn"
-          onClick={handleResetZoom}
-          title="重設全圖視角"
-        >
-          <RotateCcw size={16} />
-        </button>
       </div>
     </div>
   );
