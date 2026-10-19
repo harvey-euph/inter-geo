@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { geoMercator, geoPath, geoArea } from 'd3-geo';
+import { geoMercator, geoPath } from 'd3-geo';
 import * as topojson from 'topojson-client';
 import type { Topology, Objects } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
+import * as flatgeobuf from 'flatgeobuf';
 import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
@@ -29,6 +30,21 @@ interface WorldMapProps {
 
 type GeoFeature = Feature<Geometry, { name: string }> & { id: string };
 
+export interface JapanPrefectureProperties {
+  id: number;
+  nam: string;
+  nam_ja: string;
+}
+
+export interface JapanMunicipalityProperties {
+  code: string;
+  code_int?: number;
+  pref_id: number;
+  pref: string;
+  city: string;
+  gun?: string;
+}
+
 // Region centers in local Mercator coordinates (W=1000, H=1000)
 interface RegionPreset {
   nameZh: string;
@@ -54,36 +70,6 @@ const MERCATOR_SCALE = MAP_W / (2 * Math.PI); // 159.15494309
 // World copies rendered side-by-side for infinite continuous periodic wrapping
 const WORLD_COPIES = [-1, 0, 1, 2, 3];
 
-// Safeguard to ensure any inverted polygon winding (which causes D3 to project the entire globe) is corrected
-function normalizeFeatureWinding<P>(feature: Feature<Geometry, P>): Feature<Geometry, P> {
-  if (!feature.geometry) return feature;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const area = geoArea(feature as any);
-    if (area > 2 * Math.PI) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const geom = feature.geometry as any;
-      if (geom.type === 'Polygon') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        geom.coordinates = geom.coordinates.map((ring: any) => ring.slice().reverse());
-      } else if (geom.type === 'MultiPolygon') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        geom.coordinates = geom.coordinates.map((poly: any) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (geoArea({ type: 'Polygon', coordinates: poly } as any) > 2 * Math.PI) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return poly.map((ring: any) => ring.slice().reverse());
-          }
-          return poly;
-        });
-      }
-    }
-  } catch {
-    // fallback gracefully
-  }
-  return feature;
-}
-
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
   isFilterExpanded = false,
@@ -98,8 +84,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   zoomToPrefectureRef
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
-  const [japanPrefectureFeatures, setJapanPrefectureFeatures] = useState<Feature<Geometry, { id: number; nam: string; nam_ja: string }>[]>([]);
-  const [japanMunicipalityFeatures, setJapanMunicipalityFeatures] = useState<Feature<Geometry, { code: string; pref: string; city: string; gun?: string }>[]>([]);
+  const [japanPrefectureFeatures, setJapanPrefectureFeatures] = useState<Feature<Geometry, JapanPrefectureProperties>[]>([]);
+  const [japanMunicipalityFeatures, setJapanMunicipalityFeatures] = useState<Feature<Geometry, JapanMunicipalityProperties>[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [activeRegion, setActiveRegion] = useState('world');
@@ -220,12 +206,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return japanMunicipalityFeatures.map((feature) => {
       const pathD = pathGenerator(feature) || '';
       const code = String(feature.properties?.code || feature.id || '');
-      const pref = String(feature.properties?.pref || '');
+      const prefId = Number(feature.properties?.pref_id) || 0;
+      const pref = String(feature.properties?.pref || (prefId ? JAPAN_PREFECTURES[prefId]?.nameJa : '') || '');
       const city = String(feature.properties?.city || '');
       const gun = String(feature.properties?.gun || '');
       return {
         pathD,
         code,
+        prefId,
         pref,
         city,
         gun
@@ -258,41 +246,47 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         console.error('L1 Map loading error:', err);
       });
 
-    // 2. Load L2 Japan 47 Prefectures
-    fetch('/data/japan-prefectures.json')
-      .then((res) => res.json())
-      .then((topology: Topology<Objects>) => {
+    // 2. Load L2 Japan 47 Prefectures via FlatGeobuf binary (Zero-copy IEEE 754 floats)
+    (async () => {
+      try {
+        const res = await fetch('/data/japan-prefectures.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
         if (!isMounted) return;
-        const prefsGeo = topojson.feature(
-          topology,
-          topology.objects.japan
-        ) as unknown as { features: Feature<Geometry, { id: number; nam: string; nam_ja: string }>[] };
-        if (prefsGeo && prefsGeo.features) {
-          const sanitized = prefsGeo.features.map(normalizeFeatureWinding);
-          setJapanPrefectureFeatures(sanitized);
-        }
-      })
-      .catch((err) => {
-        console.warn('L2 Prefectures loading notice:', err);
-      });
 
-    // 3. Load L3 Japan Municipalities
-    fetch('/data/japan-municipalities.json')
-      .then((res) => res.json())
-      .then((topology: Topology<Objects>) => {
-        if (!isMounted) return;
-        const munisGeo = topojson.feature(
-          topology,
-          topology.objects.municipalities
-        ) as unknown as { features: Feature<Geometry, { code: string; pref: string; city: string; gun?: string }>[] };
-        if (munisGeo && munisGeo.features) {
-          const sanitized = munisGeo.features.map(normalizeFeatureWinding);
-          setJapanMunicipalityFeatures(sanitized);
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const features: Feature<Geometry, JapanPrefectureProperties>[] = [];
+        for await (const feature of it) {
+          features.push(feature as unknown as Feature<Geometry, JapanPrefectureProperties>);
         }
-      })
-      .catch((err) => {
-        console.warn('L3 Municipalities loading notice:', err);
-      });
+        if (isMounted) {
+          setJapanPrefectureFeatures(features);
+        }
+      } catch (err) {
+        console.warn('L2 Prefectures FlatGeobuf loading notice:', err);
+      }
+    })();
+
+    // 3. Load L3 Japan Municipalities via FlatGeobuf binary (Zero-copy IEEE 754 floats)
+    (async () => {
+      try {
+        const res = await fetch('/data/japan-municipalities.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        if (!isMounted) return;
+
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const features: Feature<Geometry, JapanMunicipalityProperties>[] = [];
+        for await (const feature of it) {
+          features.push(feature as unknown as Feature<Geometry, JapanMunicipalityProperties>);
+        }
+        if (isMounted) {
+          setJapanMunicipalityFeatures(features);
+        }
+      } catch (err) {
+        console.warn('L3 Municipalities FlatGeobuf loading notice:', err);
+      }
+    })();
 
     return () => {
       isMounted = false;
@@ -804,7 +798,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 })}
 
                 {/* 2. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
-                {lodLevel === 'L2' &&
+                {lodLevel === 'L2' && (copyIdx === 0 || copyIdx === 1) &&
                   prefecturePathData.map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
                     if (!pathD) return null;
                     const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
@@ -889,12 +883,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                   })}
 
                 {/* 3. L3 Layer: Japan 1,906 市區町村 (Municipalities) Ultra-Precision Outlines */}
-                {lodLevel === 'L3' &&
-                  municipalityPathData.map(({ pathD, code, pref, city, gun }) => {
+                {lodLevel === 'L3' && (copyIdx === 0 || copyIdx === 1) &&
+                  municipalityPathData.map(({ pathD, code, prefId, pref, city, gun }) => {
                     if (!pathD) return null;
                     const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
                     const isSelected = selectedMunicipality && selectedMunicipality.code === code;
-                    const isParentPref = hoveredMunicipality && hoveredMunicipality.pref === pref;
+                    // Fast integer comparison for parent prefecture with string fallback
+                    const isParentPref =
+                      hoveredMunicipality &&
+                      (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === prefId : hoveredMunicipality.pref === pref);
 
                     // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
                     let fill = '#1e2433';
@@ -940,7 +937,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           mousePos.current = { x: e.clientX, y: e.clientY };
                           setHoveredCountry(null);
                           setHoveredPrefecture(null);
-                          setHoveredMunicipality({ code, pref, gun, city, nameZh: `${pref} ${city}` });
+                          setHoveredMunicipality({ code, prefId, pref, gun, city, nameZh: `${pref} ${city}` });
                           if (tooltipRef.current) {
                             tooltipRef.current.style.display = 'flex';
                             tooltipRef.current.style.left = `${e.clientX}px`;
@@ -956,7 +953,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           e.stopPropagation();
                           if (hasDragged.current) return;
                           if (onSelectMunicipality) {
-                            onSelectMunicipality({ code, pref, gun, city, nameZh: `${pref} ${city}` });
+                            onSelectMunicipality({ code, prefId, pref, gun, city, nameZh: `${pref} ${city}` });
                             onSelectCountry(null);
                             if (onSelectPrefecture) onSelectPrefecture(null);
                           }

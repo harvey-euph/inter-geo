@@ -80,6 +80,7 @@ export interface PrefectureDetail {
 export interface MunicipalityDetail {
   code: string;
   pref: string;
+  prefId?: number;
   gun?: string;
   city: string;
   nameZh: string;
