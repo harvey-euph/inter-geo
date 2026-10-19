@@ -28,6 +28,8 @@ interface WorldMapProps {
   zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
   showRoads?: boolean;
   onToggleRoads?: () => void;
+  selectedRoad?: RoadPathData | null;
+  onSelectRoad?: (road: RoadPathData | null) => void;
 }
 
 export interface WorldCountryProperties {
@@ -129,7 +131,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   setHoveredCountry,
   zoomToPrefectureRef,
   showRoads: showRoadsProp,
-  onToggleRoads: onToggleRoadsProp
+  onToggleRoads: onToggleRoadsProp,
+  selectedRoad,
+  onSelectRoad
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [japanPrefectureFeatures, setJapanPrefectureFeatures] = useState<Feature<Geometry, JapanPrefectureProperties>[]>([]);
@@ -171,6 +175,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   >(new Map());
   const [hoveredRoad, setHoveredRoad] = useState<RoadPathData | null>(null);
   const hoveredRoadRef = useRef<RoadPathData | null>(null);
+  const selectedRoadRef = useRef<RoadPathData | null>(selectedRoad || null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -391,6 +396,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const { k, x, y } = transformRef.current;
     const copies = visibleRoadCopiesRef.current;
     const hovered = hoveredRoadRef.current;
+    const selected = selectedRoadRef.current;
 
     for (const copyIdx of copies) {
       ctx.setTransform(
@@ -423,22 +429,136 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         ctx.stroke(bundle.interstatesPath2D);
       }
 
-      // 3. Highlight currently hovered highway with vibrant neon orange and soft shadow glow
-      if (hovered && hovered.path2D) {
+      // 3. Highlight selected highway with prominent glowing neon orange outline
+      if (selected && selected.path2D) {
         ctx.save();
-        const isInterstate = hovered.class === 'Interstate';
+        const isInterstate = selected.class === 'Interstate';
         ctx.strokeStyle = '#f97316';
-        ctx.lineWidth = (isInterstate ? 3.4 : 2.8) / k;
+        ctx.lineWidth = (isInterstate ? 4.2 : 3.4) / k;
         ctx.globalAlpha = 1.0;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(249, 115, 22, 0.95)';
+        ctx.shadowColor = 'rgba(249, 115, 22, 1.0)';
+        ctx.shadowBlur = 12 * dpr;
+        ctx.stroke(selected.path2D);
+        ctx.restore();
+      }
+
+      // 4. Highlight currently hovered highway with vibrant neon orange and soft shadow glow
+      if (hovered && hovered.path2D && hovered.name !== selected?.name) {
+        ctx.save();
+        const isInterstate = hovered.class === 'Interstate';
+        ctx.strokeStyle = '#fb923c';
+        ctx.lineWidth = (isInterstate ? 3.4 : 2.8) / k;
+        ctx.globalAlpha = 0.95;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
         ctx.shadowBlur = 8 * dpr;
         ctx.stroke(hovered.path2D);
         ctx.restore();
       }
     }
   }, []);
+
+  // Synchronize selectedRoad changes with canvas highlight
+  useEffect(() => {
+    selectedRoadRef.current = selectedRoad || null;
+    if (showRoadsRef.current) {
+      renderRoadsCanvas();
+    }
+  }, [selectedRoad, renderRoadsCanvas]);
+
+  // Fast spatial search: returns road under client (x, y) if hit
+  const getRoadAtPoint = useCallback((clientX: number, clientY: number): RoadPathData | null => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+
+    const { k, x, y } = transformRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = roadsCanvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return null;
+
+    const tolerancePx = 10;
+    const toleranceMap = tolerancePx / k;
+
+    let candidateFederal: RoadPathData | null = null;
+
+    for (const copyIdx of visibleRoadCopiesRef.current) {
+      const mapX = (mx - x) / k - copyIdx * MAP_W;
+      const mapY = (my - y) / k;
+
+      ctx.setTransform(
+        k * dpr,
+        0,
+        0,
+        k * dpr,
+        (x + copyIdx * MAP_W * k) * dpr,
+        y * dpr
+      );
+      ctx.lineWidth = (tolerancePx * 2) / k;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (const iso2 of visibleRoadIso2sRef.current) {
+        const roads = loadedRoadsRef.current.get(iso2);
+        if (!roads) continue;
+
+        for (let i = 0; i < roads.length; i++) {
+          const road = roads[i];
+          const [minX, minY, maxX, maxY] = road.bbox;
+          if (
+            mapX < minX - toleranceMap ||
+            mapX > maxX + toleranceMap ||
+            mapY < minY - toleranceMap ||
+            mapY > maxY + toleranceMap
+          ) {
+            continue;
+          }
+
+          if (road.path2D && ctx.isPointInStroke(road.path2D, mx * dpr, my * dpr)) {
+            if (road.class === 'Interstate') {
+              return road;
+            }
+            if (!candidateFederal) {
+              candidateFederal = road;
+            }
+          }
+        }
+      }
+    }
+    return candidateFederal;
+  }, []);
+
+  // Map Click Handler: prioritizes Highway selection in Road Mode and prevents underlying Country/L2 activation
+  const handleMapClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (hasDragged.current) return;
+      const target = e.target as Element | null;
+      if (target?.closest('.map-controls, .region-presets, .filter-legend-card, .precision-hud')) {
+        return;
+      }
+
+      setSelectedL2Subdivision(null);
+
+      if (showRoadsRef.current) {
+        const hitRoad = hoveredRoadRef.current || getRoadAtPoint(e.clientX, e.clientY);
+        if (onSelectRoad) {
+          onSelectRoad(hitRoad);
+        }
+        return;
+      }
+
+      setPinnedPrefId(null);
+      onSelectCountry(null);
+      if (onSelectPrefecture) onSelectPrefecture(null);
+      if (onSelectMunicipality) onSelectMunicipality(null);
+    },
+    [onSelectRoad, onSelectCountry, onSelectPrefecture, onSelectMunicipality, getRoadAtPoint]
+  );
 
   // Apply GPU hardware-accelerated transform directly to SVG group and sync Canvas
   const applyTransform = useCallback(() => {
@@ -1278,7 +1398,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [activeFilterDef]
   );
 
-  const activeSelectedL2 = selectedCountry ? selectedL2Subdivision : null;
+  const activeSelectedL2 = !showRoads && selectedCountry ? selectedL2Subdivision : null;
 
   return (
     <div
@@ -1299,17 +1419,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           tooltipRef.current.style.display = 'none';
         }
       }}
-      onClick={(e) => {
-        if (hasDragged.current) return;
-        const target = e.target as Element | null;
-        if (target?.closest('.map-controls, .region-presets, .filter-legend-card, .precision-hud')) {
-          return;
-        }
-        setPinnedPrefId(null);
-        onSelectCountry(null);
-        if (onSelectPrefecture) onSelectPrefecture(null);
-        if (onSelectMunicipality) onSelectMunicipality(null);
-      }}
+      onClick={handleMapClick}
     >
       {loading ? (
         <div
@@ -1367,7 +1477,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 if (hoveredRoad) setHoveredRoad(null);
                 if (tooltipRef.current) tooltipRef.current.style.display = 'none';
               }}
-              onClick={() => {
+              onClick={(e) => {
+                if (showRoads) {
+                  handleMapClick(e);
+                  return;
+                }
                 if (!hasDragged.current) {
                   setPinnedPrefId(null);
                   onSelectCountry(null);
@@ -1402,6 +1516,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     (hoveredCountry.id === countryMeta?.id ||
                       (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
                   const isSelected =
+                    !showRoads &&
                     selectedCountry &&
                     (selectedCountry.id === countryMeta?.id ||
                       (countryMeta && selectedCountry.iso2 === countryMeta.iso2));
@@ -1465,6 +1580,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (showRoads) {
+                          handleMapClick(e);
+                          return;
+                        }
                         if (hasDragged.current) return;
                         if (countryMeta) {
                           onSelectCountry(countryMeta);
@@ -1486,7 +1605,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     .map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
                       if (!pathD) return null;
                       const isHovered = !showRoads && hoveredPrefecture && hoveredPrefecture.id === id;
-                      const isSelected = selectedPrefecture && selectedPrefecture.id === id;
+                      const isSelected = !showRoads && selectedPrefecture && selectedPrefecture.id === id;
 
                       // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
                       let fill = '#1e293b';
@@ -1589,6 +1708,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (showRoads) {
+                              handleMapClick(e);
+                              return;
+                            }
                             if (hasDragged.current) return;
                             setPinnedPrefId(id);
                             if (prefMeta && onSelectPrefecture) {
@@ -1691,6 +1814,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (showRoads) {
+                            handleMapClick(e);
+                            return;
+                          }
                           if (hasDragged.current) return;
                           setSelectedL2Subdivision({ iso2, id });
                           const cMeta = findCountry(iso2);
@@ -1712,7 +1839,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     return munis.map(({ pathD, code, prefId: mPrefId, pref, city, gun }) => {
                       if (!pathD) return null;
                       const isHovered = !showRoads && hoveredMunicipality && hoveredMunicipality.code === code;
-                      const isSelected = selectedMunicipality && selectedMunicipality.code === code;
+                      const isSelected = !showRoads && selectedMunicipality && selectedMunicipality.code === code;
                       // Fast integer comparison for parent prefecture with string fallback
                       const isParentPref =
                         !showRoads &&
@@ -1793,6 +1920,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (showRoads) {
+                              handleMapClick(e);
+                              return;
+                            }
                             if (hasDragged.current) return;
                             setPinnedPrefId(mPrefId);
                             if (onSelectMunicipality) {

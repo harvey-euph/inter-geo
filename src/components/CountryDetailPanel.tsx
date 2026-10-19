@@ -1,12 +1,14 @@
 import React from 'react';
-import { X, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phone, MapPin, Search } from 'lucide-react';
+import { X, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phone, MapPin, Search, Compass } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { PrefectureDetail, MunicipalityDetail } from '../types/lod';
+import type { RoadPathData } from './WorldMap';
 
 interface CountryDetailPanelProps {
   country: CountryData | null;
   prefecture?: PrefectureDetail | null;
   municipality?: MunicipalityDetail | null;
+  road?: RoadPathData | null;
   onClose: () => void;
   onSelectCountryName?: (name: string) => void;
   onZoomToPrefecture?: (prefId: number) => void;
@@ -16,10 +18,221 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
   country,
   prefecture,
   municipality,
+  road,
   onClose,
   onSelectCountryName,
   onZoomToPrefecture
 }) => {
+  // 0. Highway & Route Detail (Roads Mode)
+  if (road) {
+    const isInterstate = road.class === 'Interstate';
+    const num = parseInt(road.number, 10);
+    const hasNum = !isNaN(num);
+    const isEven = hasNum && num % 2 === 0;
+    const isOdd = hasNum && num % 2 !== 0;
+    const isMajor = hasNum && road.number.length <= 2 && (num % 5 === 0 || num % 10 === 0);
+    const isAuxiliary = hasNum && road.number.length === 3;
+    const firstDigit = isAuxiliary ? parseInt(road.number[0], 10) : 0;
+    const isBeltway = isAuxiliary && firstDigit % 2 === 0;
+
+    let numberingRule = '';
+    let locationClue = '';
+    if (isInterstate) {
+      if (isEven) {
+        numberingRule = '偶數編號為東西走向 (East-West)。全美號碼自南向北遞增（I-10 橫貫最南方美墨邊界/墨西哥灣，I-90 橫貫最北方加拿大邊界）。';
+        if (num <= 20) locationClue = '號碼偏小（如 I-10, I-20）：位於美國南部陽光地帶（加州、德州、佛羅里達等）。';
+        else if (num <= 40) locationClue = '號碼居中（如 I-40）：橫貫美國南部偏中帶（北卡、田納西、奧克拉荷馬、新墨西哥、亞利桑那）。';
+        else if (num <= 70) locationClue = '號碼偏中上（如 I-70）：橫貫美國心臟地帶（馬里蘭、俄亥俄、堪薩斯、科羅拉多、猶他）。';
+        else locationClue = '號碼偏大（如 I-80, I-90, I-94）：橫貫美國中北部及五大湖區（紐約、芝加哥、明尼蘇達、華盛頓州西雅圖）。';
+      } else {
+        numberingRule = '奇數編號為南北走向 (North-South)。全美號碼自西向東遞增（I-5 緊貼西海岸太平洋，I-95 緊貼東海岸大西洋）。';
+        if (num <= 15) locationClue = '號碼偏小（如 I-5, I-15）：縱貫美國西部與太平洋沿岸（加州、奧勒岡、華盛頓州、內華達、猶他）。';
+        else if (num <= 35) locationClue = '號碼居中（如 I-25, I-35）：縱貫大平原與中西部（德州、堪薩斯、內布拉斯加、新墨西哥）。';
+        else if (num <= 65) locationClue = '號碼偏中東（如 I-55, I-65, I-75）：縱貫密西西比河流域至五大湖（芝加哥、印第安納、肯塔基、田納西、阿拉巴馬）。';
+        else locationClue = '號碼偏大（如 I-85, I-95）：縱貫美國大西洋東海岸（波士頓、紐約、費城、DC、北卡、佛羅里達）。';
+      }
+    } else {
+      if (isEven) {
+        numberingRule = '偶數編號為東西走向 (East-West)。重要：國道號碼走向與州際相反！號碼自北向南遞增（US 2 沿加拿大邊境，US 90/98 位於最南端墨西哥灣）。';
+        if (num <= 30) locationClue = '號碼偏小（如 US 2, US 20, US 30）：位於美國中北部偏向加拿大與五大湖。';
+        else if (num <= 60) locationClue = '號碼居中（如 US 40, US 50, US 60）：橫貫美國中部俄亥俄河流域至內華達沙漠。';
+        else locationClue = '號碼偏大（如 US 80, US 90, US 98）：位於美國南部墨西哥灣沿岸與美墨邊界。';
+      } else {
+        numberingRule = '奇數編號為南北走向 (North-South)。重要：國道號碼走向與州際相反！號碼自東向西遞增（US 1 沿大西洋東岸，US 101 沿太平洋西岸）。';
+        if (num <= 31) locationClue = '號碼偏小（如 US 1, US 13, US 17, US 23）：緊貼美國東海岸大西洋與新英格蘭地區。';
+        else if (num <= 61) locationClue = '號碼居中（如 US 31, US 41, US 51, US 61）：縱貫美國中西部密西西比河流域（如經典藍調公路 US 61）。';
+        else locationClue = '號碼偏大（如 US 75, US 83, US 95, US 101）：縱貫美國大平原以西至太平洋沿岸（US 101 為西海岸經典風景線）。';
+      }
+    }
+
+    let auxClue = '';
+    if (isAuxiliary) {
+      if (isBeltway) {
+        auxClue = `三位數首位為偶數 (${firstDigit})：此為「環城公路或雙頭聯絡道 (Loop / Beltway)」，兩端皆銜接母幹線 I-${road.number.slice(1)}，通常環繞大都會區（如洛杉磯 I-405、亞特蘭大 I-285）。`;
+      } else {
+        auxClue = `三位數首位為奇數 (${firstDigit})：此為「單頭分支支線 (Spur Route)」，僅有一端銜接母幹線 I-${road.number.slice(1)}，通常深入市中心、港口或機場（如舊金山 I-280 支線、DC I-395）。`;
+      }
+    }
+
+    return (
+      <aside className="country-drawer">
+        <div className="drawer-header">
+          <div className="drawer-country-title">
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 800,
+                background: isInterstate ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                color: '#ffffff',
+                boxShadow: isInterstate ? '0 0 12px rgba(56, 189, 248, 0.45)' : '0 0 12px rgba(251, 191, 36, 0.45)',
+                letterSpacing: 0.5
+              }}
+            >
+              {road.name}
+            </span>
+            <div>
+              <div className="drawer-name-zh">
+                {road.name} · {isInterstate ? '美國州際公路' : '美國國道系統'}
+              </div>
+              <div className="drawer-name-en">
+                {isInterstate ? 'Dwight D. Eisenhower Interstate System' : 'U.S. Numbered Highway System'}
+              </div>
+            </div>
+          </div>
+          <button className="close-btn" onClick={onClose} title="關閉情報卡">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="drawer-content">
+          {/* Quick Badges */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div
+              className="intel-tag highlight"
+              style={{
+                backgroundColor: isInterstate ? 'rgba(56, 189, 248, 0.15)' : 'rgba(251, 191, 36, 0.15)',
+                borderColor: isInterstate ? '#38bdf8' : '#fbbf24',
+                color: isInterstate ? '#38bdf8' : '#fbbf24',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '4px 10px'
+              }}
+            >
+              🛣️ {isInterstate ? '州際高速公路' : '聯邦國道系統'}
+            </div>
+
+            <div
+              className="intel-tag"
+              style={{
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                borderColor: 'rgba(59, 130, 246, 0.4)',
+                color: '#60a5fa',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '4px 10px'
+              }}
+            >
+              {isEven ? '↔️ 東西走向 (E-W)' : isOdd ? '↕️ 南北走向 (N-S)' : '🔄 環狀／特殊走向'}
+            </div>
+
+            {isMajor && (
+              <div
+                className="intel-tag"
+                style={{
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  borderColor: 'rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 10px'
+                }}
+              >
+                🌟 全美主要橫貫／縱貫大動脈
+              </div>
+            )}
+
+            {isAuxiliary && (
+              <div
+                className="intel-tag"
+                style={{
+                  backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                  borderColor: 'rgba(168, 85, 247, 0.4)',
+                  color: '#c084fc',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 10px'
+                }}
+              >
+                {isBeltway ? '🔄 環城雙頭聯絡道 (Beltway)' : '📍 單頭市區支線 (Spur)'}
+              </div>
+            )}
+          </div>
+
+          {/* Numbering Grid Rule */}
+          <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)', backgroundColor: 'rgba(14, 25, 42, 0.6)' }}>
+            <div className="intel-card-header">
+              <Compass size={16} color="#38bdf8" />
+              <span>全美號碼走向網格法則 (Grid Orientation)</span>
+            </div>
+            <div className="intel-card-body" style={{ color: '#e2e8f0', lineHeight: 1.5 }}>
+              {numberingRule}
+            </div>
+          </div>
+
+          {/* Location Clue */}
+          {locationClue && (
+            <div className="intel-card">
+              <div className="intel-card-header">
+                <MapPin size={16} color="#4ade80" />
+                <span style={{ color: '#4ade80' }}>全美地理區間速查 (Geographic Corridor)</span>
+              </div>
+              <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {locationClue}
+              </div>
+            </div>
+          )}
+
+          {/* 3-digit Auxiliary Clue */}
+          {auxClue && (
+            <div className="intel-card">
+              <div className="intel-card-header">
+                <Layers size={16} color="#c084fc" />
+                <span style={{ color: '#c084fc' }}>三位數支線判讀密技 (3-Digit Auxiliary)</span>
+              </div>
+              <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {auxClue}
+              </div>
+            </div>
+          )}
+
+          {/* GeoGuessr Street View Meta */}
+          <div className="intel-card">
+            <div className="intel-card-header">
+              <Lightbulb size={16} color="#facc15" />
+              <span style={{ color: '#facc15' }}>GeoGuessr 實戰秒殺密技 (Street View Meta)</span>
+            </div>
+            <ul className="hints-list">
+              <li className="hint-item">
+                <strong>出口編號對應里程標牌：</strong>全美絕大多數州的州際公路 Exit 編號代表該州起點之英里里程數 (Mile Marker)，里程自南向北、自西向東累加。
+              </li>
+              <li className="hint-item">
+                <strong>路牌盾牌特徵：</strong>州際公路為經典紅白藍三色盾牌；舊美國國道 (U.S. Routes) 為白底黑字黑邊盾牌。
+              </li>
+              <li className="hint-item">
+                <strong>末碼為 0 或 5：</strong>兩位數且以 0 結尾的州際公路貫穿全美東西（如 I-10, I-40, I-80, I-90）；以 5 結尾貫穿全美南北（如 I-5, I-15, I-35, I-75, I-95）。
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   // 1. Prefecture Detail (L2)
   if (prefecture) {
     return (

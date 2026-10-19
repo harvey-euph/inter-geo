@@ -6,6 +6,7 @@ import { CountryDetailPanel } from './components/CountryDetailPanel';
 import { QuizModal } from './components/QuizModal';
 import type { CountryData } from './types/geo';
 import type { PrefectureDetail, MunicipalityDetail } from './types/lod';
+import type { RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import './App.css';
 
@@ -15,6 +16,7 @@ export function App() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [selectedPrefecture, setSelectedPrefecture] = useState<PrefectureDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
+  const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
   const [showRoads, setShowRoads] = useState<boolean>(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
@@ -26,6 +28,7 @@ export function App() {
     if (country) {
       setSelectedPrefecture(null);
       setSelectedMunicipality(null);
+      setSelectedRoad(null);
     }
   };
 
@@ -34,6 +37,7 @@ export function App() {
     if (pref) {
       setSelectedCountry(null);
       setSelectedMunicipality(null);
+      setSelectedRoad(null);
     }
   };
 
@@ -42,13 +46,37 @@ export function App() {
     if (muni) {
       setSelectedCountry(null);
       setSelectedPrefecture(null);
+      setSelectedRoad(null);
     }
+  };
+
+  const handleSelectRoad = (road: RoadPathData | null) => {
+    setSelectedRoad(road);
+    if (road) {
+      setSelectedCountry(null);
+      setSelectedPrefecture(null);
+      setSelectedMunicipality(null);
+    }
+  };
+
+  const handleToggleRoads = () => {
+    setShowRoads((prev) => {
+      if (prev) {
+        setSelectedRoad(null);
+      } else {
+        setSelectedCountry(null);
+        setSelectedPrefecture(null);
+        setSelectedMunicipality(null);
+      }
+      return !prev;
+    });
   };
 
   const handleClosePanel = () => {
     setSelectedCountry(null);
     setSelectedPrefecture(null);
     setSelectedMunicipality(null);
+    setSelectedRoad(null);
   };
 
   const handleSelectCountryByName = (name: string) => {
@@ -82,7 +110,7 @@ export function App() {
         onSelectCountry={handleSelectCountry}
         onOpenQuiz={() => setIsQuizOpen(true)}
         showRoads={showRoads}
-        onToggleRoads={() => setShowRoads((prev) => !prev)}
+        onToggleRoads={handleToggleRoads}
       />
 
       {/* Main Viewport */}
@@ -106,19 +134,22 @@ export function App() {
             onSelectPrefecture={handleSelectPrefecture}
             selectedMunicipality={selectedMunicipality}
             onSelectMunicipality={handleSelectMunicipality}
+            selectedRoad={selectedRoad}
+            onSelectRoad={handleSelectRoad}
             hoveredCountry={hoveredCountry}
             setHoveredCountry={setHoveredCountry}
             zoomToPrefectureRef={zoomToPrefectureRef}
             showRoads={showRoads}
-            onToggleRoads={() => setShowRoads((prev) => !prev)}
+            onToggleRoads={handleToggleRoads}
           />
         </section>
 
-        {/* Side Detail Dossier Panel (Supports Country, Prefecture L2, Municipality L3) */}
+        {/* Side Detail Dossier Panel (Supports Country, Prefecture L2, Municipality L3, Highway/Route) */}
         <CountryDetailPanel
           country={selectedCountry}
           prefecture={selectedPrefecture}
           municipality={selectedMunicipality}
+          road={selectedRoad}
           onClose={handleClosePanel}
           onSelectCountryName={handleSelectCountryByName}
           onZoomToPrefecture={handleZoomToPrefecture}
