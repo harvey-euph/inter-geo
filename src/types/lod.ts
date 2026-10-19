@@ -59,8 +59,9 @@ export function getLODLevel(
   k: number,
   thresholds: CustomLODThresholds = DEFAULT_LOD_THRESHOLDS
 ): LODLevel {
-  if (k >= thresholds.l3Threshold) return 'L3';
-  if (k >= thresholds.l2Threshold) return 'L2';
+  const eps = 0.05;
+  if (k >= thresholds.l3Threshold - eps) return 'L3';
+  if (k >= thresholds.l2Threshold - eps) return 'L2';
   return 'L1';
 }
 

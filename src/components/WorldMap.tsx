@@ -882,6 +882,35 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                               tooltipRef.current.style.top = `${e.clientY - 12}px`;
                             }
                           }}
+                          onMouseMove={(e) => {
+                            if (isDragging.current) return;
+                            if (!hoveredPrefecture || hoveredPrefecture.id !== id) {
+                              mousePos.current = { x: e.clientX, y: e.clientY };
+                              setHoveredCountry(null);
+                              setHoveredMunicipality(null);
+                              if (prefMeta) {
+                                setHoveredPrefecture(prefMeta);
+                              } else {
+                                setHoveredPrefecture({
+                                  id,
+                                  nameJa,
+                                  nameZh: nameJa,
+                                  nameEn,
+                                  region: '日本',
+                                  capital: '',
+                                  areaCode: '0x',
+                                  plates: [],
+                                  proClues: ['日本都道府縣行政區'],
+                                  landscapeDesc: ''
+                                });
+                              }
+                              if (tooltipRef.current) {
+                                tooltipRef.current.style.display = 'flex';
+                                tooltipRef.current.style.left = `${e.clientX}px`;
+                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                              }
+                            }
+                          }}
                           onMouseLeave={() => {
                             if (isDragging.current) return;
                             // When not in L3, clear hover. At L3, ocean backdrop manages clearing to prevent flicker during drilldown
@@ -914,8 +943,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       const isSelected = selectedMunicipality && selectedMunicipality.code === code;
                       // Fast integer comparison for parent prefecture with string fallback
                       const isParentPref =
-                        hoveredMunicipality &&
-                        (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === mPrefId : hoveredMunicipality.pref === pref);
+                        (hoveredMunicipality &&
+                          (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === mPrefId : hoveredMunicipality.pref === pref)) ||
+                        (hoveredPrefecture && hoveredPrefecture.id === mPrefId);
 
                       // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
                       let fill = '#1e2433';
@@ -966,6 +996,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                               tooltipRef.current.style.display = 'flex';
                               tooltipRef.current.style.left = `${e.clientX}px`;
                               tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                            }
+                          }}
+                          onMouseMove={(e) => {
+                            if (isDragging.current) return;
+                            if (!hoveredMunicipality || hoveredMunicipality.code !== code) {
+                              mousePos.current = { x: e.clientX, y: e.clientY };
+                              setHoveredCountry(null);
+                              setHoveredPrefecture(null);
+                              setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
+                              if (tooltipRef.current) {
+                                tooltipRef.current.style.display = 'flex';
+                                tooltipRef.current.style.left = `${e.clientX}px`;
+                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                              }
                             }
                           }}
                           onMouseLeave={() => {
