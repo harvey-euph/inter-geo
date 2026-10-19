@@ -54,6 +54,11 @@ async function convertCountries() {
   const inputPath = path.join(dataDir, 'countries-110m.json');
   const outputPath = path.join(dataDir, 'countries-110m.fgb');
 
+  if (!fs.existsSync(inputPath)) {
+    console.log(`[Notice] ${path.basename(inputPath)} not found. Skipping L1 conversion.`);
+    return;
+  }
+
   const topoData = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
   const geojson = topojson.feature(topoData, topoData.objects.countries);
 
@@ -75,6 +80,11 @@ async function convertPrefectures() {
   console.log('--- Converting L2 Japan Prefectures ---');
   const inputPath = path.join(dataDir, 'japan-prefectures.json');
   const outputPath = path.join(dataDir, 'japan-prefectures.fgb');
+
+  if (!fs.existsSync(inputPath)) {
+    console.log(`[Notice] ${path.basename(inputPath)} not found. Skipping L2 conversion.`);
+    return;
+  }
 
   const topoData = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
   const geojson = topojson.feature(topoData, topoData.objects.japan);
@@ -99,6 +109,11 @@ async function convertMunicipalities() {
   console.log('--- Converting L3 Japan Municipalities ---');
   const inputPath = path.join(dataDir, 'japan-municipalities.json');
   const outputPath = path.join(dataDir, 'japan-municipalities.fgb');
+
+  if (!fs.existsSync(inputPath)) {
+    console.log(`[Notice] ${path.basename(inputPath)} not found. Skipping L3 conversion.`);
+    return;
+  }
 
   const topoData = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
   const geojson = topojson.feature(topoData, topoData.objects.municipalities);
