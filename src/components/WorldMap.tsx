@@ -14,24 +14,6 @@ import { PrecisionHUD } from './PrecisionHUD';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
 
-interface WorldMapProps {
-  activeFilterId: string;
-  isFilterExpanded?: boolean;
-  selectedCountry: CountryData | null;
-  onSelectCountry: (country: CountryData | null) => void;
-  selectedPrefecture?: PrefectureDetail | null;
-  onSelectPrefecture?: (pref: PrefectureDetail | null) => void;
-  selectedMunicipality?: MunicipalityDetail | null;
-  onSelectMunicipality?: (muni: MunicipalityDetail | null) => void;
-  hoveredCountry: CountryData | null;
-  setHoveredCountry: (country: CountryData | null) => void;
-  zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
-  showRoads?: boolean;
-  onToggleRoads?: () => void;
-  selectedRoad?: RoadPathData | null;
-  onSelectRoad?: (road: RoadPathData | null) => void;
-}
-
 export interface WorldCountryProperties {
   id?: string;
   name: string;
@@ -54,8 +36,41 @@ export interface JapanMunicipalityProperties {
   gun?: string;
 }
 
+export interface CountryPathData {
+  pathD: string;
+  path2D: Path2D;
+  bbox: [number, number, number, number];
+  countryMeta: CountryData | undefined;
+  id: string;
+  name: string;
+}
+
+export interface PrefecturePathData {
+  pathD: string;
+  path2D: Path2D;
+  bbox: [number, number, number, number];
+  prefMeta: PrefectureDetail | undefined;
+  id: number;
+  nameJa: string;
+  nameEn: string;
+  centroid: [number, number];
+}
+
+export interface MunicipalityPathData {
+  pathD: string;
+  path2D: Path2D;
+  bbox: [number, number, number, number];
+  code: string;
+  prefId: number;
+  pref: string;
+  city: string;
+  gun: string;
+}
+
 export interface L2SubdivisionPathData {
   pathD: string;
+  path2D: Path2D;
+  bbox: [number, number, number, number];
   id: number | string;
   iso2: string;
   name: string;
@@ -91,6 +106,31 @@ export interface RoadPathData {
   scalerank: number;
   bbox: [number, number, number, number];
   path2D?: Path2D;
+}
+
+type HitFeature =
+  | { type: 'road'; data: RoadPathData }
+  | { type: 'municipality'; data: MunicipalityPathData }
+  | { type: 'prefecture'; data: PrefecturePathData }
+  | { type: 'l2Subdivision'; data: L2SubdivisionPathData }
+  | { type: 'country'; data: CountryPathData };
+
+interface WorldMapProps {
+  activeFilterId: string;
+  isFilterExpanded?: boolean;
+  selectedCountry: CountryData | null;
+  onSelectCountry: (country: CountryData | null) => void;
+  selectedPrefecture?: PrefectureDetail | null;
+  onSelectPrefecture?: (pref: PrefectureDetail | null) => void;
+  selectedMunicipality?: MunicipalityDetail | null;
+  onSelectMunicipality?: (muni: MunicipalityDetail | null) => void;
+  hoveredCountry: CountryData | null;
+  setHoveredCountry: (country: CountryData | null) => void;
+  zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
+  showRoads?: boolean;
+  onToggleRoads?: () => void;
+  selectedRoad?: RoadPathData | null;
+  onSelectRoad?: (road: RoadPathData | null) => void;
 }
 
 // Base map dimensions (Standard Web Mercator square)
@@ -140,6 +180,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const inFlightFetchesRef = useRef<Set<string>>(new Set());
   const loadedL2DataRef = useRef<Map<string, L2SubdivisionPathData[]>>(new Map());
   const [l2PathsByCountry, setL2PathsByCountry] = useState<Record<string, L2SubdivisionPathData[]>>({});
+  const l2PathsByCountryRef = useRef<Record<string, L2SubdivisionPathData[]>>({});
   const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
 
@@ -159,12 +200,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hoveredRoadRef = useRef<RoadPathData | null>(null);
   const selectedRoadRef = useRef<RoadPathData | null>(selectedRoad || null);
 
+  // Unified Canvas and Container Refs
   const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const gRef = useRef<SVGGElement>(null);
-  const roadsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const animRafId = useRef<number | null>(null);
+
+  // Real-time synchronization refs for 120fps render loop
+  const hoveredCountryRef = useRef<CountryData | null>(hoveredCountry || null);
+  const selectedCountryRef = useRef<CountryData | null>(selectedCountry || null);
+  const hoveredPrefectureRef = useRef<PrefectureDetail | null>(hoveredPrefecture || null);
+  const selectedPrefectureRef = useRef<PrefectureDetail | null>(selectedPrefecture || null);
+  const hoveredMunicipalityRef = useRef<MunicipalityDetail | null>(hoveredMunicipality || null);
+  const selectedMunicipalityRef = useRef<MunicipalityDetail | null>(selectedMunicipality || null);
+  const hoveredL2SubdivisionRef = useRef<L2SubdivisionDetail | null>(hoveredL2Subdivision || null);
+  const selectedL2SubdivisionRef = useRef<{ iso2: string; id: number | string } | null>(selectedL2Subdivision || null);
+  const lodLevelRef = useRef<LODLevel>(lodLevel);
+  const activeL3PrefIdsRef = useRef<Set<number>>(new Set());
 
   // Store container dimensions
   const viewportSize = useRef({ w: 1200, h: 800 });
@@ -182,6 +234,170 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const activeFilterDef = useMemo<FilterDefinition>(() => {
     return FILTERS.find((f) => f.id === activeFilterId) || FILTERS[0];
   }, [activeFilterId]);
+  const activeFilterDefRef = useRef<FilterDefinition>(activeFilterDef);
+
+  // Web Mercator Projection & GeoPath
+  const projection = useMemo(() => {
+    return geoMercator()
+      .scale(MERCATOR_SCALE)
+      .translate([MAP_W / 2, MAP_H / 2]);
+  }, []);
+
+  const pathGenerator = useMemo(() => {
+    return geoPath().projection(projection);
+  }, [projection]);
+
+  // Pre-calculate paths, Path2D and AABB bounding boxes for L1 Countries
+  const countryPathData = useMemo<CountryPathData[]>(() => {
+    return features.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      let bbox: [number, number, number, number] = [0, 0, 0, 0];
+      try {
+        const bounds = pathGenerator.bounds(feature);
+        if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[0][1])) {
+          bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+        }
+      } catch {
+        // fallback
+      }
+      const path2D = new Path2D(pathD);
+      const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
+      return {
+        pathD,
+        path2D,
+        bbox,
+        countryMeta,
+        id: feature.id,
+        name: feature.properties?.name || 'Unknown'
+      };
+    });
+  }, [features, pathGenerator]);
+
+  // Pre-calculate paths, Path2D and AABB bounding boxes for L2 Japan 47 Prefectures
+  const prefecturePathData = useMemo<PrefecturePathData[]>(() => {
+    return japanPrefectureFeatures.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      let bbox: [number, number, number, number] = [0, 0, 0, 0];
+      try {
+        const bounds = pathGenerator.bounds(feature);
+        if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[0][1])) {
+          bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+        }
+      } catch {
+        // fallback
+      }
+      const path2D = new Path2D(pathD);
+      const prefId = Number(feature.properties?.id);
+      const prefMeta = JAPAN_PREFECTURES[prefId];
+      let centroid: [number, number] = [882, 392];
+      try {
+        const c = pathGenerator.centroid(feature);
+        if (c && !isNaN(c[0]) && !isNaN(c[1])) {
+          centroid = c;
+        }
+      } catch {
+        // fallback
+      }
+
+      return {
+        pathD,
+        path2D,
+        bbox,
+        prefMeta,
+        id: prefId,
+        nameJa: feature.properties?.nam_ja || prefMeta?.nameJa || '',
+        nameEn: feature.properties?.nam || prefMeta?.nameEn || '',
+        centroid
+      };
+    });
+  }, [japanPrefectureFeatures, pathGenerator]);
+
+  // Pre-calculate paths, Path2D and AABB bounding boxes for L3 Japan 1,906 Municipalities
+  const municipalityPathData = useMemo<MunicipalityPathData[]>(() => {
+    return japanMunicipalityFeatures.map((feature) => {
+      const pathD = pathGenerator(feature) || '';
+      let bbox: [number, number, number, number] = [0, 0, 0, 0];
+      try {
+        const bounds = pathGenerator.bounds(feature);
+        if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[0][1])) {
+          bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+        }
+      } catch {
+        // fallback
+      }
+      const path2D = new Path2D(pathD);
+      const code = String(feature.properties?.code || feature.id || '');
+      const prefId = Number(feature.properties?.pref_id) || 0;
+      const pref = String(feature.properties?.pref || (prefId ? JAPAN_PREFECTURES[prefId]?.nameJa : '') || '');
+      const city = String(feature.properties?.city || '');
+      const gun = String(feature.properties?.gun || '');
+      return {
+        pathD,
+        path2D,
+        bbox,
+        code,
+        prefId,
+        pref,
+        city,
+        gun
+      };
+    });
+  }, [japanMunicipalityFeatures, pathGenerator]);
+
+  // Group municipality paths by prefecture ID for O(1) active retrieval
+  const municipalitiesByPrefId = useMemo(() => {
+    const map = new Map<number, MunicipalityPathData[]>();
+    for (const item of municipalityPathData) {
+      const list = map.get(item.prefId);
+      if (list) {
+        list.push(item);
+      } else {
+        map.set(item.prefId, [item]);
+      }
+    }
+    return map;
+  }, [municipalityPathData]);
+
+  // Currently active prefecture IDs that should expand to L3 when in L3 mode
+  const lastClickedPrefId = useMemo(() => {
+    if (selectedMunicipality) {
+      if (selectedMunicipality.prefId) return selectedMunicipality.prefId;
+      const parsed = parseInt(selectedMunicipality.code?.slice(0, 2), 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 47) return parsed;
+    }
+    if (selectedPrefecture?.id) return selectedPrefecture.id;
+    return null;
+  }, [selectedMunicipality, selectedPrefecture]);
+
+  const hoveredPrefId = useMemo(() => {
+    if (hoveredMunicipality?.prefId) return hoveredMunicipality.prefId;
+    if (hoveredPrefecture?.id) return hoveredPrefecture.id;
+    return null;
+  }, [hoveredMunicipality, hoveredPrefecture]);
+
+  const activeL3PrefIds = useMemo(() => {
+    const set = new Set<number>();
+    if (pinnedPrefId) set.add(pinnedPrefId);
+    if (lastClickedPrefId) set.add(lastClickedPrefId);
+    if (hoveredPrefId) set.add(hoveredPrefId);
+    return set;
+  }, [pinnedPrefId, lastClickedPrefId, hoveredPrefId]);
+
+  // Active worldwide L2 subdivision paths flattened for rendering
+  const activeL2SubdivisionPaths = useMemo(() => {
+    if (lodLevel === 'L1') return [];
+    const list: L2SubdivisionPathData[] = [];
+    for (const iso2 of visibleL2Iso2s) {
+      if (iso2 === 'JP') continue;
+      const paths = l2PathsByCountry[iso2];
+      if (paths) {
+        for (let i = 0; i < paths.length; i++) {
+          list.push(paths[i]);
+        }
+      }
+    }
+    return list;
+  }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
 
   // Periodic horizontal wrap: ensures x is always continuously periodic within [-worldW, 0)
   const wrapX = useCallback((rawX: number, k: number) => {
@@ -195,7 +411,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const worldH = MAP_H * k;
     const minY = vh - worldH;
     const maxY = 0;
-    if (minY >= maxY) return 0; // If map is exactly flush or smaller
+    if (minY >= maxY) return 0;
     return Math.min(maxY, Math.max(minY, rawY));
   }, []);
 
@@ -300,7 +516,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         setVisibleRoadIso2s(nextVisible);
       }
 
-      // Compute which world copies of the road network intersect the viewport
       const nextCopies: number[] = [];
       const usBbox = ROADS_MANIFEST.US?.bbox || { minX: 50, maxX: 330, minY: 280, maxY: 480 };
       const sMinY = y + usBbox.minY * k;
@@ -347,17 +562,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   }, [onToggleRoadsProp]);
 
-  // Render road network on GPU-accelerated HTML5 Canvas with Path2D
-  const renderRoadsCanvas = useCallback(() => {
-    const canvas = roadsCanvasRef.current;
+  // ==========================================
+  // UNIFIED CANVAS RENDER LOOP (GPU Accelerated)
+  // ==========================================
+  const renderCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    if (!showRoadsRef.current) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
 
     const vw = viewportSize.current.w;
     const vh = viewportSize.current.h;
@@ -371,16 +583,43 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       canvas.height = targetH;
     }
 
-    // Reset transform & clear frame
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     const { k, x, y } = transformRef.current;
-    const copies = visibleRoadCopiesRef.current;
-    const hovered = hoveredRoadRef.current;
-    const selected = selectedRoadRef.current;
 
-    for (const copyIdx of copies) {
+    // Reset transform & clear frame with seamless ocean backdrop
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#0b0e14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Compute visible world copies
+    const visibleCopies: number[] = [];
+    for (const c of WORLD_COPIES) {
+      const left = x + c * MAP_W * k;
+      const right = left + MAP_W * k;
+      if (right >= -100 && left <= vw + 100) {
+        visibleCopies.push(c);
+      }
+    }
+    if (visibleCopies.length === 0) visibleCopies.push(0);
+
+    const hoveredC = hoveredCountryRef.current;
+    const selectedC = selectedCountryRef.current;
+    const hoveredP = hoveredPrefectureRef.current;
+    const selectedP = selectedPrefectureRef.current;
+    const hoveredM = hoveredMunicipalityRef.current;
+    const selectedM = selectedMunicipalityRef.current;
+    const hoveredL2 = hoveredL2SubdivisionRef.current;
+    const selectedL2 = selectedL2SubdivisionRef.current;
+    const roadsEnabled = showRoadsRef.current;
+
+    const activeFilter = activeFilterDefRef.current;
+    const currentLod = lodLevelRef.current;
+    const activeL3Set = activeL3PrefIdsRef.current;
+    const visibleL2Set = visibleL2Iso2sRef.current;
+
+    const highlightHoverPaths: Path2D[] = [];
+    const highlightSelectPaths: Path2D[] = [];
+
+    for (const copyIdx of visibleCopies) {
       ctx.setTransform(
         k * dpr,
         0,
@@ -390,171 +629,288 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         y * dpr
       );
 
-      for (const iso2 of visibleRoadIso2sRef.current) {
-        const bundle = roadBundlesRef.current.get(iso2);
-        if (!bundle) continue;
+      // ----------------------------------------------------
+      // 1. Layer 1: L1 Countries
+      // ----------------------------------------------------
+      for (let i = 0; i < countryPathData.length; i++) {
+        const item = countryPathData[i];
+        if (!item.path2D) continue;
 
-        // 1. Draw US Routes (Gold / Amber, fixed 1.1px screen thickness)
-        ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 1.1 / k;
-        ctx.globalAlpha = 0.75;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke(bundle.usRoutesPath2D);
+        const iso2 = item.countryMeta?.iso2;
+        const isJapan = String(item.id) === '392' || item.name === 'Japan' || iso2 === 'JP' || item.countryMeta?.id === '392';
+        const isJapanL2Active = isJapan && (currentLod === 'L2' || currentLod === 'L3') && visibleL2Set.has('JP');
+        if (isJapanL2Active) continue;
 
-        // 2. Draw Interstates (Sky Blue, fixed 1.6px screen thickness)
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1.6 / k;
-        ctx.globalAlpha = 0.9;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke(bundle.interstatesPath2D);
+        const isWorldwideL2Active =
+          iso2 &&
+          iso2 !== 'JP' &&
+          (currentLod === 'L2' || currentLod === 'L3') &&
+          visibleL2Set.has(iso2) &&
+          !!l2PathsByCountryRef.current[iso2];
+        if (isWorldwideL2Active) continue;
+
+        const isHovered =
+          hoveredC &&
+          (hoveredC.id === item.countryMeta?.id || (item.countryMeta && hoveredC.iso2 === item.countryMeta.iso2));
+        const isSelected =
+          selectedC &&
+          (selectedC.id === item.countryMeta?.id || (item.countryMeta && selectedC.iso2 === item.countryMeta.iso2));
+
+        let fillColor: string;
+        if (isSelected) {
+          fillColor = '#38bdf8';
+        } else if (isHovered) {
+          fillColor = '#f97316';
+        } else if (!item.countryMeta) {
+          fillColor = '#1a1f2b';
+        } else {
+          fillColor = activeFilter.getColor(item.countryMeta) || '#232a38';
+        }
+
+        ctx.fillStyle = fillColor;
+        ctx.fill(item.path2D);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 0.5 / k;
+        ctx.stroke(item.path2D);
+
+        if (isSelected) {
+          highlightSelectPaths.push(item.path2D);
+        } else if (isHovered) {
+          highlightHoverPaths.push(item.path2D);
+        }
       }
 
-      // 3. Highlight selected highway with prominent glowing neon orange outline
-      if (selected && selected.path2D) {
-        ctx.save();
-        const isInterstate = selected.class === 'Interstate';
-        ctx.strokeStyle = '#f97316';
-        ctx.lineWidth = (isInterstate ? 4.2 : 3.4) / k;
-        ctx.globalAlpha = 1.0;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(249, 115, 22, 1.0)';
-        ctx.shadowBlur = 12 * dpr;
-        ctx.stroke(selected.path2D);
-        ctx.restore();
+      // ----------------------------------------------------
+      // 2a. Layer 2a: Japan 47 Prefectures (都道府縣)
+      // ----------------------------------------------------
+      if (((currentLod === 'L2' && visibleL2Set.has('JP')) || currentLod === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+        for (let i = 0; i < prefecturePathData.length; i++) {
+          const pref = prefecturePathData[i];
+          if (!pref.path2D) continue;
+          if (currentLod === 'L3' && activeL3Set.has(pref.id)) continue;
+
+          const isHovered = hoveredP && hoveredP.id === pref.id;
+          const isSelected = selectedP && selectedP.id === pref.id;
+
+          let fill = '#1e293b';
+          let stroke = '#475569';
+          let strokeWidth = 0.6 / k;
+
+          if (isSelected) {
+            fill = '#38bdf8';
+            stroke = '#38bdf8';
+            strokeWidth = 1.2 / k;
+          } else if (isHovered) {
+            fill = '#f97316';
+            stroke = '#ffffff';
+            strokeWidth = 1.4 / k;
+          } else if (hoveredP || hoveredM) {
+            fill = 'rgba(251, 146, 60, 0.16)';
+            stroke = 'rgba(251, 146, 60, 0.35)';
+            strokeWidth = 0.6 / k;
+          }
+
+          ctx.fillStyle = fill;
+          ctx.fill(pref.path2D);
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = strokeWidth;
+          ctx.stroke(pref.path2D);
+
+          if (isSelected) {
+            highlightSelectPaths.push(pref.path2D);
+          } else if (isHovered) {
+            highlightHoverPaths.push(pref.path2D);
+          }
+        }
       }
 
-      // 4. Highlight currently hovered highway with vibrant neon orange and soft shadow glow
-      if (hovered && hovered.path2D && hovered.name !== selected?.name) {
+      // ----------------------------------------------------
+      // 2b. Layer 2b: Worldwide Admin-1 Subdivisions
+      // ----------------------------------------------------
+      if ((currentLod === 'L2' || currentLod === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+        for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
+          const sub = activeL2SubdivisionPaths[i];
+          if (!sub.path2D) continue;
+
+          const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && selectedL2.id === sub.id;
+          const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && hoveredL2.id === sub.id;
+          const isSiblingHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2;
+
+          let fill = '#1e293b';
+          let stroke = '#475569';
+          let strokeWidth = 0.6 / k;
+
+          if (isSelected) {
+            fill = '#38bdf8';
+            stroke = '#38bdf8';
+            strokeWidth = 1.2 / k;
+          } else if (isHovered) {
+            fill = '#f97316';
+            stroke = '#ffffff';
+            strokeWidth = 1.4 / k;
+          } else if (isSiblingHovered) {
+            fill = 'rgba(251, 146, 60, 0.16)';
+            stroke = 'rgba(251, 146, 60, 0.35)';
+            strokeWidth = 0.6 / k;
+          }
+
+          ctx.fillStyle = fill;
+          ctx.fill(sub.path2D);
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = strokeWidth;
+          ctx.stroke(sub.path2D);
+
+          if (isSelected) {
+            highlightSelectPaths.push(sub.path2D);
+          } else if (isHovered) {
+            highlightHoverPaths.push(sub.path2D);
+          }
+        }
+      }
+
+      // ----------------------------------------------------
+      // 3. Layer 3: Japan Municipalities (市區町村)
+      // ----------------------------------------------------
+      if (currentLod === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
+        for (const pId of activeL3Set) {
+          const munis = municipalitiesByPrefId.get(pId) || [];
+          for (let i = 0; i < munis.length; i++) {
+            const m = munis[i];
+            if (!m.path2D) continue;
+
+            const isHovered = hoveredM && hoveredM.code === m.code;
+            const isSelected = selectedM && selectedM.code === m.code;
+            const isParentPref =
+              ((hoveredM && (hoveredM.prefId ? hoveredM.prefId === m.prefId : hoveredM.pref === m.pref)) ||
+              (hoveredP && hoveredP.id === m.prefId));
+
+            let fill = '#1e2433';
+            let stroke = 'rgba(255, 255, 255, 0.2)';
+            let strokeWidth = 0.35 / k;
+
+            if (isSelected) {
+              fill = '#38bdf8';
+              stroke = '#38bdf8';
+              strokeWidth = 0.8 / k;
+            } else if (isHovered) {
+              fill = '#f97316';
+              stroke = '#ffffff';
+              strokeWidth = 0.8 / k;
+            } else if (isParentPref) {
+              fill = 'rgba(234, 88, 12, 0.35)';
+              stroke = 'rgba(251, 146, 60, 0.5)';
+              strokeWidth = 0.35 / k;
+            } else if (hoveredM || hoveredP) {
+              fill = 'rgba(251, 146, 60, 0.13)';
+              stroke = 'rgba(251, 146, 60, 0.22)';
+              strokeWidth = 0.35 / k;
+            }
+
+            ctx.fillStyle = fill;
+            ctx.fill(m.path2D);
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = strokeWidth;
+            ctx.stroke(m.path2D);
+
+            if (isSelected) {
+              highlightSelectPaths.push(m.path2D);
+            } else if (isHovered) {
+              highlightHoverPaths.push(m.path2D);
+            }
+          }
+        }
+      }
+
+      // ----------------------------------------------------
+      // 4. Layer 4: Highway and Route Network Overlay
+      // ----------------------------------------------------
+      if (roadsEnabled) {
+        for (const iso2 of visibleRoadIso2sRef.current) {
+          const bundle = roadBundlesRef.current.get(iso2);
+          if (!bundle) continue;
+
+          // 4a. US Routes (Gold / Amber, 1.1px screen thickness)
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 1.1 / k;
+          ctx.globalAlpha = 0.75;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke(bundle.usRoutesPath2D);
+
+          // 4b. Interstates (Sky Blue, 1.6px screen thickness)
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.6 / k;
+          ctx.globalAlpha = 0.9;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke(bundle.interstatesPath2D);
+          ctx.globalAlpha = 1.0;
+        }
+
+        // 4c. Highlight selected highway with prominent glowing neon orange outline
+        const selectedRoadItem = selectedRoadRef.current;
+        if (selectedRoadItem && selectedRoadItem.path2D) {
+          ctx.save();
+          const isInterstate = selectedRoadItem.class === 'Interstate';
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = (isInterstate ? 4.2 : 3.4) / k;
+          ctx.globalAlpha = 1.0;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.shadowColor = 'rgba(249, 115, 22, 1.0)';
+          ctx.shadowBlur = 12 * dpr;
+          ctx.stroke(selectedRoadItem.path2D);
+          ctx.restore();
+        }
+
+        // 4d. Highlight currently hovered highway with vibrant neon orange and soft shadow glow
+        const hoveredRoadItem = hoveredRoadRef.current;
+        if (hoveredRoadItem && hoveredRoadItem.path2D && hoveredRoadItem.name !== selectedRoadItem?.name) {
+          ctx.save();
+          const isInterstate = hoveredRoadItem.class === 'Interstate';
+          ctx.strokeStyle = '#fb923c';
+          ctx.lineWidth = (isInterstate ? 3.4 : 2.8) / k;
+          ctx.globalAlpha = 0.95;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
+          ctx.shadowBlur = 8 * dpr;
+          ctx.stroke(hoveredRoadItem.path2D);
+          ctx.restore();
+        }
+      }
+
+      // ----------------------------------------------------
+      // 5. Layer 5: Glowing Highlights on top of all borders
+      // ----------------------------------------------------
+      for (const p of highlightHoverPaths) {
         ctx.save();
-        const isInterstate = hovered.class === 'Interstate';
-        ctx.strokeStyle = '#fb923c';
-        ctx.lineWidth = (isInterstate ? 3.4 : 2.8) / k;
-        ctx.globalAlpha = 0.95;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5 / k;
         ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
         ctx.shadowBlur = 8 * dpr;
-        ctx.stroke(hovered.path2D);
+        ctx.stroke(p);
         ctx.restore();
       }
-    }
-  }, []);
 
-  // Synchronize selectedRoad changes with canvas highlight
-  useEffect(() => {
-    selectedRoadRef.current = selectedRoad || null;
-    if (showRoadsRef.current) {
-      renderRoadsCanvas();
-    }
-  }, [selectedRoad, renderRoadsCanvas]);
-
-  // Fast spatial search: returns road under client (x, y) if hit
-  const getRoadAtPoint = useCallback((clientX: number, clientY: number): RoadPathData | null => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return null;
-    const mx = clientX - rect.left;
-    const my = clientY - rect.top;
-
-    const { k, x, y } = transformRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    const canvas = roadsCanvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx) return null;
-
-    const tolerancePx = 10;
-    const toleranceMap = tolerancePx / k;
-
-    let candidateFederal: RoadPathData | null = null;
-
-    for (const copyIdx of visibleRoadCopiesRef.current) {
-      const mapX = (mx - x) / k - copyIdx * MAP_W;
-      const mapY = (my - y) / k;
-
-      ctx.setTransform(
-        k * dpr,
-        0,
-        0,
-        k * dpr,
-        (x + copyIdx * MAP_W * k) * dpr,
-        y * dpr
-      );
-      ctx.lineWidth = (tolerancePx * 2) / k;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      for (const iso2 of visibleRoadIso2sRef.current) {
-        const roads = loadedRoadsRef.current.get(iso2);
-        if (!roads) continue;
-
-        for (let i = 0; i < roads.length; i++) {
-          const road = roads[i];
-          const [minX, minY, maxX, maxY] = road.bbox;
-          if (
-            mapX < minX - toleranceMap ||
-            mapX > maxX + toleranceMap ||
-            mapY < minY - toleranceMap ||
-            mapY > maxY + toleranceMap
-          ) {
-            continue;
-          }
-
-          if (road.path2D && ctx.isPointInStroke(road.path2D, mx * dpr, my * dpr)) {
-            if (road.class === 'Interstate') {
-              return road;
-            }
-            if (!candidateFederal) {
-              candidateFederal = road;
-            }
-          }
-        }
-      }
-    }
-    return candidateFederal;
-  }, []);
-
-  // Map Click Handler: prioritizes Highway selection in Road Mode and prevents underlying Country/L2 activation
-  const handleMapClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (hasDragged.current) return;
-      const target = e.target as Element | null;
-      if (target?.closest('.map-controls, .filter-legend-card, .precision-hud')) {
-        return;
+      for (const p of highlightSelectPaths) {
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0 / k;
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.9)';
+        ctx.shadowBlur = 10 * dpr;
+        ctx.stroke(p);
+        ctx.restore();
       }
 
-      setSelectedL2Subdivision(null);
-
-      if (showRoadsRef.current) {
-        const hitRoad = hoveredRoadRef.current || getRoadAtPoint(e.clientX, e.clientY);
-        if (onSelectRoad) {
-          onSelectRoad(hitRoad);
-        }
-        return;
-      }
-
-      setPinnedPrefId(null);
-      onSelectCountry(null);
-      if (onSelectPrefecture) onSelectPrefecture(null);
-      if (onSelectMunicipality) onSelectMunicipality(null);
-    },
-    [onSelectRoad, onSelectCountry, onSelectPrefecture, onSelectMunicipality, getRoadAtPoint]
-  );
-
-  // Apply GPU hardware-accelerated transform directly to SVG group and sync Canvas
-  const applyTransform = useCallback(() => {
-    if (!gRef.current) return;
-    const { k, x, y } = transformRef.current;
-    gRef.current.style.transition = 'none';
-    gRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${k})`;
-
-    if (showRoadsRef.current) {
-      renderRoadsCanvas();
+      highlightHoverPaths.length = 0;
+      highlightSelectPaths.length = 0;
     }
-  }, [renderRoadsCanvas]);
+  }, [countryPathData, prefecturePathData, activeL2SubdivisionPaths, municipalitiesByPrefId]);
 
-  // Smooth animation tween using requestAnimationFrame (guarantees SVG & Canvas stay 100% in sync)
+
+  // Smooth animation tween using requestAnimationFrame
   const animateTo = useCallback(
     (targetK: number, targetX: number, targetY: number, duration = 350, onComplete?: () => void) => {
       if (animRafId.current) {
@@ -578,7 +934,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const currentY = startY + (targetY - startY) * eased;
 
         transformRef.current = { k: currentK, x: currentX, y: currentY };
-        applyTransform();
+        renderCanvas();
 
         if (progress < 1) {
           animRafId.current = requestAnimationFrame(step);
@@ -590,455 +946,251 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       animRafId.current = requestAnimationFrame(step);
     },
-    [applyTransform]
+    [renderCanvas]
   );
 
-  // Synchronize showRoads changes with viewport and canvas
-  useEffect(() => {
-    showRoadsRef.current = showRoads;
-    if (showRoads && tooltipRef.current) {
-      tooltipRef.current.style.display = 'none';
-    }
+  // ==========================================
+  // UNIFIED HIT-TESTING PIPELINE (Canvas 2D)
+  // ==========================================
+  const getFeatureAtPoint = useCallback((clientX: number, clientY: number): HitFeature | null => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+
     const { k, x, y } = transformRef.current;
-    syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoads);
-    if (showRoads) {
-      renderRoadsCanvas();
-    } else {
-      const canvas = roadsCanvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-      hoveredRoadRef.current = null;
-    }
-  }, [showRoads, syncRoadsViewport, renderRoadsCanvas]);
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
 
-  // Set up Web Mercator Projection
-  const projection = useMemo(() => {
-    return geoMercator()
-      .scale(MERCATOR_SCALE)
-      .translate([MAP_W / 2, MAP_H / 2]);
-  }, []);
+    // 1. In Highway Exploration Mode: Hit test roads with 10px stroke tolerance
+    if (showRoadsRef.current) {
+      const tolerancePx = 10;
+      const toleranceMap = tolerancePx / k;
+      let candidateFederal: RoadPathData | null = null;
 
-  const pathGenerator = useMemo(() => {
-    return geoPath().projection(projection);
-  }, [projection]);
+      for (const copyIdx of visibleRoadCopiesRef.current) {
+        const mapX = (mx - x) / k - copyIdx * MAP_W;
+        const mapY = (my - y) / k;
 
-  // Pre-calculate paths for L1 Countries
-  const countryPathData = useMemo(() => {
-    return features.map((feature) => {
-      const pathD = pathGenerator(feature) || '';
-      const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
-      return {
-        pathD,
-        countryMeta,
-        id: feature.id,
-        name: feature.properties?.name || 'Unknown'
-      };
-    });
-  }, [features, pathGenerator]);
+        ctx.setTransform(
+          k * dpr,
+          0,
+          0,
+          k * dpr,
+          (x + copyIdx * MAP_W * k) * dpr,
+          y * dpr
+        );
+        ctx.lineWidth = (tolerancePx * 2) / k;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
-  // Pre-calculate paths for L2 Japan 47 Prefectures (都道府縣)
-  const prefecturePathData = useMemo(() => {
-    return japanPrefectureFeatures.map((feature) => {
-      const pathD = pathGenerator(feature) || '';
-      const prefId = Number(feature.properties?.id);
-      const prefMeta = JAPAN_PREFECTURES[prefId];
-      let centroid: [number, number] = [882, 392];
-      try {
-        const c = pathGenerator.centroid(feature);
-        if (c && !isNaN(c[0]) && !isNaN(c[1])) {
-          centroid = c;
-        }
-      } catch {
-        // fallback
-      }
+        for (const iso2 of visibleRoadIso2sRef.current) {
+          const roads = loadedRoadsRef.current.get(iso2);
+          if (!roads) continue;
 
-      return {
-        pathD,
-        prefMeta,
-        id: prefId,
-        nameJa: feature.properties?.nam_ja || prefMeta?.nameJa || '',
-        nameEn: feature.properties?.nam || prefMeta?.nameEn || '',
-        centroid
-      };
-    });
-  }, [japanPrefectureFeatures, pathGenerator]);
-
-  // Pre-calculate paths for L3 Japan 1906 Municipalities (市區町村)
-  const municipalityPathData = useMemo(() => {
-    return japanMunicipalityFeatures.map((feature) => {
-      const pathD = pathGenerator(feature) || '';
-      const code = String(feature.properties?.code || feature.id || '');
-      const prefId = Number(feature.properties?.pref_id) || 0;
-      const pref = String(feature.properties?.pref || (prefId ? JAPAN_PREFECTURES[prefId]?.nameJa : '') || '');
-      const city = String(feature.properties?.city || '');
-      const gun = String(feature.properties?.gun || '');
-      return {
-        pathD,
-        code,
-        prefId,
-        pref,
-        city,
-        gun
-      };
-    });
-  }, [japanMunicipalityFeatures, pathGenerator]);
-
-  // Group municipality paths by prefecture ID for O(1) active retrieval
-  const municipalitiesByPrefId = useMemo(() => {
-    const map = new Map<number, typeof municipalityPathData>();
-    for (const item of municipalityPathData) {
-      const list = map.get(item.prefId);
-      if (list) {
-        list.push(item);
-      } else {
-        map.set(item.prefId, [item]);
-      }
-    }
-    return map;
-  }, [municipalityPathData]);
-
-  // Currently active prefecture IDs that should expand to L3 when in L3 mode:
-  // 1. The last clicked prefecture (from selectedMunicipality or selectedPrefecture)
-  // 2. The currently hovered prefecture (from hoveredMunicipality or hoveredPrefecture)
-  const lastClickedPrefId = useMemo(() => {
-    if (selectedMunicipality) {
-      if (selectedMunicipality.prefId) return selectedMunicipality.prefId;
-      const parsed = parseInt(selectedMunicipality.code?.slice(0, 2), 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 47) return parsed;
-    }
-    if (selectedPrefecture?.id) return selectedPrefecture.id;
-    return null;
-  }, [selectedMunicipality, selectedPrefecture]);
-
-  const hoveredPrefId = useMemo(() => {
-    if (hoveredMunicipality?.prefId) return hoveredMunicipality.prefId;
-    if (hoveredPrefecture?.id) return hoveredPrefecture.id;
-    return null;
-  }, [hoveredMunicipality, hoveredPrefecture]);
-
-  const activeL3PrefIds = useMemo(() => {
-    const set = new Set<number>();
-    if (pinnedPrefId) set.add(pinnedPrefId);
-    if (lastClickedPrefId) set.add(lastClickedPrefId);
-    if (hoveredPrefId) set.add(hoveredPrefId);
-    return set;
-  }, [pinnedPrefId, lastClickedPrefId, hoveredPrefId]);
-
-  // Active worldwide L2 subdivision paths flattened for rendering
-  const activeL2SubdivisionPaths = useMemo(() => {
-    if (lodLevel === 'L1') return [];
-    const list: L2SubdivisionPathData[] = [];
-    for (const iso2 of visibleL2Iso2s) {
-      if (iso2 === 'JP') continue;
-      const paths = l2PathsByCountry[iso2];
-      if (paths) {
-        for (let i = 0; i < paths.length; i++) {
-          list.push(paths[i]);
-        }
-      }
-    }
-    return list;
-  }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
-
-
-  // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
-  useEffect(() => {
-    let isMounted = true;
-
-    // 1. Load L1 World Countries via FlatGeobuf binary (Zero-copy IEEE 754 floats)
-    (async () => {
-      try {
-        const res = await fetch('/data/countries-110m.fgb');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        if (!isMounted) return;
-
-        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-        const features: GeoFeature[] = [];
-        for await (const feature of it) {
-          const props = (feature.properties || {}) as WorldCountryProperties;
-          const countryId = String(props.id || feature.id || '');
-          features.push({
-            ...feature,
-            id: countryId,
-            properties: props
-          } as unknown as GeoFeature);
-        }
-        if (isMounted) {
-          setFeatures(features);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('L1 Countries FlatGeobuf loading error:', err);
-      }
-    })();
-
-    // 2. Load L2 Japan 47 Prefectures via FlatGeobuf binary (Zero-copy IEEE 754 floats)
-    (async () => {
-      try {
-        const res = await fetch('/data/l2/JP.fgb');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        if (!isMounted) return;
-
-        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-        const features: Feature<Geometry, JapanPrefectureProperties>[] = [];
-        for await (const feature of it) {
-          features.push(feature as unknown as Feature<Geometry, JapanPrefectureProperties>);
-        }
-        if (isMounted) {
-          setJapanPrefectureFeatures(features);
-        }
-      } catch (err) {
-        console.warn('L2 Prefectures FlatGeobuf loading notice:', err);
-      }
-    })();
-
-    // 3. Load L3 Japan Municipalities via FlatGeobuf binary (Zero-copy IEEE 754 floats)
-    (async () => {
-      try {
-        const res = await fetch('/data/japan-municipalities.fgb');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        if (!isMounted) return;
-
-        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-        const features: Feature<Geometry, JapanMunicipalityProperties>[] = [];
-        for await (const feature of it) {
-          features.push(feature as unknown as Feature<Geometry, JapanMunicipalityProperties>);
-        }
-        if (isMounted) {
-          setJapanMunicipalityFeatures(features);
-        }
-      } catch (err) {
-        console.warn('L3 Municipalities FlatGeobuf loading notice:', err);
-      }
-    })();
-
-    return () => {
-      isMounted = false;
-      if (rafId.current) cancelAnimationFrame(rafId.current);
-      if (animRafId.current) cancelAnimationFrame(animRafId.current);
-    };
-  }, []);
-
-  // On-demand loader for visible countries' L2 FlatGeobuf datasets
-  useEffect(() => {
-    if (lodLevel === 'L1') return;
-
-    let isMounted = true;
-    for (const iso2 of visibleL2Iso2s) {
-      if (iso2 === 'JP') continue; // Japan is handled by japanPrefectureFeatures
-      if (loadedL2DataRef.current.has(iso2) || inFlightFetchesRef.current.has(iso2)) continue;
-
-      inFlightFetchesRef.current.add(iso2);
-
-      (async () => {
-        try {
-          const res = await fetch(`/data/l2/${iso2}.fgb`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buffer = await res.arrayBuffer();
-          if (!isMounted) return;
-
-          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-          const paths: L2SubdivisionPathData[] = [];
-          for await (const feature of it) {
-            const p = (feature.properties || {}) as Record<string, unknown>;
-            const pathD = pathGenerator(feature) || '';
-            let centroid: [number, number] = [0, 0];
-            try {
-              const c = pathGenerator.centroid(feature);
-              if (c && !isNaN(c[0]) && !isNaN(c[1])) centroid = c;
-            } catch {
-              // fallback to centroid [0, 0] if calculation fails
-            }
-            paths.push({
-              pathD,
-              id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
-              iso2: (p.iso2 as string) || iso2,
-              name: String(p.name || ''),
-              nameEn: String(p.name_en || p.name || ''),
-              nameZh: String(p.name_zh || p.name || ''),
-              typeEn: String(p.type_en || ''),
-              code: String(p.code || ''),
-              postal: String(p.postal || ''),
-              centroid
-            });
-          }
-
-          if (isMounted) {
-            loadedL2DataRef.current.set(iso2, paths);
-            setL2PathsByCountry((prev) => ({ ...prev, [iso2]: paths }));
-          }
-        } catch (err) {
-          console.warn(`[L2] Failed to load /data/l2/${iso2}.fgb:`, err);
-        } finally {
-          inFlightFetchesRef.current.delete(iso2);
-        }
-      })();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [visibleL2Iso2s, lodLevel, pathGenerator]);
-
-  // On-demand loader for visible countries' Road FlatGeobuf datasets (compiles GPU Path2D & spatial index)
-  useEffect(() => {
-    if (!showRoads) return;
-
-    let isMounted = true;
-    for (const iso2 of visibleRoadIso2s) {
-      if (loadedRoadsRef.current.has(iso2) || inFlightRoadFetchesRef.current.has(iso2)) continue;
-
-      inFlightRoadFetchesRef.current.add(iso2);
-
-      (async () => {
-        try {
-          const res = await fetch(`/data/roads/${iso2}.fgb`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buffer = await res.arrayBuffer();
-          if (!isMounted) return;
-
-          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-          const paths: RoadPathData[] = [];
-          const interstatesPath2D = new Path2D();
-          const usRoutesPath2D = new Path2D();
-
-          for await (const feature of it) {
-            const p = (feature.properties || {}) as Record<string, unknown>;
-            const pathD = pathGenerator(feature) || '';
-            if (!pathD) continue;
-
-            const bounds = pathGenerator.bounds(feature);
-            const bbox: [number, number, number, number] = [
-              bounds[0][0],
-              bounds[0][1],
-              bounds[1][0],
-              bounds[1][1]
-            ];
-            const roadClass = p.class === 'Interstate' ? 'Interstate' : 'Federal';
-            const path2D = new Path2D(pathD);
-
-            if (roadClass === 'Interstate') {
-              interstatesPath2D.addPath(path2D);
-            } else {
-              usRoutesPath2D.addPath(path2D);
+          for (let i = 0; i < roads.length; i++) {
+            const road = roads[i];
+            const [minX, minY, maxX, maxY] = road.bbox;
+            if (
+              mapX < minX - toleranceMap ||
+              mapX > maxX + toleranceMap ||
+              mapY < minY - toleranceMap ||
+              mapY > maxY + toleranceMap
+            ) {
+              continue;
             }
 
-            paths.push({
-              pathD,
-              name: String(p.name || ''),
-              class: roadClass,
-              number: String(p.number || ''),
-              prefix: String(p.prefix || ''),
-              type: String(p.type || ''),
-              scalerank: Number(p.scalerank || 0),
-              bbox,
-              path2D
-            });
+            if (road.path2D && ctx.isPointInStroke(road.path2D, mx * dpr, my * dpr)) {
+              if (road.class === 'Interstate') {
+                return { type: 'road', data: road };
+              }
+              if (!candidateFederal) {
+                candidateFederal = road;
+              }
+            }
           }
-
-          if (isMounted) {
-            loadedRoadsRef.current.set(iso2, paths);
-            roadBundlesRef.current.set(iso2, {
-              roads: paths,
-              interstatesPath2D,
-              usRoutesPath2D
-            });
-            renderRoadsCanvas();
-          }
-        } catch (err) {
-          console.warn(`[Roads] Failed to load /data/roads/${iso2}.fgb:`, err);
-        } finally {
-          inFlightRoadFetchesRef.current.delete(iso2);
-        }
-      })();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [visibleRoadIso2s, showRoads, pathGenerator, renderRoadsCanvas]);
-
-  // Update container size on resize
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          viewportSize.current = { w: width, h: height };
-
-          const kMin = height / MAP_H;
-          const currentK = transformRef.current.k;
-          const newK = Math.max(currentK, kMin);
-          transformRef.current.k = newK;
-
-          transformRef.current.y = clampY(transformRef.current.y, newK, height);
-          transformRef.current.x = wrapX(transformRef.current.x, newK);
-          syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevel);
-          applyTransform();
         }
       }
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [clampY, wrapX, applyTransform, syncAllViewports, lodLevel]);
-
-  // Initial map positioning once loaded (runs only once upon initial load)
-  useEffect(() => {
-    if (!loading && containerRef.current && !isInitializedRef.current) {
-      isInitializedRef.current = true;
-      const vh = containerRef.current.clientHeight || 800;
-      const vw = containerRef.current.clientWidth || 1200;
-      viewportSize.current = { w: vw, h: vh };
-
-      const kMin = vh / MAP_H;
-      const initialK = Math.max(kMin, 1.0);
-      transformRef.current.k = initialK;
-
-      const initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
-      const initialY = clampY((vh - MAP_H * initialK) / 2, initialK, vh);
-
-      transformRef.current.x = initialX;
-      transformRef.current.y = initialY;
-      const initialLOD = getLODLevel(initialK, lodThresholds);
-      syncAllViewports(initialK, initialX, initialY, vw, vh, initialLOD);
-      setZoomK(Number(initialK.toFixed(1)));
-      setLodLevel(initialLOD);
-      applyTransform();
+      if (candidateFederal) {
+        return { type: 'road', data: candidateFederal };
+      }
+      return null;
     }
-  }, [loading, wrapX, clampY, applyTransform, lodThresholds, syncAllViewports]);
 
-  // Zoom directly into a prefecture at L3 (called from Drawer)
-  useEffect(() => {
-    if (zoomToPrefectureRef) {
-      zoomToPrefectureRef.current = (prefId: number) => {
-        const target = prefecturePathData.find((p) => p.id === prefId);
-        if (target) {
-          const [cx, cy] = target.centroid;
-          const targetK = 7.8;
-          const vh = viewportSize.current.h;
-          const vw = viewportSize.current.w;
-          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+    // 2. Normal Mode: Hierarchical Polygon Hit-Testing (L3 -> L2 Prefectures -> L2 Subdivisions -> L1 Countries)
+    for (const copyIdx of WORLD_COPIES) {
+      const mapX = (mx - x) / k - copyIdx * MAP_W;
+      const mapY = (my - y) / k;
 
-          setZoomK(Number(targetK.toFixed(1)));
-          setLodLevel('L3');
-          setPinnedPrefId(prefId);
-          animateTo(targetK, targetX, targetY, 380, () => {
-            syncAllViewports(targetK, targetX, targetY, vw, vh, 'L3');
+      if (mapX < 0 || mapX > MAP_W || mapY < 0 || mapY > MAP_H) {
+        continue;
+      }
+
+      ctx.setTransform(
+        k * dpr,
+        0,
+        0,
+        k * dpr,
+        (x + copyIdx * MAP_W * k) * dpr,
+        y * dpr
+      );
+
+      // 2a. Check L3 Municipalities (if L3 mode and copy 0 or 1)
+      if (lodLevelRef.current === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
+        for (const pId of activeL3PrefIdsRef.current) {
+          const munis = municipalitiesByPrefId.get(pId);
+          if (!munis) continue;
+          for (let i = 0; i < munis.length; i++) {
+            const m = munis[i];
+            const [minX, minY, maxX, maxY] = m.bbox;
+            if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+            if (ctx.isPointInPath(m.path2D, mx * dpr, my * dpr)) {
+              return { type: 'municipality', data: m };
+            }
+          }
+        }
+      }
+
+      // 2b. Check L2 Japan Prefectures (if L2 or L3 mode, and copy 0 or 1)
+      if (
+        ((lodLevelRef.current === 'L2' && visibleL2Iso2sRef.current.has('JP')) || lodLevelRef.current === 'L3') &&
+        (copyIdx === 0 || copyIdx === 1)
+      ) {
+        for (let i = 0; i < prefecturePathData.length; i++) {
+          const pref = prefecturePathData[i];
+          if (lodLevelRef.current === 'L3' && activeL3PrefIdsRef.current.has(pref.id)) continue;
+          const [minX, minY, maxX, maxY] = pref.bbox;
+          if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+          if (ctx.isPointInPath(pref.path2D, mx * dpr, my * dpr)) {
+            return { type: 'prefecture', data: pref };
+          }
+        }
+      }
+
+      // 2c. Check L2 Worldwide Subdivisions (if L2 or L3 mode, and copy 0 or 1)
+      if ((lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+        for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
+          const sub = activeL2SubdivisionPaths[i];
+          const [minX, minY, maxX, maxY] = sub.bbox;
+          if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+          if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
+            return { type: 'l2Subdivision', data: sub };
+          }
+        }
+      }
+
+      // 2d. Check L1 Countries
+      for (let i = 0; i < countryPathData.length; i++) {
+        const c = countryPathData[i];
+        const iso2 = c.countryMeta?.iso2;
+        const isJapan = String(c.id) === '392' || c.name === 'Japan' || iso2 === 'JP' || c.countryMeta?.id === '392';
+        const isJapanL2Active = isJapan && (lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && visibleL2Iso2sRef.current.has('JP');
+        if (isJapanL2Active) continue;
+
+        const isWorldwideL2Active =
+          iso2 &&
+          iso2 !== 'JP' &&
+          (lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') &&
+          visibleL2Iso2sRef.current.has(iso2) &&
+          !!l2PathsByCountryRef.current[iso2];
+        if (isWorldwideL2Active) continue;
+
+        const [minX, minY, maxX, maxY] = c.bbox;
+        if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+        if (ctx.isPointInPath(c.path2D, mx * dpr, my * dpr)) {
+          return { type: 'country', data: c };
+        }
+      }
+    }
+
+    return null;
+  }, [prefecturePathData, activeL2SubdivisionPaths, countryPathData, municipalitiesByPrefId]);
+
+  // Map Click Handler: selects feature or deselects when clicking empty space
+  const handleMapClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (hasDragged.current) return;
+      const target = e.target as Element | null;
+      if (target?.closest('.map-controls, .filter-legend-card, .precision-hud')) {
+        return;
+      }
+
+      const hit = getFeatureAtPoint(e.clientX, e.clientY);
+
+      if (showRoadsRef.current) {
+        if (hit && hit.type === 'road') {
+          if (onSelectRoad) onSelectRoad(hit.data);
+        } else {
+          if (onSelectRoad) onSelectRoad(null);
+        }
+        return;
+      }
+
+      if (!hit) {
+        setSelectedL2Subdivision(null);
+        selectedL2SubdivisionRef.current = null;
+        setPinnedPrefId(null);
+        onSelectCountry(null);
+        if (onSelectPrefecture) onSelectPrefecture(null);
+        if (onSelectMunicipality) onSelectMunicipality(null);
+        renderCanvas();
+        return;
+      }
+
+      if (hit.type === 'municipality') {
+        const m = hit.data;
+        setPinnedPrefId(m.prefId);
+        if (onSelectMunicipality) {
+          onSelectMunicipality({
+            code: m.code,
+            prefId: m.prefId,
+            pref: m.pref,
+            gun: m.gun,
+            city: m.city,
+            nameZh: `${m.pref} ${m.city}`
           });
+          onSelectCountry(null);
+          if (onSelectPrefecture) onSelectPrefecture(null);
         }
-      };
-    }
-  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, animateTo, syncAllViewports]);
+      } else if (hit.type === 'prefecture') {
+        const pref = hit.data;
+        setPinnedPrefId(pref.id);
+        if (pref.prefMeta && onSelectPrefecture) {
+          onSelectPrefecture(pref.prefMeta);
+          onSelectCountry(null);
+          if (onSelectMunicipality) onSelectMunicipality(null);
+        }
+      } else if (hit.type === 'l2Subdivision') {
+        const sub = hit.data;
+        const selObj = { iso2: sub.iso2, id: sub.id };
+        setSelectedL2Subdivision(selObj);
+        selectedL2SubdivisionRef.current = selObj;
+        const cMeta = findCountry(sub.iso2);
+        if (cMeta) {
+          onSelectCountry(cMeta);
+          if (onSelectPrefecture) onSelectPrefecture(null);
+          if (onSelectMunicipality) onSelectMunicipality(null);
+        }
+      } else if (hit.type === 'country') {
+        const c = hit.data;
+        setSelectedL2Subdivision(null);
+        selectedL2SubdivisionRef.current = null;
+        setPinnedPrefId(null);
+        if (c.countryMeta) {
+          onSelectCountry(c.countryMeta);
+          if (onSelectPrefecture) onSelectPrefecture(null);
+          if (onSelectMunicipality) onSelectMunicipality(null);
+        } else {
+          onSelectCountry(null);
+        }
+      }
+      renderCanvas();
+    },
+    [onSelectRoad, onSelectCountry, onSelectPrefecture, onSelectMunicipality, getFeatureAtPoint, renderCanvas]
+  );
 
   // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -1078,130 +1230,206 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const vh = viewportSize.current.h;
       const vw = viewportSize.current.w;
 
-      // Continuous periodic horizontal wrapping
       transformRef.current.x = wrapX(rawX, k);
-      // Strict vertical clamping: sticks flush to container borders
       transformRef.current.y = clampY(rawY, k, vh);
 
-      if (lodLevel !== 'L1' || showRoadsRef.current) {
-        syncAllViewports(k, transformRef.current.x, transformRef.current.y, vw, vh, lodLevel);
+      if (lodLevelRef.current !== 'L1' || showRoadsRef.current) {
+        syncAllViewports(k, transformRef.current.x, transformRef.current.y, vw, vh, lodLevelRef.current);
       }
 
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
-          applyTransform();
+          renderCanvas();
           rafId.current = null;
         });
       }
       return;
     }
 
-    // High-performance GPU Highway Hover Hit Testing when Roads mode is active
-    if (showRoadsRef.current) {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
+    const hit = getFeatureAtPoint(e.clientX, e.clientY);
 
-      const { k, x, y } = transformRef.current;
-      const dpr = window.devicePixelRatio || 1;
-      const canvas = roadsCanvasRef.current;
-      const ctx = canvas?.getContext('2d');
+    if (containerRef.current) {
+      containerRef.current.style.cursor = hit ? 'pointer' : 'grab';
+    }
 
-      let hitRoad: RoadPathData | null = null;
-
-      if (ctx) {
-        const tolerancePx = 10;
-        const toleranceMap = tolerancePx / k;
-
-        for (const copyIdx of visibleRoadCopiesRef.current) {
-          const mapX = (mx - x) / k - copyIdx * MAP_W;
-          const mapY = (my - y) / k;
-
-          // Set transform matrix for current world copy
-          ctx.setTransform(
-            k * dpr,
-            0,
-            0,
-            k * dpr,
-            (x + copyIdx * MAP_W * k) * dpr,
-            y * dpr
-          );
-          ctx.lineWidth = (tolerancePx * 2) / k;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-
-          for (const iso2 of visibleRoadIso2sRef.current) {
-            const roads = loadedRoadsRef.current.get(iso2);
-            if (!roads) continue;
-
-            for (let i = 0; i < roads.length; i++) {
-              const road = roads[i];
-              const [minX, minY, maxX, maxY] = road.bbox;
-              // Fast AABB bounding-box pre-filter (eliminates 99.8% of highways instantly)
-              if (
-                mapX < minX - toleranceMap ||
-                mapX > maxX + toleranceMap ||
-                mapY < minY - toleranceMap ||
-                mapY > maxY + toleranceMap
-              ) {
-                continue;
-              }
-
-              // Exact GPU stroke hit test for candidate roads within bounding box
-              if (road.path2D && ctx.isPointInStroke(road.path2D, mx * dpr, my * dpr)) {
-                hitRoad = road;
-                if (road.class === 'Interstate') {
-                  break;
-                }
-              }
-            }
-            if (hitRoad && hitRoad.class === 'Interstate') break;
-          }
-          if (hitRoad) break;
-        }
+    if (!hit) {
+      let hadHover = false;
+      if (hoveredRoadRef.current) {
+        hoveredRoadRef.current = null;
+        setHoveredRoad(null);
+        hadHover = true;
       }
-
-      if (containerRef.current) {
-        containerRef.current.style.cursor = hitRoad ? 'pointer' : 'grab';
-      }
-
-      if (hitRoad) {
-        if (hoveredRoadRef.current?.name !== hitRoad.name) {
-          hoveredRoadRef.current = hitRoad;
-          setHoveredRoad(hitRoad);
-          renderRoadsCanvas();
-        }
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = 'flex';
-          tooltipRef.current.style.left = `${e.clientX}px`;
-          tooltipRef.current.style.top = `${e.clientY - 12}px`;
-        }
+      if (hoveredCountryRef.current) {
+        hoveredCountryRef.current = null;
         setHoveredCountry(null);
+        hadHover = true;
+      }
+      if (hoveredPrefectureRef.current) {
+        hoveredPrefectureRef.current = null;
         setHoveredPrefecture(null);
+        hadHover = true;
+      }
+      if (hoveredMunicipalityRef.current) {
+        hoveredMunicipalityRef.current = null;
         setHoveredMunicipality(null);
+        hadHover = true;
+      }
+      if (hoveredL2SubdivisionRef.current) {
+        hoveredL2SubdivisionRef.current = null;
         setHoveredL2Subdivision(null);
-      } else {
-        if (hoveredRoadRef.current !== null) {
-          hoveredRoadRef.current = null;
-          setHoveredRoad(null);
-          renderRoadsCanvas();
-        }
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = 'none';
-        }
+        hadHover = true;
+      }
+      if (tooltipRef.current) {
+        tooltipRef.current.style.display = 'none';
+      }
+      if (hadHover) {
+        renderCanvas();
       }
       return;
     }
 
-    // Direct DOM tooltip position update when hovering country/prefecture/municipality
-    const hasActiveHover = hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision;
-    if (tooltipRef.current && hasActiveHover) {
+    if (hit.type === 'road') {
+      const road = hit.data;
+      if (hoveredRoadRef.current?.name !== road.name) {
+        hoveredRoadRef.current = road;
+        setHoveredRoad(road);
+        hoveredCountryRef.current = null;
+        setHoveredCountry(null);
+        hoveredPrefectureRef.current = null;
+        setHoveredPrefecture(null);
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        renderCanvas();
+      }
+    } else if (hit.type === 'municipality') {
+      const m = hit.data;
+      if (hoveredMunicipalityRef.current?.code !== m.code) {
+        const muniDetail: MunicipalityDetail = {
+          code: m.code,
+          prefId: m.prefId,
+          pref: m.pref,
+          gun: m.gun,
+          city: m.city,
+          nameZh: `${m.pref} ${m.city}`
+        };
+        hoveredMunicipalityRef.current = muniDetail;
+        setHoveredMunicipality(muniDetail);
+        hoveredRoadRef.current = null;
+        setHoveredRoad(null);
+        hoveredCountryRef.current = null;
+        setHoveredCountry(null);
+        hoveredPrefectureRef.current = null;
+        setHoveredPrefecture(null);
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        renderCanvas();
+      }
+    } else if (hit.type === 'prefecture') {
+      const pref = hit.data;
+      if (hoveredPrefectureRef.current?.id !== pref.id) {
+        const prefDetail: PrefectureDetail = pref.prefMeta || {
+          id: pref.id,
+          nameJa: pref.nameJa,
+          nameZh: pref.nameJa,
+          nameEn: pref.nameEn,
+          region: '日本',
+          capital: '',
+          areaCode: '0x',
+          plates: [],
+          proClues: ['日本都道府縣行政區'],
+          landscapeDesc: ''
+        };
+        hoveredPrefectureRef.current = prefDetail;
+        setHoveredPrefecture(prefDetail);
+        hoveredRoadRef.current = null;
+        setHoveredRoad(null);
+        hoveredCountryRef.current = null;
+        setHoveredCountry(null);
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        renderCanvas();
+      }
+    } else if (hit.type === 'l2Subdivision') {
+      const sub = hit.data;
+      if (
+        hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
+        hoveredL2SubdivisionRef.current?.id !== sub.id
+      ) {
+        const cMeta = findCountry(sub.iso2);
+        const subDetail: L2SubdivisionDetail = {
+          id: sub.id,
+          iso2: sub.iso2,
+          name: sub.name,
+          nameEn: sub.nameEn,
+          nameZh: sub.nameZh,
+          typeEn: sub.typeEn,
+          code: sub.code,
+          postal: sub.postal,
+          countryName: cMeta?.name || sub.nameEn,
+          countryNameZh: cMeta?.nameZh || sub.nameZh,
+          countryFlag: cMeta?.flag || '🌐'
+        };
+        hoveredL2SubdivisionRef.current = subDetail;
+        setHoveredL2Subdivision(subDetail);
+        hoveredRoadRef.current = null;
+        setHoveredRoad(null);
+        hoveredCountryRef.current = null;
+        setHoveredCountry(null);
+        hoveredPrefectureRef.current = null;
+        setHoveredPrefecture(null);
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+        renderCanvas();
+      }
+    } else if (hit.type === 'country') {
+      const c = hit.data;
+      const cMeta = c.countryMeta || {
+        id: String(c.id),
+        iso2: '',
+        iso3: '',
+        name: c.name,
+        nameZh: c.name,
+        flag: '🌐',
+        continent: 'Asia',
+        region: '無官方街景覆蓋',
+        drivingSide: 'right',
+        coverage: 'none',
+        cameraGens: [],
+        plateType: 'white',
+        plateDesc: '無街景',
+        roadLines: ['white_dashed'],
+        roadLinesDesc: '無街景',
+        carMeta: ['none'],
+        carMetaDesc: '無街景',
+        poleDesc: '無資料',
+        bollardDesc: '無資料',
+        language: '當地語言',
+        tld: '',
+        keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
+      };
+      if (hoveredCountryRef.current?.id !== cMeta.id) {
+        hoveredCountryRef.current = cMeta;
+        setHoveredCountry(cMeta);
+        hoveredRoadRef.current = null;
+        setHoveredRoad(null);
+        hoveredPrefectureRef.current = null;
+        setHoveredPrefecture(null);
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        renderCanvas();
+      }
+    }
+
+    if (tooltipRef.current) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
       tooltipRef.current.style.top = `${e.clientY - 12}px`;
-    } else if (tooltipRef.current) {
-      tooltipRef.current.style.display = 'none';
     }
   };
 
@@ -1212,7 +1440,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       rafId.current = null;
     }
     const { k, x, y } = transformRef.current;
-    syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevel);
+    syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevelRef.current);
   };
 
   // Wheel zoom centered on mouse pointer with Level of Detail (LOD) tracking
@@ -1231,7 +1459,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
     const newK = Math.min(Math.max(k * zoomFactor, kMin), MAX_ZOOM_K);
 
-    // Zoom anchored to mouse position
     const ratio = newK / k;
     const newX = mx - (mx - x) * ratio;
     const newY = my - (my - y) * ratio;
@@ -1243,11 +1470,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
+      lodLevelRef.current = nextLOD;
     }
     setZoomK(Number(newK.toFixed(1)));
     syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
 
-    applyTransform();
+    renderCanvas();
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
@@ -1266,6 +1494,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
+      lodLevelRef.current = nextLOD;
     }
     setZoomK(Number(newK.toFixed(1)));
     animateTo(newK, newX, newY, 280, () => {
@@ -1285,6 +1514,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     setZoomK(Number(kMin.toFixed(1)));
     setLodLevel(targetLOD);
+    lodLevelRef.current = targetLOD;
     animateTo(kMin, targetX, targetY, 320, () => {
       syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
     });
@@ -1310,14 +1540,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.y = clampY(newY, newK, vh);
 
       const nextLOD = getLODLevel(newK, lodThresholds);
-      if (nextLOD !== lodLevel) {
+      if (nextLOD !== lodLevelRef.current) {
         setLodLevel(nextLOD);
+        lodLevelRef.current = nextLOD;
       }
       setZoomK(Number(newK.toFixed(1)));
       syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
-      applyTransform();
+      renderCanvas();
     },
-    [wrapX, clampY, applyTransform, lodLevel, lodThresholds, syncAllViewports]
+    [wrapX, clampY, renderCanvas, lodThresholds, syncAllViewports]
   );
 
   // Update dynamic custom LOD thresholds
@@ -1326,8 +1557,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setLodThresholds(newThresholds);
       const currentK = transformRef.current.k;
       const nextLOD = getLODLevel(currentK, newThresholds);
-      if (nextLOD !== lodLevel) {
+      if (nextLOD !== lodLevelRef.current) {
         setLodLevel(nextLOD);
+        lodLevelRef.current = nextLOD;
         syncAllViewports(
           currentK,
           transformRef.current.x,
@@ -1336,31 +1568,381 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           viewportSize.current.h,
           nextLOD
         );
+        renderCanvas();
       }
     },
-    [lodLevel, syncAllViewports]
+    [syncAllViewports, renderCanvas]
   );
 
-  // Color fill resolver: Base (Land/Border/Ocean) + Active Filter (Overlay) + Cursor Effect (Hover橘 / Click藍)
-  const getCountryFill = useCallback(
-    (countryMeta: CountryData | undefined, isHovered: boolean, isSelected: boolean) => {
-      // 1. Cursor Effects (Click 藍色選取 / Hover 橘色懸停)
-      if (isSelected) return '#38bdf8';
-      if (isHovered) return '#f97316';
+  // Synchronize state and prop changes into render refs
+  useEffect(() => {
+    selectedCountryRef.current = selectedCountry;
+    renderCanvas();
+  }, [selectedCountry, renderCanvas]);
 
-      // 2. Base Land (無資料或預設底色)
-      if (!countryMeta) {
-        return '#1a1f2b';
+  useEffect(() => {
+    selectedPrefectureRef.current = selectedPrefecture || null;
+    renderCanvas();
+  }, [selectedPrefecture, renderCanvas]);
+
+  useEffect(() => {
+    selectedMunicipalityRef.current = selectedMunicipality || null;
+    renderCanvas();
+  }, [selectedMunicipality, renderCanvas]);
+
+  useEffect(() => {
+    selectedRoadRef.current = selectedRoad || null;
+    renderCanvas();
+  }, [selectedRoad, renderCanvas]);
+
+  useEffect(() => {
+    activeFilterDefRef.current = activeFilterDef;
+    renderCanvas();
+  }, [activeFilterDef, renderCanvas]);
+
+  useEffect(() => {
+    lodLevelRef.current = lodLevel;
+    renderCanvas();
+  }, [lodLevel, renderCanvas]);
+
+  useEffect(() => {
+    activeL3PrefIdsRef.current = activeL3PrefIds;
+    renderCanvas();
+  }, [activeL3PrefIds, renderCanvas]);
+
+  useEffect(() => {
+    l2PathsByCountryRef.current = l2PathsByCountry;
+    renderCanvas();
+  }, [l2PathsByCountry, renderCanvas]);
+
+  useEffect(() => {
+    visibleL2Iso2sRef.current = visibleL2Iso2s;
+    renderCanvas();
+  }, [visibleL2Iso2s, renderCanvas]);
+
+  useEffect(() => {
+    showRoadsRef.current = showRoads;
+    if (showRoads && tooltipRef.current) {
+      tooltipRef.current.style.display = 'none';
+    }
+    const { k, x, y } = transformRef.current;
+    syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoads);
+    renderCanvas();
+  }, [showRoads, syncRoadsViewport, renderCanvas]);
+
+  // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
+  useEffect(() => {
+    let isMounted = true;
+
+    // 1. Load L1 World Countries via FlatGeobuf binary
+    (async () => {
+      try {
+        const res = await fetch('/data/countries-110m.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        if (!isMounted) return;
+
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const loadedFeatures: GeoFeature[] = [];
+        for await (const feature of it) {
+          const props = (feature.properties || {}) as WorldCountryProperties;
+          const countryId = String(props.id || feature.id || '');
+          loadedFeatures.push({
+            ...feature,
+            id: countryId,
+            properties: props
+          } as unknown as GeoFeature);
+        }
+        if (isMounted) {
+          setFeatures(loadedFeatures);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('L1 Countries FlatGeobuf loading error:', err);
       }
+    })();
 
-      // 3. Active Overlay (主題大圖層填色，如 Google Coverage / Driving Side)
-      const filterColor = activeFilterDef.getColor(countryMeta);
-      return filterColor || '#232a38';
-    },
-    [activeFilterDef]
-  );
+    // 2. Load L2 Japan 47 Prefectures via FlatGeobuf binary
+    (async () => {
+      try {
+        const res = await fetch('/data/l2/JP.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        if (!isMounted) return;
 
-  const activeSelectedL2 = selectedCountry ? selectedL2Subdivision : null;
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const loadedFeatures: Feature<Geometry, JapanPrefectureProperties>[] = [];
+        for await (const feature of it) {
+          loadedFeatures.push(feature as unknown as Feature<Geometry, JapanPrefectureProperties>);
+        }
+        if (isMounted) {
+          setJapanPrefectureFeatures(loadedFeatures);
+        }
+      } catch (err) {
+        console.warn('L2 Prefectures FlatGeobuf loading notice:', err);
+      }
+    })();
+
+    // 3. Load L3 Japan Municipalities via FlatGeobuf binary
+    (async () => {
+      try {
+        const res = await fetch('/data/japan-municipalities.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        if (!isMounted) return;
+
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const loadedFeatures: Feature<Geometry, JapanMunicipalityProperties>[] = [];
+        for await (const feature of it) {
+          loadedFeatures.push(feature as unknown as Feature<Geometry, JapanMunicipalityProperties>);
+        }
+        if (isMounted) {
+          setJapanMunicipalityFeatures(loadedFeatures);
+        }
+      } catch (err) {
+        console.warn('L3 Municipalities FlatGeobuf loading notice:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      if (animRafId.current) cancelAnimationFrame(animRafId.current);
+    };
+  }, []);
+
+  // On-demand loader for visible countries' L2 FlatGeobuf datasets
+  useEffect(() => {
+    if (lodLevel === 'L1') return;
+
+    let isMounted = true;
+    for (const iso2 of visibleL2Iso2s) {
+      if (iso2 === 'JP') continue;
+      if (loadedL2DataRef.current.has(iso2) || inFlightFetchesRef.current.has(iso2)) continue;
+
+      inFlightFetchesRef.current.add(iso2);
+
+      (async () => {
+        try {
+          const res = await fetch(`/data/l2/${iso2}.fgb`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+          if (!isMounted) return;
+
+          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+          const paths: L2SubdivisionPathData[] = [];
+          for await (const feature of it) {
+            const p = (feature.properties || {}) as Record<string, unknown>;
+            const pathD = pathGenerator(feature) || '';
+            let bbox: [number, number, number, number] = [0, 0, 0, 0];
+            try {
+              const bounds = pathGenerator.bounds(feature);
+              if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[0][1])) {
+                bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+              }
+            } catch {
+              // fallback
+            }
+            const path2D = new Path2D(pathD);
+            let centroid: [number, number] = [0, 0];
+            try {
+              const c = pathGenerator.centroid(feature);
+              if (c && !isNaN(c[0]) && !isNaN(c[1])) centroid = c;
+            } catch {
+              // fallback
+            }
+            paths.push({
+              pathD,
+              path2D,
+              bbox,
+              id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
+              iso2: (p.iso2 as string) || iso2,
+              name: String(p.name || ''),
+              nameEn: String(p.name_en || p.name || ''),
+              nameZh: String(p.name_zh || p.name || ''),
+              typeEn: String(p.type_en || ''),
+              code: String(p.code || ''),
+              postal: String(p.postal || ''),
+              centroid
+            });
+          }
+
+          if (isMounted) {
+            loadedL2DataRef.current.set(iso2, paths);
+            setL2PathsByCountry((prev) => ({ ...prev, [iso2]: paths }));
+          }
+        } catch (err) {
+          console.warn(`[L2] Failed to load /data/l2/${iso2}.fgb:`, err);
+        } finally {
+          inFlightFetchesRef.current.delete(iso2);
+        }
+      })();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visibleL2Iso2s, lodLevel, pathGenerator]);
+
+  // On-demand loader for visible countries' Road FlatGeobuf datasets
+  useEffect(() => {
+    if (!showRoads) return;
+
+    let isMounted = true;
+    for (const iso2 of visibleRoadIso2s) {
+      if (loadedRoadsRef.current.has(iso2) || inFlightRoadFetchesRef.current.has(iso2)) continue;
+
+      inFlightRoadFetchesRef.current.add(iso2);
+
+      (async () => {
+        try {
+          const res = await fetch(`/data/roads/${iso2}.fgb`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+          if (!isMounted) return;
+
+          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+          const paths: RoadPathData[] = [];
+          const interstatesPath2D = new Path2D();
+          const usRoutesPath2D = new Path2D();
+
+          for await (const feature of it) {
+            const p = (feature.properties || {}) as Record<string, unknown>;
+            const pathD = pathGenerator(feature) || '';
+            if (!pathD) continue;
+
+            let bbox: [number, number, number, number] = [0, 0, 0, 0];
+            try {
+              const bounds = pathGenerator.bounds(feature);
+              if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[0][1])) {
+                bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+              }
+            } catch {
+              // fallback
+            }
+
+            const roadClass = p.class === 'Interstate' ? 'Interstate' : 'Federal';
+            const path2D = new Path2D(pathD);
+
+            if (roadClass === 'Interstate') {
+              interstatesPath2D.addPath(path2D);
+            } else {
+              usRoutesPath2D.addPath(path2D);
+            }
+
+            paths.push({
+              pathD,
+              name: String(p.name || ''),
+              class: roadClass,
+              number: String(p.number || ''),
+              prefix: String(p.prefix || ''),
+              type: String(p.type || ''),
+              scalerank: Number(p.scalerank || 0),
+              bbox,
+              path2D
+            });
+          }
+
+          if (isMounted) {
+            loadedRoadsRef.current.set(iso2, paths);
+            roadBundlesRef.current.set(iso2, {
+              roads: paths,
+              interstatesPath2D,
+              usRoutesPath2D
+            });
+            renderCanvas();
+          }
+        } catch (err) {
+          console.warn(`[Roads] Failed to load /data/roads/${iso2}.fgb:`, err);
+        } finally {
+          inFlightRoadFetchesRef.current.delete(iso2);
+        }
+      })();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visibleRoadIso2s, showRoads, pathGenerator, renderCanvas]);
+
+  // Update container size on resize
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          viewportSize.current = { w: width, h: height };
+
+          const kMin = height / MAP_H;
+          const currentK = transformRef.current.k;
+          const newK = Math.max(currentK, kMin);
+          transformRef.current.k = newK;
+
+          transformRef.current.y = clampY(transformRef.current.y, newK, height);
+          transformRef.current.x = wrapX(transformRef.current.x, newK);
+          syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevelRef.current);
+          renderCanvas();
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clampY, wrapX, renderCanvas, syncAllViewports]);
+
+  // Initial map positioning once loaded
+  useEffect(() => {
+    if (!loading && containerRef.current && !isInitializedRef.current) {
+      isInitializedRef.current = true;
+      const vh = containerRef.current.clientHeight || 800;
+      const vw = containerRef.current.clientWidth || 1200;
+      viewportSize.current = { w: vw, h: vh };
+
+      const kMin = vh / MAP_H;
+      const initialK = Math.max(kMin, 1.0);
+      transformRef.current.k = initialK;
+
+      const initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
+      const initialY = clampY((vh - MAP_H * initialK) / 2, initialK, vh);
+
+      transformRef.current.x = initialX;
+      transformRef.current.y = initialY;
+      const initialLOD = getLODLevel(initialK, lodThresholds);
+      syncAllViewports(initialK, initialX, initialY, vw, vh, initialLOD);
+      setZoomK(Number(initialK.toFixed(1)));
+      setLodLevel(initialLOD);
+      lodLevelRef.current = initialLOD;
+      renderCanvas();
+    }
+  }, [loading, wrapX, clampY, renderCanvas, lodThresholds, syncAllViewports]);
+
+  // Zoom directly into a prefecture at L3 (called from Drawer)
+  useEffect(() => {
+    if (zoomToPrefectureRef) {
+      zoomToPrefectureRef.current = (prefId: number) => {
+        const target = prefecturePathData.find((p) => p.id === prefId);
+        if (target) {
+          const [cx, cy] = target.centroid;
+          const targetK = 7.8;
+          const vh = viewportSize.current.h;
+          const vw = viewportSize.current.w;
+          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+          setZoomK(Number(targetK.toFixed(1)));
+          setLodLevel('L3');
+          lodLevelRef.current = 'L3';
+          setPinnedPrefId(prefId);
+          animateTo(targetK, targetX, targetY, 380, () => {
+            syncAllViewports(targetK, targetX, targetY, vw, vh, 'L3');
+          });
+        }
+      };
+    }
+  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, animateTo, syncAllViewports]);
 
   return (
     <div
@@ -1372,14 +1954,30 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onWheel={handleWheel}
       onMouseLeave={() => {
         isDragging.current = false;
-        if (hoveredCountry) setHoveredCountry(null);
-        if (hoveredPrefecture) setHoveredPrefecture(null);
-        if (hoveredMunicipality) setHoveredMunicipality(null);
-        if (hoveredL2Subdivision) setHoveredL2Subdivision(null);
-        if (hoveredRoad) setHoveredRoad(null);
+        if (hoveredCountryRef.current) {
+          hoveredCountryRef.current = null;
+          setHoveredCountry(null);
+        }
+        if (hoveredPrefectureRef.current) {
+          hoveredPrefectureRef.current = null;
+          setHoveredPrefecture(null);
+        }
+        if (hoveredMunicipalityRef.current) {
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+        }
+        if (hoveredL2SubdivisionRef.current) {
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+        }
+        if (hoveredRoadRef.current) {
+          hoveredRoadRef.current = null;
+          setHoveredRoad(null);
+        }
         if (tooltipRef.current) {
           tooltipRef.current.style.display = 'none';
         }
+        renderCanvas();
       }}
       onClick={handleMapClick}
     >
@@ -1410,489 +2008,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           <span style={{ color: 'var(--text-secondary)' }}>正在載入世界高精度向量圖資...</span>
         </div>
       ) : (
-        <>
-          <svg
-            ref={svgRef}
-            className="world-svg"
-            style={{ width: '100%', height: '100%', display: 'block' }}
-          >
-          {/* Map Group with Direct GPU CSS Transform */}
-          <g
-            ref={gRef}
-            style={{
-              transformOrigin: '0 0',
-              willChange: 'transform'
-            }}
-          >
-            {/* Seamless ocean backdrop across all periodic world cycles */}
-            <rect
-              x={-2 * MAP_W}
-              y={0}
-              width={7 * MAP_W}
-              height={MAP_H}
-              fill="#0b0e14"
-              onMouseEnter={() => {
-                if (hoveredCountry) setHoveredCountry(null);
-                if (hoveredPrefecture) setHoveredPrefecture(null);
-                if (hoveredMunicipality) setHoveredMunicipality(null);
-                if (hoveredL2Subdivision) setHoveredL2Subdivision(null);
-                if (hoveredRoad) setHoveredRoad(null);
-                if (tooltipRef.current) tooltipRef.current.style.display = 'none';
-              }}
-              onClick={() => {
-                if (!hasDragged.current) {
-                  setPinnedPrefId(null);
-                  onSelectCountry(null);
-                  if (onSelectPrefecture) onSelectPrefecture(null);
-                  if (onSelectMunicipality) onSelectMunicipality(null);
-                }
-              }}
-            />
-
-            {/* Continuous periodic world copies */}
-            {WORLD_COPIES.map((copyIdx) => (
-              <g key={copyIdx} transform={`translate(${copyIdx * MAP_W}, 0)`}>
-                {/* 1. L1 Layer: Countries (Japan and worldwide L2 countries are replaced when active and in viewport) */}
-                {countryPathData.map(({ pathD, countryMeta, id, name }) => {
-                  if (!pathD) return null;
-                  const iso2 = countryMeta?.iso2;
-                  const isJapan = String(id) === '392' || name === 'Japan' || iso2 === 'JP' || countryMeta?.id === '392';
-                  const isJapanL2Active = isJapan && (lodLevel === 'L2' || lodLevel === 'L3') && visibleL2Iso2s.has('JP');
-                  if (isJapanL2Active) return null;
-
-                  const isWorldwideL2Active =
-                    iso2 &&
-                    iso2 !== 'JP' &&
-                    (lodLevel === 'L2' || lodLevel === 'L3') &&
-                    visibleL2Iso2s.has(iso2) &&
-                    !!l2PathsByCountry[iso2];
-                  if (isWorldwideL2Active) return null;
-
-                  const isHovered =
-                    hoveredCountry &&
-                    (hoveredCountry.id === countryMeta?.id ||
-                      (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
-                  const isSelected =
-                    selectedCountry &&
-                    (selectedCountry.id === countryMeta?.id ||
-                      (countryMeta && selectedCountry.iso2 === countryMeta.iso2));
-
-                  const fillColor = getCountryFill(countryMeta, !!isHovered, !!isSelected);
-
-                  return (
-                    <path
-                      key={`${copyIdx}-${id || name}`}
-                      d={pathD}
-                      className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
-                      fill={fillColor}
-                      onMouseEnter={(e) => {
-                        if (isDragging.current) return;
-                        mousePos.current = { x: e.clientX, y: e.clientY };
-                        setHoveredPrefecture(null);
-                        setHoveredMunicipality(null);
-                        setHoveredL2Subdivision(null);
-                        if (countryMeta) {
-                          setHoveredCountry(countryMeta);
-                        } else {
-                          setHoveredCountry({
-                            id: String(id),
-                            iso2: '',
-                            iso3: '',
-                            name,
-                            nameZh: name,
-                            flag: '🌐',
-                            continent: 'Asia',
-                            region: '無官方街景覆蓋',
-                            drivingSide: 'right',
-                            coverage: 'none',
-                            cameraGens: [],
-                            plateType: 'white',
-                            plateDesc: '無街景',
-                            roadLines: ['white_dashed'],
-                            roadLinesDesc: '無街景',
-                            carMeta: ['none'],
-                            carMetaDesc: '無街景',
-                            poleDesc: '無資料',
-                            bollardDesc: '無資料',
-                            language: '當地語言',
-                            tld: '',
-                            keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
-                          });
-                        }
-                        if (tooltipRef.current) {
-                          tooltipRef.current.style.display = 'flex';
-                          tooltipRef.current.style.left = `${e.clientX}px`;
-                          tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        if (isDragging.current) return;
-                        if (hoveredCountry) {
-                          setHoveredCountry(null);
-                        }
-                        if (tooltipRef.current) {
-                          tooltipRef.current.style.display = 'none';
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (hasDragged.current) return;
-                        if (countryMeta) {
-                          onSelectCountry(countryMeta);
-                          if (onSelectPrefecture) onSelectPrefecture(null);
-                          if (onSelectMunicipality) onSelectMunicipality(null);
-                        } else {
-                          onSelectCountry(null);
-                        }
-                      }}
-                    />
-                  );
-                })}
-
-                {/* 2a. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
-                {((lodLevel === 'L2' && visibleL2Iso2s.has('JP')) || lodLevel === 'L3') &&
-                  (copyIdx === 0 || copyIdx === 1) &&
-                  prefecturePathData
-                    .filter(({ id }) => lodLevel === 'L2' || !activeL3PrefIds.has(id))
-                    .map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
-                      if (!pathD) return null;
-                      const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
-                      const isSelected = selectedPrefecture && selectedPrefecture.id === id;
-
-                      // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
-                      let fill = '#1e293b';
-                      let pathClass = 'prefecture-path';
-                      let stroke: string | undefined = '#475569';
-                      let strokeWidth = 0.6;
-
-                      if (isSelected) {
-                        fill = '#38bdf8';
-                        pathClass += ' selected';
-                        stroke = '#38bdf8';
-                        strokeWidth = 1.2;
-                      } else if (isHovered) {
-                        // 深橘 (Deep Orange)
-                        fill = '#f97316';
-                        pathClass += ' hovered hovered-deep';
-                        stroke = '#ffffff';
-                        strokeWidth = 1.4;
-                      } else if (hoveredPrefecture || hoveredMunicipality) {
-                        // 淺橘 (Light Orange) - 日本其他都道府縣
-                        fill = 'rgba(251, 146, 60, 0.16)';
-                        pathClass += ' parent-l1-hovered';
-                        stroke = 'rgba(251, 146, 60, 0.35)';
-                        strokeWidth = 0.6;
-                      }
-
-                      return (
-                        <path
-                          key={`${copyIdx}-pref-${id}`}
-                          d={pathD}
-                          className={pathClass}
-                          fill={fill}
-                          stroke={stroke}
-                          strokeWidth={strokeWidth}
-                          style={{ pointerEvents: 'all' }}
-                          onMouseEnter={(e) => {
-                            if (isDragging.current) return;
-                            mousePos.current = { x: e.clientX, y: e.clientY };
-                            setHoveredCountry(null);
-                            setHoveredMunicipality(null);
-                            setHoveredL2Subdivision(null);
-                            if (prefMeta) {
-                              setHoveredPrefecture(prefMeta);
-                            } else {
-                              setHoveredPrefecture({
-                                id,
-                                nameJa,
-                                nameZh: nameJa,
-                                nameEn,
-                                region: '日本',
-                                capital: '',
-                                areaCode: '0x',
-                                plates: [],
-                                proClues: ['日本都道府縣行政區'],
-                                landscapeDesc: ''
-                              });
-                            }
-                            if (tooltipRef.current) {
-                              tooltipRef.current.style.display = 'flex';
-                              tooltipRef.current.style.left = `${e.clientX}px`;
-                              tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                            }
-                          }}
-                          onMouseMove={(e) => {
-                            if (isDragging.current) return;
-                            if (!hoveredPrefecture || hoveredPrefecture.id !== id) {
-                              mousePos.current = { x: e.clientX, y: e.clientY };
-                              setHoveredCountry(null);
-                              setHoveredMunicipality(null);
-                              setHoveredL2Subdivision(null);
-                              if (prefMeta) {
-                                setHoveredPrefecture(prefMeta);
-                              } else {
-                                setHoveredPrefecture({
-                                  id,
-                                  nameJa,
-                                  nameZh: nameJa,
-                                  nameEn,
-                                  region: '日本',
-                                  capital: '',
-                                  areaCode: '0x',
-                                  plates: [],
-                                  proClues: ['日本都道府縣行政區'],
-                                  landscapeDesc: ''
-                                });
-                              }
-                              if (tooltipRef.current) {
-                                tooltipRef.current.style.display = 'flex';
-                                tooltipRef.current.style.left = `${e.clientX}px`;
-                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                              }
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            if (isDragging.current) return;
-                            if (lodLevel !== 'L3' && hoveredPrefecture) {
-                              setHoveredPrefecture(null);
-                              if (tooltipRef.current) tooltipRef.current.style.display = 'none';
-                            }
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (hasDragged.current) return;
-                            setPinnedPrefId(id);
-                            if (prefMeta && onSelectPrefecture) {
-                              onSelectPrefecture(prefMeta);
-                              onSelectCountry(null);
-                              if (onSelectMunicipality) onSelectMunicipality(null);
-                            }
-                          }}
-                        />
-                      );
-                    })}
-
-                {/* 2b. L2 Layer: Worldwide Admin-1 First-Level Subdivisions */}
-                {(lodLevel === 'L2' || lodLevel === 'L3') &&
-                  (copyIdx === 0 || copyIdx === 1) &&
-                  activeL2SubdivisionPaths.map(({ pathD, id, iso2, name, nameEn, nameZh, typeEn, code, postal }) => {
-                    if (!pathD) return null;
-                    const isSelected = activeSelectedL2 && activeSelectedL2.iso2 === iso2 && activeSelectedL2.id === id;
-                    const isHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2 && hoveredL2Subdivision.id === id;
-                    const isSiblingHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2;
-
-                    let fill = '#1e293b';
-                    let pathClass = 'l2-subdivision-path';
-                    let stroke = '#475569';
-                    let strokeWidth = 0.6;
-
-                    if (isSelected) {
-                      fill = '#38bdf8';
-                      pathClass += ' selected';
-                      stroke = '#38bdf8';
-                      strokeWidth = 1.2;
-                    } else if (isHovered) {
-                      fill = '#f97316';
-                      pathClass += ' hovered hovered-deep';
-                      stroke = '#ffffff';
-                      strokeWidth = 1.4;
-                    } else if (isSiblingHovered) {
-                      fill = 'rgba(251, 146, 60, 0.16)';
-                      pathClass += ' sibling-l2-hovered';
-                      stroke = 'rgba(251, 146, 60, 0.35)';
-                      strokeWidth = 0.6;
-                    }
-
-                    return (
-                      <path
-                        key={`${copyIdx}-${iso2}-${id}`}
-                        d={pathD}
-                        className={pathClass}
-                        fill={fill}
-                        stroke={stroke}
-                        strokeWidth={strokeWidth}
-                        style={{ pointerEvents: 'all' }}
-                        onMouseEnter={() => {
-                          if (isDragging.current) return;
-                          setHoveredCountry(null);
-                          setHoveredPrefecture(null);
-                          setHoveredMunicipality(null);
-                          const cMeta = findCountry(iso2);
-                          setHoveredL2Subdivision({
-                            id,
-                            iso2,
-                            name,
-                            nameEn,
-                            nameZh,
-                            typeEn,
-                            code,
-                            postal,
-                            countryName: cMeta?.name || nameEn,
-                            countryNameZh: cMeta?.nameZh || nameZh,
-                            countryFlag: cMeta?.flag || '🌐'
-                          });
-                        }}
-                        onMouseMove={() => {
-                          if (isDragging.current) return;
-                          if (!hoveredL2Subdivision || hoveredL2Subdivision.iso2 !== iso2 || hoveredL2Subdivision.id !== id) {
-                            setHoveredCountry(null);
-                            setHoveredPrefecture(null);
-                            setHoveredMunicipality(null);
-                            const cMeta = findCountry(iso2);
-                            setHoveredL2Subdivision({
-                              id,
-                              iso2,
-                              name,
-                              nameEn,
-                              nameZh,
-                              typeEn,
-                              code,
-                              postal,
-                              countryName: cMeta?.name || nameEn,
-                              countryNameZh: cMeta?.nameZh || nameZh,
-                              countryFlag: cMeta?.flag || '🌐'
-                            });
-                          }
-                        }}
-                        onMouseLeave={() => {
-                          if (isDragging.current) return;
-                          if (hoveredL2Subdivision?.iso2 === iso2 && hoveredL2Subdivision?.id === id) {
-                            setHoveredL2Subdivision(null);
-                          }
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (hasDragged.current) return;
-                          setSelectedL2Subdivision({ iso2, id });
-                          const cMeta = findCountry(iso2);
-                          if (cMeta) {
-                            onSelectCountry(cMeta);
-                            if (onSelectPrefecture) onSelectPrefecture(null);
-                            if (onSelectMunicipality) onSelectMunicipality(null);
-                          }
-                        }}
-                      />
-                    );
-                  })}
-
-                {/* 3. L3 Layer: Japan 市區町村 (Municipalities) - Only loaded for active (hovered & last clicked) prefectures */}
-                {lodLevel === 'L3' &&
-                  (copyIdx === 0 || copyIdx === 1) &&
-                  Array.from(activeL3PrefIds).flatMap((pId) => {
-                    const munis = municipalitiesByPrefId.get(pId) || [];
-                    return munis.map(({ pathD, code, prefId: mPrefId, pref, city, gun }) => {
-                      if (!pathD) return null;
-                      const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
-                      const isSelected = selectedMunicipality && selectedMunicipality.code === code;
-                      // Fast integer comparison for parent prefecture with string fallback
-                      const isParentPref =
-                        ((hoveredMunicipality &&
-                          (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === mPrefId : hoveredMunicipality.pref === pref)) ||
-                        (hoveredPrefecture && hoveredPrefecture.id === mPrefId));
-
-                      // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
-                      let fill = '#1e2433';
-                      let pathClass = 'municipality-path';
-                      let stroke = 'rgba(255, 255, 255, 0.2)';
-                      let strokeWidth = 0.35;
-
-                      if (isSelected) {
-                        fill = '#38bdf8';
-                        pathClass += ' selected';
-                        stroke = '#38bdf8';
-                        strokeWidth = 0.8;
-                      } else if (isHovered) {
-                        // 1. 深橘 (Deep Orange) - 當前懸停的市區町村
-                        fill = '#f97316';
-                        pathClass += ' hovered hovered-deep';
-                        stroke = '#ffffff';
-                        strokeWidth = 0.8;
-                      } else if (isParentPref) {
-                        // 2. 中橘 (Medium Orange) - 所屬都道府縣內其他市區町村
-                        fill = 'rgba(234, 88, 12, 0.35)';
-                        pathClass += ' parent-l2-hovered';
-                        stroke = 'rgba(251, 146, 60, 0.5)';
-                        strokeWidth = 0.35;
-                      } else if (hoveredMunicipality || hoveredPrefecture) {
-                        // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
-                        fill = 'rgba(251, 146, 60, 0.13)';
-                        pathClass += ' parent-l1-hovered';
-                        stroke = 'rgba(251, 146, 60, 0.22)';
-                        strokeWidth = 0.35;
-                      }
-
-                      return (
-                        <path
-                          key={`${copyIdx}-muni-${code}`}
-                          d={pathD}
-                          className={pathClass}
-                          fill={fill}
-                          stroke={stroke}
-                          strokeWidth={strokeWidth}
-                          onMouseEnter={(e) => {
-                            if (isDragging.current) return;
-                            mousePos.current = { x: e.clientX, y: e.clientY };
-                            setHoveredCountry(null);
-                            setHoveredPrefecture(null);
-                            setHoveredL2Subdivision(null);
-                            setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
-                            if (tooltipRef.current) {
-                              tooltipRef.current.style.display = 'flex';
-                              tooltipRef.current.style.left = `${e.clientX}px`;
-                              tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                            }
-                          }}
-                          onMouseMove={(e) => {
-                            if (isDragging.current) return;
-                            if (!hoveredMunicipality || hoveredMunicipality.code !== code) {
-                              mousePos.current = { x: e.clientX, y: e.clientY };
-                              setHoveredCountry(null);
-                              setHoveredPrefecture(null);
-                              setHoveredL2Subdivision(null);
-                              setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
-                              if (tooltipRef.current) {
-                                tooltipRef.current.style.display = 'flex';
-                                tooltipRef.current.style.left = `${e.clientX}px`;
-                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                              }
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            if (isDragging.current) return;
-                            // Ocean backdrop and wrapper manage clearing to maintain smooth inter-polygon cursor transitions
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (hasDragged.current) return;
-                            setPinnedPrefId(mPrefId);
-                            if (onSelectMunicipality) {
-                              onSelectMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
-                              onSelectCountry(null);
-                              if (onSelectPrefecture) onSelectPrefecture(null);
-                            }
-                          }}
-                        />
-                      );
-                    });
-                  })}
-
-              </g>
-            ))}
-          </g>
-        </svg>
-
-        {/* GPU Hardware-Accelerated Highway Layer Canvas */}
         <canvas
-          ref={roadsCanvasRef}
-          className="roads-gpu-canvas"
-          style={{
-            display: showRoads ? 'block' : 'none'
-          }}
+          ref={canvasRef}
+          className="world-map-canvas"
         />
-      </>
-    )}
+      )}
 
-      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, Municipality, Worldwide L2, and Roads) */}
+      {/* Dynamic Floating Hover Tooltip */}
       {(hoveredRoad || (!showRoads && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision))) && (
         <div
           ref={(node) => {
