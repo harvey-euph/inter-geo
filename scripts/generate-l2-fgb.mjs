@@ -128,10 +128,12 @@ async function main() {
   const manifestEntries = [];
 
   // 1. Process Japan (JP) specially using our existing high-precision JIS dataset
-  const existingJpPath = path.join(rootDir, 'public', 'data', 'japan-prefectures.fgb');
   const jpOutputPath = path.join(outputDir, 'JP.fgb');
-  if (fs.existsSync(existingJpPath)) {
-    fs.copyFileSync(existingJpPath, jpOutputPath);
+  const existingJpPath = path.join(rootDir, 'public', 'data', 'japan-prefectures.fgb');
+  if (fs.existsSync(jpOutputPath) || fs.existsSync(existingJpPath)) {
+    if (!fs.existsSync(jpOutputPath) && fs.existsSync(existingJpPath)) {
+      fs.copyFileSync(existingJpPath, jpOutputPath);
+    }
     const jpInfo = officialCountries.get('JP') || { id: '392', name: 'Japan', nameZh: '日本' };
     manifestEntries.push({
       iso2: 'JP',
@@ -141,7 +143,7 @@ async function main() {
       subdivisionCount: 47,
       bbox: { minX: 835, maxX: 935, minY: 350, maxY: 440 }
     });
-    console.log('[JP] Synchronized high-precision Japan prefectures -> JP.fgb');
+    console.log('[JP] Preserved high-precision Japan prefectures in JP.fgb');
   }
 
   // 2. Process all other official Street View countries

@@ -420,7 +420,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     // 2. Load L2 Japan 47 Prefectures via FlatGeobuf binary (Zero-copy IEEE 754 floats)
     (async () => {
       try {
-        const res = await fetch('/data/japan-prefectures.fgb');
+        const res = await fetch('/data/l2/JP.fgb');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         if (!isMounted) return;

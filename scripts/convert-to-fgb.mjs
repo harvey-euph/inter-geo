@@ -79,7 +79,7 @@ async function convertCountries() {
 async function convertPrefectures() {
   console.log('--- Converting L2 Japan Prefectures ---');
   const inputPath = path.join(dataDir, 'japan-prefectures.json');
-  const outputPath = path.join(dataDir, 'japan-prefectures.fgb');
+  const outputPath = path.join(dataDir, 'l2', 'JP.fgb');
 
   if (!fs.existsSync(inputPath)) {
     console.log(`[Notice] ${path.basename(inputPath)} not found. Skipping L2 conversion.`);
@@ -158,7 +158,10 @@ async function verifyFiles() {
   }
   console.log(`Verified ${countryCount} countries from FGB binary.`);
 
-  const prefBytes = fs.readFileSync(path.join(dataDir, 'japan-prefectures.fgb'));
+  const prefPath = fs.existsSync(path.join(dataDir, 'l2', 'JP.fgb'))
+    ? path.join(dataDir, 'l2', 'JP.fgb')
+    : path.join(dataDir, 'japan-prefectures.fgb');
+  const prefBytes = fs.readFileSync(prefPath);
   let prefCount = 0;
   for await (const feature of flatgeobuf.geojson.deserialize(new Uint8Array(prefBytes))) {
     prefCount++;
