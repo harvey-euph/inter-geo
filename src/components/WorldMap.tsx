@@ -740,18 +740,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 {countryPathData.map(({ pathD, countryMeta, id, name }) => {
                   if (!pathD) return null;
                   const isJapan = String(id) === '392' || name === 'Japan' || countryMeta?.id === '392';
-                  if (isJapan && lodLevel !== 'L1') return null;
+                  if (isJapan && lodLevel === 'L3') return null;
 
+                  const isJapanAtL2 = isJapan && lodLevel === 'L2';
                   const isHovered =
+                    !isJapanAtL2 &&
                     hoveredCountry &&
                     (hoveredCountry.id === countryMeta?.id ||
                       (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
                   const isSelected =
+                    !isJapanAtL2 &&
                     selectedCountry &&
                     (selectedCountry.id === countryMeta?.id ||
                       (countryMeta && selectedCountry.iso2 === countryMeta.iso2));
 
-                  const fillColor = getCountryFill(countryMeta, !!isHovered, !!isSelected);
+                  let fillColor = getCountryFill(countryMeta, !!isHovered, !!isSelected);
+                  if (isJapanAtL2 && (hoveredPrefecture || hoveredMunicipality)) {
+                    fillColor = 'rgba(251, 146, 60, 0.16)';
+                  }
 
                   return (
                     <path
@@ -759,6 +765,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       d={pathD}
                       className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
                       fill={fillColor}
+                      stroke={isJapanAtL2 && (hoveredPrefecture || hoveredMunicipality) ? 'rgba(251, 146, 60, 0.35)' : undefined}
+                      style={isJapanAtL2 ? { pointerEvents: 'none' } : undefined}
                       onMouseEnter={(e) => {
                         if (isDragging.current) return;
                         mousePos.current = { x: e.clientX, y: e.clientY };
@@ -835,7 +843,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
                       let fill = '#1e293b';
                       let pathClass = 'prefecture-path';
-                      let stroke = '#475569';
+                      let stroke: string | undefined = '#475569';
                       let strokeWidth = 0.6;
 
                       if (isSelected) {
@@ -849,8 +857,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         pathClass += ' hovered hovered-deep';
                         stroke = '#ffffff';
                         strokeWidth = 1.4;
+                      } else if (lodLevel === 'L2') {
+                        // At L2: non-hovered and non-selected prefectures display as L1 (transparent over L1 Japan base)
+                        fill = 'transparent';
+                        stroke = 'none';
+                        strokeWidth = 0;
+                        pathClass += ' l2-inactive';
                       } else if (hoveredPrefecture || hoveredMunicipality) {
-                        // 淺橘 (Light Orange) - 日本其他都道府縣
+                        // 淺橘 (Light Orange) - 日本其他都道府縣 (Only at L3)
                         fill = 'rgba(251, 146, 60, 0.16)';
                         pathClass += ' parent-l1-hovered';
                         stroke = 'rgba(251, 146, 60, 0.35)';
@@ -865,6 +879,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           fill={fill}
                           stroke={stroke}
                           strokeWidth={strokeWidth}
+                          style={{ pointerEvents: 'all' }}
                           onMouseEnter={(e) => {
                             if (isDragging.current) return;
                             mousePos.current = { x: e.clientX, y: e.clientY };
