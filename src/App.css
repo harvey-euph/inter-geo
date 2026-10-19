@@ -246,7 +246,7 @@
   cursor: pointer;
 }
 
-.country-path:hover,
+.svg-map-wrapper:not(.roads-mode-active) .country-path:hover,
 .country-path.hovered {
   fill: #38bdf8 !important;
   stroke: #ffffff !important;
@@ -272,7 +272,7 @@
   stroke: rgba(251, 146, 60, 0.35) !important;
 }
 
-.prefecture-path:hover,
+.svg-map-wrapper:not(.roads-mode-active) .prefecture-path:hover,
 .prefecture-path.hovered,
 .prefecture-path.hovered-deep {
   fill: #f97316 !important;
@@ -297,7 +297,7 @@
   stroke: rgba(251, 146, 60, 0.35) !important;
 }
 
-.l2-subdivision-path:hover,
+.svg-map-wrapper:not(.roads-mode-active) .l2-subdivision-path:hover,
 .l2-subdivision-path.hovered,
 .l2-subdivision-path.hovered-deep {
   fill: #f97316 !important;
@@ -328,7 +328,7 @@
   stroke: rgba(251, 146, 60, 0.5) !important;
 }
 
-.municipality-path:hover,
+.svg-map-wrapper:not(.roads-mode-active) .municipality-path:hover,
 .municipality-path.hovered,
 .municipality-path.hovered-deep {
   fill: #f97316 !important;
@@ -339,6 +339,31 @@
 .municipality-path.selected {
   stroke: #38bdf8 !important;
   stroke-width: 1.5px !important;
+}
+
+/* Roads Exploration Mode: isolate hover exclusively to highways */
+.roads-mode-active .country-path,
+.roads-mode-active .prefecture-path,
+.roads-mode-active .l2-subdivision-path,
+.roads-mode-active .municipality-path {
+  cursor: grab;
+}
+
+.roads-mode-active .country-path:hover {
+  filter: none !important;
+  stroke: rgba(255, 255, 255, 0.12) !important;
+  stroke-width: 0.5px !important;
+}
+
+.roads-mode-active .prefecture-path:hover,
+.roads-mode-active .l2-subdivision-path:hover {
+  stroke: #475569 !important;
+  stroke-width: 0.6px !important;
+}
+
+.roads-mode-active .municipality-path:hover {
+  stroke: rgba(255, 255, 255, 0.2) !important;
+  stroke-width: 0.35px !important;
 }
 
 /* Tooltip floating card */

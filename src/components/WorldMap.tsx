@@ -156,8 +156,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
 
   // Road network overlay state and refs
-  const [showRoads, setShowRoads] = useState<boolean>(showRoadsProp ?? false);
-  const showRoadsRef = useRef<boolean>(showRoadsProp ?? false);
+  const [internalShowRoads, setInternalShowRoads] = useState<boolean>(false);
+  const showRoads = showRoadsProp !== undefined ? showRoadsProp : internalShowRoads;
+  const showRoadsRef = useRef<boolean>(showRoads);
   const visibleRoadIso2sRef = useRef<Set<string>>(new Set());
   const [visibleRoadIso2s, setVisibleRoadIso2s] = useState<Set<string>>(new Set());
   const inFlightRoadFetchesRef = useRef<Set<string>>(new Set());
@@ -321,25 +322,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (onToggleRoadsProp) {
       onToggleRoadsProp();
     } else {
-      setShowRoads((prev) => {
-        const next = !prev;
-        showRoadsRef.current = next;
-        const { k, x, y } = transformRef.current;
-        syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, next);
-        return next;
-      });
+      setInternalShowRoads((prev) => !prev);
     }
-  }, [onToggleRoadsProp, syncRoadsViewport]);
+  }, [onToggleRoadsProp]);
 
-  // Synchronize showRoads prop changes from parent (e.g. Header toggle button)
+  // Synchronize showRoads changes with viewport and ref
   useEffect(() => {
-    if (showRoadsProp !== undefined && showRoadsProp !== showRoadsRef.current) {
-      showRoadsRef.current = showRoadsProp;
-      setShowRoads(showRoadsProp);
-      const { k, x, y } = transformRef.current;
-      syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoadsProp);
+    showRoadsRef.current = showRoads;
+    if (showRoads && tooltipRef.current) {
+      tooltipRef.current.style.display = 'none';
     }
-  }, [showRoadsProp, syncRoadsViewport]);
+    const { k, x, y } = transformRef.current;
+    syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoads);
+  }, [showRoads, syncRoadsViewport]);
 
   // Apply GPU hardware-accelerated transform directly to SVG group element
   const applyTransform = useCallback((animate = false) => {
@@ -822,10 +817,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     // Direct DOM tooltip position update when hovering
-    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision || hoveredRoad)) {
+    const hasActiveHover = hoveredRoad || (!showRoads && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision));
+    if (tooltipRef.current && hasActiveHover) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
       tooltipRef.current.style.top = `${e.clientY - 12}px`;
+    } else if (showRoads && !hoveredRoad && tooltipRef.current) {
+      tooltipRef.current.style.display = 'none';
     }
   };
 
@@ -1017,7 +1015,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className="svg-map-wrapper"
+      className={`svg-map-wrapper ${showRoads ? 'roads-mode-active' : ''}`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -1130,6 +1128,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                   if (isWorldwideL2Active) return null;
 
                   const isHovered =
+                    !showRoads &&
                     hoveredCountry &&
                     (hoveredCountry.id === countryMeta?.id ||
                       (countryMeta && hoveredCountry.iso2 === countryMeta.iso2));
@@ -1147,7 +1146,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       className={`country-path ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
                       fill={fillColor}
                       onMouseEnter={(e) => {
-                        if (isDragging.current) return;
+                        if (showRoads || isDragging.current) return;
                         mousePos.current = { x: e.clientX, y: e.clientY };
                         setHoveredPrefecture(null);
                         setHoveredMunicipality(null);
@@ -1217,7 +1216,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     .filter(({ id }) => lodLevel === 'L2' || !activeL3PrefIds.has(id))
                     .map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
                       if (!pathD) return null;
-                      const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
+                      const isHovered = !showRoads && hoveredPrefecture && hoveredPrefecture.id === id;
                       const isSelected = selectedPrefecture && selectedPrefecture.id === id;
 
                       // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
@@ -1255,7 +1254,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           strokeWidth={strokeWidth}
                           style={{ pointerEvents: 'all' }}
                           onMouseEnter={(e) => {
-                            if (isDragging.current) return;
+                            if (showRoads || isDragging.current) return;
                             mousePos.current = { x: e.clientX, y: e.clientY };
                             setHoveredCountry(null);
                             setHoveredMunicipality(null);
@@ -1283,7 +1282,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                             }
                           }}
                           onMouseMove={(e) => {
-                            if (isDragging.current) return;
+                            if (showRoads || isDragging.current) return;
                             if (!hoveredPrefecture || hoveredPrefecture.id !== id) {
                               mousePos.current = { x: e.clientX, y: e.clientY };
                               setHoveredCountry(null);
@@ -1339,8 +1338,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                   activeL2SubdivisionPaths.map(({ pathD, id, iso2, name, nameEn, nameZh, typeEn, code, postal }) => {
                     if (!pathD) return null;
                     const isSelected = activeSelectedL2 && activeSelectedL2.iso2 === iso2 && activeSelectedL2.id === id;
-                    const isHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2 && hoveredL2Subdivision.id === id;
-                    const isSiblingHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2;
+                    const isHovered = !showRoads && hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2 && hoveredL2Subdivision.id === id;
+                    const isSiblingHovered = !showRoads && hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2;
 
                     let fill = '#1e293b';
                     let pathClass = 'l2-subdivision-path';
@@ -1374,7 +1373,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         strokeWidth={strokeWidth}
                         style={{ pointerEvents: 'all' }}
                         onMouseEnter={() => {
-                          if (isDragging.current) return;
+                          if (showRoads || isDragging.current) return;
                           setHoveredCountry(null);
                           setHoveredPrefecture(null);
                           setHoveredMunicipality(null);
@@ -1394,7 +1393,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           });
                         }}
                         onMouseMove={() => {
-                          if (isDragging.current) return;
+                          if (showRoads || isDragging.current) return;
                           if (!hoveredL2Subdivision || hoveredL2Subdivision.iso2 !== iso2 || hoveredL2Subdivision.id !== id) {
                             setHoveredCountry(null);
                             setHoveredPrefecture(null);
@@ -1443,13 +1442,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     const munis = municipalitiesByPrefId.get(pId) || [];
                     return munis.map(({ pathD, code, prefId: mPrefId, pref, city, gun }) => {
                       if (!pathD) return null;
-                      const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
+                      const isHovered = !showRoads && hoveredMunicipality && hoveredMunicipality.code === code;
                       const isSelected = selectedMunicipality && selectedMunicipality.code === code;
                       // Fast integer comparison for parent prefecture with string fallback
                       const isParentPref =
-                        (hoveredMunicipality &&
+                        !showRoads &&
+                        ((hoveredMunicipality &&
                           (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === mPrefId : hoveredMunicipality.pref === pref)) ||
-                        (hoveredPrefecture && hoveredPrefecture.id === mPrefId);
+                        (hoveredPrefecture && hoveredPrefecture.id === mPrefId));
 
                       // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
                       let fill = '#1e2433';
@@ -1474,7 +1474,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         pathClass += ' parent-l2-hovered';
                         stroke = 'rgba(251, 146, 60, 0.5)';
                         strokeWidth = 0.35;
-                      } else if (hoveredMunicipality || hoveredPrefecture) {
+                      } else if (!showRoads && (hoveredMunicipality || hoveredPrefecture)) {
                         // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
                         fill = 'rgba(251, 146, 60, 0.13)';
                         pathClass += ' parent-l1-hovered';
@@ -1491,7 +1491,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           stroke={stroke}
                           strokeWidth={strokeWidth}
                           onMouseEnter={(e) => {
-                            if (isDragging.current) return;
+                            if (showRoads || isDragging.current) return;
                             mousePos.current = { x: e.clientX, y: e.clientY };
                             setHoveredCountry(null);
                             setHoveredPrefecture(null);
@@ -1504,7 +1504,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                             }
                           }}
                           onMouseMove={(e) => {
-                            if (isDragging.current) return;
+                            if (showRoads || isDragging.current) return;
                             if (!hoveredMunicipality || hoveredMunicipality.code !== code) {
                               mousePos.current = { x: e.clientX, y: e.clientY };
                               setHoveredCountry(null);
@@ -1555,31 +1555,52 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       }
 
                       return (
-                        <path
-                          key={`${copyIdx}-road-${road.name}-${rIdx}`}
-                          d={road.pathD}
-                          fill="none"
-                          stroke={stroke}
-                          strokeWidth={strokeWidth}
-                          strokeOpacity={strokeOpacity}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                          onMouseEnter={() => {
-                            if (isDragging.current) return;
-                            setHoveredCountry(null);
-                            setHoveredPrefecture(null);
-                            setHoveredMunicipality(null);
-                            setHoveredL2Subdivision(null);
-                            setHoveredRoad(road);
-                          }}
-                          onMouseLeave={() => {
-                            if (isDragging.current) return;
-                            if (hoveredRoad?.name === road.name) {
-                              setHoveredRoad(null);
-                            }
-                          }}
-                        />
+                        <g key={`${copyIdx}-road-${road.name}-${rIdx}`}>
+                          {/* Invisible wider hit target for effortless highway hovering without pixel-hunting */}
+                          <path
+                            d={road.pathD}
+                            fill="none"
+                            stroke="transparent"
+                            strokeWidth={Math.max(10, strokeWidth * 3.5)}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                            onMouseEnter={(e) => {
+                              if (isDragging.current) return;
+                              mousePos.current = { x: e.clientX, y: e.clientY };
+                              setHoveredCountry(null);
+                              setHoveredPrefecture(null);
+                              setHoveredMunicipality(null);
+                              setHoveredL2Subdivision(null);
+                              setHoveredRoad(road);
+                              if (tooltipRef.current) {
+                                tooltipRef.current.style.display = 'flex';
+                                tooltipRef.current.style.left = `${e.clientX}px`;
+                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              if (isDragging.current) return;
+                              if (hoveredRoad?.name === road.name) {
+                                setHoveredRoad(null);
+                              }
+                              if (tooltipRef.current) {
+                                tooltipRef.current.style.display = 'none';
+                              }
+                            }}
+                          />
+                          {/* Visible styled road stroke */}
+                          <path
+                            d={road.pathD}
+                            fill="none"
+                            stroke={stroke}
+                            strokeWidth={strokeWidth}
+                            strokeOpacity={strokeOpacity}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </g>
                       );
                     })}
                   </g>
@@ -1591,7 +1612,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       )}
 
       {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, Municipality, Worldwide L2, and Roads) */}
-      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision || hoveredRoad) && (
+      {(hoveredRoad || (!showRoads && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision))) && (
         <div
           ref={(node) => {
             tooltipRef.current = node;
@@ -1603,7 +1624,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           className="map-tooltip"
         >
           {/* L2 Prefecture Tooltip */}
-          {hoveredPrefecture && (
+          {!showRoads && hoveredPrefecture && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag" role="img" aria-label="pref">🗾</span>
@@ -1641,7 +1662,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           )}
 
           {/* L3 Municipality Tooltip */}
-          {hoveredMunicipality && (
+          {!showRoads && hoveredMunicipality && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag" role="img" aria-label="muni">🏙️</span>
@@ -1664,7 +1685,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           )}
 
           {/* L2 Worldwide Subdivision Tooltip */}
-          {hoveredL2Subdivision && (
+          {!showRoads && hoveredL2Subdivision && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag">{hoveredL2Subdivision.countryFlag}</span>
@@ -1757,7 +1778,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           )}
 
           {/* L1 Country Tooltip */}
-          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredRoad && (
+          {!showRoads && hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredRoad && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag">{hoveredCountry.flag}</span>
