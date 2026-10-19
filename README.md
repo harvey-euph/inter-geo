@@ -15,9 +15,11 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
   - **視窗按需載入 (On-demand Viewport Loading)**：地圖縮放至 L2/L3 閾值且國家多邊形進入視窗範圍時，才非同步加載該國二進位圖資，離開可視範圍不佔用無效渲染負載。
   - **三層式階層高亮**：游標懸停為深橘色高亮（`#f97316`），所屬國家內之其他同級行政區呈現淺橘色微光（`rgba(251, 146, 60, 0.16)`），未啟用或非可視區維持 L1 底色。
   - **動態 Tooltip**：展示該行政區之國旗、繁體中文名稱、英文原名、行政級別（State, Province, Department 等）、代碼與郵政編號。
-* **L3 高精度局部下鑽 (Japan Municipalities)**：
-  - 完整收錄日本 1,906 個市區町村（含政令指定都市行政區、町、村及離島多邊形）。
-  - **雙層動態剪枝 (Dynamic Subtree Pruning)**：在 L3 放大狀態下，全日本預設僅呈現 L2 都道府縣，僅對 Hovered 與 Last Clicked 所屬縣動態展開 L3 多邊形，將活躍 DOM 節點控制在 100 以內。
+* **L3 高精度局部下鑽 (Worldwide Major Countries L3 Subdivisions)**：
+  - 聚焦具備官方街景覆蓋且具備顯著三級行政層次之 **18 個主要大國**（包含美國 3,200+ 郡、日本 1,900+ 市區町村、法國 96 省、德國 400+ 縣轄郡、英國、義大利、西班牙、加拿大、澳洲、波蘭、南韓、瑞典、挪威、阿根廷、紐西蘭、南非、墨西哥、巴西等）。
+  - 對於二級行政區（L2）已極為細緻之小型國家（如台灣、新加坡、盧森堡等）進行智慧剪枝略過，避免無效資料與視覺干擾。
+  - **雙層動態剪枝 (Dynamic Subtree Pruning)**：完全承襲日本模式的高效架構，在 L3 放大狀態下，預設維持 L2 邊界，僅對 Hovered 或 Active 所屬的單一 L2 行政區（如加州、德州、法蘭西島、巴伐利亞等）動態展開其內部 L3 多邊形，維持流暢渲染。
+  - **各國 GeoGuessr 專屬實戰情資**：點擊 L3 區域即開展專業情報，整合美國 CR 郡道五角形盾牌、法國 D 省道與 5 碼郵區、德國車牌前綴 1~3 位代碼、義大利/波蘭車牌縮寫等專屬線索。
 
 ### 2. GeoGuessr 專業元數據與即時過濾系統
 * **10 大分析維度**：
@@ -31,18 +33,21 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
   8. 行人穿越道與標誌底色
   9. 主要語言、官方語系與拼寫特色
   10. 頂級網域名稱 (ccTLD)
-* **國家詳細資訊側邊面板 (Country Detail Panel)**：
-  - 點擊任意國家即刻滑出詳細情資面板，提供結構化線索卡片、街景車實景特徵說明與專業判讀技巧。
+* **國家與行政區詳細資訊側邊面板 (Country & Subdivision Detail Panel)**：
+  - 點擊任意國家、一級或二級行政區即刻滑出詳細情資面板，提供結構化線索卡片、街景車實景特徵說明與專業判讀技巧。
 
-### 3. 三層式地圖渲染與統一互動規範 (Base ➔ Overlay ➔ Cursor Model)
-* **Layer 1: Base (底圖基礎層)**：
-  - 深邃黑藍海洋（`#0b0e14`）、深灰中性陸地（`#1a1f2b`）與精細半透明行政邊界（`rgba(255, 255, 255, 0.12)`）。
-* **Layer 2: Overlay (主題大圖層 - 單一互斥覆蓋)**：
-  - **面狀多邊形圖層 (Polygons)**：10 大 GeoGuessr Filter 即時特徵填色（如 Google 街景覆蓋級別、左右駕方向等）。
-  - **線狀向量圖層 (Lines)**：全球高精度公路網絡系統（GPU 硬體加速 Canvas）。
-* **Layer 3: Cursor Effects (全域統一游標互動規範)**：
-  - **Hover (懸停反饋 - 橘色系)**：直接命中的目標多邊形為深橘色（`#f97316`），所屬國家或行政區依層級呈現淺橘色光暈（`rgba(251, 146, 60, 0.16)`）；2D 線條則是亮橘加粗光暈（`#fb923c`）。
-  - **Click (選取狀態 - 藍色系)**：選中的國家、州省或市町村亮起天藍色（`#38bdf8`）；選取的 2D 公路則呈現加粗螢光橘持久發光，並開啟專屬情報卡。
+### 3. 統一單一 Canvas 2D 架構與階層互動規範 (Unified Single Canvas 2D)
+* **全面遷至 Single Canvas 2D 硬體加速管線**：
+  - 徹底捨棄混合 SVG/Canvas 的雙重架構，將 L1 國家底圖、L2 一級行政區、L3 二級行政區與全球公路系統全數收攏至單一 HTML5 Canvas。
+  - 採用預編譯 `Path2D` 幾何物件與 GPU Skia/OpenGL 批次光柵化，徹底消除上千個 DOM SVG 節點引起的 Layout Reflow，維持全程 120 FPS 極限效能。
+* **分層渲染管線 (Layer Pipeline)**：
+  - **Layer 1: Base (底圖)**：深邃黑藍海洋（`#0b0e14`）、深灰中性陸地（`#1a1f2b`）與精細半透明行政邊界。
+  - **Layer 2: L1/L2 Polygons (主題覆蓋層)**：10 大 GeoGuessr Filter 即時特徵填色，以及縮放至 L2 時的各國一級行政區光暈與邊界。
+  - **Layer 3: L3 Subdivisions (細部下鑽層)**：當 Zoom >= 6.5 時，僅在 active L2 上展開其子行政區（橘色系階層填色與輪廓）。
+  - **Layer 4: Highways & Roads (公路向量網絡)**：開啟公路圖層時，以固定螢幕像素線寬光柵化全美/全球幹線走廊。
+* **全域統一游標互動規範 (Cursor Interaction Model)**：
+  - **Hover (懸停反饋 - 橘色系)**：直接命中的目標多邊形為深橘色（`#fb923c`），同父級 sibling 區塊呈現中淺橘（`#fed7aa`），未啟用區域維持底色。
+  - **Click (選取狀態 - 藍色系)**：選中的國家、州省或市町村亮起天藍色（`#38bdf8`），並即時開啟專屬情資情報卡。
 
 ### 4. GPU 硬體加速公路系統 (Hardware-Accelerated Highway Layer)
 * **獨立圖層開關 (One-click Layer Toggle)**：地圖控制列與頂部導航皆提供一鍵開關按鈕，預設不耗用非必要連線與記憶體。
@@ -81,19 +86,23 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 │       ├── japan-municipalities.fgb      # L3 日本市區町村高精度向量資料庫 (FlatGeobuf 二進位)
 │       ├── l2/                           # L2 全球 91 國獨立第一級行政區向量資料庫
 │       │   └── AE.fgb ... ZA.fgb         # 各國獨立二進位檔 (包含 JP.fgb 47 都道府縣)
+│       ├── l3/                           # L3 全球 18 主要大國二級行政區向量資料庫
+│       │   └── AR.fgb ... ZA.fgb         # 各大國獨立二進位檔 (美/日/法/德/英/義/西/加/澳等)
 │       └── roads/                        # 全球公路系統向量資料庫 (FlatGeobuf 二進位)
 │           └── US.fgb                    # 美國州際公路與美國國道二進位檔
 ├── scripts/
 │   ├── convert-to-fgb.mjs                # 空間資料二進位序列化與拓撲繞向修復工具
 │   ├── generate-l2-fgb.mjs               # 91 國 L2 資料管線：下載、篩選、切割與 Manifest 計算
+│   ├── fetch-l3.py                       # 全球 18 大國 L3 原始 GeoJSON 下載與提取腳本
+│   ├── generate-l3-fgb.mjs               # 全球 18 大國 L3 資料管線：反序列化、拓撲修復與 Manifest 產生
 │   └── generate-roads-fgb.mjs            # 公路系統資料管線：篩選、拓撲融合、簡化與 Manifest 計算
 ├── src/
 │   ├── App.tsx                           # 應用頂層狀態調度器 (過濾器、選取狀態、視窗協調)
 │   ├── App.css                           # 核心樣式庫 (含 GPU 加速圖層、SVG 階層樣式、HUD 佈局)
 │   ├── main.tsx                          # React 應用程式掛載進入點
 │   ├── components/
-│   │   ├── WorldMap.tsx                  # 核心 GIS 渲染引擎與投影變換器
-│   │   ├── CountryDetailPanel.tsx        # 國家情資與 GeoGuessr 特徵詳情側邊欄
+│   │   ├── WorldMap.tsx                  # 核心 GIS 渲染引擎與投影變換器 (統一 Single Canvas 2D)
+│   │   ├── CountryDetailPanel.tsx        # 國家情資與 GeoGuessr 特徵詳情側邊欄 (含各國 L3 密技)
 │   │   ├── FilterBar.tsx                 # 頂部多維度線索過濾工具列
 │   │   ├── Header.tsx                    # 頂部導航、統計與測驗控制列
 │   │   ├── PrecisionHUD.tsx              # 縮放比例與 LOD 遙測懸浮面板
@@ -103,6 +112,7 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 │   │   ├── filters.ts                    # 10 大過濾器類別定義與動態填色演算法
 │   │   ├── japanData.ts                  # 日本 47 都道府縣行政區屬性與中英對照表
 │   │   ├── l2Manifest.ts                 # 91 國 L2 空間外框 (BBox) 與元數據快取表
+│   │   ├── l3Manifest.ts                 # 18 國 L3 空間外框 (BBox) 與元數據快取表
 │   │   └── roadsManifest.ts              # 公路系統覆蓋國外框 (BBox) 與元數據快取表
 │   └── types/
 │       ├── geo.ts                        # 空間幾何與國家資料型別定義 (TypeScript)
@@ -112,11 +122,11 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 ### 關鍵檔案功能解析
 
 * **`src/components/WorldMap.tsx`**：
-  整個應用的核心幾何運算與渲染中樞。直接調用 D3-geo 完成 Web Mercator 投影；管理 GPU transform 矩陣；實現按需視窗邊界判定（`syncL2Viewport`）；以記憶體快取維護多國 L2 二進位圖資；以階層化事件委派處理點擊與懸停狀態。
-* **`src/data/l2Manifest.ts`**：
-  預先計算並快取 91 國在 Web Mercator 座標系下的二維邊界框（`minX, maxX, minY, maxY`）與統計數據。在進行視窗範圍碰撞判定時，以 $O(1)$ 的代數區間比對取代耗時的多邊形空間幾何運算。
-* **`scripts/generate-l2-fgb.mjs`**：
-  自動化 ETL 資料管線。負責自 Natural Earth 10m 空間資料庫篩選 91 個官方街景覆蓋國，針對各國邊界修正環繞方向（Winding Order），切割輸出為 91 個獨立 FlatGeobuf 檔案，並自動產生 `l2Manifest.ts`。
+  整個應用的核心幾何運算與渲染中樞。採用統一 Single Canvas 2D 架構；直接調用 D3-geo 完成 Web Mercator 投影；以記憶體快取維護多國 L2/L3 二進位圖資；實現按需視窗邊界判定（`syncL2Viewport`, `syncL3Viewport`）；以階層化事件委派處理點擊與懸停狀態。
+* **`src/data/l2Manifest.ts` / `src/data/l3Manifest.ts`**：
+  預先計算並快取各國在 Web Mercator 座標系下的二維邊界框（`minX, maxX, minY, maxY`）與統計數據。在進行視窗範圍碰撞判定時，以 $O(1)$ 的代數區間比對取代耗時的多邊形空間幾何運算。
+* **`scripts/generate-l3-fgb.mjs`**：
+  全球 18 大國 L3 自動化 ETL 資料管線。負責清洗 Natural Earth Admin-2 與 GADM 4.1 Level-2 幾何邊界，修正環繞方向（Winding Order），切割輸出為 18 個獨立 FlatGeobuf 檔案，並自動產生 `l3Manifest.ts`。
 
 ---
 
@@ -194,6 +204,11 @@ npm run build
 # 自 Natural Earth 下載、清洗並建置全球 91 國 L2 FlatGeobuf 二進位檔
 npm run build:l2
 
+# 下載、拓撲修復並建置全球 18 大國 L3 FlatGeobuf 二進位檔與 Manifest
+python3 scripts/fetch-l3.py
+npm run build:l3
+
 # 下載、拓撲融合並建置公路系統 FlatGeobuf 二進位檔與 Manifest
 npm run build:roads
 ```
+
