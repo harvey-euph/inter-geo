@@ -104,7 +104,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡">
+          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
             <X size={20} />
           </button>
         </div>
@@ -247,7 +247,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡">
+          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
             <X size={20} />
           </button>
         </div>
@@ -375,7 +375,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡">
+          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
             <X size={20} />
           </button>
         </div>
@@ -445,7 +445,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
             </div>
           </div>
         </div>
-        <button className="close-btn" onClick={onClose} title="關閉情報卡">
+        <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
           <X size={20} />
         </button>
       </div>

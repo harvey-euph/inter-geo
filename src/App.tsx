@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { WorldMap } from './components/WorldMap';
@@ -72,12 +72,30 @@ export function App() {
     });
   };
 
-  const handleClosePanel = () => {
+  const handleClosePanel = useCallback(() => {
     setSelectedCountry(null);
     setSelectedPrefecture(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
-  };
+  }, []);
+
+  // Keyboard shortcut: ESC to close right detail panel or active modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isQuizOpen) {
+          setIsQuizOpen(false);
+          return;
+        }
+        handleClosePanel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isQuizOpen, handleClosePanel]);
 
   const handleSelectCountryByName = (name: string) => {
     const found = findCountry(name);
