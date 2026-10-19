@@ -35,8 +35,8 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
     const firstDigit = isAuxiliary ? parseInt(road.number[0], 10) : 0;
     const isBeltway = isAuxiliary && firstDigit % 2 === 0;
 
-    let numberingRule = '';
-    let locationClue = '';
+    let numberingRule: string;
+    let locationClue: string;
     if (isInterstate) {
       if (isEven) {
         numberingRule = '偶數編號為東西走向 (East-West)。全美號碼自南向北遞增（I-10 橫貫最南方美墨邊界/墨西哥灣，I-90 橫貫最北方加拿大邊界）。';
