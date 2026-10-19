@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
-import * as topojson from 'topojson-client';
-import type { Topology, Objects } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
 import * as flatgeobuf from 'flatgeobuf';
 import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone } from 'lucide-react';
@@ -28,7 +26,12 @@ interface WorldMapProps {
   zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
 }
 
-type GeoFeature = Feature<Geometry, { name: string }> & { id: string };
+export interface WorldCountryProperties {
+  id?: string;
+  name: string;
+}
+
+type GeoFeature = Feature<Geometry, WorldCountryProperties> & { id: string };
 
 export interface JapanPrefectureProperties {
   id: number;
@@ -263,30 +266,37 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return set;
   }, [pinnedPrefId, lastClickedPrefId, hoveredPrefId]);
 
-  // Load TopoJSON datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
+  // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Load L1 World Countries
-    fetch('/data/countries-110m.json')
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load map data');
-        return res.json();
-      })
-      .then((topology: Topology<Objects>) => {
+    // 1. Load L1 World Countries via FlatGeobuf binary (Zero-copy IEEE 754 floats)
+    (async () => {
+      try {
+        const res = await fetch('/data/countries-110m.fgb');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
         if (!isMounted) return;
-        const countriesGeo = topojson.feature(
-          topology,
-          topology.objects.countries
-        ) as unknown as { features: GeoFeature[] };
-        if (countriesGeo && countriesGeo.features) {
-          setFeatures(countriesGeo.features);
+
+        const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+        const features: GeoFeature[] = [];
+        for await (const feature of it) {
+          const props = (feature.properties || {}) as WorldCountryProperties;
+          const countryId = String(props.id || feature.id || '');
+          features.push({
+            ...feature,
+            id: countryId,
+            properties: props
+          } as unknown as GeoFeature);
         }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('L1 Map loading error:', err);
-      });
+        if (isMounted) {
+          setFeatures(features);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('L1 Countries FlatGeobuf loading error:', err);
+      }
+    })();
 
     // 2. Load L2 Japan 47 Prefectures via FlatGeobuf binary (Zero-copy IEEE 754 floats)
     (async () => {

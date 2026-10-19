@@ -49,6 +49,28 @@ function normalizeFeatureWinding(feature) {
   return feature;
 }
 
+async function convertCountries() {
+  console.log('--- Converting L1 World Countries ---');
+  const inputPath = path.join(dataDir, 'countries-110m.json');
+  const outputPath = path.join(dataDir, 'countries-110m.fgb');
+
+  const topoData = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+  const geojson = topojson.feature(topoData, topoData.objects.countries);
+
+  geojson.features = geojson.features.map((f) => {
+    const normalized = normalizeFeatureWinding(f);
+    normalized.properties = {
+      id: String(normalized.id || ''),
+      name: String(normalized.properties?.name || '')
+    };
+    return normalized;
+  });
+
+  const fgbBytes = flatgeobuf.geojson.serialize(geojson);
+  fs.writeFileSync(outputPath, Buffer.from(fgbBytes));
+  console.log(`Saved ${geojson.features.length} countries to ${outputPath} (${(fgbBytes.length / 1024).toFixed(1)} KB)`);
+}
+
 async function convertPrefectures() {
   console.log('--- Converting L2 Japan Prefectures ---');
   const inputPath = path.join(dataDir, 'japan-prefectures.json');
@@ -111,6 +133,16 @@ async function convertMunicipalities() {
 
 async function verifyFiles() {
   console.log('--- Verifying Converted FlatGeobuf Files ---');
+  const countryBytes = fs.readFileSync(path.join(dataDir, 'countries-110m.fgb'));
+  let countryCount = 0;
+  for await (const feature of flatgeobuf.geojson.deserialize(new Uint8Array(countryBytes))) {
+    countryCount++;
+    if (countryCount === 1) {
+      console.log('Sample L1 Country feature properties:', feature.properties);
+    }
+  }
+  console.log(`Verified ${countryCount} countries from FGB binary.`);
+
   const prefBytes = fs.readFileSync(path.join(dataDir, 'japan-prefectures.fgb'));
   let prefCount = 0;
   for await (const feature of flatgeobuf.geojson.deserialize(new Uint8Array(prefBytes))) {
@@ -134,6 +166,7 @@ async function verifyFiles() {
 
 async function main() {
   try {
+    await convertCountries();
     await convertPrefectures();
     await convertMunicipalities();
     await verifyFiles();
