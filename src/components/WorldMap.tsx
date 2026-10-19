@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { geoMercator, geoPath } from 'd3-geo';
 import type { Feature, Geometry } from 'geojson';
 import * as flatgeobuf from 'flatgeobuf';
-import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone, Route } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Phone, Route } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
@@ -93,23 +93,6 @@ export interface RoadPathData {
   path2D?: Path2D;
 }
 
-// Region centers in local Mercator coordinates (W=1000, H=1000)
-interface RegionPreset {
-  nameZh: string;
-  cx: number;
-  cy: number;
-  zoomMultiplier: number;
-}
-
-const REGION_PRESETS: Record<string, RegionPreset> = {
-  world: { nameZh: '全球', cx: 500, cy: 450, zoomMultiplier: 1.0 },
-  europe: { nameZh: '歐洲', cx: 542, cy: 330, zoomMultiplier: 2.8 },
-  asia: { nameZh: '亞洲', cx: 764, cy: 396, zoomMultiplier: 2.2 },
-  americas: { nameZh: '美洲', cx: 264, cy: 458, zoomMultiplier: 1.8 },
-  africa: { nameZh: '非洲', cx: 556, cy: 494, zoomMultiplier: 2.0 },
-  oceania: { nameZh: '大洋洲', cx: 889, cy: 572, zoomMultiplier: 2.4 }
-};
-
 // Base map dimensions (Standard Web Mercator square)
 const MAP_W = 1000;
 const MAP_H = 1000;
@@ -140,7 +123,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [japanMunicipalityFeatures, setJapanMunicipalityFeatures] = useState<Feature<Geometry, JapanMunicipalityProperties>[]>([]);
   
   const [loading, setLoading] = useState(true);
-  const [activeRegion, setActiveRegion] = useState('world');
 
   // Level of Detail (LOD) tracking: L1 (Country), L2 (Prefecture), L3 (Municipality)
   const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
@@ -538,7 +520,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     (e: React.MouseEvent) => {
       if (hasDragged.current) return;
       const target = e.target as Element | null;
-      if (target?.closest('.map-controls, .region-presets, .filter-legend-card, .precision-hud')) {
+      if (target?.closest('.map-controls, .filter-legend-card, .precision-hud')) {
         return;
       }
 
@@ -1301,7 +1283,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     const targetLOD = getLODLevel(kMin, lodThresholds);
 
-    setActiveRegion('world');
     setZoomK(Number(kMin.toFixed(1)));
     setLodLevel(targetLOD);
     animateTo(kMin, targetX, targetY, 320, () => {
@@ -1359,28 +1340,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     },
     [lodLevel, syncAllViewports]
   );
-
-  const handleSelectRegion = (key: string) => {
-    const preset = REGION_PRESETS[key];
-    if (!preset) return;
-    setActiveRegion(key);
-
-    const vh = viewportSize.current.h;
-    const vw = viewportSize.current.w;
-    const kMin = vh / MAP_H;
-    const targetK = Math.max(kMin * preset.zoomMultiplier, preset.zoomMultiplier);
-
-    const targetX = wrapX(vw / 2 - preset.cx * targetK, targetK);
-    const targetY = clampY(vh / 2 - preset.cy * targetK, targetK, vh);
-
-    const targetLOD = getLODLevel(targetK, lodThresholds);
-
-    setZoomK(Number(targetK.toFixed(1)));
-    setLodLevel(targetLOD);
-    animateTo(targetK, targetX, targetY, 350, () => {
-      syncAllViewports(targetK, targetX, targetY, vw, vh, targetLOD);
-    });
-  };
 
   // Color fill resolver: Base (Land/Border/Ocean) + Active Filter (Overlay) + Cursor Effect (Hover橘 / Click藍)
   const getCountryFill = useCallback(
@@ -2192,23 +2151,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         >
           <RotateCcw size={16} />
         </button>
-      </div>
-
-      {/* Region Presets Floating Navigation */}
-      <div className="region-presets-bar region-presets">
-        <div className="region-presets-label">
-          <Compass size={13} style={{ display: 'inline', marginRight: 4 }} />
-          大洲視野
-        </div>
-        {Object.entries(REGION_PRESETS).map(([key, preset]) => (
-          <button
-            key={key}
-            className={`region-btn ${activeRegion === key ? 'active' : ''}`}
-            onClick={() => handleSelectRegion(key)}
-          >
-            {preset.nameZh}
-          </button>
-        ))}
       </div>
     </div>
   );
