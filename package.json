@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-to-fgb.mjs",
     "build:l2": "node scripts/generate-l2-fgb.mjs",
+    "build:l3": "node scripts/generate-l3-fgb.mjs",
     "build:roads": "node scripts/generate-roads-fgb.mjs"
   },
   "dependencies": {

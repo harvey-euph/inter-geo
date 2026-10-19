@@ -361,17 +361,40 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
     );
   }
 
-  // 2. Municipality Detail (L3)
+  // 2. Municipality / L3 Subdivision Detail
   if (municipality) {
+    const isJapan = !municipality.iso2 || municipality.iso2 === 'JP';
+    const flag = municipality.countryFlag || (isJapan ? '🗾' : '🏙️');
+    const countryNameZh = municipality.countryNameZh || (isJapan ? '日本' : '');
+    const countryNameEn = municipality.countryName || (isJapan ? 'Japan' : '');
+    const unitType = municipality.typeEn || (isJapan ? '市區町村' : '二級行政區');
+
+    let metaTip = '此區域已達 L3 最高精度層級。可觀察路口路牌、巴士站牌、市政設施或路標進行精準定位！';
+    if (isJapan) {
+      metaTip = '日本 L3 實戰密技：觀察路口反光鏡、巴士站牌、消防栓、水溝蓋（人孔蓋 マンホールの蓋）上的自治體市徽／町徽可秒殺精確城鎮！';
+    } else if (municipality.iso2 === 'US') {
+      metaTip = '美國郡級實戰密技：注意郡道五角形盾牌（County Route 如 CR 12）、路名牌角標上的郡名縮寫、警車上的 Sheriff 字樣，以及德州農場公路 (FM/RM)！';
+    } else if (municipality.iso2 === 'FR') {
+      metaTip = '法國省級實戰密技：省道編號（D開頭黃牌如 D906）、黃色郵筒 (La Poste) 上的 5 碼郵遞區號，前兩碼即為省份編號 (01~95)！';
+    } else if (municipality.iso2 === 'DE') {
+      metaTip = '德國縣轄郡實戰密技：車牌前綴 1~3 位字母直接代表所屬 Landkreis 或直轄市（單字母為大城如 B 柏林、M 慕尼黑；多字母為周邊郡縣）！';
+    } else if (municipality.iso2 === 'IT') {
+      metaTip = '義大利省級實戰密技：觀察歐盟車牌右側藍條上的兩位省份縮寫（如 RM 羅馬、MI 米蘭、NA 那不勒斯、FI 佛羅倫斯）！';
+    } else if (municipality.iso2 === 'ES') {
+      metaTip = '西班牙省級實戰密技：國道省道編號（如 M-30 馬德里、B-10 巴塞隆納、SE-30 塞維亞），以及郵遞區號前兩碼即為省份代碼！';
+    } else if (municipality.iso2 === 'PL') {
+      metaTip = '波蘭縣級實戰密技：車牌首字母為省份代碼，第二／三字母直接對應 Powiat 縣份縮寫（如 DW 弗羅茨瓦夫、KR 克拉科夫）！';
+    }
+
     return (
       <aside className="country-drawer">
         <div className="drawer-header">
           <div className="drawer-country-title">
-            <span className="drawer-flag" role="img" aria-label="city">🏙️</span>
+            <span className="drawer-flag" role="img" aria-label="city">{flag}</span>
             <div>
               <div className="drawer-name-zh">{municipality.pref} · {municipality.city}</div>
               <div className="drawer-name-en">
-                {municipality.gun ? `${municipality.gun} · ` : ''}JIS 行政區編號：{municipality.code}
+                {countryNameZh ? `${countryNameZh} · ` : ''}{unitType} · 代碼：{municipality.code || municipality.city}
               </div>
             </div>
           </div>
@@ -397,31 +420,57 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               {municipality.pref}
             </div>
 
-            <div className="intel-tag" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 10px' }}>
-              代碼：{municipality.code}
+            <div
+              className="intel-tag"
+              style={{
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                borderColor: 'rgba(56, 189, 248, 0.4)',
+                color: '#38bdf8',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '4px 10px'
+              }}
+            >
+              🏛️ {unitType}
             </div>
+
+            {municipality.code && (
+              <div className="intel-tag" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 10px' }}>
+                代碼：{municipality.code}
+              </div>
+            )}
           </div>
 
           <div className="intel-card">
             <div className="intel-card-header">
               <Shield size={16} color="#38bdf8" />
-              <span style={{ color: '#38bdf8' }}>市區町村行政區資訊 (Municipal Info)</span>
+              <span style={{ color: '#38bdf8' }}>行政區劃詳細情報 (Subdivision Info)</span>
             </div>
             <div className="intel-card-body">
-              <strong>所屬都道府縣：</strong>{municipality.pref}<br />
+              {countryNameZh && (
+                <>
+                  <strong>所屬國家：</strong>{countryNameZh} ({countryNameEn})<br />
+                </>
+              )}
+              <strong>上級行政區 (L2)：</strong>{municipality.pref}<br />
               {municipality.gun && <><strong>所屬郡／支廳：</strong>{municipality.gun}<br /></>}
-              <strong>市區町村名：</strong>{municipality.city}<br />
-              <strong>全國地方公共團體代碼 (JIS)：</strong>{municipality.code}
+              <strong>本級區域名稱 (L3)：</strong>{municipality.city}<br />
+              <strong>行政單位級別：</strong>{unitType}<br />
+              {municipality.code && (
+                <>
+                  <strong>官方行政區代碼：</strong>{municipality.code}
+                </>
+              )}
             </div>
           </div>
 
           <div className="intel-card">
             <div className="intel-card-header">
               <Lightbulb size={16} color="#eab308" />
-              <span style={{ color: '#facc15' }}>GeoGuessr 市區探索建議</span>
+              <span style={{ color: '#facc15' }}>GeoGuessr L3 實戰秒殺密技</span>
             </div>
-            <div className="intel-card-body">
-              此區域已達 L3 最高精度層級。可觀察路口路牌、巴士站牌標籤、消防栓蓋或水溝蓋（人孔蓋 マンホールの蓋）上的自治體市徽／町徽進行精準定位！
+            <div className="intel-card-body" style={{ lineHeight: 1.5 }}>
+              {metaTip}
             </div>
           </div>
         </div>

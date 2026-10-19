@@ -33,8 +33,8 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
     level: 'L3',
     minK: 6.5,
     maxK: MAX_ZOOM_K,
-    labelZh: 'L3 · 市區町村',
-    sublabelZh: '1900+ 市町村細緻行政區與海岸線',
+    labelZh: 'L3 · 二級行政區',
+    sublabelZh: '美法德日等大國細部行政區 (郡/省/市區町村)',
     color: '#f59e0b'
   }
 ];
@@ -85,4 +85,13 @@ export interface MunicipalityDetail {
   gun?: string;
   city: string;
   nameZh: string;
+  iso2?: string;
+  countryName?: string;
+  countryNameZh?: string;
+  countryFlag?: string;
+  typeEn?: string;
+  parentName?: string;
+  parentCode?: string;
 }
+
+export type L3SubdivisionDetail = MunicipalityDetail;
