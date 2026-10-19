@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { geoMercator, geoPath } from 'd3-geo';
 import type { Feature, Geometry } from 'geojson';
 import * as flatgeobuf from 'flatgeobuf';
-import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Compass, Phone, Route } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
@@ -12,6 +12,7 @@ import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThreshold
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
 import { L2_MANIFEST } from '../data/l2Manifest';
+import { ROADS_MANIFEST } from '../data/roadsManifest';
 
 interface WorldMapProps {
   activeFilterId: string;
@@ -74,6 +75,16 @@ export interface L2SubdivisionDetail {
   countryName: string;
   countryNameZh: string;
   countryFlag: string;
+}
+
+export interface RoadPathData {
+  pathD: string;
+  name: string;
+  class: 'Interstate' | 'Federal';
+  number: string;
+  prefix: string;
+  type: string;
+  scalerank: number;
 }
 
 // Region centers in local Mercator coordinates (W=1000, H=1000)
@@ -139,6 +150,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [l2PathsByCountry, setL2PathsByCountry] = useState<Record<string, L2SubdivisionPathData[]>>({});
   const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
+
+  // Road network overlay state and refs
+  const [showRoads, setShowRoads] = useState<boolean>(false);
+  const showRoadsRef = useRef<boolean>(false);
+  const visibleRoadIso2sRef = useRef<Set<string>>(new Set());
+  const [visibleRoadIso2s, setVisibleRoadIso2s] = useState<Set<string>>(new Set());
+  const inFlightRoadFetchesRef = useRef<Set<string>>(new Set());
+  const loadedRoadsRef = useRef<Map<string, RoadPathData[]>>(new Map());
+  const [roadsByCountry, setRoadsByCountry] = useState<Record<string, RoadPathData[]>>({});
+  const [hoveredRoad, setHoveredRoad] = useState<RoadPathData | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -243,6 +264,64 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     },
     [isCountryInViewport]
   );
+
+  // Synchronize visible road network countries across viewport when roads layer is enabled
+  const syncRoadsViewport = useCallback(
+    (k: number, x: number, y: number, vw: number, vh: number, roadsEnabled: boolean) => {
+      if (!roadsEnabled) {
+        if (visibleRoadIso2sRef.current.size > 0) {
+          visibleRoadIso2sRef.current = new Set();
+          setVisibleRoadIso2s(new Set());
+        }
+        return;
+      }
+
+      const nextVisible = new Set<string>();
+      for (const [iso2, entry] of Object.entries(ROADS_MANIFEST)) {
+        if (isCountryInViewport(entry.bbox, k, x, y, vw, vh, 150)) {
+          nextVisible.add(iso2);
+        }
+      }
+
+      let changed = false;
+      if (nextVisible.size !== visibleRoadIso2sRef.current.size) {
+        changed = true;
+      } else {
+        for (const iso of nextVisible) {
+          if (!visibleRoadIso2sRef.current.has(iso)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (changed) {
+        visibleRoadIso2sRef.current = nextVisible;
+        setVisibleRoadIso2s(nextVisible);
+      }
+    },
+    [isCountryInViewport]
+  );
+
+  // Unified viewport synchronizer for both L2 subdivisions and Road networks
+  const syncAllViewports = useCallback(
+    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
+      syncL2Viewport(k, x, y, vw, vh, currentLOD);
+      syncRoadsViewport(k, x, y, vw, vh, showRoadsRef.current);
+    },
+    [syncL2Viewport, syncRoadsViewport]
+  );
+
+  // Toggle highway and route overlay layer
+  const handleToggleRoads = useCallback(() => {
+    setShowRoads((prev) => {
+      const next = !prev;
+      showRoadsRef.current = next;
+      const { k, x, y } = transformRef.current;
+      syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, next);
+      return next;
+    });
+  }, [syncRoadsViewport]);
 
   // Apply GPU hardware-accelerated transform directly to SVG group element
   const applyTransform = useCallback((animate = false) => {
@@ -385,6 +464,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return list;
   }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
 
+  // Active highway & route paths flattened for rendering
+  const activeRoadPaths = useMemo(() => {
+    if (!showRoads) return [];
+    const list: RoadPathData[] = [];
+    for (const iso2 of visibleRoadIso2s) {
+      const paths = roadsByCountry[iso2];
+      if (paths) {
+        for (let i = 0; i < paths.length; i++) {
+          list.push(paths[i]);
+        }
+      }
+    }
+    return list;
+  }, [showRoads, visibleRoadIso2s, roadsByCountry]);
+
   // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
     let isMounted = true;
@@ -526,6 +620,57 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   }, [visibleL2Iso2s, lodLevel, pathGenerator]);
 
+  // On-demand loader for visible countries' Road FlatGeobuf datasets
+  useEffect(() => {
+    if (!showRoads) return;
+
+    let isMounted = true;
+    for (const iso2 of visibleRoadIso2s) {
+      if (loadedRoadsRef.current.has(iso2) || inFlightRoadFetchesRef.current.has(iso2)) continue;
+
+      inFlightRoadFetchesRef.current.add(iso2);
+
+      (async () => {
+        try {
+          const res = await fetch(`/data/roads/${iso2}.fgb`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+          if (!isMounted) return;
+
+          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+          const paths: RoadPathData[] = [];
+          for await (const feature of it) {
+            const p = (feature.properties || {}) as Record<string, unknown>;
+            const pathD = pathGenerator(feature) || '';
+            if (!pathD) continue;
+            paths.push({
+              pathD,
+              name: String(p.name || ''),
+              class: p.class === 'Interstate' ? 'Interstate' : 'Federal',
+              number: String(p.number || ''),
+              prefix: String(p.prefix || ''),
+              type: String(p.type || ''),
+              scalerank: Number(p.scalerank || 0)
+            });
+          }
+
+          if (isMounted) {
+            loadedRoadsRef.current.set(iso2, paths);
+            setRoadsByCountry((prev) => ({ ...prev, [iso2]: paths }));
+          }
+        } catch (err) {
+          console.warn(`[Roads] Failed to load /data/roads/${iso2}.fgb:`, err);
+        } finally {
+          inFlightRoadFetchesRef.current.delete(iso2);
+        }
+      })();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visibleRoadIso2s, showRoads, pathGenerator]);
+
   // Update container size on resize
   useEffect(() => {
     const el = containerRef.current;
@@ -544,7 +689,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           transformRef.current.y = clampY(transformRef.current.y, newK, height);
           transformRef.current.x = wrapX(transformRef.current.x, newK);
-          syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevel);
+          syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevel);
           applyTransform(false);
         }
       }
@@ -552,7 +697,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     ro.observe(el);
     return () => ro.disconnect();
-  }, [clampY, wrapX, applyTransform, syncL2Viewport, lodLevel]);
+  }, [clampY, wrapX, applyTransform, syncAllViewports, lodLevel]);
 
   // Initial map positioning once loaded (runs only once upon initial load)
   useEffect(() => {
@@ -572,12 +717,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
       const initialLOD = getLODLevel(initialK, lodThresholds);
-      syncL2Viewport(initialK, initialX, initialY, vw, vh, initialLOD);
+      syncAllViewports(initialK, initialX, initialY, vw, vh, initialLOD);
       setZoomK(Number(initialK.toFixed(1)));
       setLodLevel(initialLOD);
       applyTransform(false);
     }
-  }, [loading, wrapX, clampY, applyTransform, lodThresholds, syncL2Viewport]);
+  }, [loading, wrapX, clampY, applyTransform, lodThresholds, syncAllViewports]);
 
   // Zoom directly into a prefecture at L3 (called from Drawer)
   useEffect(() => {
@@ -596,7 +741,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.x = wrapX(targetX, targetK);
           transformRef.current.y = clampY(targetY, targetK, vh);
 
-          syncL2Viewport(targetK, transformRef.current.x, transformRef.current.y, vw, vh, 'L3');
+          syncAllViewports(targetK, transformRef.current.x, transformRef.current.y, vw, vh, 'L3');
           setZoomK(Number(targetK.toFixed(1)));
           setLodLevel('L3');
           setPinnedPrefId(prefId);
@@ -604,7 +749,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       };
     }
-  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, applyTransform, syncL2Viewport]);
+  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, applyTransform, syncAllViewports]);
 
   // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -645,8 +790,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // Strict vertical clamping: sticks flush to container borders
       transformRef.current.y = clampY(rawY, k, vh);
 
-      if (lodLevel !== 'L1') {
-        syncL2Viewport(k, transformRef.current.x, transformRef.current.y, vw, vh, lodLevel);
+      if (lodLevel !== 'L1' || showRoadsRef.current) {
+        syncAllViewports(k, transformRef.current.x, transformRef.current.y, vw, vh, lodLevel);
       }
 
       if (!rafId.current) {
@@ -659,7 +804,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     // Direct DOM tooltip position update when hovering
-    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision)) {
+    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision || hoveredRoad)) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
       tooltipRef.current.style.top = `${e.clientY - 12}px`;
@@ -673,7 +818,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       rafId.current = null;
     }
     const { k, x, y } = transformRef.current;
-    syncL2Viewport(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevel);
+    syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevel);
   };
 
   // Wheel zoom centered on mouse pointer with Level of Detail (LOD) tracking
@@ -706,7 +851,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setLodLevel(nextLOD);
     }
     setZoomK(Number(newK.toFixed(1)));
-    syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
+    syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
 
     applyTransform(false);
   };
@@ -733,7 +878,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setLodLevel(nextLOD);
     }
     setZoomK(Number(newK.toFixed(1)));
-    syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
+    syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
 
     applyTransform(true);
   };
@@ -748,7 +893,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
 
     const targetLOD = getLODLevel(kMin, lodThresholds);
-    syncL2Viewport(kMin, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
+    syncAllViewports(kMin, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
 
     setActiveRegion('world');
     setZoomK(Number(kMin.toFixed(1)));
@@ -780,10 +925,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         setLodLevel(nextLOD);
       }
       setZoomK(Number(newK.toFixed(1)));
-      syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
+      syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
       applyTransform(false);
     },
-    [wrapX, clampY, applyTransform, lodLevel, lodThresholds, syncL2Viewport]
+    [wrapX, clampY, applyTransform, lodLevel, lodThresholds, syncAllViewports]
   );
 
   // Update dynamic custom LOD thresholds
@@ -794,7 +939,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const nextLOD = getLODLevel(currentK, newThresholds);
       if (nextLOD !== lodLevel) {
         setLodLevel(nextLOD);
-        syncL2Viewport(
+        syncAllViewports(
           currentK,
           transformRef.current.x,
           transformRef.current.y,
@@ -804,7 +949,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         );
       }
     },
-    [lodLevel, syncL2Viewport]
+    [lodLevel, syncAllViewports]
   );
 
 
@@ -826,7 +971,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(targetY, targetK, vh);
 
     const targetLOD = getLODLevel(targetK, lodThresholds);
-    syncL2Viewport(targetK, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
+    syncAllViewports(targetK, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
 
     setZoomK(Number(targetK.toFixed(1)));
     setLodLevel(targetLOD);
@@ -864,6 +1009,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (hoveredCountry) setHoveredCountry(null);
         if (hoveredPrefecture) setHoveredPrefecture(null);
         if (hoveredMunicipality) setHoveredMunicipality(null);
+        if (hoveredL2Subdivision) setHoveredL2Subdivision(null);
+        if (hoveredRoad) setHoveredRoad(null);
         if (tooltipRef.current) {
           tooltipRef.current.style.display = 'none';
         }
@@ -931,6 +1078,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 if (hoveredCountry) setHoveredCountry(null);
                 if (hoveredPrefecture) setHoveredPrefecture(null);
                 if (hoveredMunicipality) setHoveredMunicipality(null);
+                if (hoveredL2Subdivision) setHoveredL2Subdivision(null);
+                if (hoveredRoad) setHoveredRoad(null);
                 if (tooltipRef.current) tooltipRef.current.style.display = 'none';
               }}
               onClick={() => {
@@ -1369,14 +1518,62 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       );
                     });
                   })}
+
+                {/* 4. Highway & Route Overlay Layer */}
+                {showRoads && (copyIdx === 0 || copyIdx === 1) && (
+                  <g className="road-network-overlay" style={{ pointerEvents: 'stroke' }}>
+                    {activeRoadPaths.map((road, rIdx) => {
+                      const isInterstate = road.class === 'Interstate';
+                      const isHovered = hoveredRoad && hoveredRoad.name === road.name;
+
+                      let stroke = isInterstate ? '#38bdf8' : '#fbbf24';
+                      let strokeWidth = isInterstate ? 1.6 : 1.1;
+                      let strokeOpacity = isInterstate ? 0.9 : 0.75;
+
+                      if (isHovered) {
+                        stroke = '#f97316';
+                        strokeWidth = isInterstate ? 3.0 : 2.4;
+                        strokeOpacity = 1;
+                      }
+
+                      return (
+                        <path
+                          key={`${copyIdx}-road-${road.name}-${rIdx}`}
+                          d={road.pathD}
+                          fill="none"
+                          stroke={stroke}
+                          strokeWidth={strokeWidth}
+                          strokeOpacity={strokeOpacity}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                          onMouseEnter={() => {
+                            if (isDragging.current) return;
+                            setHoveredCountry(null);
+                            setHoveredPrefecture(null);
+                            setHoveredMunicipality(null);
+                            setHoveredL2Subdivision(null);
+                            setHoveredRoad(road);
+                          }}
+                          onMouseLeave={() => {
+                            if (isDragging.current) return;
+                            if (hoveredRoad?.name === road.name) {
+                              setHoveredRoad(null);
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </g>
+                )}
               </g>
             ))}
           </g>
         </svg>
       )}
 
-      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, Municipality, and Worldwide L2) */}
-      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision) && (
+      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, Municipality, Worldwide L2, and Roads) */}
+      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision || hoveredRoad) && (
         <div
           ref={(node) => {
             tooltipRef.current = node;
@@ -1484,8 +1681,65 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             </>
           )}
 
+          {/* Road Network Tooltip */}
+          {hoveredRoad && (
+            <>
+              <div className="tooltip-header">
+                <span className="tooltip-flag">🛣️</span>
+                <div>
+                  <div className="tooltip-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: hoveredRoad.class === 'Interstate' ? '#0284c7' : '#d97706',
+                        color: '#ffffff'
+                      }}
+                    >
+                      {hoveredRoad.name}
+                    </span>
+                    <span>
+                      {hoveredRoad.class === 'Interstate' ? '美國州際公路' : '美國國道系統'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {hoveredRoad.class === 'Interstate'
+                      ? 'Interstate Highway System'
+                      : 'U.S. Numbered Highway System'}
+                  </div>
+                </div>
+              </div>
+              <div className="tooltip-meta">
+                <span
+                  className="tooltip-badge"
+                  style={{
+                    color: hoveredRoad.class === 'Interstate' ? '#38bdf8' : '#fbbf24',
+                    borderColor: hoveredRoad.class === 'Interstate' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(251, 191, 36, 0.3)'
+                  }}
+                >
+                  {hoveredRoad.class === 'Interstate' ? 'Interstate' : 'U.S. Route'}
+                </span>
+                {hoveredRoad.number && (
+                  <span className="tooltip-badge">
+                    {Number(hoveredRoad.number) % 2 === 0 ? '東西走向 (E-W)' : '南北走向 (N-S)'}
+                  </span>
+                )}
+                {hoveredRoad.class === 'Interstate' && hoveredRoad.number && (
+                  <span className="tooltip-badge" style={{ color: '#94a3b8' }}>
+                    {hoveredRoad.number.length <= 2 ? '主要跨州幹線' : '輔助/環城支線'}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
           {/* L1 Country Tooltip */}
-          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && !hoveredL2Subdivision && (
+          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredRoad && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag">{hoveredCountry.flag}</span>
@@ -1549,6 +1803,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       {/* Map Control Buttons */}
       <div className="map-controls">
+        <button
+          className={`map-control-btn ${showRoads ? 'active' : ''}`}
+          onClick={handleToggleRoads}
+          title={showRoads ? '關閉公路系統圖層 (Hide Highways)' : '開啟公路系統圖層 (Show Highways)'}
+        >
+          <Route size={18} />
+        </button>
         <button
           className="map-control-btn"
           onClick={() => handleZoom('in')}

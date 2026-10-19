@@ -433,6 +433,22 @@
   color: #38bdf8;
 }
 
+.map-control-btn.active {
+  background-color: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+/* Road Network Overlay Layer */
+.road-network-overlay path {
+  transition: stroke 0.15s ease, stroke-width 0.15s ease, stroke-opacity 0.15s ease;
+}
+
+.road-network-overlay path:hover {
+  filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.8));
+}
+
 /* Region Navigator Quick Presets */
 .region-presets-bar {
   position: absolute;

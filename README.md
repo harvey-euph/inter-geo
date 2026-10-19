@@ -34,7 +34,17 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 * **國家詳細資訊側邊面板 (Country Detail Panel)**：
   - 點擊任意國家即刻滑出詳細情資面板，提供結構化線索卡片、街景車實景特徵說明與專業判讀技巧。
 
-### 3. 地圖互動與導航控制
+### 3. 全球公路系統覆蓋圖層 (Road Network Overlay)
+* **獨立圖層開關 (One-click Layer Toggle)**：地圖控制列提供一鍵式公路圖層切換按鈕，預設不耗用非必要連線與記憶體。
+* **美國公路系統 (US Highways & Routes)**：
+  - **州際公路 (Interstates)**：收錄全美 225 條主要與輔助跨州走廊（I-5, I-10, I-80, I-90, I-95 等），以鮮明青藍色樣式標繪。
+  - **美國國道 (U.S. Routes)**：收錄全美 341 條國道幹線（US 101, US 66, US 1, US 50 等），以琥珀金色樣式標繪。
+  - **視窗動態載入**：僅在公路圖層開啟且該國進入螢幕視窗時才進行二進位流載入，相容未來全球各國公路無縫擴充架構。
+* **GeoGuessr 智能公路 Tooltip**：
+  - 懸停整條公路幹線即時高亮（`#f97316`）。
+  - 自動依據號碼解析並標註公路走向特性（偶數號為東西走向 E-W、奇數號為南北走向 N-S；1~2 位數為主幹線、3 位數為環城支線）。
+
+### 4. 地圖互動與導航控制
 * **游標聚焦平滑縮放**：支援以滑鼠游標為中心的連續滾輪縮放（平滑插值與加速度阻尼）。
 * **無縫橫向包覆 (Continuous Horizontal World Wrapping)**：支援橫跨經度 180° 換日線的連續平移（週期性橫向多重鏡像），消除地圖邊界斷點。
 * **自適應遙測介面 (Precision HUD)**：實時反饋當前視角 Zoom K、當前 LOD 等級、已啟用的 L2 國家集合，並提供動態微調 LOD 閾值的控制器。
@@ -49,11 +59,14 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 │   └── data/
 │       ├── countries-110m.fgb            # L1 全球國家向量資料庫 (FlatGeobuf 二進位)
 │       ├── japan-municipalities.fgb      # L3 日本市區町村高精度向量資料庫 (FlatGeobuf 二進位)
-│       └── l2/                           # L2 全球 91 國獨立第一級行政區向量資料庫
-│           ├── AE.fgb ... ZA.fgb         # 各國獨立二進位檔 (包含 JP.fgb 47 都道府縣)
+│       ├── l2/                           # L2 全球 91 國獨立第一級行政區向量資料庫
+│       │   └── AE.fgb ... ZA.fgb         # 各國獨立二進位檔 (包含 JP.fgb 47 都道府縣)
+│       └── roads/                        # 全球公路系統向量資料庫 (FlatGeobuf 二進位)
+│           └── US.fgb                    # 美國州際公路與美國國道二進位檔
 ├── scripts/
 │   ├── convert-to-fgb.mjs                # 空間資料二進位序列化與拓撲繞向修復工具
-│   └── generate-l2-fgb.mjs               # 91 國 L2 資料管線：下載、篩選、切割與 Manifest 計算
+│   ├── generate-l2-fgb.mjs               # 91 國 L2 資料管線：下載、篩選、切割與 Manifest 計算
+│   └── generate-roads-fgb.mjs            # 公路系統資料管線：篩選、拓撲融合、簡化與 Manifest 計算
 ├── src/
 │   ├── App.tsx                           # 應用頂層狀態調度器 (過濾器、選取狀態、視窗協調)
 │   ├── App.css                           # 核心樣式庫 (含 GPU 加速圖層、SVG 階層樣式、HUD 佈局)
@@ -69,7 +82,8 @@ Inter-Geo 是一個針對地理探索與 GeoGuessr 競技所設計的高效能�
 │   │   ├── countries.ts                  # 全球 91 個街景國家的官方資料庫與線索常數
 │   │   ├── filters.ts                    # 10 大過濾器類別定義與動態填色演算法
 │   │   ├── japanData.ts                  # 日本 47 都道府縣行政區屬性與中英對照表
-│   │   └── l2Manifest.ts                 # 91 國 L2 空間外框 (BBox) 與元數據快取表
+│   │   ├── l2Manifest.ts                 # 91 國 L2 空間外框 (BBox) 與元數據快取表
+│   │   └── roadsManifest.ts              # 公路系統覆蓋國外框 (BBox) 與元數據快取表
 │   └── types/
 │       ├── geo.ts                        # 空間幾何與國家資料型別定義 (TypeScript)
 │       └── lod.ts                        # LOD 階段、行政區下鑽與閾值型別定義
@@ -152,4 +166,7 @@ npm run build
 ```bash
 # 自 Natural Earth 下載、清洗並建置全球 91 國 L2 FlatGeobuf 二進位檔
 npm run build:l2
+
+# 下載、拓撲融合並建置公路系統 FlatGeobuf 二進位檔與 Manifest
+npm run build:roads
 ```
