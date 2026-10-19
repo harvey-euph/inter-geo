@@ -98,6 +98,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Sub-national hover states
   const [hoveredPrefecture, setHoveredPrefecture] = useState<PrefectureDetail | null>(null);
   const [hoveredMunicipality, setHoveredMunicipality] = useState<MunicipalityDetail | null>(null);
+  const [pinnedPrefId, setPinnedPrefId] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -256,10 +257,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const activeL3PrefIds = useMemo(() => {
     const set = new Set<number>();
+    if (pinnedPrefId) set.add(pinnedPrefId);
     if (lastClickedPrefId) set.add(lastClickedPrefId);
     if (hoveredPrefId) set.add(hoveredPrefId);
     return set;
-  }, [lastClickedPrefId, hoveredPrefId]);
+  }, [pinnedPrefId, lastClickedPrefId, hoveredPrefId]);
 
   // Load TopoJSON datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
@@ -403,6 +405,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           setZoomK(Number(targetK.toFixed(1)));
           setLodLevel('L3');
+          setPinnedPrefId(prefId);
           applyTransform(true);
         }
       };
@@ -420,13 +423,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       x: transformRef.current.x,
       y: transformRef.current.y
     };
-
-    if (tooltipRef.current) {
-      tooltipRef.current.style.display = 'none';
-    }
-    if (hoveredCountry) setHoveredCountry(null);
-    if (hoveredPrefecture) setHoveredPrefecture(null);
-    if (hoveredMunicipality) setHoveredMunicipality(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -438,6 +434,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         hasDragged.current = true;
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none';
+        }
       }
 
       const rawX = dragStart.current.x + dx;
@@ -457,37 +456,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           rafId.current = null;
         });
       }
-
-      if (tooltipRef.current) {
-        tooltipRef.current.style.display = 'none';
-      }
-      if (hoveredCountry) setHoveredCountry(null);
-      if (hoveredPrefecture) setHoveredPrefecture(null);
-      if (hoveredMunicipality) setHoveredMunicipality(null);
       return;
     }
 
-    // Verify if pointer is directly over a country, prefecture, or municipality path
-    const target = e.target as Element | null;
-    const isOverShape = Boolean(
-      target?.classList &&
-      (target.classList.contains('country-path') ||
-       target.classList.contains('prefecture-path') ||
-       target.classList.contains('municipality-path'))
-    );
-
-    if (!isOverShape) {
-      if (hoveredCountry) setHoveredCountry(null);
-      if (hoveredPrefecture) setHoveredPrefecture(null);
-      if (hoveredMunicipality) setHoveredMunicipality(null);
-      if (tooltipRef.current) {
-        tooltipRef.current.style.display = 'none';
-      }
-      return;
-    }
-
-    // Direct DOM tooltip update
-    if (tooltipRef.current) {
+    // Direct DOM tooltip position update when hovering
+    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality)) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
       tooltipRef.current.style.top = `${e.clientY - 12}px`;
@@ -681,6 +654,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (target?.closest('.map-controls, .region-presets, .filter-legend-card, .precision-hud')) {
           return;
         }
+        setPinnedPrefId(null);
         onSelectCountry(null);
         if (onSelectPrefecture) onSelectPrefecture(null);
         if (onSelectMunicipality) onSelectMunicipality(null);
@@ -741,6 +715,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               }}
               onClick={() => {
                 if (!hasDragged.current) {
+                  setPinnedPrefId(null);
                   onSelectCountry(null);
                   if (onSelectPrefecture) onSelectPrefecture(null);
                   if (onSelectMunicipality) onSelectMunicipality(null);
@@ -918,6 +893,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             if (hasDragged.current) return;
+                            setPinnedPrefId(id);
                             if (prefMeta && onSelectPrefecture) {
                               onSelectPrefecture(prefMeta);
                               onSelectCountry(null);
@@ -999,6 +975,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             if (hasDragged.current) return;
+                            setPinnedPrefId(mPrefId);
                             if (onSelectMunicipality) {
                               onSelectMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
                               onSelectCountry(null);
