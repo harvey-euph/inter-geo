@@ -114,6 +114,59 @@ const MERCATOR_SCALE = MAP_W / (2 * Math.PI); // 159.15494309
 // World copies rendered side-by-side for infinite continuous periodic wrapping
 const WORLD_COPIES = [-1, 0, 1, 2, 3];
 
+interface RoadNetworkLayerProps {
+  roads: RoadPathData[];
+  onHoverRoad: (road: RoadPathData, clientX: number, clientY: number) => void;
+  onLeaveRoad: (roadName: string) => void;
+}
+
+const RoadNetworkLayer = React.memo<RoadNetworkLayerProps>(({ roads, onHoverRoad, onLeaveRoad }) => {
+  return (
+    <g className="road-network-overlay" style={{ pointerEvents: 'stroke' }}>
+      {roads.map((road, rIdx) => {
+        const isInterstate = road.class === 'Interstate';
+        const stroke = isInterstate ? '#38bdf8' : '#fbbf24';
+        const strokeWidth = isInterstate ? 1.6 : 1.1;
+        const strokeOpacity = isInterstate ? 0.9 : 0.75;
+
+        return (
+          <g key={`road-${road.name}-${rIdx}`}>
+            {/* Invisible wider hit target for effortless highway hovering without pixel-hunting (fixed 12px screen width) */}
+            <path
+              d={road.pathD}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={12}
+              vectorEffect="non-scaling-stroke"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+              onMouseEnter={(e) => {
+                onHoverRoad(road, e.clientX, e.clientY);
+              }}
+              onMouseLeave={() => {
+                onLeaveRoad(road.name);
+              }}
+            />
+            {/* Visible styled road stroke with fixed screen thickness across all zoom levels */}
+            <path
+              d={road.pathD}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={strokeWidth}
+              vectorEffect="non-scaling-stroke"
+              strokeOpacity={strokeOpacity}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ pointerEvents: 'none' }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
   isFilterExpanded = false,
@@ -161,6 +214,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const showRoadsRef = useRef<boolean>(showRoads);
   const visibleRoadIso2sRef = useRef<Set<string>>(new Set());
   const [visibleRoadIso2s, setVisibleRoadIso2s] = useState<Set<string>>(new Set());
+  const visibleRoadCopiesRef = useRef<number[]>([0]);
+  const [visibleRoadCopies, setVisibleRoadCopies] = useState<number[]>([0]);
   const inFlightRoadFetchesRef = useRef<Set<string>>(new Set());
   const loadedRoadsRef = useRef<Map<string, RoadPathData[]>>(new Map());
   const [roadsByCountry, setRoadsByCountry] = useState<Record<string, RoadPathData[]>>({});
@@ -304,6 +359,31 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         visibleRoadIso2sRef.current = nextVisible;
         setVisibleRoadIso2s(nextVisible);
       }
+
+      // Compute which world copies of the road network intersect the viewport
+      const nextCopies: number[] = [];
+      const usBbox = ROADS_MANIFEST.US?.bbox || { minX: 50, maxX: 330, minY: 280, maxY: 480 };
+      const sMinY = y + usBbox.minY * k;
+      const sMaxY = y + usBbox.maxY * k;
+      if (sMaxY >= -50 && sMinY <= vh + 50) {
+        for (const c of [0, 1]) {
+          const sMinX = x + (usBbox.minX + c * MAP_W) * k;
+          const sMaxX = x + (usBbox.maxX + c * MAP_W) * k;
+          if (sMaxX >= -50 && sMinX <= vw + 50) {
+            nextCopies.push(c);
+          }
+        }
+      }
+      if (nextCopies.length === 0) nextCopies.push(0);
+
+      const copiesChanged =
+        nextCopies.length !== visibleRoadCopiesRef.current.length ||
+        nextCopies.some((c, idx) => c !== visibleRoadCopiesRef.current[idx]);
+
+      if (copiesChanged) {
+        visibleRoadCopiesRef.current = nextCopies;
+        setVisibleRoadCopies(nextCopies);
+      }
     },
     [isCountryInViewport]
   );
@@ -335,6 +415,36 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const { k, x, y } = transformRef.current;
     syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoads);
   }, [showRoads, syncRoadsViewport]);
+
+  // Stable hover handler for road network (keeps base roads memoized without re-rendering)
+  const handleHoverRoad = useCallback((road: RoadPathData, clientX: number, clientY: number) => {
+    if (isDragging.current) return;
+    mousePos.current = { x: clientX, y: clientY };
+    setHoveredCountry(null);
+    setHoveredPrefecture(null);
+    setHoveredMunicipality(null);
+    setHoveredL2Subdivision(null);
+    setHoveredRoad(road);
+    if (tooltipRef.current) {
+      tooltipRef.current.style.display = 'flex';
+      tooltipRef.current.style.left = `${clientX}px`;
+      tooltipRef.current.style.top = `${clientY - 12}px`;
+    }
+  }, [setHoveredCountry]);
+
+  // Stable unhover handler for road network
+  const handleLeaveRoad = useCallback((roadName: string) => {
+    if (isDragging.current) return;
+    setHoveredRoad((current) => {
+      if (current?.name === roadName) {
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none';
+        }
+        return null;
+      }
+      return current;
+    });
+  }, []);
 
   // Apply GPU hardware-accelerated transform directly to SVG group element
   const applyTransform = useCallback((animate = false) => {
@@ -1537,75 +1647,30 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     });
                   })}
 
-                {/* 4. Highway & Route Overlay Layer */}
-                {showRoads && (copyIdx === 0 || copyIdx === 1) && (
-                  <g className="road-network-overlay" style={{ pointerEvents: 'stroke' }}>
-                    {activeRoadPaths.map((road, rIdx) => {
-                      const isInterstate = road.class === 'Interstate';
-                      const isHovered = hoveredRoad && hoveredRoad.name === road.name;
-
-                      let stroke = isInterstate ? '#38bdf8' : '#fbbf24';
-                      let strokeWidth = isInterstate ? 1.6 : 1.1;
-                      let strokeOpacity = isInterstate ? 0.9 : 0.75;
-
-                      if (isHovered) {
-                        stroke = '#f97316';
-                        strokeWidth = isInterstate ? 3.0 : 2.4;
-                        strokeOpacity = 1;
-                      }
-
-                      return (
-                        <g key={`${copyIdx}-road-${road.name}-${rIdx}`}>
-                          {/* Invisible wider hit target for effortless highway hovering without pixel-hunting (fixed 12px screen width) */}
-                          <path
-                            d={road.pathD}
-                            fill="none"
-                            stroke="transparent"
-                            strokeWidth={12}
-                            vectorEffect="non-scaling-stroke"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                            onMouseEnter={(e) => {
-                              if (isDragging.current) return;
-                              mousePos.current = { x: e.clientX, y: e.clientY };
-                              setHoveredCountry(null);
-                              setHoveredPrefecture(null);
-                              setHoveredMunicipality(null);
-                              setHoveredL2Subdivision(null);
-                              setHoveredRoad(road);
-                              if (tooltipRef.current) {
-                                tooltipRef.current.style.display = 'flex';
-                                tooltipRef.current.style.left = `${e.clientX}px`;
-                                tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                              }
-                            }}
-                            onMouseLeave={() => {
-                              if (isDragging.current) return;
-                              if (hoveredRoad?.name === road.name) {
-                                setHoveredRoad(null);
-                              }
-                              if (tooltipRef.current) {
-                                tooltipRef.current.style.display = 'none';
-                              }
-                            }}
-                          />
-                          {/* Visible styled road stroke with fixed screen thickness across all zoom levels */}
-                          <path
-                            d={road.pathD}
-                            fill="none"
-                            stroke={stroke}
-                            strokeWidth={strokeWidth}
-                            vectorEffect="non-scaling-stroke"
-                            strokeOpacity={strokeOpacity}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{ pointerEvents: 'none' }}
-                          />
-                        </g>
-                      );
-                    })}
-                  </g>
+                {/* 4. Highway & Route Overlay Layer (Optimized: Deduplicated to visible copy, Base Memoized, Single Dynamic Top Highlight) */}
+                {showRoads && visibleRoadCopies.includes(copyIdx) && (
+                  <>
+                    <RoadNetworkLayer
+                      roads={activeRoadPaths}
+                      onHoverRoad={handleHoverRoad}
+                      onLeaveRoad={handleLeaveRoad}
+                    />
+                    {hoveredRoad && (
+                      <path
+                        d={hoveredRoad.pathD}
+                        fill="none"
+                        stroke="#f97316"
+                        strokeWidth={hoveredRoad.class === 'Interstate' ? 3.2 : 2.6}
+                        vectorEffect="non-scaling-stroke"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          pointerEvents: 'none',
+                          filter: 'drop-shadow(0 0 6px rgba(249, 115, 22, 0.95))'
+                        }}
+                      />
+                    )}
+                  </>
                 )}
               </g>
             ))}

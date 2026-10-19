@@ -49,7 +49,7 @@ async function buildUsRoads() {
     `-each "name = prefix === 'I' ? ('I-' + number) : (prefix === 'US' ? ('US ' + number) : number)" ` +
     `-filter-fields name,class,number,prefix,type,scalerank ` +
     `-dissolve fields=class,name copy-fields=number,prefix,type,scalerank ` +
-    `-simplify 25% keep-shapes ` +
+    `-simplify 5% keep-shapes ` +
     `-o format=geojson "${tempGeojsonPath}"`,
     { stdio: 'inherit' }
   );
@@ -58,6 +58,9 @@ async function buildUsRoads() {
   const geojson = JSON.parse(fs.readFileSync(tempGeojsonPath, 'utf8'));
   const bytes = flatgeobuf.geojson.serialize(geojson);
   fs.writeFileSync(finalFgbPath, Buffer.from(bytes));
+  if (fs.existsSync(tempGeojsonPath)) {
+    fs.unlinkSync(tempGeojsonPath);
+  }
 
   console.log(`[Success] Saved ${geojson.features.length} US highway routes to ${finalFgbPath} (${(bytes.length / 1024 / 1024).toFixed(2)} MB)`);
 
