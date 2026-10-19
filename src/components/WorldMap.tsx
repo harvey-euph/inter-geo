@@ -221,6 +221,46 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     });
   }, [japanMunicipalityFeatures, pathGenerator]);
 
+  // Group municipality paths by prefecture ID for O(1) active retrieval
+  const municipalitiesByPrefId = useMemo(() => {
+    const map = new Map<number, typeof municipalityPathData>();
+    for (const item of municipalityPathData) {
+      const list = map.get(item.prefId);
+      if (list) {
+        list.push(item);
+      } else {
+        map.set(item.prefId, [item]);
+      }
+    }
+    return map;
+  }, [municipalityPathData]);
+
+  // Currently active prefecture IDs that should expand to L3 when in L3 mode:
+  // 1. The last clicked prefecture (from selectedMunicipality or selectedPrefecture)
+  // 2. The currently hovered prefecture (from hoveredMunicipality or hoveredPrefecture)
+  const lastClickedPrefId = useMemo(() => {
+    if (selectedMunicipality) {
+      if (selectedMunicipality.prefId) return selectedMunicipality.prefId;
+      const parsed = parseInt(selectedMunicipality.code?.slice(0, 2), 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 47) return parsed;
+    }
+    if (selectedPrefecture?.id) return selectedPrefecture.id;
+    return null;
+  }, [selectedMunicipality, selectedPrefecture]);
+
+  const hoveredPrefId = useMemo(() => {
+    if (hoveredMunicipality?.prefId) return hoveredMunicipality.prefId;
+    if (hoveredPrefecture?.id) return hoveredPrefecture.id;
+    return null;
+  }, [hoveredMunicipality, hoveredPrefecture]);
+
+  const activeL3PrefIds = useMemo(() => {
+    const set = new Set<number>();
+    if (lastClickedPrefId) set.add(lastClickedPrefId);
+    if (hoveredPrefId) set.add(hoveredPrefId);
+    return set;
+  }, [lastClickedPrefId, hoveredPrefId]);
+
   // Load TopoJSON datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
     let isMounted = true;
@@ -798,168 +838,176 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 })}
 
                 {/* 2. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
-                {lodLevel === 'L2' && (copyIdx === 0 || copyIdx === 1) &&
-                  prefecturePathData.map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
-                    if (!pathD) return null;
-                    const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
-                    const isSelected = selectedPrefecture && selectedPrefecture.id === id;
+                {/* At L2: render all 47 prefectures. At L3: render only non-active prefectures (active ones expand to L3) */}
+                {((lodLevel === 'L2') || (lodLevel === 'L3')) && (copyIdx === 0 || copyIdx === 1) &&
+                  prefecturePathData
+                    .filter(({ id }) => lodLevel === 'L2' || !activeL3PrefIds.has(id))
+                    .map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
+                      if (!pathD) return null;
+                      const isHovered = hoveredPrefecture && hoveredPrefecture.id === id;
+                      const isSelected = selectedPrefecture && selectedPrefecture.id === id;
 
-                    // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
-                    let fill = '#1e293b';
-                    let pathClass = 'prefecture-path';
-                    let stroke = '#475569';
-                    let strokeWidth = 0.6;
+                      // Hierarchical Hover: 當前縣深橘，其餘日本縣淺橘
+                      let fill = '#1e293b';
+                      let pathClass = 'prefecture-path';
+                      let stroke = '#475569';
+                      let strokeWidth = 0.6;
 
-                    if (isSelected) {
-                      fill = '#38bdf8';
-                      pathClass += ' selected';
-                      stroke = '#38bdf8';
-                      strokeWidth = 1.2;
-                    } else if (isHovered) {
-                      // 深橘 (Deep Orange)
-                      fill = '#f97316';
-                      pathClass += ' hovered hovered-deep';
-                      stroke = '#ffffff';
-                      strokeWidth = 1.4;
-                    } else if (hoveredPrefecture) {
-                      // 淺橘 (Light Orange) - 日本其他都道府縣
-                      fill = 'rgba(251, 146, 60, 0.16)';
-                      pathClass += ' parent-l1-hovered';
-                      stroke = 'rgba(251, 146, 60, 0.35)';
-                      strokeWidth = 0.6;
-                    }
+                      if (isSelected) {
+                        fill = '#38bdf8';
+                        pathClass += ' selected';
+                        stroke = '#38bdf8';
+                        strokeWidth = 1.2;
+                      } else if (isHovered) {
+                        // 深橘 (Deep Orange)
+                        fill = '#f97316';
+                        pathClass += ' hovered hovered-deep';
+                        stroke = '#ffffff';
+                        strokeWidth = 1.4;
+                      } else if (hoveredPrefecture || hoveredMunicipality) {
+                        // 淺橘 (Light Orange) - 日本其他都道府縣
+                        fill = 'rgba(251, 146, 60, 0.16)';
+                        pathClass += ' parent-l1-hovered';
+                        stroke = 'rgba(251, 146, 60, 0.35)';
+                        strokeWidth = 0.6;
+                      }
 
-                    return (
-                      <path
-                        key={`${copyIdx}-pref-${id}`}
-                        d={pathD}
-                        className={pathClass}
-                        fill={fill}
-                        stroke={stroke}
-                        strokeWidth={strokeWidth}
-                        onMouseEnter={(e) => {
-                          if (isDragging.current) return;
-                          mousePos.current = { x: e.clientX, y: e.clientY };
-                          setHoveredCountry(null);
-                          setHoveredMunicipality(null);
-                          if (prefMeta) {
-                            setHoveredPrefecture(prefMeta);
-                          } else {
-                            setHoveredPrefecture({
-                              id,
-                              nameJa,
-                              nameZh: nameJa,
-                              nameEn,
-                              region: '日本',
-                              capital: '',
-                              areaCode: '0x',
-                              plates: [],
-                              proClues: ['日本都道府縣行政區'],
-                              landscapeDesc: ''
-                            });
-                          }
-                          if (tooltipRef.current) {
-                            tooltipRef.current.style.display = 'flex';
-                            tooltipRef.current.style.left = `${e.clientX}px`;
-                            tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                          }
-                        }}
-                        onMouseLeave={() => {
-                          if (isDragging.current) return;
-                          if (hoveredPrefecture) setHoveredPrefecture(null);
-                          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (hasDragged.current) return;
-                          if (prefMeta && onSelectPrefecture) {
-                            onSelectPrefecture(prefMeta);
-                            onSelectCountry(null);
-                            if (onSelectMunicipality) onSelectMunicipality(null);
-                          }
-                        }}
-                      />
-                    );
-                  })}
+                      return (
+                        <path
+                          key={`${copyIdx}-pref-${id}`}
+                          d={pathD}
+                          className={pathClass}
+                          fill={fill}
+                          stroke={stroke}
+                          strokeWidth={strokeWidth}
+                          onMouseEnter={(e) => {
+                            if (isDragging.current) return;
+                            mousePos.current = { x: e.clientX, y: e.clientY };
+                            setHoveredCountry(null);
+                            setHoveredMunicipality(null);
+                            if (prefMeta) {
+                              setHoveredPrefecture(prefMeta);
+                            } else {
+                              setHoveredPrefecture({
+                                id,
+                                nameJa,
+                                nameZh: nameJa,
+                                nameEn,
+                                region: '日本',
+                                capital: '',
+                                areaCode: '0x',
+                                plates: [],
+                                proClues: ['日本都道府縣行政區'],
+                                landscapeDesc: ''
+                              });
+                            }
+                            if (tooltipRef.current) {
+                              tooltipRef.current.style.display = 'flex';
+                              tooltipRef.current.style.left = `${e.clientX}px`;
+                              tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                            }
+                          }}
+                          onMouseLeave={() => {
+                            if (isDragging.current) return;
+                            // When not in L3, clear hover. At L3, ocean backdrop manages clearing to prevent flicker during drilldown
+                            if (lodLevel !== 'L3' && hoveredPrefecture) {
+                              setHoveredPrefecture(null);
+                              if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasDragged.current) return;
+                            if (prefMeta && onSelectPrefecture) {
+                              onSelectPrefecture(prefMeta);
+                              onSelectCountry(null);
+                              if (onSelectMunicipality) onSelectMunicipality(null);
+                            }
+                          }}
+                        />
+                      );
+                    })}
 
-                {/* 3. L3 Layer: Japan 1,906 市區町村 (Municipalities) Ultra-Precision Outlines */}
+                {/* 3. L3 Layer: Japan 市區町村 (Municipalities) - Only loaded for active (hovered & last clicked) prefectures */}
                 {lodLevel === 'L3' && (copyIdx === 0 || copyIdx === 1) &&
-                  municipalityPathData.map(({ pathD, code, prefId, pref, city, gun }) => {
-                    if (!pathD) return null;
-                    const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
-                    const isSelected = selectedMunicipality && selectedMunicipality.code === code;
-                    // Fast integer comparison for parent prefecture with string fallback
-                    const isParentPref =
-                      hoveredMunicipality &&
-                      (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === prefId : hoveredMunicipality.pref === pref);
+                  Array.from(activeL3PrefIds).flatMap((pId) => {
+                    const munis = municipalitiesByPrefId.get(pId) || [];
+                    return munis.map(({ pathD, code, prefId: mPrefId, pref, city, gun }) => {
+                      if (!pathD) return null;
+                      const isHovered = hoveredMunicipality && hoveredMunicipality.code === code;
+                      const isSelected = selectedMunicipality && selectedMunicipality.code === code;
+                      // Fast integer comparison for parent prefecture with string fallback
+                      const isParentPref =
+                        hoveredMunicipality &&
+                        (hoveredMunicipality.prefId ? hoveredMunicipality.prefId === mPrefId : hoveredMunicipality.pref === pref);
 
-                    // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
-                    let fill = '#1e2433';
-                    let pathClass = 'municipality-path';
-                    let stroke = 'rgba(255, 255, 255, 0.2)';
-                    let strokeWidth = 0.35;
+                      // Hierarchical Hover: 深橘 (Hovered) -> 中橘 (Parent Prefecture) -> 淺橘 (Parent Country / Japan)
+                      let fill = '#1e2433';
+                      let pathClass = 'municipality-path';
+                      let stroke = 'rgba(255, 255, 255, 0.2)';
+                      let strokeWidth = 0.35;
 
-                    if (isSelected) {
-                      fill = '#38bdf8';
-                      pathClass += ' selected';
-                      stroke = '#38bdf8';
-                      strokeWidth = 0.8;
-                    } else if (isHovered) {
-                      // 1. 深橘 (Deep Orange) - 當前懸停的市區町村
-                      fill = '#f97316';
-                      pathClass += ' hovered hovered-deep';
-                      stroke = '#ffffff';
-                      strokeWidth = 0.8;
-                    } else if (isParentPref) {
-                      // 2. 中橘 (Medium Orange) - 所屬都道府縣內其他市區町村
-                      fill = 'rgba(234, 88, 12, 0.35)';
-                      pathClass += ' parent-l2-hovered';
-                      stroke = 'rgba(251, 146, 60, 0.5)';
-                      strokeWidth = 0.35;
-                    } else if (hoveredMunicipality) {
-                      // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
-                      fill = 'rgba(251, 146, 60, 0.13)';
-                      pathClass += ' parent-l1-hovered';
-                      stroke = 'rgba(251, 146, 60, 0.22)';
-                      strokeWidth = 0.35;
-                    }
+                      if (isSelected) {
+                        fill = '#38bdf8';
+                        pathClass += ' selected';
+                        stroke = '#38bdf8';
+                        strokeWidth = 0.8;
+                      } else if (isHovered) {
+                        // 1. 深橘 (Deep Orange) - 當前懸停的市區町村
+                        fill = '#f97316';
+                        pathClass += ' hovered hovered-deep';
+                        stroke = '#ffffff';
+                        strokeWidth = 0.8;
+                      } else if (isParentPref) {
+                        // 2. 中橘 (Medium Orange) - 所屬都道府縣內其他市區町村
+                        fill = 'rgba(234, 88, 12, 0.35)';
+                        pathClass += ' parent-l2-hovered';
+                        stroke = 'rgba(251, 146, 60, 0.5)';
+                        strokeWidth = 0.35;
+                      } else if (hoveredMunicipality || hoveredPrefecture) {
+                        // 3. 淺橘 (Light Orange) - 所屬國家（日本）內其他都道府縣
+                        fill = 'rgba(251, 146, 60, 0.13)';
+                        pathClass += ' parent-l1-hovered';
+                        stroke = 'rgba(251, 146, 60, 0.22)';
+                        strokeWidth = 0.35;
+                      }
 
-                    return (
-                      <path
-                        key={`${copyIdx}-muni-${code}`}
-                        d={pathD}
-                        className={pathClass}
-                        fill={fill}
-                        stroke={stroke}
-                        strokeWidth={strokeWidth}
-                        onMouseEnter={(e) => {
-                          if (isDragging.current) return;
-                          mousePos.current = { x: e.clientX, y: e.clientY };
-                          setHoveredCountry(null);
-                          setHoveredPrefecture(null);
-                          setHoveredMunicipality({ code, prefId, pref, gun, city, nameZh: `${pref} ${city}` });
-                          if (tooltipRef.current) {
-                            tooltipRef.current.style.display = 'flex';
-                            tooltipRef.current.style.left = `${e.clientX}px`;
-                            tooltipRef.current.style.top = `${e.clientY - 12}px`;
-                          }
-                        }}
-                        onMouseLeave={() => {
-                          if (isDragging.current) return;
-                          if (hoveredMunicipality) setHoveredMunicipality(null);
-                          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (hasDragged.current) return;
-                          if (onSelectMunicipality) {
-                            onSelectMunicipality({ code, prefId, pref, gun, city, nameZh: `${pref} ${city}` });
-                            onSelectCountry(null);
-                            if (onSelectPrefecture) onSelectPrefecture(null);
-                          }
-                        }}
-                      />
-                    );
+                      return (
+                        <path
+                          key={`${copyIdx}-muni-${code}`}
+                          d={pathD}
+                          className={pathClass}
+                          fill={fill}
+                          stroke={stroke}
+                          strokeWidth={strokeWidth}
+                          onMouseEnter={(e) => {
+                            if (isDragging.current) return;
+                            mousePos.current = { x: e.clientX, y: e.clientY };
+                            setHoveredCountry(null);
+                            setHoveredPrefecture(null);
+                            setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
+                            if (tooltipRef.current) {
+                              tooltipRef.current.style.display = 'flex';
+                              tooltipRef.current.style.left = `${e.clientX}px`;
+                              tooltipRef.current.style.top = `${e.clientY - 12}px`;
+                            }
+                          }}
+                          onMouseLeave={() => {
+                            if (isDragging.current) return;
+                            // Ocean backdrop and wrapper manage clearing to maintain smooth inter-polygon cursor transitions
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasDragged.current) return;
+                            if (onSelectMunicipality) {
+                              onSelectMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
+                              onSelectCountry(null);
+                              if (onSelectPrefecture) onSelectPrefecture(null);
+                            }
+                          }}
+                        />
+                      );
+                    });
                   })}
               </g>
             ))}
