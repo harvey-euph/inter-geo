@@ -285,6 +285,31 @@
   stroke-width: 1.5px !important;
 }
 
+/* L2 Worldwide Subdivision Path Styles */
+.l2-subdivision-path {
+  vector-effect: non-scaling-stroke;
+  transition: fill 0.15s ease, stroke 0.15s ease;
+  cursor: pointer;
+}
+
+.l2-subdivision-path.sibling-l2-hovered {
+  fill: rgba(251, 146, 60, 0.16) !important;
+  stroke: rgba(251, 146, 60, 0.35) !important;
+}
+
+.l2-subdivision-path:hover,
+.l2-subdivision-path.hovered,
+.l2-subdivision-path.hovered-deep {
+  fill: #f97316 !important;
+  stroke: #ffffff !important;
+  stroke-width: 1px !important;
+}
+
+.l2-subdivision-path.selected {
+  stroke: #38bdf8 !important;
+  stroke-width: 1.5px !important;
+}
+
 /* L3 Municipality Path Styles */
 .municipality-path {
   vector-effect: non-scaling-stroke;

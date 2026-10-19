@@ -11,6 +11,7 @@ import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThresholds } from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
+import { L2_MANIFEST } from '../data/l2Manifest';
 
 interface WorldMapProps {
   activeFilterId: string;
@@ -46,6 +47,33 @@ export interface JapanMunicipalityProperties {
   pref: string;
   city: string;
   gun?: string;
+}
+
+export interface L2SubdivisionPathData {
+  pathD: string;
+  id: number | string;
+  iso2: string;
+  name: string;
+  nameEn: string;
+  nameZh: string;
+  typeEn: string;
+  code: string;
+  postal: string;
+  centroid: [number, number];
+}
+
+export interface L2SubdivisionDetail {
+  id: number | string;
+  iso2: string;
+  name: string;
+  nameEn: string;
+  nameZh: string;
+  typeEn: string;
+  code: string;
+  postal: string;
+  countryName: string;
+  countryNameZh: string;
+  countryFlag: string;
 }
 
 // Region centers in local Mercator coordinates (W=1000, H=1000)
@@ -103,6 +131,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [hoveredMunicipality, setHoveredMunicipality] = useState<MunicipalityDetail | null>(null);
   const [pinnedPrefId, setPinnedPrefId] = useState<number | null>(null);
 
+  // Worldwide L2 active states and paths
+  const visibleL2Iso2sRef = useRef<Set<string>>(new Set());
+  const [visibleL2Iso2s, setVisibleL2Iso2s] = useState<Set<string>>(new Set());
+  const inFlightFetchesRef = useRef<Set<string>>(new Set());
+  const loadedL2DataRef = useRef<Map<string, L2SubdivisionPathData[]>>(new Map());
+  const [l2PathsByCountry, setL2PathsByCountry] = useState<Record<string, L2SubdivisionPathData[]>>({});
+  const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
+  const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gRef = useRef<SVGGElement>(null);
@@ -141,33 +178,70 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return Math.min(maxY, Math.max(minY, rawY));
   }, []);
 
-  // Track whether Japan has entered the visible viewport to decide L2 activation
-  const [isJapanInViewport, setIsJapanInViewport] = useState<boolean>(true);
-  const isJapanInViewportRef = useRef<boolean>(true);
+  // Check if a country's bounding box intersects the screen viewport across any world copy
+  const isCountryInViewport = useCallback(
+    (
+      bbox: { minX: number; maxX: number; minY: number; maxY: number },
+      k: number,
+      x: number,
+      y: number,
+      vw: number,
+      vh: number,
+      margin = 100
+    ): boolean => {
+      const sMinY = y + bbox.minY * k;
+      const sMaxY = y + bbox.maxY * k;
+      if (sMaxY < -margin || sMinY > vh + margin) return false;
 
-  // Japan Mercator BBox: X [835, 935], Y [350, 440]
-  const checkJapanInViewport = useCallback((k: number, x: number, y: number, vw: number, vh: number) => {
-    for (const c of WORLD_COPIES) {
-      const sMinX = x + (835 + c * MAP_W) * k;
-      const sMaxX = x + (935 + c * MAP_W) * k;
-      const sMinY = y + 350 * k;
-      const sMaxY = y + 440 * k;
-      if (sMaxX >= 0 && sMinX <= vw && sMaxY >= 0 && sMinY <= vh) {
-        return true;
+      for (const c of WORLD_COPIES) {
+        const sMinX = x + (bbox.minX + c * MAP_W) * k;
+        const sMaxX = x + (bbox.maxX + c * MAP_W) * k;
+        if (sMaxX >= -margin && sMinX <= vw + margin) {
+          return true;
+        }
       }
-    }
-    return false;
-  }, []);
+      return false;
+    },
+    []
+  );
 
-  const syncJapanViewport = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number) => {
-      const inView = checkJapanInViewport(k, x, y, vw, vh);
-      if (inView !== isJapanInViewportRef.current) {
-        isJapanInViewportRef.current = inView;
-        setIsJapanInViewport(inView);
+  // Synchronize visible L2 countries across viewport with zero re-renders unless boundary is crossed
+  const syncL2Viewport = useCallback(
+    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
+      if (currentLOD === 'L1') {
+        if (visibleL2Iso2sRef.current.size > 0) {
+          visibleL2Iso2sRef.current = new Set();
+          setVisibleL2Iso2s(new Set());
+        }
+        return;
+      }
+
+      const nextVisible = new Set<string>();
+      for (let i = 0; i < L2_MANIFEST.length; i++) {
+        const c = L2_MANIFEST[i];
+        if (isCountryInViewport(c.bbox, k, x, y, vw, vh, 100)) {
+          nextVisible.add(c.iso2);
+        }
+      }
+
+      let changed = false;
+      if (nextVisible.size !== visibleL2Iso2sRef.current.size) {
+        changed = true;
+      } else {
+        for (const iso of nextVisible) {
+          if (!visibleL2Iso2sRef.current.has(iso)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (changed) {
+        visibleL2Iso2sRef.current = nextVisible;
+        setVisibleL2Iso2s(nextVisible);
       }
     },
-    [checkJapanInViewport]
+    [isCountryInViewport]
   );
 
   // Apply GPU hardware-accelerated transform directly to SVG group element
@@ -295,6 +369,22 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return set;
   }, [pinnedPrefId, lastClickedPrefId, hoveredPrefId]);
 
+  // Active worldwide L2 subdivision paths flattened for rendering
+  const activeL2SubdivisionPaths = useMemo(() => {
+    if (lodLevel === 'L1') return [];
+    const list: L2SubdivisionPathData[] = [];
+    for (const iso2 of visibleL2Iso2s) {
+      if (iso2 === 'JP') continue;
+      const paths = l2PathsByCountry[iso2];
+      if (paths) {
+        for (let i = 0; i < paths.length; i++) {
+          list.push(paths[i]);
+        }
+      }
+    }
+    return list;
+  }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
+
   // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
   useEffect(() => {
     let isMounted = true;
@@ -375,6 +465,67 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   }, []);
 
+  // On-demand loader for visible countries' L2 FlatGeobuf datasets
+  useEffect(() => {
+    if (lodLevel === 'L1') return;
+
+    let isMounted = true;
+    for (const iso2 of visibleL2Iso2s) {
+      if (iso2 === 'JP') continue; // Japan is handled by japanPrefectureFeatures
+      if (loadedL2DataRef.current.has(iso2) || inFlightFetchesRef.current.has(iso2)) continue;
+
+      inFlightFetchesRef.current.add(iso2);
+
+      (async () => {
+        try {
+          const res = await fetch(`/data/l2/${iso2}.fgb`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+          if (!isMounted) return;
+
+          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+          const paths: L2SubdivisionPathData[] = [];
+          for await (const feature of it) {
+            const p = (feature.properties || {}) as Record<string, unknown>;
+            const pathD = pathGenerator(feature) || '';
+            let centroid: [number, number] = [0, 0];
+            try {
+              const c = pathGenerator.centroid(feature);
+              if (c && !isNaN(c[0]) && !isNaN(c[1])) centroid = c;
+            } catch {
+              // fallback to centroid [0, 0] if calculation fails
+            }
+            paths.push({
+              pathD,
+              id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
+              iso2: (p.iso2 as string) || iso2,
+              name: String(p.name || ''),
+              nameEn: String(p.name_en || p.name || ''),
+              nameZh: String(p.name_zh || p.name || ''),
+              typeEn: String(p.type_en || ''),
+              code: String(p.code || ''),
+              postal: String(p.postal || ''),
+              centroid
+            });
+          }
+
+          if (isMounted) {
+            loadedL2DataRef.current.set(iso2, paths);
+            setL2PathsByCountry((prev) => ({ ...prev, [iso2]: paths }));
+          }
+        } catch (err) {
+          console.warn(`[L2] Failed to load /data/l2/${iso2}.fgb:`, err);
+        } finally {
+          inFlightFetchesRef.current.delete(iso2);
+        }
+      })();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visibleL2Iso2s, lodLevel, pathGenerator]);
+
   // Update container size on resize
   useEffect(() => {
     const el = containerRef.current;
@@ -393,7 +544,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           transformRef.current.y = clampY(transformRef.current.y, newK, height);
           transformRef.current.x = wrapX(transformRef.current.x, newK);
-          syncJapanViewport(newK, transformRef.current.x, transformRef.current.y, width, height);
+          syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevel);
           applyTransform(false);
         }
       }
@@ -401,7 +552,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     ro.observe(el);
     return () => ro.disconnect();
-  }, [clampY, wrapX, applyTransform, syncJapanViewport]);
+  }, [clampY, wrapX, applyTransform, syncL2Viewport, lodLevel]);
 
   // Initial map positioning once loaded (runs only once upon initial load)
   useEffect(() => {
@@ -420,12 +571,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
-      syncJapanViewport(initialK, initialX, initialY, vw, vh);
+      const initialLOD = getLODLevel(initialK, lodThresholds);
+      syncL2Viewport(initialK, initialX, initialY, vw, vh, initialLOD);
       setZoomK(Number(initialK.toFixed(1)));
-      setLodLevel(getLODLevel(initialK, lodThresholds));
+      setLodLevel(initialLOD);
       applyTransform(false);
     }
-  }, [loading, wrapX, clampY, applyTransform, lodThresholds, syncJapanViewport]);
+  }, [loading, wrapX, clampY, applyTransform, lodThresholds, syncL2Viewport]);
 
   // Zoom directly into a prefecture at L3 (called from Drawer)
   useEffect(() => {
@@ -444,8 +596,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.x = wrapX(targetX, targetK);
           transformRef.current.y = clampY(targetY, targetK, vh);
 
-          isJapanInViewportRef.current = true;
-          setIsJapanInViewport(true);
+          syncL2Viewport(targetK, transformRef.current.x, transformRef.current.y, vw, vh, 'L3');
           setZoomK(Number(targetK.toFixed(1)));
           setLodLevel('L3');
           setPinnedPrefId(prefId);
@@ -453,7 +604,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       };
     }
-  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, applyTransform]);
+  }, [zoomToPrefectureRef, prefecturePathData, wrapX, clampY, applyTransform, syncL2Viewport]);
 
   // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -494,8 +645,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // Strict vertical clamping: sticks flush to container borders
       transformRef.current.y = clampY(rawY, k, vh);
 
-      if (lodLevel === 'L2') {
-        syncJapanViewport(k, transformRef.current.x, transformRef.current.y, vw, vh);
+      if (lodLevel !== 'L1') {
+        syncL2Viewport(k, transformRef.current.x, transformRef.current.y, vw, vh, lodLevel);
       }
 
       if (!rafId.current) {
@@ -508,7 +659,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     // Direct DOM tooltip position update when hovering
-    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality)) {
+    if (tooltipRef.current && (hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision)) {
       tooltipRef.current.style.display = 'flex';
       tooltipRef.current.style.left = `${e.clientX}px`;
       tooltipRef.current.style.top = `${e.clientY - 12}px`;
@@ -522,7 +673,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       rafId.current = null;
     }
     const { k, x, y } = transformRef.current;
-    syncJapanViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
+    syncL2Viewport(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevel);
   };
 
   // Wheel zoom centered on mouse pointer with Level of Detail (LOD) tracking
@@ -550,13 +701,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    syncJapanViewport(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh);
-
     const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
     setZoomK(Number(newK.toFixed(1)));
+    syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
 
     applyTransform(false);
   };
@@ -578,13 +728,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(newX, newK);
     transformRef.current.y = clampY(newY, newK, vh);
 
-    syncJapanViewport(newK, transformRef.current.x, transformRef.current.y, vw, vh);
-
     const nextLOD = getLODLevel(newK, lodThresholds);
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
     }
     setZoomK(Number(newK.toFixed(1)));
+    syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
 
     applyTransform(true);
   };
@@ -598,11 +747,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(vw / 2 - (MAP_W / 2) * kMin, kMin);
     transformRef.current.y = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
 
-    syncJapanViewport(kMin, transformRef.current.x, transformRef.current.y, vw, vh);
+    const targetLOD = getLODLevel(kMin, lodThresholds);
+    syncL2Viewport(kMin, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
 
     setActiveRegion('world');
     setZoomK(Number(kMin.toFixed(1)));
-    setLodLevel(getLODLevel(kMin, lodThresholds));
+    setLodLevel(targetLOD);
     applyTransform(true);
   };
 
@@ -625,16 +775,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = wrapX(newX, newK);
       transformRef.current.y = clampY(newY, newK, vh);
 
-      syncJapanViewport(newK, transformRef.current.x, transformRef.current.y, vw, vh);
-
       const nextLOD = getLODLevel(newK, lodThresholds);
       if (nextLOD !== lodLevel) {
         setLodLevel(nextLOD);
       }
       setZoomK(Number(newK.toFixed(1)));
+      syncL2Viewport(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
       applyTransform(false);
     },
-    [wrapX, clampY, applyTransform, lodLevel, lodThresholds, syncJapanViewport]
+    [wrapX, clampY, applyTransform, lodLevel, lodThresholds, syncL2Viewport]
   );
 
   // Update dynamic custom LOD thresholds
@@ -645,9 +794,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const nextLOD = getLODLevel(currentK, newThresholds);
       if (nextLOD !== lodLevel) {
         setLodLevel(nextLOD);
+        syncL2Viewport(
+          currentK,
+          transformRef.current.x,
+          transformRef.current.y,
+          viewportSize.current.w,
+          viewportSize.current.h,
+          nextLOD
+        );
       }
     },
-    [lodLevel]
+    [lodLevel, syncL2Viewport]
   );
 
 
@@ -668,10 +825,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.x = wrapX(targetX, targetK);
     transformRef.current.y = clampY(targetY, targetK, vh);
 
-    syncJapanViewport(targetK, transformRef.current.x, transformRef.current.y, vw, vh);
+    const targetLOD = getLODLevel(targetK, lodThresholds);
+    syncL2Viewport(targetK, transformRef.current.x, transformRef.current.y, vw, vh, targetLOD);
 
     setZoomK(Number(targetK.toFixed(1)));
-    setLodLevel(getLODLevel(targetK, lodThresholds));
+    setLodLevel(targetLOD);
     applyTransform(true);
   };
 
@@ -690,6 +848,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     },
     [activeFilterDef]
   );
+
+  const activeSelectedL2 = selectedCountry ? selectedL2Subdivision : null;
 
   return (
     <div
@@ -786,13 +946,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             {/* Continuous periodic world copies */}
             {WORLD_COPIES.map((copyIdx) => (
               <g key={copyIdx} transform={`translate(${copyIdx * MAP_W}, 0)`}>
-                {/* 1. L1 Layer: Countries (Japan is replaced at L2 when visible, and at L3 for higher precision) */}
+                {/* 1. L1 Layer: Countries (Japan and worldwide L2 countries are replaced when active and in viewport) */}
                 {countryPathData.map(({ pathD, countryMeta, id, name }) => {
                   if (!pathD) return null;
-                  const isJapan = String(id) === '392' || name === 'Japan' || countryMeta?.id === '392';
-                  const isJapanL2Active = isJapan && lodLevel === 'L2' && isJapanInViewport;
-                  const isJapanL3Active = isJapan && lodLevel === 'L3';
-                  if (isJapanL2Active || isJapanL3Active) return null;
+                  const iso2 = countryMeta?.iso2;
+                  const isJapan = String(id) === '392' || name === 'Japan' || iso2 === 'JP' || countryMeta?.id === '392';
+                  const isJapanL2Active = isJapan && (lodLevel === 'L2' || lodLevel === 'L3') && visibleL2Iso2s.has('JP');
+                  if (isJapanL2Active) return null;
+
+                  const isWorldwideL2Active =
+                    iso2 &&
+                    iso2 !== 'JP' &&
+                    (lodLevel === 'L2' || lodLevel === 'L3') &&
+                    visibleL2Iso2s.has(iso2) &&
+                    !!l2PathsByCountry[iso2];
+                  if (isWorldwideL2Active) return null;
 
                   const isHovered =
                     hoveredCountry &&
@@ -816,6 +984,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                         mousePos.current = { x: e.clientX, y: e.clientY };
                         setHoveredPrefecture(null);
                         setHoveredMunicipality(null);
+                        setHoveredL2Subdivision(null);
                         if (countryMeta) {
                           setHoveredCountry(countryMeta);
                         } else {
@@ -874,10 +1043,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                   );
                 })}
 
-                {/* 2. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
-                {/* At L2: used only when Japan enters the screen display range */}
-                {/* At L3: render non-active prefectures as L2 (active ones expand to L3) */}
-                {(((lodLevel === 'L2' && isJapanInViewport) || lodLevel === 'L3')) && (copyIdx === 0 || copyIdx === 1) &&
+                {/* 2a. L2 Layer: Japan 47 都道府縣 (Prefectures) High-Precision Outlines */}
+                {((lodLevel === 'L2' && visibleL2Iso2s.has('JP')) || lodLevel === 'L3') &&
+                  (copyIdx === 0 || copyIdx === 1) &&
                   prefecturePathData
                     .filter(({ id }) => lodLevel === 'L2' || !activeL3PrefIds.has(id))
                     .map(({ pathD, prefMeta, id, nameJa, nameEn }) => {
@@ -924,6 +1092,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                             mousePos.current = { x: e.clientX, y: e.clientY };
                             setHoveredCountry(null);
                             setHoveredMunicipality(null);
+                            setHoveredL2Subdivision(null);
                             if (prefMeta) {
                               setHoveredPrefecture(prefMeta);
                             } else {
@@ -952,6 +1121,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                               mousePos.current = { x: e.clientX, y: e.clientY };
                               setHoveredCountry(null);
                               setHoveredMunicipality(null);
+                              setHoveredL2Subdivision(null);
                               if (prefMeta) {
                                 setHoveredPrefecture(prefMeta);
                               } else {
@@ -977,7 +1147,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                           }}
                           onMouseLeave={() => {
                             if (isDragging.current) return;
-                            // When not in L3, clear hover. At L3, ocean backdrop manages clearing to prevent flicker during drilldown
                             if (lodLevel !== 'L3' && hoveredPrefecture) {
                               setHoveredPrefecture(null);
                               if (tooltipRef.current) tooltipRef.current.style.display = 'none';
@@ -997,8 +1166,112 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                       );
                     })}
 
+                {/* 2b. L2 Layer: Worldwide Admin-1 First-Level Subdivisions */}
+                {(lodLevel === 'L2' || lodLevel === 'L3') &&
+                  (copyIdx === 0 || copyIdx === 1) &&
+                  activeL2SubdivisionPaths.map(({ pathD, id, iso2, name, nameEn, nameZh, typeEn, code, postal }) => {
+                    if (!pathD) return null;
+                    const isSelected = activeSelectedL2 && activeSelectedL2.iso2 === iso2 && activeSelectedL2.id === id;
+                    const isHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2 && hoveredL2Subdivision.id === id;
+                    const isSiblingHovered = hoveredL2Subdivision && hoveredL2Subdivision.iso2 === iso2;
+
+                    let fill = '#1e293b';
+                    let pathClass = 'l2-subdivision-path';
+                    let stroke = '#475569';
+                    let strokeWidth = 0.6;
+
+                    if (isSelected) {
+                      fill = '#38bdf8';
+                      pathClass += ' selected';
+                      stroke = '#38bdf8';
+                      strokeWidth = 1.2;
+                    } else if (isHovered) {
+                      fill = '#f97316';
+                      pathClass += ' hovered hovered-deep';
+                      stroke = '#ffffff';
+                      strokeWidth = 1.4;
+                    } else if (isSiblingHovered) {
+                      fill = 'rgba(251, 146, 60, 0.16)';
+                      pathClass += ' sibling-l2-hovered';
+                      stroke = 'rgba(251, 146, 60, 0.35)';
+                      strokeWidth = 0.6;
+                    }
+
+                    return (
+                      <path
+                        key={`${copyIdx}-${iso2}-${id}`}
+                        d={pathD}
+                        className={pathClass}
+                        fill={fill}
+                        stroke={stroke}
+                        strokeWidth={strokeWidth}
+                        style={{ pointerEvents: 'all' }}
+                        onMouseEnter={() => {
+                          if (isDragging.current) return;
+                          setHoveredCountry(null);
+                          setHoveredPrefecture(null);
+                          setHoveredMunicipality(null);
+                          const cMeta = findCountry(iso2);
+                          setHoveredL2Subdivision({
+                            id,
+                            iso2,
+                            name,
+                            nameEn,
+                            nameZh,
+                            typeEn,
+                            code,
+                            postal,
+                            countryName: cMeta?.name || nameEn,
+                            countryNameZh: cMeta?.nameZh || nameZh,
+                            countryFlag: cMeta?.flag || '🌐'
+                          });
+                        }}
+                        onMouseMove={() => {
+                          if (isDragging.current) return;
+                          if (!hoveredL2Subdivision || hoveredL2Subdivision.iso2 !== iso2 || hoveredL2Subdivision.id !== id) {
+                            setHoveredCountry(null);
+                            setHoveredPrefecture(null);
+                            setHoveredMunicipality(null);
+                            const cMeta = findCountry(iso2);
+                            setHoveredL2Subdivision({
+                              id,
+                              iso2,
+                              name,
+                              nameEn,
+                              nameZh,
+                              typeEn,
+                              code,
+                              postal,
+                              countryName: cMeta?.name || nameEn,
+                              countryNameZh: cMeta?.nameZh || nameZh,
+                              countryFlag: cMeta?.flag || '🌐'
+                            });
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          if (isDragging.current) return;
+                          if (hoveredL2Subdivision?.iso2 === iso2 && hoveredL2Subdivision?.id === id) {
+                            setHoveredL2Subdivision(null);
+                          }
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasDragged.current) return;
+                          setSelectedL2Subdivision({ iso2, id });
+                          const cMeta = findCountry(iso2);
+                          if (cMeta) {
+                            onSelectCountry(cMeta);
+                            if (onSelectPrefecture) onSelectPrefecture(null);
+                            if (onSelectMunicipality) onSelectMunicipality(null);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+
                 {/* 3. L3 Layer: Japan 市區町村 (Municipalities) - Only loaded for active (hovered & last clicked) prefectures */}
-                {lodLevel === 'L3' && (copyIdx === 0 || copyIdx === 1) &&
+                {lodLevel === 'L3' &&
+                  (copyIdx === 0 || copyIdx === 1) &&
                   Array.from(activeL3PrefIds).flatMap((pId) => {
                     const munis = municipalitiesByPrefId.get(pId) || [];
                     return munis.map(({ pathD, code, prefId: mPrefId, pref, city, gun }) => {
@@ -1055,6 +1328,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                             mousePos.current = { x: e.clientX, y: e.clientY };
                             setHoveredCountry(null);
                             setHoveredPrefecture(null);
+                            setHoveredL2Subdivision(null);
                             setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
                             if (tooltipRef.current) {
                               tooltipRef.current.style.display = 'flex';
@@ -1068,6 +1342,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                               mousePos.current = { x: e.clientX, y: e.clientY };
                               setHoveredCountry(null);
                               setHoveredPrefecture(null);
+                              setHoveredL2Subdivision(null);
                               setHoveredMunicipality({ code, prefId: mPrefId, pref, gun, city, nameZh: `${pref} ${city}` });
                               if (tooltipRef.current) {
                                 tooltipRef.current.style.display = 'flex';
@@ -1100,8 +1375,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         </svg>
       )}
 
-      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, and Municipality) */}
-      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality) && (
+      {/* Dynamic Floating Hover Tooltip (Adapts to Country, Prefecture, Municipality, and Worldwide L2) */}
+      {(hoveredCountry || hoveredPrefecture || hoveredMunicipality || hoveredL2Subdivision) && (
         <div
           ref={(node) => {
             tooltipRef.current = node;
@@ -1173,8 +1448,44 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             </>
           )}
 
+          {/* L2 Worldwide Subdivision Tooltip */}
+          {hoveredL2Subdivision && (
+            <>
+              <div className="tooltip-header">
+                <span className="tooltip-flag">{hoveredL2Subdivision.countryFlag}</span>
+                <div>
+                  <div className="tooltip-name">
+                    {hoveredL2Subdivision.nameZh}
+                    {hoveredL2Subdivision.nameEn && hoveredL2Subdivision.nameEn !== hoveredL2Subdivision.nameZh
+                      ? ` (${hoveredL2Subdivision.nameEn})`
+                      : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {hoveredL2Subdivision.countryNameZh} ({hoveredL2Subdivision.countryName})
+                    {hoveredL2Subdivision.typeEn ? ` · ${hoveredL2Subdivision.typeEn}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="tooltip-meta">
+                <span className="tooltip-badge" style={{ color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                  L2 · 第一級行政區
+                </span>
+                {hoveredL2Subdivision.code && (
+                  <span className="tooltip-badge" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                    {hoveredL2Subdivision.code}
+                  </span>
+                )}
+                {hoveredL2Subdivision.postal && (
+                  <span className="tooltip-badge" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
+                    郵區: {hoveredL2Subdivision.postal}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
           {/* L1 Country Tooltip */}
-          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && (
+          {hoveredCountry && !hoveredPrefecture && !hoveredMunicipality && !hoveredL2Subdivision && (
             <>
               <div className="tooltip-header">
                 <span className="tooltip-flag">{hoveredCountry.flag}</span>

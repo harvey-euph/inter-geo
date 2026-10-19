@@ -25,8 +25,8 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
     level: 'L2',
     minK: 3.2,
     maxK: 6.5,
-    labelZh: 'L2 · 都道府縣',
-    sublabelZh: '47 都道府縣、市外局番、專屬路牌',
+    labelZh: 'L2 · 第一級行政區',
+    sublabelZh: '全球 91 國省/州/省份、日本都道府縣',
     color: '#10b981'
   },
   {
