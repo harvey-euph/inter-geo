@@ -401,14 +401,15 @@
 }
 
 /* Zoom controls */
-.map-controls-panel {
+.map-controls-panel,
+.map-controls {
   position: absolute;
   right: 20px;
   bottom: 24px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 20;
+  z-index: 30;
 }
 
 .map-control-btn {
@@ -440,6 +441,13 @@
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
 }
 
+.btn-road-active {
+  background-color: rgba(56, 189, 248, 0.2) !important;
+  border-color: #38bdf8 !important;
+  color: #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3) !important;
+}
+
 /* Road Network Overlay Layer */
 .road-network-overlay path {
   transition: stroke 0.15s ease, stroke-width 0.15s ease, stroke-opacity 0.15s ease;
@@ -450,14 +458,15 @@
 }
 
 /* Region Navigator Quick Presets */
-.region-presets-bar {
+.region-presets-bar,
+.region-presets {
   position: absolute;
   left: 20px;
   bottom: 24px;
   display: flex;
   align-items: center;
   gap: 6px;
-  z-index: 20;
+  z-index: 30;
   background-color: rgba(24, 26, 32, 0.85);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);

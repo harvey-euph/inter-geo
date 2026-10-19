@@ -26,6 +26,8 @@ interface WorldMapProps {
   hoveredCountry: CountryData | null;
   setHoveredCountry: (country: CountryData | null) => void;
   zoomToPrefectureRef?: React.MutableRefObject<((prefId: number) => void) | null>;
+  showRoads?: boolean;
+  onToggleRoads?: () => void;
 }
 
 export interface WorldCountryProperties {
@@ -123,7 +125,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   onSelectMunicipality,
   hoveredCountry,
   setHoveredCountry,
-  zoomToPrefectureRef
+  zoomToPrefectureRef,
+  showRoads: showRoadsProp,
+  onToggleRoads: onToggleRoadsProp
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [japanPrefectureFeatures, setJapanPrefectureFeatures] = useState<Feature<Geometry, JapanPrefectureProperties>[]>([]);
@@ -152,8 +156,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
 
   // Road network overlay state and refs
-  const [showRoads, setShowRoads] = useState<boolean>(false);
-  const showRoadsRef = useRef<boolean>(false);
+  const [showRoads, setShowRoads] = useState<boolean>(showRoadsProp ?? false);
+  const showRoadsRef = useRef<boolean>(showRoadsProp ?? false);
   const visibleRoadIso2sRef = useRef<Set<string>>(new Set());
   const [visibleRoadIso2s, setVisibleRoadIso2s] = useState<Set<string>>(new Set());
   const inFlightRoadFetchesRef = useRef<Set<string>>(new Set());
@@ -314,14 +318,28 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Toggle highway and route overlay layer
   const handleToggleRoads = useCallback(() => {
-    setShowRoads((prev) => {
-      const next = !prev;
-      showRoadsRef.current = next;
+    if (onToggleRoadsProp) {
+      onToggleRoadsProp();
+    } else {
+      setShowRoads((prev) => {
+        const next = !prev;
+        showRoadsRef.current = next;
+        const { k, x, y } = transformRef.current;
+        syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, next);
+        return next;
+      });
+    }
+  }, [onToggleRoadsProp, syncRoadsViewport]);
+
+  // Synchronize showRoads prop changes from parent (e.g. Header toggle button)
+  useEffect(() => {
+    if (showRoadsProp !== undefined && showRoadsProp !== showRoadsRef.current) {
+      showRoadsRef.current = showRoadsProp;
+      setShowRoads(showRoadsProp);
       const { k, x, y } = transformRef.current;
-      syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, next);
-      return next;
-    });
-  }, [syncRoadsViewport]);
+      syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, showRoadsProp);
+    }
+  }, [showRoadsProp, syncRoadsViewport]);
 
   // Apply GPU hardware-accelerated transform directly to SVG group element
   const applyTransform = useCallback((animate = false) => {
@@ -1802,7 +1820,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       </div>
 
       {/* Map Control Buttons */}
-      <div className="map-controls">
+      <div className="map-controls-panel map-controls">
         <button
           className={`map-control-btn ${showRoads ? 'active' : ''}`}
           onClick={handleToggleRoads}
@@ -1834,7 +1852,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       </div>
 
       {/* Region Presets Floating Navigation */}
-      <div className="region-presets">
+      <div className="region-presets-bar region-presets">
         <div className="region-presets-label">
           <Compass size={13} style={{ display: 'inline', marginRight: 4 }} />
           大洲視野

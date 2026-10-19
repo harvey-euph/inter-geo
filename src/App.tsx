@@ -16,6 +16,7 @@ export function App() {
   const [selectedPrefecture, setSelectedPrefecture] = useState<PrefectureDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
+  const [showRoads, setShowRoads] = useState<boolean>(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
   const zoomToPrefectureRef = useRef<((prefId: number) => void) | null>(null);
@@ -80,6 +81,8 @@ export function App() {
         onToggleFilterExpanded={() => setIsFilterExpanded((prev) => !prev)}
         onSelectCountry={handleSelectCountry}
         onOpenQuiz={() => setIsQuizOpen(true)}
+        showRoads={showRoads}
+        onToggleRoads={() => setShowRoads((prev) => !prev)}
       />
 
       {/* Main Viewport */}
@@ -106,6 +109,8 @@ export function App() {
             hoveredCountry={hoveredCountry}
             setHoveredCountry={setHoveredCountry}
             zoomToPrefectureRef={zoomToPrefectureRef}
+            showRoads={showRoads}
+            onToggleRoads={() => setShowRoads((prev) => !prev)}
           />
         </section>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Globe, Search, Award, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { Globe, Search, Award, SlidersHorizontal, ChevronDown, ChevronUp, Route } from 'lucide-react';
 import { COUNTRIES_DATA } from '../data/countries';
 import { FILTERS } from '../data/filters';
 import type { CountryData } from '../types/geo';
@@ -11,6 +11,8 @@ interface HeaderProps {
   onToggleFilterExpanded: () => void;
   onSelectCountry: (country: CountryData) => void;
   onOpenQuiz: () => void;
+  showRoads?: boolean;
+  onToggleRoads?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,7 +21,9 @@ export const Header: React.FC<HeaderProps> = ({
   isFilterExpanded,
   onToggleFilterExpanded,
   onSelectCountry,
-  onOpenQuiz
+  onOpenQuiz,
+  showRoads,
+  onToggleRoads
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CountryData[]>([]);
@@ -147,6 +151,16 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
+
+        {/* Road Network Toggle Button */}
+        <button
+          className={`btn-header ${showRoads ? 'btn-road-active' : ''}`}
+          onClick={onToggleRoads}
+          title={showRoads ? '關閉公路系統圖層 (Hide Highways)' : '開啟公路系統圖層 (Show Highways)'}
+        >
+          <Route size={15} />
+          <span>公路系統</span>
+        </button>
 
         {/* Quiz Button */}
         <button className="btn-header btn-primary" onClick={onOpenQuiz}>
