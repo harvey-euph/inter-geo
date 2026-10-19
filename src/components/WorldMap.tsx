@@ -112,6 +112,23 @@ export interface L3SubdivisionPathData {
   code: string;
 }
 
+export interface ActiveL3ParentInfo {
+  iso2: string;
+  id: string | number;
+  name: string;
+  code?: string;
+  bbox: [number, number, number, number];
+  path2D: Path2D;
+}
+
+function normParentKey(iso2: string, text: string): string {
+  return `${(iso2 || '').toLowerCase()}-${String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[\s\-_~]+/g, '')}`;
+}
+
 export interface RoadPathData {
   pathD: string;
   name: string;
@@ -127,6 +144,7 @@ export interface RoadPathData {
 type HitFeature =
   | { type: 'road'; data: RoadPathData }
   | { type: 'municipality'; data: MunicipalityDetail }
+  | { type: 'activeParentInterior'; data: ActiveL3ParentInfo }
   | { type: 'prefecture'; data: PrefecturePathData }
   | { type: 'l2Subdivision'; data: L2SubdivisionPathData }
   | { type: 'country'; data: CountryPathData };
@@ -240,7 +258,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hoveredL2SubdivisionRef = useRef<L2SubdivisionDetail | null>(hoveredL2Subdivision || null);
   const selectedL2SubdivisionRef = useRef<{ iso2: string; id: number | string } | null>(selectedL2Subdivision || null);
   const lodLevelRef = useRef<LODLevel>(lodLevel);
-  const activeL3ParentKeysRef = useRef<Set<string>>(new Set());
+  const activeL3ParentRef = useRef<ActiveL3ParentInfo | null>(null);
+  const l3PathsByParentRef = useRef<Map<string, L3SubdivisionPathData[]>>(new Map());
 
   // Store container dimensions
   const viewportSize = useRef({ w: 1200, h: 800 });
@@ -398,62 +417,26 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return list;
   }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
 
-  // Active L3 parent keys (Japan prefectures + Worldwide states/regions) that should expand to L3
-  const activeL3ParentKeys = useMemo(() => {
-    const set = new Set<string>();
-
-    if (pinnedPrefId) {
-      set.add(`jp-${pinnedPrefId}`);
-      set.add(`jp-${JAPAN_PREFECTURES[pinnedPrefId]?.nameJa}`.toLowerCase());
-    }
-
-    if (selectedMunicipality) {
-      const iso = (selectedMunicipality.iso2 || 'JP').toLowerCase();
-      if (selectedMunicipality.prefId) set.add(`jp-${selectedMunicipality.prefId}`);
-      if (selectedMunicipality.pref) set.add(`${iso}-${selectedMunicipality.pref.toLowerCase()}`);
-      if (selectedMunicipality.parentCode) set.add(`${iso}-${selectedMunicipality.parentCode.toLowerCase()}`);
-    }
-
-    if (selectedPrefecture?.id) {
-      set.add(`jp-${selectedPrefecture.id}`);
-      set.add(`jp-${selectedPrefecture.nameJa}`.toLowerCase());
-    }
-
-    if (selectedL2Subdivision) {
-      set.add(`${selectedL2Subdivision.iso2}-${selectedL2Subdivision.id}`.toLowerCase());
-    }
-
-    if (hoveredPrefecture?.id) {
-      set.add(`jp-${hoveredPrefecture.id}`);
-      set.add(`jp-${hoveredPrefecture.nameJa}`.toLowerCase());
-    }
-
-    if (hoveredL2Subdivision) {
-      const iso = hoveredL2Subdivision.iso2.toLowerCase();
-      set.add(`${iso}-${hoveredL2Subdivision.id}`.toLowerCase());
-      set.add(`${iso}-${hoveredL2Subdivision.name}`.toLowerCase());
-      if (hoveredL2Subdivision.code) set.add(`${iso}-${hoveredL2Subdivision.code}`.toLowerCase());
-    }
-
-    if (hoveredMunicipality) {
-      const iso = (hoveredMunicipality.iso2 || 'JP').toLowerCase();
-      if (hoveredMunicipality.prefId) set.add(`jp-${hoveredMunicipality.prefId}`);
-      if (hoveredMunicipality.pref) set.add(`${iso}-${hoveredMunicipality.pref.toLowerCase()}`);
-      if (hoveredMunicipality.parentCode) set.add(`${iso}-${hoveredMunicipality.parentCode.toLowerCase()}`);
-    }
-
-    return set;
-  }, [pinnedPrefId, selectedMunicipality, selectedPrefecture, selectedL2Subdivision, hoveredPrefecture, hoveredL2Subdivision, hoveredMunicipality]);
-
-  // Fast helper to check if an L2 parent is currently expanded into L3 units
-  const isParentActiveInL3 = useCallback((iso2: string, name?: string, code?: string, id?: string | number): boolean => {
-    const normIso = (iso2 || '').toLowerCase();
-    const set = activeL3ParentKeysRef.current;
-    if (id !== undefined && set.has(`${normIso}-${String(id).toLowerCase()}`)) return true;
-    if (code && set.has(`${normIso}-${code.toLowerCase()}`)) return true;
-    if (name && set.has(`${normIso}-${name.toLowerCase()}`)) return true;
-    return false;
-  }, []);
+  // Helper to fetch L3 child subdivisions for a specific parent (O(1) Map lookup)
+  const getL3SubdivisionsForParent = useCallback(
+    (iso2: string, name?: string, code?: string, id?: string | number): L3SubdivisionPathData[] => {
+      const map = l3PathsByParentRef.current;
+      if (name) {
+        const list = map.get(normParentKey(iso2, name));
+        if (list && list.length > 0) return list;
+      }
+      if (code) {
+        const list = map.get(normParentKey(iso2, code));
+        if (list && list.length > 0) return list;
+      }
+      if (id !== undefined) {
+        const list = map.get(normParentKey(iso2, String(id)));
+        if (list && list.length > 0) return list;
+      }
+      return [];
+    },
+    []
+  );
 
   // Periodic horizontal wrap: ensures x is always continuously periodic within [-worldW, 0)
   const wrapX = useCallback((rawX: number, k: number) => {
@@ -537,10 +520,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [isCountryInViewport]
   );
 
-  // Synchronize visible L3 countries across viewport
+  // Synchronize visible L3 countries across viewport (preloads in L2 and L3)
   const syncL3Viewport = useCallback(
     (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      if (currentLOD !== 'L3') {
+      if (currentLOD === 'L1') {
         if (visibleL3Iso2sRef.current.size > 0) {
           visibleL3Iso2sRef.current = new Set();
           setVisibleL3Iso2s(new Set());
@@ -785,7 +768,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           if (!pref.path2D) continue;
 
           // If L3 mode and this prefecture is expanded into municipalities, skip L2 drawing
-          const isExpanded = currentLod === 'L3' && isParentActiveInL3('JP', pref.nameJa, String(pref.id), pref.id);
+          let isExpanded = false;
+          if (currentLod === 'L3') {
+            const activeParent = activeL3ParentRef.current;
+            const isThisPref =
+              (activeParent && activeParent.iso2 === 'JP' && Number(activeParent.id) === pref.id) ||
+              pinnedPrefId === pref.id;
+            if (isThisPref) {
+              const munis = municipalitiesByPrefId.get(pref.id);
+              if (munis && munis.length > 0) {
+                isExpanded = true;
+              }
+            }
+          }
           if (isExpanded) continue;
 
           const isHovered = hoveredP && hoveredP.id === pref.id;
@@ -832,14 +827,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           if (!sub.path2D) continue;
 
           // If L3 mode and this subdivision is expanded into L3 units, skip L2 drawing
-          const isExpanded = currentLod === 'L3' && isParentActiveInL3(sub.iso2, sub.name, sub.code, sub.id);
+          let isExpanded = false;
+          if (currentLod === 'L3') {
+            const activeParent = activeL3ParentRef.current;
+            if (activeParent && activeParent.iso2 === sub.iso2 && activeParent.id === sub.id) {
+              const children = getL3SubdivisionsForParent(sub.iso2, sub.name, sub.code, sub.id);
+              if (children && children.length > 0) {
+                isExpanded = true;
+              }
+            }
+          }
           if (isExpanded) continue;
 
           const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && selectedL2.id === sub.id;
           const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && hoveredL2.id === sub.id;
           const isSiblingHovered =
             (hoveredL2 && hoveredL2.iso2 === sub.iso2) ||
-            (hoveredM && hoveredM.iso2 === sub.iso2);
+            (hoveredM && hoveredM.iso2 === sub.iso2) ||
+            (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
 
           let fill = '#1e293b';
           let stroke = '#475569';
@@ -877,25 +882,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // 3a. Layer 3a: Japan Municipalities (市區町村)
       // ----------------------------------------------------
       if (currentLod === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
-        // Japan legacy features
-        for (let i = 0; i < prefecturePathData.length; i++) {
-          const pref = prefecturePathData[i];
-          if (!isParentActiveInL3('JP', pref.nameJa, String(pref.id), pref.id)) continue;
+        const activeParent = activeL3ParentRef.current;
+        const activePrefId =
+          activeParent && activeParent.iso2 === 'JP' ? Number(activeParent.id) : (pinnedPrefId || null);
 
-          const munis = municipalitiesByPrefId.get(pref.id) || [];
+        if (activePrefId) {
+          const munis = municipalitiesByPrefId.get(activePrefId) || [];
           for (let mIdx = 0; mIdx < munis.length; mIdx++) {
             const m = munis[mIdx];
             if (!m.path2D) continue;
 
             const isHovered = hoveredM && hoveredM.code === m.code && (!hoveredM.iso2 || hoveredM.iso2 === 'JP');
             const isSelected = selectedM && selectedM.code === m.code && (!selectedM.iso2 || selectedM.iso2 === 'JP');
-            const isParentPref =
-              hoveredM &&
-              (!hoveredM.iso2 || hoveredM.iso2 === 'JP') &&
-              (hoveredM.prefId ? hoveredM.prefId === m.prefId : hoveredM.pref === m.pref);
 
-            let fill = '#1e2433';
-            let stroke = 'rgba(255, 255, 255, 0.2)';
+            let fill = 'rgba(234, 88, 12, 0.25)';
+            let stroke = 'rgba(251, 146, 60, 0.45)';
             let strokeWidth = 0.35 / k;
 
             if (isSelected) {
@@ -906,14 +907,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               fill = '#f97316';
               stroke = '#ffffff';
               strokeWidth = 0.8 / k;
-            } else if (isParentPref) {
-              fill = 'rgba(234, 88, 12, 0.35)';
-              stroke = 'rgba(251, 146, 60, 0.5)';
-              strokeWidth = 0.35 / k;
-            } else if (hoveredM && (!hoveredM.iso2 || hoveredM.iso2 === 'JP')) {
-              fill = 'rgba(251, 146, 60, 0.13)';
-              stroke = 'rgba(251, 146, 60, 0.22)';
-              strokeWidth = 0.35 / k;
             }
 
             ctx.fillStyle = fill;
@@ -931,27 +924,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
 
         // ----------------------------------------------------
-        // 3b. Layer 3b: Worldwide L3 Subdivisions (US Counties, FR Departments, DE Landkreise, etc.)
+        // 3b. Layer 3b: Worldwide L3 Subdivisions (US Counties, Landkreise, etc.)
         // ----------------------------------------------------
-        for (const [iso2, paths] of Object.entries(l3PathsByCountryRef.current)) {
-          if (iso2 === 'JP') continue; // Handled above
-
-          for (let pIdx = 0; pIdx < paths.length; pIdx++) {
-            const item = paths[pIdx];
+        if (activeParent && activeParent.iso2 !== 'JP') {
+          const children = getL3SubdivisionsForParent(activeParent.iso2, activeParent.name, activeParent.code, activeParent.id);
+          for (let cIdx = 0; cIdx < children.length; cIdx++) {
+            const item = children[cIdx];
             if (!item.path2D) continue;
-
-            const isExpanded = isParentActiveInL3(item.iso2, item.parentName, item.parentCode);
-            if (!isExpanded) continue;
 
             const isHovered = hoveredM && hoveredM.iso2 === item.iso2 && hoveredM.code === item.id;
             const isSelected = selectedM && selectedM.iso2 === item.iso2 && selectedM.code === item.id;
-            const isParentSub =
-              hoveredM &&
-              hoveredM.iso2 === item.iso2 &&
-              (hoveredM.pref === item.parentName || hoveredM.parentCode === item.parentCode);
 
-            let fill = '#1e2433';
-            let stroke = 'rgba(255, 255, 255, 0.2)';
+            let fill = 'rgba(234, 88, 12, 0.25)';
+            let stroke = 'rgba(251, 146, 60, 0.45)';
             let strokeWidth = 0.35 / k;
 
             if (isSelected) {
@@ -962,14 +947,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               fill = '#f97316';
               stroke = '#ffffff';
               strokeWidth = 0.8 / k;
-            } else if (isParentSub) {
-              fill = 'rgba(234, 88, 12, 0.35)';
-              stroke = 'rgba(251, 146, 60, 0.5)';
-              strokeWidth = 0.35 / k;
-            } else if (hoveredM && hoveredM.iso2 === item.iso2) {
-              fill = 'rgba(251, 146, 60, 0.13)';
-              stroke = 'rgba(251, 146, 60, 0.22)';
-              strokeWidth = 0.35 / k;
             }
 
             ctx.fillStyle = fill;
@@ -1072,7 +1049,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       highlightHoverPaths.length = 0;
       highlightSelectPaths.length = 0;
     }
-  }, [countryPathData, prefecturePathData, activeL2SubdivisionPaths, municipalitiesByPrefId, isParentActiveInL3]);
+  }, [countryPathData, prefecturePathData, activeL2SubdivisionPaths, municipalitiesByPrefId, getL3SubdivisionsForParent, pinnedPrefId]);
 
   // Smooth animation tween using requestAnimationFrame
   const animateTo = useCallback(
@@ -1204,48 +1181,53 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       // 2a. Check L3 Municipalities / Subdivisions (if L3 mode and copy 0 or 1)
       if (lodLevelRef.current === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
-        // Japan municipalities
-        for (let i = 0; i < prefecturePathData.length; i++) {
-          const pref = prefecturePathData[i];
-          if (!isParentActiveInL3('JP', pref.nameJa, String(pref.id), pref.id)) continue;
-          const munis = municipalitiesByPrefId.get(pref.id);
-          if (!munis) continue;
+        const activeParent = activeL3ParentRef.current;
 
-          for (let mIdx = 0; mIdx < munis.length; mIdx++) {
-            const m = munis[mIdx];
-            const [minX, minY, maxX, maxY] = m.bbox;
-            if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-            if (ctx.isPointInPath(m.path2D, mx * dpr, my * dpr)) {
-              return {
-                type: 'municipality',
-                data: {
-                  code: m.code,
-                  pref: m.pref,
-                  prefId: m.prefId,
-                  gun: m.gun,
-                  city: m.city,
-                  nameZh: `${m.pref} ${m.city}`,
-                  iso2: 'JP',
-                  countryName: 'Japan',
-                  countryNameZh: '日本',
-                  countryFlag: '🇯🇵',
-                  typeEn: 'Municipality',
-                  parentName: m.pref,
-                  parentCode: String(m.prefId)
-                }
-              };
+        // Japan municipalities
+        const activePrefId =
+          activeParent && activeParent.iso2 === 'JP' ? Number(activeParent.id) : (pinnedPrefId || null);
+
+        if (activePrefId) {
+          const munis = municipalitiesByPrefId.get(activePrefId);
+          if (munis) {
+            for (let mIdx = 0; mIdx < munis.length; mIdx++) {
+              const m = munis[mIdx];
+              const [minX, minY, maxX, maxY] = m.bbox;
+              if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+              if (ctx.isPointInPath(m.path2D, mx * dpr, my * dpr)) {
+                return {
+                  type: 'municipality',
+                  data: {
+                    code: m.code,
+                    pref: m.pref,
+                    prefId: m.prefId,
+                    gun: m.gun,
+                    city: m.city,
+                    nameZh: `${m.pref} ${m.city}`,
+                    iso2: 'JP',
+                    countryName: 'Japan',
+                    countryNameZh: '日本',
+                    countryFlag: '🇯🇵',
+                    typeEn: 'Municipality',
+                    parentName: m.pref,
+                    parentCode: String(m.prefId)
+                  }
+                };
+              }
             }
           }
         }
 
         // Worldwide L3 Subdivisions
-        for (const [iso2, paths] of Object.entries(l3PathsByCountryRef.current)) {
-          if (iso2 === 'JP') continue;
-
-          for (let pIdx = 0; pIdx < paths.length; pIdx++) {
-            const item = paths[pIdx];
-            if (!isParentActiveInL3(item.iso2, item.parentName, item.parentCode)) continue;
-
+        if (activeParent && activeParent.iso2 !== 'JP') {
+          const children = getL3SubdivisionsForParent(
+            activeParent.iso2,
+            activeParent.name,
+            activeParent.code,
+            activeParent.id
+          );
+          for (let pIdx = 0; pIdx < children.length; pIdx++) {
+            const item = children[pIdx];
             const [minX, minY, maxX, maxY] = item.bbox;
             if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
 
@@ -1270,6 +1252,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             }
           }
         }
+
+        // Check if cursor is over water/gap within active parent
+        if (activeParent && activeParent.path2D) {
+          const [minX, minY, maxX, maxY] = activeParent.bbox;
+          if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
+            if (ctx.isPointInPath(activeParent.path2D, mx * dpr, my * dpr)) {
+              return {
+                type: 'activeParentInterior',
+                data: activeParent
+              };
+            }
+          }
+        }
       }
 
       // 2b. Check L2 Japan Prefectures (if L2 or L3 mode, and copy 0 or 1)
@@ -1279,7 +1274,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       ) {
         for (let i = 0; i < prefecturePathData.length; i++) {
           const pref = prefecturePathData[i];
-          if (lodLevelRef.current === 'L3' && isParentActiveInL3('JP', pref.nameJa, String(pref.id), pref.id)) continue;
           const [minX, minY, maxX, maxY] = pref.bbox;
           if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
           if (ctx.isPointInPath(pref.path2D, mx * dpr, my * dpr)) {
@@ -1292,7 +1286,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if ((lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
         for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
           const sub = activeL2SubdivisionPaths[i];
-          if (lodLevelRef.current === 'L3' && isParentActiveInL3(sub.iso2, sub.name, sub.code, sub.id)) continue;
           const [minX, minY, maxX, maxY] = sub.bbox;
           if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
           if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
@@ -1326,7 +1319,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     return null;
-  }, [prefecturePathData, activeL2SubdivisionPaths, countryPathData, municipalitiesByPrefId, isParentActiveInL3]);
+  }, [prefecturePathData, activeL2SubdivisionPaths, countryPathData, municipalitiesByPrefId, getL3SubdivisionsForParent, pinnedPrefId]);
 
   // Map Click Handler: selects feature or deselects when clicking empty space
   const handleMapClick = useCallback(
@@ -1361,7 +1354,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (hit.type === 'municipality') {
         const m = hit.data;
-        if (m.prefId) setPinnedPrefId(m.prefId);
+        if (m.iso2 === 'JP' && m.prefId) setPinnedPrefId(m.prefId);
         if (onSelectMunicipality) {
           onSelectMunicipality(m);
           onSelectCountry(null);
@@ -1370,6 +1363,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       } else if (hit.type === 'prefecture') {
         const pref = hit.data;
         setPinnedPrefId(pref.id);
+        if (lodLevelRef.current === 'L3') {
+          activeL3ParentRef.current = {
+            iso2: 'JP',
+            id: pref.id,
+            name: pref.nameJa,
+            code: String(pref.id),
+            bbox: pref.bbox,
+            path2D: pref.path2D
+          };
+        }
         if (pref.prefMeta && onSelectPrefecture) {
           onSelectPrefecture(pref.prefMeta);
           onSelectCountry(null);
@@ -1380,6 +1383,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const selObj = { iso2: sub.iso2, id: sub.id };
         setSelectedL2Subdivision(selObj);
         selectedL2SubdivisionRef.current = selObj;
+        if (lodLevelRef.current === 'L3') {
+          activeL3ParentRef.current = {
+            iso2: sub.iso2,
+            id: sub.id,
+            name: sub.name,
+            code: sub.code,
+            bbox: sub.bbox,
+            path2D: sub.path2D
+          };
+        }
         const cMeta = findCountry(sub.iso2);
         if (cMeta) {
           onSelectCountry(cMeta);
@@ -1465,6 +1478,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     if (!hit) {
+      if (lodLevelRef.current === 'L3' && activeL3ParentRef.current) {
+        activeL3ParentRef.current = null;
+      }
       let hadHover = false;
       if (hoveredRoadRef.current) {
         hoveredRoadRef.current = null;
@@ -1496,6 +1512,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
       if (hadHover) {
         renderCanvas();
+      }
+      return;
+    }
+
+    if (hit.type === 'activeParentInterior') {
+      if (hoveredMunicipalityRef.current) {
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+        renderCanvas();
+      }
+      if (tooltipRef.current) {
+        tooltipRef.current.style.display = 'none';
       }
       return;
     }
@@ -1532,6 +1560,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
     } else if (hit.type === 'prefecture') {
       const pref = hit.data;
+      if (lodLevelRef.current === 'L3') {
+        if (activeL3ParentRef.current?.iso2 !== 'JP' || activeL3ParentRef.current?.id !== pref.id) {
+          activeL3ParentRef.current = {
+            iso2: 'JP',
+            id: pref.id,
+            name: pref.nameJa,
+            code: String(pref.id),
+            bbox: pref.bbox,
+            path2D: pref.path2D
+          };
+          setPinnedPrefId(pref.id);
+        }
+      }
       if (hoveredPrefectureRef.current?.id !== pref.id) {
         const prefDetail: PrefectureDetail = pref.prefMeta || {
           id: pref.id,
@@ -1559,6 +1600,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
     } else if (hit.type === 'l2Subdivision') {
       const sub = hit.data;
+      if (lodLevelRef.current === 'L3') {
+        if (activeL3ParentRef.current?.iso2 !== sub.iso2 || activeL3ParentRef.current?.id !== sub.id) {
+          activeL3ParentRef.current = {
+            iso2: sub.iso2,
+            id: sub.id,
+            name: sub.name,
+            code: sub.code,
+            bbox: sub.bbox,
+            path2D: sub.path2D
+          };
+        }
+      }
       if (
         hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
         hoveredL2SubdivisionRef.current?.id !== sub.id
@@ -1615,6 +1668,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         tld: '',
         keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
       };
+      if (lodLevelRef.current === 'L3' && activeL3ParentRef.current && activeL3ParentRef.current.iso2 !== cMeta.iso2) {
+        activeL3ParentRef.current = null;
+      }
       if (hoveredCountryRef.current?.id !== cMeta.id) {
         hoveredCountryRef.current = cMeta;
         setHoveredCountry(cMeta);
@@ -1675,6 +1731,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
       lodLevelRef.current = nextLOD;
+      if (nextLOD !== 'L3') {
+        activeL3ParentRef.current = null;
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+      }
     }
     setZoomK(Number(newK.toFixed(1)));
     syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
@@ -1699,6 +1760,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (nextLOD !== lodLevel) {
       setLodLevel(nextLOD);
       lodLevelRef.current = nextLOD;
+      if (nextLOD !== 'L3') {
+        activeL3ParentRef.current = null;
+        hoveredMunicipalityRef.current = null;
+        setHoveredMunicipality(null);
+      }
     }
     setZoomK(Number(newK.toFixed(1)));
     animateTo(newK, newX, newY, 280, () => {
@@ -1719,6 +1785,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     setZoomK(Number(kMin.toFixed(1)));
     setLodLevel(targetLOD);
     lodLevelRef.current = targetLOD;
+    if (targetLOD !== 'L3') {
+      activeL3ParentRef.current = null;
+      hoveredMunicipalityRef.current = null;
+      setHoveredMunicipality(null);
+    }
     animateTo(kMin, targetX, targetY, 320, () => {
       syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
     });
@@ -1747,6 +1818,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (nextLOD !== lodLevelRef.current) {
         setLodLevel(nextLOD);
         lodLevelRef.current = nextLOD;
+        if (nextLOD !== 'L3') {
+          activeL3ParentRef.current = null;
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+        }
       }
       setZoomK(Number(newK.toFixed(1)));
       syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
@@ -1809,10 +1885,39 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     renderCanvas();
   }, [lodLevel, renderCanvas]);
 
+  // Synchronize initial pinned / selected parents into activeL3ParentRef
   useEffect(() => {
-    activeL3ParentKeysRef.current = activeL3ParentKeys;
-    renderCanvas();
-  }, [activeL3ParentKeys, renderCanvas]);
+    if (lodLevelRef.current !== 'L3') return;
+    if (pinnedPrefId) {
+      const pref = prefecturePathData.find((p) => p.id === pinnedPrefId);
+      if (pref) {
+        activeL3ParentRef.current = {
+          iso2: 'JP',
+          id: pref.id,
+          name: pref.nameJa,
+          code: String(pref.id),
+          bbox: pref.bbox,
+          path2D: pref.path2D
+        };
+        renderCanvas();
+      }
+    } else if (selectedL2Subdivision) {
+      const sub = activeL2SubdivisionPaths.find(
+        (s) => s.iso2 === selectedL2Subdivision.iso2 && s.id === selectedL2Subdivision.id
+      );
+      if (sub) {
+        activeL3ParentRef.current = {
+          iso2: sub.iso2,
+          id: sub.id,
+          name: sub.name,
+          code: sub.code,
+          bbox: sub.bbox,
+          path2D: sub.path2D
+        };
+        renderCanvas();
+      }
+    }
+  }, [pinnedPrefId, selectedL2Subdivision, prefecturePathData, activeL2SubdivisionPaths, renderCanvas]);
 
   useEffect(() => {
     l2PathsByCountryRef.current = l2PathsByCountry;
@@ -1993,9 +2098,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   }, [visibleL2Iso2s, lodLevel, pathGenerator]);
 
-  // On-demand loader for visible countries' L3 FlatGeobuf datasets
+  // On-demand loader for visible countries' L3 FlatGeobuf datasets (preloads in L2 and L3)
   useEffect(() => {
-    if (lodLevel !== 'L3') return;
+    if (lodLevel !== 'L2' && lodLevel !== 'L3') return;
 
     let isMounted = true;
     for (const iso2 of visibleL3Iso2s) {
@@ -2042,11 +2147,36 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             });
           }
 
+          // Index paths by parent name and code
+          for (let pIdx = 0; pIdx < paths.length; pIdx++) {
+            const item = paths[pIdx];
+            const k1 = normParentKey(item.iso2, item.parentName);
+            let l1 = l3PathsByParentRef.current.get(k1);
+            if (!l1) {
+              l1 = [];
+              l3PathsByParentRef.current.set(k1, l1);
+            }
+            l1.push(item);
+            if (item.parentCode) {
+              const k2 = normParentKey(item.iso2, item.parentCode);
+              if (k2 !== k1) {
+                let l2 = l3PathsByParentRef.current.get(k2);
+                if (!l2) {
+                  l2 = [];
+                  l3PathsByParentRef.current.set(k2, l2);
+                }
+                l2.push(item);
+              }
+            }
+          }
+
           if (isMounted) {
             loadedL3DataRef.current.set(iso2, paths);
             setL3PathsByCountry((prev) => ({ ...prev, [iso2]: paths }));
             l3PathsByCountryRef.current[iso2] = paths;
-            renderCanvas();
+            if (lodLevelRef.current === 'L3') {
+              renderCanvas();
+            }
           }
         } catch (err) {
           console.warn(`[L3] Failed to load /data/l3/${iso2}.fgb:`, err);

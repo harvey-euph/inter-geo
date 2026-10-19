@@ -31,25 +31,55 @@ const US_STATE_MAP = {
   DC: 'District of Columbia', PR: 'Puerto Rico', VI: 'Virgin Islands', GU: 'Guam'
 };
 
+const PL_VOIVODESHIP_MAP = {
+  'dolnośląskie': 'Lower Silesian',
+  'kujawsko-pomorskie': 'Kuyavian-Pomeranian',
+  'lubelskie': 'Lublin',
+  'lubuskie': 'Lubusz',
+  'łódzkie': 'Łódź',
+  'małopolskie': 'Lesser Poland',
+  'mazowieckie': 'Masovian',
+  'opolskie': 'Opole',
+  'podkarpackie': 'Subcarpathian',
+  'podlaskie': 'Podlachian',
+  'pomorskie': 'Pomeranian',
+  'śląskie': 'Silesian',
+  'świętokrzyskie': 'Świętokrzyskie',
+  'warmińsko-mazurskie': 'Warmian-Masurian',
+  'wielkopolskie': 'Greater Poland',
+  'zachodniopomorskie': 'West Pomeranian'
+};
+
+const CA_PROVINCE_MAP = {
+  'britishcolumbia': 'British Columbia',
+  'newbrunswick': 'New Brunswick',
+  'newfoundlandandlabrador': 'Newfoundland and Labrador',
+  'northwestterritories': 'Northwest Territories',
+  'novascotia': 'Nova Scotia',
+  'princeedwardisland': 'Prince Edward Island'
+};
+
+const AU_STATE_MAP = {
+  'newsouthwales': 'New South Wales',
+  'westernaustralia': 'Western Australia',
+  'southaustralia': 'South Australia',
+  'northernterritory': 'Northern Territory',
+  'australiancapitalterritory': 'Australian Capital Territory',
+  'ashmoreandcartierislands': 'Ashmore and Cartier Islands'
+};
+
 const L3_TARGET_COUNTRIES = [
   { iso2: 'US', countryId: '840', name: 'United States', nameZh: '美國', unitNameZh: '郡 (County)' },
   { iso2: 'JP', countryId: '392', name: 'Japan', nameZh: '日本', unitNameZh: '市區町村 (Municipality)' },
-  { iso2: 'FR', countryId: '250', name: 'France', nameZh: '法國', unitNameZh: '省 (Département)' },
   { iso2: 'DE', countryId: '276', name: 'Germany', nameZh: '德國', unitNameZh: '郡/非縣轄市 (Landkreis)' },
-  { iso2: 'GB', countryId: '826', name: 'United Kingdom', nameZh: '英國', unitNameZh: '區/單一管理區 (District)' },
-  { iso2: 'IT', countryId: '380', name: 'Italy', nameZh: '義大利', unitNameZh: '省/廣域市 (Provincia)' },
-  { iso2: 'ES', countryId: '724', name: 'Spain', nameZh: '西班牙', unitNameZh: '省 (Provincia)' },
   { iso2: 'CA', countryId: '124', name: 'Canada', nameZh: '加拿大', unitNameZh: '普查區/郡 (Census Division)' },
   { iso2: 'AU', countryId: '036', name: 'Australia', nameZh: '澳洲', unitNameZh: '地方政府區 (LGA)' },
   { iso2: 'PL', countryId: '616', name: 'Poland', nameZh: '波蘭', unitNameZh: '縣 (Powiat)' },
-  { iso2: 'KR', countryId: '410', name: 'South Korea', nameZh: '南韓', unitNameZh: '市/郡/區 (Si/Gun/Gu)' },
-  { iso2: 'SE', countryId: '752', name: 'Sweden', nameZh: '瑞典', unitNameZh: '市鎮 (Kommun)' },
-  { iso2: 'NO', countryId: '578', name: 'Norway', nameZh: '挪威', unitNameZh: '市鎮 (Kommune)' },
-  { iso2: 'AR', countryId: '032', name: 'Argentina', nameZh: '阿根廷', unitNameZh: '省轄區 (Departamento)' },
-  { iso2: 'NZ', countryId: '554', name: 'New Zealand', nameZh: '紐西蘭', unitNameZh: '地區主管機構 (District)' },
-  { iso2: 'ZA', countryId: '710', name: 'South Africa', nameZh: '南非', unitNameZh: '區自治市 (District Municipality)' },
   { iso2: 'MX', countryId: '484', name: 'Mexico', nameZh: '墨西哥', unitNameZh: '市鎮 (Município)' },
-  { iso2: 'BR', countryId: '076', name: 'Brazil', nameZh: '巴西', unitNameZh: '市鎮 (Município)' }
+  { iso2: 'BR', countryId: '076', name: 'Brazil', nameZh: '巴西', unitNameZh: '市鎮 (Município)' },
+  { iso2: 'AR', countryId: '032', name: 'Argentina', nameZh: '阿根廷', unitNameZh: '省轄區 (Departamento)' },
+  { iso2: 'SE', countryId: '752', name: 'Sweden', nameZh: '瑞典', unitNameZh: '市鎮 (Kommun)' },
+  { iso2: 'NO', countryId: '578', name: 'Norway', nameZh: '挪威', unitNameZh: '市鎮 (Kommune)' }
 ];
 
 function normalizeFeatureWinding(feature) {
@@ -201,7 +231,7 @@ async function processCountry(meta) {
       typeEn = type;
       const reg = String(p.REGION || '');
       parentName = US_STATE_MAP[reg] || String(p.REGION_NAME || reg);
-      parentCode = p.ISO_3166_2 || `US-${reg}`;
+      parentCode = reg ? `US-${reg}` : (p.ISO_3166_2 || '');
       code = String(p.FIPS || p.CODE_LOCAL || '');
       id = p.ADM2_CODE || code || `US-${reg}-${fName}`;
       nameZh = `${fName} ${type === 'Parish' ? '堂區' : (type === 'Borough' ? '自治市鎮' : '郡')}`;
@@ -211,7 +241,19 @@ async function processCountry(meta) {
       nameEn = fName;
       nameZh = String(p.NL_NAME_2 || fName);
       typeEn = String(p.ENGTYPE_2 || p.TYPE_2 || 'District');
-      parentName = String(p.NAME_1 || '');
+      let rawParent = String(p.NAME_1 || '');
+      if (iso2 === 'PL') {
+        const key = rawParent.toLowerCase();
+        parentName = PL_VOIVODESHIP_MAP[key] || rawParent;
+      } else if (iso2 === 'CA') {
+        const key = rawParent.toLowerCase();
+        parentName = CA_PROVINCE_MAP[key] || rawParent;
+      } else if (iso2 === 'AU') {
+        const key = rawParent.toLowerCase();
+        parentName = AU_STATE_MAP[key] || rawParent;
+      } else {
+        parentName = rawParent;
+      }
       parentCode = String(p.HASC_1 || p.GID_1 || p.NAME_1 || '');
       code = String(p.CC_2 || p.HASC_2 || '');
       id = String(p.GID_2 || p.HASC_2 || `${iso2}-${idx + 1}`);

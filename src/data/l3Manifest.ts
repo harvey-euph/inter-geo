@@ -44,20 +44,6 @@ export const L3_MANIFEST: L3CountryMeta[] = [
     }
   },
   {
-    "iso2": "FR",
-    "countryId": "250",
-    "name": "France",
-    "nameZh": "法國",
-    "unitNameZh": "省 (Département)",
-    "subdivisionCount": 96,
-    "bbox": {
-      "minX": 486,
-      "maxX": 527,
-      "minY": 334,
-      "maxY": 374
-    }
-  },
-  {
     "iso2": "DE",
     "countryId": "276",
     "name": "Germany",
@@ -69,48 +55,6 @@ export const L3_MANIFEST: L3CountryMeta[] = [
       "maxX": 542,
       "minY": 316,
       "maxY": 351
-    }
-  },
-  {
-    "iso2": "GB",
-    "countryId": "826",
-    "name": "United Kingdom",
-    "nameZh": "英國",
-    "unitNameZh": "區/單一管理區 (District)",
-    "subdivisionCount": 183,
-    "bbox": {
-      "minX": 476,
-      "maxX": 505,
-      "minY": 286,
-      "maxY": 340
-    }
-  },
-  {
-    "iso2": "IT",
-    "countryId": "380",
-    "name": "Italy",
-    "nameZh": "義大利",
-    "unitNameZh": "省/廣域市 (Provincia)",
-    "subdivisionCount": 110,
-    "bbox": {
-      "minX": 518,
-      "maxX": 551,
-      "minY": 351,
-      "maxY": 394
-    }
-  },
-  {
-    "iso2": "ES",
-    "countryId": "724",
-    "name": "Spain",
-    "nameZh": "西班牙",
-    "unitNameZh": "省 (Provincia)",
-    "subdivisionCount": 52,
-    "bbox": {
-      "minX": 450,
-      "maxX": 512,
-      "minY": 364,
-      "maxY": 420
     }
   },
   {
@@ -156,17 +100,45 @@ export const L3_MANIFEST: L3CountryMeta[] = [
     }
   },
   {
-    "iso2": "KR",
-    "countryId": "410",
-    "name": "South Korea",
-    "nameZh": "南韓",
-    "unitNameZh": "市/郡/區 (Si/Gun/Gu)",
-    "subdivisionCount": 229,
+    "iso2": "MX",
+    "countryId": "484",
+    "name": "Mexico",
+    "nameZh": "墨西哥",
+    "unitNameZh": "市鎮 (Município)",
+    "subdivisionCount": 2457,
     "bbox": {
-      "minX": 846,
-      "maxX": 866,
-      "minY": 384,
-      "maxY": 402
+      "minX": 171,
+      "maxX": 259,
+      "minY": 404,
+      "maxY": 459
+    }
+  },
+  {
+    "iso2": "BR",
+    "countryId": "076",
+    "name": "Brazil",
+    "nameZh": "巴西",
+    "unitNameZh": "市鎮 (Município)",
+    "subdivisionCount": 5572,
+    "bbox": {
+      "minX": 294,
+      "maxX": 420,
+      "minY": 485,
+      "maxY": 600
+    }
+  },
+  {
+    "iso2": "AR",
+    "countryId": "032",
+    "name": "Argentina",
+    "nameZh": "阿根廷",
+    "unitNameZh": "省轄區 (Departamento)",
+    "subdivisionCount": 502,
+    "bbox": {
+      "minX": 296,
+      "maxX": 351,
+      "minY": 562,
+      "maxY": 684
     }
   },
   {
@@ -195,76 +167,6 @@ export const L3_MANIFEST: L3CountryMeta[] = [
       "maxX": 587,
       "minY": 214,
       "maxY": 301
-    }
-  },
-  {
-    "iso2": "AR",
-    "countryId": "032",
-    "name": "Argentina",
-    "nameZh": "阿根廷",
-    "unitNameZh": "省轄區 (Departamento)",
-    "subdivisionCount": 502,
-    "bbox": {
-      "minX": 296,
-      "maxX": 351,
-      "minY": 562,
-      "maxY": 684
-    }
-  },
-  {
-    "iso2": "NZ",
-    "countryId": "554",
-    "name": "New Zealand",
-    "nameZh": "紐西蘭",
-    "unitNameZh": "地區主管機構 (District)",
-    "subdivisionCount": 75,
-    "bbox": {
-      "minX": 3,
-      "maxX": 997,
-      "minY": 585,
-      "maxY": 673
-    }
-  },
-  {
-    "iso2": "ZA",
-    "countryId": "710",
-    "name": "South Africa",
-    "nameZh": "南非",
-    "unitNameZh": "區自治市 (District Municipality)",
-    "subdivisionCount": 52,
-    "bbox": {
-      "minX": 546,
-      "maxX": 591,
-      "minY": 563,
-      "maxY": 603
-    }
-  },
-  {
-    "iso2": "MX",
-    "countryId": "484",
-    "name": "Mexico",
-    "nameZh": "墨西哥",
-    "unitNameZh": "市鎮 (Município)",
-    "subdivisionCount": 2457,
-    "bbox": {
-      "minX": 171,
-      "maxX": 259,
-      "minY": 404,
-      "maxY": 459
-    }
-  },
-  {
-    "iso2": "BR",
-    "countryId": "076",
-    "name": "Brazil",
-    "nameZh": "巴西",
-    "unitNameZh": "市鎮 (Município)",
-    "subdivisionCount": 5572,
-    "bbox": {
-      "minX": 294,
-      "maxX": 420,
-      "minY": 485,
-      "maxY": 600
     }
   }
 ];
