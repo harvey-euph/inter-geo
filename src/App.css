@@ -475,6 +475,7 @@
 
 /* Road Network Overlay Layer */
 .road-network-overlay path {
+  vector-effect: non-scaling-stroke;
   transition: stroke 0.15s ease, stroke-width 0.15s ease, stroke-opacity 0.15s ease;
 }
 

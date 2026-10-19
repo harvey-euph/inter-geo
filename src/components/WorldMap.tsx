@@ -1556,12 +1556,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
                       return (
                         <g key={`${copyIdx}-road-${road.name}-${rIdx}`}>
-                          {/* Invisible wider hit target for effortless highway hovering without pixel-hunting */}
+                          {/* Invisible wider hit target for effortless highway hovering without pixel-hunting (fixed 12px screen width) */}
                           <path
                             d={road.pathD}
                             fill="none"
                             stroke="transparent"
-                            strokeWidth={Math.max(10, strokeWidth * 3.5)}
+                            strokeWidth={12}
+                            vectorEffect="non-scaling-stroke"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
@@ -1589,12 +1590,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                               }
                             }}
                           />
-                          {/* Visible styled road stroke */}
+                          {/* Visible styled road stroke with fixed screen thickness across all zoom levels */}
                           <path
                             d={road.pathD}
                             fill="none"
                             stroke={stroke}
                             strokeWidth={strokeWidth}
+                            vectorEffect="non-scaling-stroke"
                             strokeOpacity={strokeOpacity}
                             strokeLinecap="round"
                             strokeLinejoin="round"
