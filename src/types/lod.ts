@@ -1,4 +1,4 @@
-export type LODLevel = 'L1' | 'L2_OUTLINE' | 'L2_REGION' | 'L3';
+export type LODLevel = 'L1' | 'L2' | 'L3';
 
 export interface LODThreshold {
   level: LODLevel;
@@ -16,25 +16,17 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
   {
     level: 'L1',
     minK: 1.0,
-    maxK: 1.5,
-    labelZh: 'L1 · 國家輪廓',
-    sublabelZh: '全球國家巨觀特徵與輪廓',
+    maxK: 6.0,
+    labelZh: 'L1 · 國家模式',
+    sublabelZh: '顯示 L2 輪廓 · 點選與懸停以國家為單位',
     color: '#38bdf8'
   },
   {
-    level: 'L2_OUTLINE',
-    minK: 1.5,
-    maxK: 6.0,
-    labelZh: 'L2 · 行政區輪廓',
-    sublabelZh: '全球 91 國省/州/省份輪廓線',
-    color: '#34d399'
-  },
-  {
-    level: 'L2_REGION',
+    level: 'L2',
     minK: 6.0,
     maxK: MAX_ZOOM_K,
-    labelZh: 'L2 · 行政區區域',
-    sublabelZh: '省/州/都道府縣細部獨立區域',
+    labelZh: 'L2 · 行政區模式',
+    sublabelZh: '點選與懸停以省/州/都道府縣為單位',
     color: '#10b981'
   },
   {
@@ -48,22 +40,19 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
 ];
 
 export interface CustomLODThresholds {
-  l2OutlineThreshold: number;
-  l2RegionThreshold: number;
+  l2Threshold: number;
   l3Threshold: number;
 }
 
 export const DEFAULT_LOD_THRESHOLDS: CustomLODThresholds = {
-  l2OutlineThreshold: 1.5,
-  l2RegionThreshold: 6.0,
+  l2Threshold: 6.0,
   l3Threshold: Infinity
 };
 
 export const LOD_LEVEL_ORDER: Record<LODLevel, number> = {
   L1: 1,
-  L2_OUTLINE: 2,
-  L2_REGION: 3,
-  L3: 4
+  L2: 2,
+  L3: 3
 };
 
 export function getLODLevel(
@@ -72,8 +61,7 @@ export function getLODLevel(
 ): LODLevel {
   const eps = 0.05;
   if (k >= thresholds.l3Threshold - eps) return 'L3';
-  if (k >= thresholds.l2RegionThreshold - eps) return 'L2_REGION';
-  if (k >= thresholds.l2OutlineThreshold - eps) return 'L2_OUTLINE';
+  if (k >= thresholds.l2Threshold - eps) return 'L2';
   return 'L1';
 }
 

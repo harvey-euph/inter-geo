@@ -609,12 +609,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
 
       // ----------------------------------------------------
-      // 2. Layer 2: Admin-1 Subdivisions (Direct Overlay)
+      // 2. Layer 2: Admin-1 Subdivisions (L2 Outlines Always Rendered)
       // ----------------------------------------------------
-      if (currentLod !== 'L1' && (copyIdx === 0 || copyIdx === 1)) {
+      if (copyIdx === 0 || copyIdx === 1) {
         const copyOffset = copyIdx * MAP_W;
         const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
-        const isRegionMode = currentLod === 'L2_REGION' || currentLod === 'L3';
+        const isL2RegionMode = currentLod === 'L2' || currentLod === 'L3';
 
         for (let i = 0; i < allSubs.length; i++) {
           const sub = allSubs[i];
@@ -643,10 +643,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           if (isExpanded) continue;
 
           let fill: string | null = null;
-          let stroke = isRegionMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.16)';
-          let strokeWidth = (isRegionMode ? 0.6 : 0.5) / k;
+          let stroke = isL2RegionMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.16)';
+          let strokeWidth = (isL2RegionMode ? 0.6 : 0.5) / k;
 
-          if (isRegionMode) {
+          if (isL2RegionMode) {
             const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && String(selectedL2.id) === String(sub.id);
             const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && String(hoveredL2.id) === String(sub.id);
             const isSiblingHovered =
@@ -1117,8 +1117,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       }
 
-      // 2b. Check L2 Admin-1 Subdivisions (ONLY in L2_REGION or L3 mode)
-      if ((lodLevelRef.current === 'L2_REGION' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+      // 2b. Check L2 Admin-1 Subdivisions (ONLY in L2 or L3 mode)
+      if ((lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
         const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
         for (let i = 0; i < allSubs.length; i++) {
           const sub = allSubs[i];
@@ -1136,7 +1136,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const iso2 = c.countryMeta?.iso2;
         const isL2Active =
           iso2 &&
-          (lodLevelRef.current === 'L2_REGION' || lodLevelRef.current === 'L3') &&
+          (lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') &&
           !!l2PathsByCountryRef.current[iso2];
         if (isL2Active) continue;
 
@@ -1513,7 +1513,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredMunicipalityRef.current = null;
         setHoveredMunicipality(null);
       }
-      if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+      if (nextLOD === 'L1') {
         hoveredL2SubdivisionRef.current = null;
         setHoveredL2Subdivision(null);
         selectedL2SubdivisionRef.current = null;
@@ -1548,7 +1548,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredMunicipalityRef.current = null;
         setHoveredMunicipality(null);
       }
-      if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+      if (nextLOD === 'L1') {
         hoveredL2SubdivisionRef.current = null;
         setHoveredL2Subdivision(null);
         selectedL2SubdivisionRef.current = null;
@@ -1579,7 +1579,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       hoveredMunicipalityRef.current = null;
       setHoveredMunicipality(null);
     }
-    if (targetLOD !== 'L2_REGION' && targetLOD !== 'L3') {
+    if (targetLOD === 'L1') {
       hoveredL2SubdivisionRef.current = null;
       setHoveredL2Subdivision(null);
       selectedL2SubdivisionRef.current = null;
@@ -1618,7 +1618,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           hoveredMunicipalityRef.current = null;
           setHoveredMunicipality(null);
         }
-        if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+        if (nextLOD === 'L1') {
           hoveredL2SubdivisionRef.current = null;
           setHoveredL2Subdivision(null);
           selectedL2SubdivisionRef.current = null;
@@ -1647,7 +1647,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           hoveredMunicipalityRef.current = null;
           setHoveredMunicipality(null);
         }
-        if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+        if (nextLOD === 'L1') {
           hoveredL2SubdivisionRef.current = null;
           setHoveredL2Subdivision(null);
           selectedL2SubdivisionRef.current = null;
