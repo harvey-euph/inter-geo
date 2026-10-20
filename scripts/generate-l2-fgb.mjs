@@ -3,6 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { geoMercator, geoPath, geoArea } from 'd3-geo';
 import * as flatgeobuf from 'flatgeobuf';
+import * as topojsonServer from 'topojson-server';
+import * as topojsonSimplify from 'topojson-simplify';
+import * as topojsonClient from 'topojson-client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +66,51 @@ function normalizeFeatureWinding(feature) {
     // Ignore winding calculation errors for degenerate geometries
   }
   return feature;
+}
+
+/**
+ * Shared-arc topological simplification using TopoJSON.
+ * Quantization to 1e5 (~1m precision) + Visvalingam-Whyatt simplification with shared boundaries.
+ * Guarantees zero cracks or slivers between adjacent subdivisions while stripping all
+ * redundant collinear points from straight border segments.
+ */
+function optimizeFeatures(features, weight = 2e-4) {
+  if (!features || features.length === 0) return [];
+  const geojson = { type: 'FeatureCollection', features };
+  const topology = topojsonServer.topology({ collection: geojson }, 1e5);
+  const presimplified = topojsonSimplify.presimplify(topology);
+  const simplified = topojsonSimplify.simplify(presimplified, weight);
+  const result = topojsonClient.feature(simplified, simplified.objects.collection);
+  return result.features.map((f) => normalizeFeatureWinding(f));
+}
+
+function computeBoundingBox(features) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const f of features) {
+    try {
+      const bounds = pathGen.bounds(f);
+      if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[1][0])) {
+        minX = Math.min(minX, bounds[0][0]);
+        minY = Math.min(minY, bounds[0][1]);
+        maxX = Math.max(maxX, bounds[1][0]);
+        maxY = Math.max(maxY, bounds[1][1]);
+      }
+    } catch {
+      // Ignore bounds errors
+    }
+  }
+
+  // Handle countries crossing anti-meridian (e.g. US, RU)
+  if (minX > maxX || !isFinite(minX)) {
+    minX = 0; maxX = MAP_W; minY = 0; maxY = MAP_H;
+  }
+
+  return {
+    minX: Math.max(0, Math.round(minX) - 5),
+    maxX: Math.min(MAP_W, Math.round(maxX) + 5),
+    minY: Math.max(0, Math.round(minY) - 5),
+    maxY: Math.min(MAP_H, Math.round(maxY) + 5)
+  };
 }
 
 async function ensureSourceData() {
@@ -127,28 +175,40 @@ async function main() {
 
   const manifestEntries = [];
 
-  // 1. Process Japan (JP) specially using our existing high-precision JIS dataset
+  // 1. Process Japan (JP) specially using our existing high-precision JIS dataset if available
   const jpOutputPath = path.join(outputDir, 'JP.fgb');
   const existingJpPath = path.join(rootDir, 'public', 'data', 'japan-prefectures.fgb');
-  if (fs.existsSync(jpOutputPath) || fs.existsSync(existingJpPath)) {
-    if (!fs.existsSync(jpOutputPath) && fs.existsSync(existingJpPath)) {
-      fs.copyFileSync(existingJpPath, jpOutputPath);
+  const jpSourcePath = fs.existsSync(existingJpPath) ? existingJpPath : (fs.existsSync(jpOutputPath) ? jpOutputPath : null);
+  const jpInfo = officialCountries.get('JP') || { id: '392', name: 'Japan', nameZh: '日本' };
+
+  if (jpSourcePath) {
+    const buf = fs.readFileSync(jpSourcePath);
+    const it = flatgeobuf.geojson.deserialize(new Uint8Array(buf));
+    const jpRawFeatures = [];
+    for await (const f of it) {
+      jpRawFeatures.push(f);
     }
-    const jpInfo = officialCountries.get('JP') || { id: '392', name: 'Japan', nameZh: '日本' };
+    const optimizedJpFeatures = optimizeFeatures(jpRawFeatures, 2e-4);
+    const bbox = computeBoundingBox(optimizedJpFeatures);
+    const fgbBytes = flatgeobuf.geojson.serialize({
+      type: 'FeatureCollection',
+      features: optimizedJpFeatures
+    });
+    fs.writeFileSync(jpOutputPath, Buffer.from(fgbBytes));
     manifestEntries.push({
       iso2: 'JP',
       countryId: jpInfo.id,
       name: jpInfo.name,
       nameZh: jpInfo.nameZh,
-      subdivisionCount: 47,
-      bbox: { minX: 835, maxX: 935, minY: 350, maxY: 440 }
+      subdivisionCount: optimizedJpFeatures.length,
+      bbox
     });
-    console.log('[JP] Preserved high-precision Japan prefectures in JP.fgb');
+    console.log(`[JP] Optimized Japan prefectures: ${optimizedJpFeatures.length} subdivisions -> ${(fgbBytes.length / 1024).toFixed(1)} KB`);
   }
 
   // 2. Process all other official Street View countries
   for (const [iso2, info] of officialCountries.entries()) {
-    if (iso2 === 'JP') continue;
+    if (iso2 === 'JP' && jpSourcePath) continue;
 
     const rawFeats = featuresByIso2.get(iso2) || [];
     if (rawFeats.length === 0) {
@@ -156,23 +216,9 @@ async function main() {
       continue;
     }
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
     const cleanedFeatures = rawFeats.map((f, idx) => {
       const normalized = normalizeFeatureWinding(f);
       const p = normalized.properties || {};
-
-      try {
-        const bounds = pathGen.bounds(normalized);
-        if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[1][0])) {
-          minX = Math.min(minX, bounds[0][0]);
-          minY = Math.min(minY, bounds[0][1]);
-          maxX = Math.max(maxX, bounds[1][0]);
-          maxY = Math.max(maxY, bounds[1][1]);
-        }
-      } catch {
-        // Skip bounding box errors
-      }
 
       let nameZh = p.name_zh || p.name || '';
       if (iso2 === 'TW' && TW_ZH_MAP[nameZh]) {
@@ -194,22 +240,13 @@ async function main() {
       return normalized;
     });
 
-    // Handle countries crossing anti-meridian (e.g. US, RU)
-    if (minX > maxX || !isFinite(minX)) {
-      minX = 0; maxX = MAP_W; minY = 0; maxY = MAP_H;
-    }
-
-    // Add safe buffer of 5px around bounding box
-    const bbox = {
-      minX: Math.max(0, Math.round(minX) - 5),
-      maxX: Math.min(MAP_W, Math.round(maxX) + 5),
-      minY: Math.max(0, Math.round(minY) - 5),
-      maxY: Math.min(MAP_H, Math.round(maxY) + 5)
-    };
+    // Run shared-arc topological simplification (removes collinear straight points without cracks)
+    const optimizedFeatures = optimizeFeatures(cleanedFeatures, 2e-4);
+    const bbox = computeBoundingBox(optimizedFeatures);
 
     const fgbBytes = flatgeobuf.geojson.serialize({
       type: 'FeatureCollection',
-      features: cleanedFeatures
+      features: optimizedFeatures
     });
 
     const outPath = path.join(outputDir, `${iso2}.fgb`);
@@ -220,11 +257,11 @@ async function main() {
       countryId: info.id,
       name: info.name,
       nameZh: info.nameZh,
-      subdivisionCount: cleanedFeatures.length,
+      subdivisionCount: optimizedFeatures.length,
       bbox
     });
 
-    console.log(`[${iso2}] ${info.nameZh} (${info.name}): ${cleanedFeatures.length} subdivisions -> ${(fgbBytes.length / 1024).toFixed(1)} KB`);
+    console.log(`[${iso2}] ${info.nameZh} (${info.name}): ${optimizedFeatures.length} subdivisions -> ${(fgbBytes.length / 1024).toFixed(1)} KB`);
   }
 
   // Sort manifest by country name

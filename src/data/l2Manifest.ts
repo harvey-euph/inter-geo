@@ -515,10 +515,10 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "nameZh": "日本",
     "subdivisionCount": 47,
     "bbox": {
-      "minX": 835,
-      "maxX": 935,
-      "minY": 350,
-      "maxY": 440
+      "minX": 836,
+      "maxX": 933,
+      "minY": 353,
+      "maxY": 436
     }
   },
   {
