@@ -24,17 +24,17 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
   {
     level: 'L2',
     minK: 3.2,
-    maxK: 6.5,
+    maxK: MAX_ZOOM_K,
     labelZh: 'L2 · 第一級行政區',
     sublabelZh: '全球 91 國省/州/省份、日本都道府縣',
     color: '#10b981'
   },
   {
     level: 'L3',
-    minK: 6.5,
+    minK: Infinity,
     maxK: MAX_ZOOM_K,
     labelZh: 'L3 · 二級行政區',
-    sublabelZh: '美法德日等大國細部行政區 (郡/省/市區町村)',
+    sublabelZh: '美法德日等大國細部行政區 (預設關閉)',
     color: '#f59e0b'
   }
 ];
@@ -46,7 +46,7 @@ export interface CustomLODThresholds {
 
 export const DEFAULT_LOD_THRESHOLDS: CustomLODThresholds = {
   l2Threshold: 3.2,
-  l3Threshold: 6.5
+  l3Threshold: Infinity
 };
 
 export const LOD_LEVEL_ORDER: Record<LODLevel, number> = {

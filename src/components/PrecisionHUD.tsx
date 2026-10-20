@@ -148,10 +148,10 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           }}
           title={
             isL2Inf
-              ? 'L2 都道府縣 (已設為 ∞ 停用)'
+              ? 'L2 一級行政區 (已設為 ∞ 停用)'
               : isL3Inf
-              ? `L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ∞)`
-              : `L2 都道府縣區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`
+              ? `L2 一級行政區區間 (${lodThresholds.l2Threshold}x ~ ∞)`
+              : `L2 一級行政區區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`
           }
         />
         <div
@@ -162,8 +162,8 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           }}
           title={
             isL3Inf
-              ? 'L3 市區町村 (已設為 ∞ 停用)'
-              : `L3 市區町村區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`
+              ? 'L3 二級行政區 (已設為 ∞ 停用)'
+              : `L3 二級行政區區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`
           }
         />
 
@@ -186,7 +186,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           onPointerCancel={handlePointerUp}
           title={
             isL2Inf
-              ? 'L2 門檻: ∞ (永遠不顯示都道府縣，向左拖動可恢復)'
+              ? 'L2 門檻: ∞ (永遠不顯示一級行政區，向左拖動可恢復)'
               : `拖動調整 L2 門檻 (目前: ${lodThresholds.l2Threshold}x，拉至最右端可停用)`
           }
         >
@@ -206,7 +206,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           onPointerCancel={handlePointerUp}
           title={
             isL3Inf
-              ? 'L3 門檻: ∞ (永遠不顯示市區町村，向左拖動可恢復)'
+              ? 'L3 門檻: ∞ (永遠不顯示二級行政區，向左拖動可恢復)'
               : `拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x，拉至最右端可停用)`
           }
         >

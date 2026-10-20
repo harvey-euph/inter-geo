@@ -159,19 +159,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<{ loaded: number; total: number }>({
+    loaded: 0,
+    total: L2_MANIFEST.length
+  });
 
   // Level of Detail (LOD) tracking: L1 (Country), L2 (Subdivision), L3 (Local Unit)
   const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
   const [lodThresholds, setLodThresholds] = useState<CustomLODThresholds>(DEFAULT_LOD_THRESHOLDS);
+  const lodThresholdsRef = useRef<CustomLODThresholds>(lodThresholds);
   const [zoomK, setZoomK] = useState<number>(1.0);
 
   // Sub-national hover states
   const [hoveredMunicipality, setHoveredMunicipality] = useState<MunicipalityDetail | null>(null);
 
-  // L2 active states and paths
-  const visibleL2Iso2sRef = useRef<Set<string>>(new Set());
-  const [visibleL2Iso2s, setVisibleL2Iso2s] = useState<Set<string>>(new Set());
-  const inFlightFetchesRef = useRef<Set<string>>(new Set());
+  // L2 preloaded paths (loaded up-front during initial startup)
   const loadedL2DataRef = useRef<Map<string, L2SubdivisionPathData[]>>(new Map());
   const [l2PathsByCountry, setL2PathsByCountry] = useState<Record<string, L2SubdivisionPathData[]>>({});
   const l2PathsByCountryRef = useRef<Record<string, L2SubdivisionPathData[]>>({});
@@ -295,11 +297,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       .sort((a, b) => a.countryMeta!.name.localeCompare(b.countryMeta!.name) || a.countryMeta!.iso2.localeCompare(b.countryMeta!.iso2));
   }, [countryPathData]);
 
-  // Active L2 subdivision paths flattened for rendering
-  const activeL2SubdivisionPaths = useMemo(() => {
-    if (lodLevel === 'L1') return [];
+  // All pre-loaded L2 subdivisions flattened
+  const allL2Subdivisions = useMemo(() => {
     const list: L2SubdivisionPathData[] = [];
-    for (const iso2 of visibleL2Iso2s) {
+    for (const iso2 in l2PathsByCountry) {
       const paths = l2PathsByCountry[iso2];
       if (paths) {
         for (let i = 0; i < paths.length; i++) {
@@ -308,7 +309,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
     }
     return list;
-  }, [visibleL2Iso2s, l2PathsByCountry, lodLevel]);
+  }, [l2PathsByCountry]);
+
+  // Active L2 subdivision paths for rendering (empty at L1)
+  const activeL2SubdivisionPaths = useMemo(() => {
+    if (lodLevel === 'L1') return [];
+    return allL2Subdivisions;
+  }, [allL2Subdivisions, lodLevel]);
 
   // Helper to fetch L3 child subdivisions for a specific parent (O(1) Map lookup)
   const getL3SubdivisionsForParent = useCallback(
@@ -374,49 +381,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     []
   );
 
-  // Synchronize visible L2 countries across viewport
-  const syncL2Viewport = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      if (currentLOD === 'L1') {
-        if (visibleL2Iso2sRef.current.size > 0) {
-          visibleL2Iso2sRef.current = new Set();
-          setVisibleL2Iso2s(new Set());
-        }
-        return;
-      }
-
-      const nextVisible = new Set<string>();
-      for (let i = 0; i < L2_MANIFEST.length; i++) {
-        const c = L2_MANIFEST[i];
-        if (isCountryInViewport(c.bbox, k, x, y, vw, vh, 100)) {
-          nextVisible.add(c.iso2);
-        }
-      }
-
-      let changed = false;
-      if (nextVisible.size !== visibleL2Iso2sRef.current.size) {
-        changed = true;
-      } else {
-        for (const iso of nextVisible) {
-          if (!visibleL2Iso2sRef.current.has(iso)) {
-            changed = true;
-            break;
-          }
-        }
-      }
-
-      if (changed) {
-        visibleL2Iso2sRef.current = nextVisible;
-        setVisibleL2Iso2s(nextVisible);
-      }
-    },
-    [isCountryInViewport]
-  );
-
-  // Synchronize visible L3 regional packs across viewport (preloads in L2 and L3)
+  // Synchronize visible L3 regional packs across viewport (only if L3 mode is active)
   const syncL3Viewport = useCallback(
     (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      if (currentLOD === 'L1' && k < 4.5) {
+      if (currentLOD !== 'L3' || !isFinite(lodThresholdsRef.current.l3Threshold)) {
         if (visibleL3PacksRef.current.size > 0) {
           visibleL3PacksRef.current = new Set();
           setVisibleL3Packs(new Set());
@@ -519,14 +487,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [isCountryInViewport]
   );
 
-  // Unified viewport synchronizer for L2, L3, and Road networks
+  // Unified viewport synchronizer for L3 and Road networks
   const syncAllViewports = useCallback(
     (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      syncL2Viewport(k, x, y, vw, vh, currentLOD);
       syncL3Viewport(k, x, y, vw, vh, currentLOD);
       syncRoadsViewport(k, x, y, vw, vh, showRoadsRef.current);
     },
-    [syncL2Viewport, syncL3Viewport, syncRoadsViewport]
+    [syncL3Viewport, syncRoadsViewport]
   );
 
   // Toggle highway and route overlay layer
@@ -589,7 +556,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     const activeFilter = activeFilterDefRef.current;
     const currentLod = lodLevelRef.current;
-    const visibleL2Set = visibleL2Iso2sRef.current;
 
     const highlightHoverPaths: Path2D[] = [];
     const highlightSelectPaths: Path2D[] = [];
@@ -615,7 +581,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const isL2Active =
           iso2 &&
           (currentLod === 'L2' || currentLod === 'L3') &&
-          visibleL2Set.has(iso2) &&
           !!l2PathsByCountryRef.current[iso2];
         if (isL2Active) continue;
 
@@ -655,9 +620,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // 2. Layer 2: Admin-1 Subdivisions
       // ----------------------------------------------------
       if ((currentLod === 'L2' || currentLod === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+        const copyOffset = copyIdx * MAP_W;
         for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
           const sub = activeL2SubdivisionPaths[i];
           if (!sub.path2D) continue;
+
+          // Viewport screen AABB culling
+          const [minX, minY, maxX, maxY] = sub.bbox;
+          const sMinY = y + minY * k;
+          const sMaxY = y + maxY * k;
+          if (sMaxY < -50 || sMinY > viewportSize.current.h + 50) continue;
+          const sMinX = x + (minX + copyOffset) * k;
+          const sMaxX = x + (maxX + copyOffset) * k;
+          if (sMaxX < -50 || sMinX > viewportSize.current.w + 50) continue;
 
           // If L3 mode and this subdivision is expanded into L3 units, skip L2 drawing
           let isExpanded = false;
@@ -972,6 +947,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Helper to load L3 pack on-demand for a given L2 subdivision
   const loadL3PackForSubdivision = useCallback(
     (iso2: string, code?: string, name?: string, id?: string | number) => {
+      if (lodLevelRef.current !== 'L3') return;
       const normIso2 = (iso2 || '').toUpperCase();
       const normLookup = (t: string): string =>
         String(t || '')
@@ -1161,7 +1137,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const isL2Active =
           iso2 &&
           (lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') &&
-          visibleL2Iso2sRef.current.has(iso2) &&
           !!l2PathsByCountryRef.current[iso2];
         if (isL2Active) continue;
 
@@ -1719,15 +1694,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   }, [selectedL2Subdivision, activeL2SubdivisionPaths, loadL3PackForSubdivision, renderCanvas]);
 
   useEffect(() => {
+    lodThresholdsRef.current = lodThresholds;
+  }, [lodThresholds]);
+
+  useEffect(() => {
     l2PathsByCountryRef.current = l2PathsByCountry;
     renderCanvas();
   }, [l2PathsByCountry, renderCanvas]);
-
-
-  useEffect(() => {
-    visibleL2Iso2sRef.current = visibleL2Iso2s;
-    renderCanvas();
-  }, [visibleL2Iso2s, renderCanvas]);
 
   useEffect(() => {
     showRoadsRef.current = showRoads;
@@ -1739,17 +1712,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     renderCanvas();
   }, [showRoads, syncRoadsViewport, renderCanvas]);
 
-  // Load FlatGeobuf datasets (L1 World, L2 Japan Prefectures, L3 Japan Municipalities)
+  // Load FlatGeobuf datasets: L1 World and ALL 91 L2 datasets up-front before setting loading to false
   useEffect(() => {
     let isMounted = true;
 
     // 1. Load L1 World Countries via FlatGeobuf binary
-    (async () => {
+    const loadL1 = async (): Promise<GeoFeature[]> => {
       try {
         const res = await fetch('/data/countries-110m.fgb');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
-        if (!isMounted) return;
+        if (!isMounted) return [];
 
         const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
         const loadedFeatures: GeoFeature[] = [];
@@ -1762,12 +1735,92 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             properties: props
           } as unknown as GeoFeature);
         }
-        if (isMounted) {
-          setFeatures(loadedFeatures);
-          setLoading(false);
-        }
+        return loadedFeatures;
       } catch (err) {
         console.error('L1 Countries FlatGeobuf loading error:', err);
+        return [];
+      }
+    };
+
+    // 2. Load ALL 91 L2 Country datasets up-front with a worker concurrency pool
+    const loadAllL2 = async (): Promise<Record<string, L2SubdivisionPathData[]>> => {
+      const allPaths: Record<string, L2SubdivisionPathData[]> = {};
+      const queue = [...L2_MANIFEST];
+      let loadedCount = 0;
+      const CONCURRENCY = 12;
+
+      const worker = async () => {
+        while (queue.length > 0) {
+          if (!isMounted) return;
+          const c = queue.shift();
+          if (!c) break;
+          const iso2 = c.iso2;
+          try {
+            const res = await fetch(`/data/l2/${iso2}.fgb`);
+            if (res.ok) {
+              const buffer = await res.arrayBuffer();
+              if (!isMounted) return;
+
+              const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+              const paths: L2SubdivisionPathData[] = [];
+              for await (const feature of it) {
+                const p = (feature.properties || {}) as Record<string, unknown>;
+                const pathD = pathGenerator(feature) || '';
+                let bbox: [number, number, number, number] = [0, 0, 0, 0];
+                try {
+                  const bounds = pathGenerator.bounds(feature);
+                  if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[1][0])) {
+                    bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
+                  }
+                } catch {
+                  // fallback
+                }
+                const path2D = new Path2D(pathD);
+                const centroid: [number, number] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
+                paths.push({
+                  pathD,
+                  path2D,
+                  bbox,
+                  id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
+                  iso2: (p.iso2 as string) || iso2,
+                  name: String(p.name || ''),
+                  nameEn: String(p.name_en || p.name || ''),
+                  nameZh: String(p.name_zh || p.name || ''),
+                  typeEn: String(p.type_en || ''),
+                  code: String(p.code || ''),
+                  postal: String(p.postal || ''),
+                  centroid
+                });
+              }
+              allPaths[iso2] = paths;
+              loadedL2DataRef.current.set(iso2, paths);
+            }
+          } catch (err) {
+            console.warn(`[L2] Failed to preload /data/l2/${iso2}.fgb:`, err);
+          } finally {
+            loadedCount++;
+            if (isMounted) {
+              setLoadingProgress({ loaded: loadedCount, total: L2_MANIFEST.length });
+            }
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+      return allPaths;
+    };
+
+    (async () => {
+      try {
+        const [loadedL1, loadedL2] = await Promise.all([loadL1(), loadAllL2()]);
+        if (!isMounted) return;
+        setFeatures(loadedL1);
+        setL2PathsByCountry(loadedL2);
+        l2PathsByCountryRef.current = loadedL2;
+        setLoading(false);
+      } catch (err) {
+        console.error('Initial map data loading error:', err);
+        if (isMounted) setLoading(false);
       }
     })();
 
@@ -1776,88 +1829,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (rafId.current) cancelAnimationFrame(rafId.current);
       if (animRafId.current) cancelAnimationFrame(animRafId.current);
     };
-  }, []);
+  }, [pathGenerator]);
 
-  // On-demand loader for visible countries' L2 FlatGeobuf datasets
+  // On-demand loader for visible L3 regional FlatGeobuf packs (only when L3 mode is active)
   useEffect(() => {
-    if (lodLevel === 'L1') return;
-
-    let isMounted = true;
-    for (const iso2 of visibleL2Iso2s) {
-      if (loadedL2DataRef.current.has(iso2) || inFlightFetchesRef.current.has(iso2)) continue;
-
-      inFlightFetchesRef.current.add(iso2);
-
-      (async () => {
-        try {
-          const res = await fetch(`/data/l2/${iso2}.fgb`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buffer = await res.arrayBuffer();
-          if (!isMounted) return;
-
-          const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
-          const paths: L2SubdivisionPathData[] = [];
-          for await (const feature of it) {
-            const p = (feature.properties || {}) as Record<string, unknown>;
-            const pathD = pathGenerator(feature) || '';
-            let bbox: [number, number, number, number] = [0, 0, 0, 0];
-            try {
-              const bounds = pathGenerator.bounds(feature);
-              if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[1][0])) {
-                bbox = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]];
-              }
-            } catch {
-              // fallback
-            }
-            const path2D = new Path2D(pathD);
-            let centroid: [number, number] = [0, 0];
-            try {
-              const c = pathGenerator.centroid(feature);
-              if (c && !isNaN(c[0]) && !isNaN(c[1])) centroid = c;
-            } catch {
-              // fallback
-            }
-            paths.push({
-              pathD,
-              path2D,
-              bbox,
-              id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
-              iso2: (p.iso2 as string) || iso2,
-              name: String(p.name || ''),
-              nameEn: String(p.name_en || p.name || ''),
-              nameZh: String(p.name_zh || p.name || ''),
-              typeEn: String(p.type_en || ''),
-              code: String(p.code || ''),
-              postal: String(p.postal || ''),
-              centroid
-            });
-          }
-
-          if (isMounted) {
-            loadedL2DataRef.current.set(iso2, paths);
-            setL2PathsByCountry((prev) => ({ ...prev, [iso2]: paths }));
-          }
-        } catch (err) {
-          console.warn(`[L2] Failed to load /data/l2/${iso2}.fgb:`, err);
-        } finally {
-          inFlightFetchesRef.current.delete(iso2);
-        }
-      })();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [visibleL2Iso2s, lodLevel, pathGenerator]);
-
-  // On-demand loader for visible L3 regional FlatGeobuf packs (preloads in L2 and L3)
-  useEffect(() => {
-    if (lodLevel === 'L1' && zoomK < 4.5) return;
+    if (lodLevel !== 'L3') return;
 
     for (const filePath of visibleL3Packs) {
       fetchL3Pack(filePath);
     }
-  }, [visibleL3Packs, lodLevel, zoomK, fetchL3Pack]);
+  }, [visibleL3Packs, lodLevel, fetchL3Pack]);
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets
   useEffect(() => {
@@ -1994,7 +1975,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   }, [loading, wrapX, clampY, renderCanvas, lodThresholds, syncAllViewports]);
 
-  // Zoom directly into a prefecture at L3 (called from Drawer)
+  // Zoom directly into a prefecture (called from Drawer)
   useEffect(() => {
     if (zoomToPrefectureRef) {
       zoomToPrefectureRef.current = (prefId: number) => {
@@ -2009,21 +1990,25 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           const targetX = wrapX(vw / 2 - cx * targetK, targetK);
           const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
 
+          const targetLOD = getLODLevel(targetK, lodThresholdsRef.current);
           setZoomK(Number(targetK.toFixed(1)));
-          setLodLevel('L3');
-          lodLevelRef.current = 'L3';
+          setLodLevel(targetLOD);
+          lodLevelRef.current = targetLOD;
           setSelectedL2Subdivision({ iso2: 'JP', id: target.id });
-          loadL3PackForSubdivision('JP', target.code, target.name, target.id);
-          activeL3ParentRef.current = {
-            iso2: 'JP',
-            id: target.id,
-            name: target.name,
-            code: target.code,
-            bbox: target.bbox,
-            path2D: target.path2D
-          };
+
+          if (targetLOD === 'L3') {
+            loadL3PackForSubdivision('JP', target.code, target.name, target.id);
+            activeL3ParentRef.current = {
+              iso2: 'JP',
+              id: target.id,
+              name: target.name,
+              code: target.code,
+              bbox: target.bbox,
+              path2D: target.path2D
+            };
+          }
           animateTo(targetK, targetX, targetY, 380, () => {
-            syncAllViewports(targetK, targetX, targetY, vw, vh, 'L3');
+            syncAllViewports(targetK, targetX, targetY, vw, vh, targetLOD);
           });
         }
       };
@@ -2425,22 +2410,51 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 12,
-            color: '#38bdf8',
-            fontSize: 14
+            gap: 16,
+            backgroundColor: '#0a0d14',
+            zIndex: 50
           }}
         >
           <div
             style={{
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               border: '3px solid rgba(56, 189, 248, 0.2)',
               borderTopColor: '#38bdf8',
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite'
             }}
           />
-          <span style={{ color: 'var(--text-secondary)' }}>正在載入世界高精度向量圖資...</span>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: '#38bdf8', fontSize: 15, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>
+              正在載入世界高精度向量圖資
+            </div>
+            <div style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: 13 }}>
+              {loadingProgress.total > 0
+                ? `正在載入全球一級行政區 (${loadingProgress.loaded} / ${loadingProgress.total})`
+                : '正在連線中...'}
+            </div>
+          </div>
+          {loadingProgress.total > 0 && (
+            <div
+              style={{
+                width: 220,
+                height: 4,
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 2,
+                overflow: 'hidden'
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.min(100, Math.round((loadingProgress.loaded / loadingProgress.total) * 100))}%`,
+                  backgroundColor: '#38bdf8',
+                  transition: 'width 0.15s ease-out'
+                }}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <canvas
