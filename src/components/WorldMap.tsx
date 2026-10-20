@@ -611,9 +611,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // ----------------------------------------------------
       // 2. Layer 2: Admin-1 Subdivisions (Direct Overlay)
       // ----------------------------------------------------
-      if ((currentLod === 'L2' || currentLod === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+      if (currentLod !== 'L1' && (copyIdx === 0 || copyIdx === 1)) {
         const copyOffset = copyIdx * MAP_W;
         const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
+        const isRegionMode = currentLod === 'L2_REGION' || currentLod === 'L3';
+
         for (let i = 0; i < allSubs.length; i++) {
           const sub = allSubs[i];
           if (!sub.path2D) continue;
@@ -640,29 +642,37 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           }
           if (isExpanded) continue;
 
-          const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && String(selectedL2.id) === String(sub.id);
-          const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && String(hoveredL2.id) === String(sub.id);
-          const isSiblingHovered =
-            (hoveredL2 && hoveredL2.iso2 === sub.iso2) ||
-            (hoveredM && hoveredM.iso2 === sub.iso2) ||
-            (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
-
           let fill: string | null = null;
-          let stroke = 'rgba(255, 255, 255, 0.18)';
-          let strokeWidth = 0.55 / k;
+          let stroke = isRegionMode ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.16)';
+          let strokeWidth = (isRegionMode ? 0.6 : 0.5) / k;
 
-          if (isSelected) {
-            fill = '#38bdf8';
-            stroke = '#38bdf8';
-            strokeWidth = 1.2 / k;
-          } else if (isHovered) {
-            fill = '#f97316';
-            stroke = '#ffffff';
-            strokeWidth = 1.4 / k;
-          } else if (isSiblingHovered) {
-            fill = 'rgba(251, 146, 60, 0.16)';
-            stroke = 'rgba(251, 146, 60, 0.4)';
-            strokeWidth = 0.6 / k;
+          if (isRegionMode) {
+            const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && String(selectedL2.id) === String(sub.id);
+            const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && String(hoveredL2.id) === String(sub.id);
+            const isSiblingHovered =
+              (hoveredL2 && hoveredL2.iso2 === sub.iso2) ||
+              (hoveredM && hoveredM.iso2 === sub.iso2) ||
+              (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
+
+            if (isSelected) {
+              fill = '#38bdf8';
+              stroke = '#38bdf8';
+              strokeWidth = 1.2 / k;
+            } else if (isHovered) {
+              fill = '#f97316';
+              stroke = '#ffffff';
+              strokeWidth = 1.4 / k;
+            } else if (isSiblingHovered) {
+              fill = 'rgba(251, 146, 60, 0.16)';
+              stroke = 'rgba(251, 146, 60, 0.4)';
+              strokeWidth = 0.6 / k;
+            }
+
+            if (isSelected) {
+              highlightSelectPaths.push(sub.path2D);
+            } else if (isHovered) {
+              highlightHoverPaths.push(sub.path2D);
+            }
           }
 
           if (fill) {
@@ -672,12 +682,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           ctx.strokeStyle = stroke;
           ctx.lineWidth = strokeWidth;
           ctx.stroke(sub.path2D);
-
-          if (isSelected) {
-            highlightSelectPaths.push(sub.path2D);
-          } else if (isHovered) {
-            highlightHoverPaths.push(sub.path2D);
-          }
         }
       }
 
@@ -927,7 +931,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
 
         loadedL3PacksRef.current.add(filePath);
-        if (lodLevelRef.current === 'L3' || lodLevelRef.current === 'L2') {
+        if (lodLevelRef.current !== 'L1') {
           renderCanvas();
         }
       } catch (err) {
@@ -1113,8 +1117,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       }
 
-      // 2b. Check L2 Admin-1 Subdivisions (if L2 or L3 mode, and copy 0 or 1)
-      if ((lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
+      // 2b. Check L2 Admin-1 Subdivisions (ONLY in L2_REGION or L3 mode)
+      if ((lodLevelRef.current === 'L2_REGION' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
         const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
         for (let i = 0; i < allSubs.length; i++) {
           const sub = allSubs[i];
@@ -1132,7 +1136,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const iso2 = c.countryMeta?.iso2;
         const isL2Active =
           iso2 &&
-          (lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') &&
+          (lodLevelRef.current === 'L2_REGION' || lodLevelRef.current === 'L3') &&
           !!l2PathsByCountryRef.current[iso2];
         if (isL2Active) continue;
 
@@ -1509,6 +1513,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredMunicipalityRef.current = null;
         setHoveredMunicipality(null);
       }
+      if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        selectedL2SubdivisionRef.current = null;
+        setSelectedL2Subdivision(null);
+      }
     }
     setZoomK(Number(newK.toFixed(1)));
     syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
@@ -1538,6 +1548,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredMunicipalityRef.current = null;
         setHoveredMunicipality(null);
       }
+      if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+        hoveredL2SubdivisionRef.current = null;
+        setHoveredL2Subdivision(null);
+        selectedL2SubdivisionRef.current = null;
+        setSelectedL2Subdivision(null);
+      }
     }
     setZoomK(Number(newK.toFixed(1)));
     animateTo(newK, newX, newY, 280, () => {
@@ -1562,6 +1578,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       activeL3ParentRef.current = null;
       hoveredMunicipalityRef.current = null;
       setHoveredMunicipality(null);
+    }
+    if (targetLOD !== 'L2_REGION' && targetLOD !== 'L3') {
+      hoveredL2SubdivisionRef.current = null;
+      setHoveredL2Subdivision(null);
+      selectedL2SubdivisionRef.current = null;
+      setSelectedL2Subdivision(null);
     }
     animateTo(kMin, targetX, targetY, 320, () => {
       syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
@@ -1596,6 +1618,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           hoveredMunicipalityRef.current = null;
           setHoveredMunicipality(null);
         }
+        if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          selectedL2SubdivisionRef.current = null;
+          setSelectedL2Subdivision(null);
+        }
       }
       setZoomK(Number(newK.toFixed(1)));
       syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
@@ -1608,11 +1636,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const handleUpdateThresholds = useCallback(
     (newThresholds: CustomLODThresholds) => {
       setLodThresholds(newThresholds);
+      lodThresholdsRef.current = newThresholds;
       const currentK = transformRef.current.k;
       const nextLOD = getLODLevel(currentK, newThresholds);
       if (nextLOD !== lodLevelRef.current) {
         setLodLevel(nextLOD);
         lodLevelRef.current = nextLOD;
+        if (nextLOD !== 'L3') {
+          activeL3ParentRef.current = null;
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+        }
+        if (nextLOD !== 'L2_REGION' && nextLOD !== 'L3') {
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          selectedL2SubdivisionRef.current = null;
+          setSelectedL2Subdivision(null);
+        }
         syncAllViewports(
           currentK,
           transformRef.current.x,
@@ -1621,8 +1661,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           viewportSize.current.h,
           nextLOD
         );
-        renderCanvas();
       }
+      renderCanvas();
     },
     [syncAllViewports, renderCanvas]
   );

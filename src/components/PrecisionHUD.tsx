@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
   LOD_THRESHOLDS,
-  DEFAULT_LOD_THRESHOLDS,
   MIN_ZOOM_K,
   MAX_ZOOM_K,
   type LODLevel,
@@ -23,12 +22,13 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
   onUpdateThresholds,
   onZoomChange
 }) => {
-  const [activeDragTarget, setActiveDragTarget] = useState<'zoom' | 'l2' | 'l3' | null>(null);
+  const [activeDragTarget, setActiveDragTarget] = useState<'zoom' | 'l2Outline' | 'l2Region' | 'l3' | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
   const currentThreshold = LOD_THRESHOLDS.find((t) => t.level === currentLOD) || LOD_THRESHOLDS[0];
 
-  const isL2Inf = !isFinite(lodThresholds.l2Threshold);
+  const isL2OutlineInf = !isFinite(lodThresholds.l2OutlineThreshold);
+  const isL2RegionInf = !isFinite(lodThresholds.l2RegionThreshold);
   const isL3Inf = !isFinite(lodThresholds.l3Threshold);
 
   // Continuous logarithmic scaling for zoom handle (0% ~ 100%)
@@ -45,17 +45,24 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
     return Math.min(94, Math.max(0, ratio * 94));
   };
 
-  const l2Percent = isL2Inf ? (isL3Inf ? 92 : 100) : thresholdKToPercent(lodThresholds.l2Threshold);
+  const l2OutlinePercent = isL2OutlineInf ? 90 : thresholdKToPercent(lodThresholds.l2OutlineThreshold);
+  const l2RegionPercent = isL2RegionInf ? (isL3Inf ? 95 : 100) : thresholdKToPercent(lodThresholds.l2RegionThreshold);
   const l3Percent = isL3Inf ? 100 : thresholdKToPercent(lodThresholds.l3Threshold);
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
+  const handlePointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    target: 'zoom' | 'l2Outline' | 'l2Region' | 'l3'
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     setActiveDragTarget(target);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>, target: 'zoom' | 'l2' | 'l3') => {
+  const handlePointerMove = (
+    e: React.PointerEvent<HTMLDivElement>,
+    target: 'zoom' | 'l2Outline' | 'l2Region' | 'l3'
+  ) => {
     if (activeDragTarget !== target) return;
     if (!trackRef.current) return;
 
@@ -67,20 +74,47 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
       let roundedK = Number(rawK.toFixed(1));
       if (rawK >= 50) roundedK = Math.round(rawK);
       onZoomChange(roundedK);
-    } else if (target === 'l2') {
-      if (ratio >= 0.91) {
+    } else if (target === 'l2Outline') {
+      if (ratio >= 0.88) {
         onUpdateThresholds({
-          l2Threshold: Infinity,
+          l2OutlineThreshold: Infinity,
+          l2RegionThreshold: Infinity,
           l3Threshold: Infinity
         });
       } else {
         const normRatio = ratio / 0.94;
         const rawK = MIN_ZOOM_K * Math.exp(normRatio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
-        const maxL2 = isFinite(lodThresholds.l3Threshold) ? lodThresholds.l3Threshold - 0.5 : 80.0;
-        const clampedL2 = Math.min(Math.max(1.5, rawK), maxL2);
+        const maxOutline = isFinite(lodThresholds.l2RegionThreshold)
+          ? lodThresholds.l2RegionThreshold - 0.2
+          : isFinite(lodThresholds.l3Threshold)
+          ? lodThresholds.l3Threshold - 0.5
+          : 80.0;
+        const clamped = Math.min(Math.max(1.1, rawK), maxOutline);
         onUpdateThresholds({
           ...lodThresholds,
-          l2Threshold: Number(clampedL2.toFixed(1))
+          l2OutlineThreshold: Number(clamped.toFixed(1))
+        });
+      }
+    } else if (target === 'l2Region') {
+      if (ratio >= 0.91) {
+        onUpdateThresholds({
+          ...lodThresholds,
+          l2RegionThreshold: Infinity,
+          l3Threshold: Infinity
+        });
+      } else {
+        const normRatio = ratio / 0.94;
+        const rawK = MIN_ZOOM_K * Math.exp(normRatio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
+        const minRegion = isFinite(lodThresholds.l2OutlineThreshold)
+          ? lodThresholds.l2OutlineThreshold + 0.2
+          : 1.5;
+        const maxRegion = isFinite(lodThresholds.l3Threshold)
+          ? lodThresholds.l3Threshold - 0.5
+          : 80.0;
+        const clamped = Math.min(Math.max(minRegion, rawK), maxRegion);
+        onUpdateThresholds({
+          ...lodThresholds,
+          l2RegionThreshold: Number(clamped.toFixed(1))
         });
       }
     } else if (target === 'l3') {
@@ -92,17 +126,15 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
       } else {
         const normRatio = ratio / 0.94;
         const rawK = MIN_ZOOM_K * Math.exp(normRatio * Math.log(MAX_ZOOM_K / MIN_ZOOM_K));
-        const minL3 = isFinite(lodThresholds.l2Threshold) ? lodThresholds.l2Threshold + 0.5 : 2.0;
-        const clampedL3 = Math.max(minL3, rawK);
-
-        let newL2 = lodThresholds.l2Threshold;
-        if (!isFinite(newL2) || newL2 >= clampedL3) {
-          newL2 = Math.max(1.5, Math.min(DEFAULT_LOD_THRESHOLDS.l2Threshold, clampedL3 - 0.5));
-        }
-
+        const minL3 = isFinite(lodThresholds.l2RegionThreshold)
+          ? lodThresholds.l2RegionThreshold + 0.5
+          : isFinite(lodThresholds.l2OutlineThreshold)
+          ? lodThresholds.l2OutlineThreshold + 1.0
+          : 2.0;
+        const clamped = Math.max(minL3, rawK);
         onUpdateThresholds({
-          l2Threshold: Number(newL2.toFixed(1)),
-          l3Threshold: Number(clampedL3.toFixed(1))
+          ...lodThresholds,
+          l3Threshold: Number(clamped.toFixed(1))
         });
       }
     }
@@ -125,33 +157,47 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
       <div
         ref={trackRef}
         className="precision-gauge-track"
-        title="拖動綠色 L2 門檻點、橘色 L3 門檻點、或圓形倍率點。門檻拉至最右端即為 ∞ 永遠不顯示。"
+        title="拖動 L2 輪廓門檻點、L2 區域門檻點、L3 門檻點、或圓形倍率點。門檻拉至最右端即為 ∞ 永遠不顯示。"
       >
         {/* Level Zone Color Bands on Track */}
         <div
           className="track-zone zone-l1"
           style={{
             left: 0,
-            width: `${isL2Inf ? 100 : l2Percent}%`
+            width: `${isL2OutlineInf ? 100 : l2OutlinePercent}%`
           }}
           title={
-            isL2Inf
-              ? 'L1 國家區間 (全倍率僅顯示國家)'
-              : `L1 國家區間 (1.0x ~ ${lodThresholds.l2Threshold}x)`
+            isL2OutlineInf
+              ? 'L1 國家輪廓區間 (全倍率僅顯示國家輪廓)'
+              : `L1 國家輪廓區間 (1.0x ~ ${lodThresholds.l2OutlineThreshold}x)`
           }
         />
         <div
-          className="track-zone zone-l2"
+          className="track-zone zone-l2-outline"
           style={{
-            left: `${l2Percent}%`,
-            width: `${isL2Inf ? 0 : isL3Inf ? 100 - l2Percent : Math.max(0, l3Percent - l2Percent)}%`
+            left: `${l2OutlinePercent}%`,
+            width: `${isL2OutlineInf ? 0 : isL2RegionInf ? 100 - l2OutlinePercent : Math.max(0, l2RegionPercent - l2OutlinePercent)}%`
           }}
           title={
-            isL2Inf
-              ? 'L2 一級行政區 (已設為 ∞ 停用)'
+            isL2OutlineInf
+              ? 'L2 行政區輪廓 (已停用)'
+              : isL2RegionInf
+              ? `L2 行政區輪廓區間 (${lodThresholds.l2OutlineThreshold}x ~ ∞)`
+              : `L2 行政區輪廓區間 (${lodThresholds.l2OutlineThreshold}x ~ ${lodThresholds.l2RegionThreshold}x)`
+          }
+        />
+        <div
+          className="track-zone zone-l2-region"
+          style={{
+            left: `${l2RegionPercent}%`,
+            width: `${isL2RegionInf ? 0 : isL3Inf ? 100 - l2RegionPercent : Math.max(0, l3Percent - l2RegionPercent)}%`
+          }}
+          title={
+            isL2RegionInf
+              ? 'L2 行政區區域 (已停用)'
               : isL3Inf
-              ? `L2 一級行政區區間 (${lodThresholds.l2Threshold}x ~ ∞)`
-              : `L2 一級行政區區間 (${lodThresholds.l2Threshold}x ~ ${lodThresholds.l3Threshold}x)`
+              ? `L2 行政區區域區間 (${lodThresholds.l2RegionThreshold}x ~ ∞)`
+              : `L2 行政區區域區間 (${lodThresholds.l2RegionThreshold}x ~ ${lodThresholds.l3Threshold}x)`
           }
         />
         <div
@@ -162,7 +208,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           }}
           title={
             isL3Inf
-              ? 'L3 二級行政區 (已設為 ∞ 停用)'
+              ? 'L3 二級行政區 (預設關閉 ∞)'
               : `L3 二級行政區區間 (${lodThresholds.l3Threshold}x ~ ${MAX_ZOOM_K}x)`
           }
         />
@@ -176,27 +222,47 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           }}
         />
 
-        {/* POINT 1: L2 Threshold Draggable Handle (門檻點 1) */}
+        {/* POINT 1: L2 Outline Threshold Draggable Handle (門檻點 1: L2 輪廓) */}
         <div
-          className={`threshold-handle handle-l2 ${activeDragTarget === 'l2' ? 'dragging' : ''} ${isL2Inf ? 'is-infinity' : ''}`}
-          style={{ left: `${l2Percent}%` }}
-          onPointerDown={(e) => handlePointerDown(e, 'l2')}
-          onPointerMove={(e) => handlePointerMove(e, 'l2')}
+          className={`threshold-handle handle-l2-outline ${activeDragTarget === 'l2Outline' ? 'dragging' : ''} ${isL2OutlineInf ? 'is-infinity' : ''}`}
+          style={{ left: `${l2OutlinePercent}%` }}
+          onPointerDown={(e) => handlePointerDown(e, 'l2Outline')}
+          onPointerMove={(e) => handlePointerMove(e, 'l2Outline')}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           title={
-            isL2Inf
-              ? 'L2 門檻: ∞ (永遠不顯示一級行政區，向左拖動可恢復)'
-              : `拖動調整 L2 門檻 (目前: ${lodThresholds.l2Threshold}x，拉至最右端可停用)`
+            isL2OutlineInf
+              ? 'L2 輪廓門檻: ∞ (停用)'
+              : `拖動調整 L2 輪廓門檻 (目前: ${lodThresholds.l2OutlineThreshold}x)`
           }
         >
-          <div className={`threshold-tag tag-l2 ${isL2Inf ? 'is-infinity' : ''}`}>
-            {isL2Inf ? 'L2 ∞' : `L2 ${lodThresholds.l2Threshold}×`}
+          <div className={`threshold-tag tag-l2-outline ${isL2OutlineInf ? 'is-infinity' : ''}`}>
+            {isL2OutlineInf ? 'L2輪廓 ∞' : `L2輪廓 ${lodThresholds.l2OutlineThreshold}×`}
           </div>
-          <div className="threshold-notch notch-l2" />
+          <div className="threshold-notch notch-l2-outline" />
         </div>
 
-        {/* POINT 2: L3 Threshold Draggable Handle (門檻點 2) */}
+        {/* POINT 2: L2 Region Threshold Draggable Handle (門檻點 2: L2 區域) */}
+        <div
+          className={`threshold-handle handle-l2-region ${activeDragTarget === 'l2Region' ? 'dragging' : ''} ${isL2RegionInf ? 'is-infinity' : ''}`}
+          style={{ left: `${l2RegionPercent}%` }}
+          onPointerDown={(e) => handlePointerDown(e, 'l2Region')}
+          onPointerMove={(e) => handlePointerMove(e, 'l2Region')}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          title={
+            isL2RegionInf
+              ? 'L2 區域門檻: ∞ (停用)'
+              : `拖動調整 L2 區域門檻 (目前: ${lodThresholds.l2RegionThreshold}x)`
+          }
+        >
+          <div className={`threshold-tag tag-l2-region ${isL2RegionInf ? 'is-infinity' : ''}`}>
+            {isL2RegionInf ? 'L2區域 ∞' : `L2區域 ${lodThresholds.l2RegionThreshold}×`}
+          </div>
+          <div className="threshold-notch notch-l2-region" />
+        </div>
+
+        {/* POINT 3: L3 Threshold Draggable Handle (門檻點 3: L3 二級) */}
         <div
           className={`threshold-handle handle-l3 ${activeDragTarget === 'l3' ? 'dragging' : ''} ${isL3Inf ? 'is-infinity' : ''}`}
           style={{ left: `${l3Percent}%` }}
@@ -206,8 +272,8 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           onPointerCancel={handlePointerUp}
           title={
             isL3Inf
-              ? 'L3 門檻: ∞ (永遠不顯示二級行政區，向左拖動可恢復)'
-              : `拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x，拉至最右端可停用)`
+              ? 'L3 門檻: ∞ (預設關閉，向左拖動可開啟)'
+              : `拖動調整 L3 門檻 (目前: ${lodThresholds.l3Threshold}x)`
           }
         >
           <div className={`threshold-tag tag-l3 ${isL3Inf ? 'is-infinity' : ''}`}>
@@ -216,7 +282,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           <div className="threshold-notch notch-l3" />
         </div>
 
-        {/* POINT 3: Current Map Zoom Magnification Handle (當前倍率點) */}
+        {/* POINT 4: Current Map Zoom Magnification Handle (當前倍率點) */}
         <div
           className={`precision-gauge-thumb ${activeDragTarget === 'zoom' ? 'dragging' : ''}`}
           style={{
@@ -228,7 +294,7 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
           onPointerMove={(e) => handlePointerMove(e, 'zoom')}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          title={`拖動調整地圖縮放倍率 (目前: ${currentZoomK.toFixed(1)}x)`}
+          title={`拖動調整地圖縮放倍率 (目前: ${currentZoomK.toFixed(1)}x · ${currentThreshold.labelZh})`}
         >
           <div className="thumb-grip-dot" />
           <div className="zoom-tag" style={{ borderColor: currentThreshold.color }}>

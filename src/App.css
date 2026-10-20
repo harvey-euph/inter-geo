@@ -963,7 +963,12 @@
   border-bottom-left-radius: 5px;
 }
 
+.track-zone.zone-l2-outline,
 .track-zone.zone-l2 {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.45), rgba(52, 211, 153, 0.75));
+}
+
+.track-zone.zone-l2-region {
   background: linear-gradient(90deg, rgba(16, 185, 129, 0.45), rgba(16, 185, 129, 0.75));
 }
 
@@ -1022,7 +1027,14 @@
   transition: all 0.15s ease;
 }
 
+.threshold-handle.handle-l2-outline .threshold-notch,
 .threshold-handle.handle-l2 .threshold-notch {
+  background: #34d399;
+  border: 1px solid #6ee7b7;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+.threshold-handle.handle-l2-region .threshold-notch {
   background: #10b981;
   border: 1px solid #34d399;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
@@ -1048,7 +1060,14 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
+.threshold-tag.tag-l2-outline,
 .threshold-tag.tag-l2 {
+  background: rgba(52, 211, 153, 0.95);
+  color: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.threshold-tag.tag-l2-region {
   background: rgba(16, 185, 129, 0.95);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
