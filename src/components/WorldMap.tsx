@@ -30,6 +30,7 @@ export interface CountryPathData {
   countryMeta: CountryData | undefined;
   id: string;
   name: string;
+  centroid: [number, number];
 }
 
 export interface L2SubdivisionPathData {
@@ -260,16 +261,33 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
       const path2D = new Path2D(pathD);
       const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
+      let centroid: [number, number] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
+      try {
+        const c = pathGenerator.centroid(feature);
+        if (c && !isNaN(c[0]) && !isNaN(c[1])) {
+          centroid = c;
+        }
+      } catch {
+        // fallback
+      }
       return {
         pathD,
         path2D,
         bbox,
         countryMeta,
         id: feature.id,
-        name: feature.properties?.name || 'Unknown'
+        name: feature.properties?.name || 'Unknown',
+        centroid
       };
     });
   }, [features, pathGenerator]);
+
+  // Deterministic ordered list of countries for keyboard cycling
+  const deterministicCountries = useMemo(() => {
+    return [...countryPathData]
+      .filter((c) => !!c.countryMeta)
+      .sort((a, b) => a.countryMeta!.name.localeCompare(b.countryMeta!.name) || a.countryMeta!.iso2.localeCompare(b.countryMeta!.iso2));
+  }, [countryPathData]);
 
   // Active L2 subdivision paths flattened for rendering
   const activeL2SubdivisionPaths = useMemo(() => {
@@ -1626,6 +1644,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Synchronize state and prop changes into render refs
   useEffect(() => {
     selectedCountryRef.current = selectedCountry;
+    if (!selectedCountry) {
+      selectedL2SubdivisionRef.current = null;
+    } else if (selectedL2SubdivisionRef.current && selectedL2SubdivisionRef.current.iso2 !== selectedCountry.iso2) {
+      selectedL2SubdivisionRef.current = null;
+    }
     renderCanvas();
   }, [selectedCountry, renderCanvas]);
 
@@ -1991,6 +2014,271 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       };
     }
   }, [zoomToPrefectureRef, activeL2SubdivisionPaths, wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision]);
+
+  // Arrow key navigation: Panning when unclicked, circular iteration when clicked
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in form controls or a modal is open
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable ||
+        document.querySelector('.modal-overlay')
+      ) {
+        return;
+      }
+
+      const isArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
+      if (!isArrowKey) return;
+
+      // Prevent window scroll
+      e.preventDefault();
+
+      const isForward = e.key === 'ArrowRight' || e.key === 'ArrowDown';
+      const dir = isForward ? 1 : -1;
+
+      // 1. Road Selected: Iterate through highways/routes
+      if (selectedRoadRef.current) {
+        const roadList: RoadPathData[] = [];
+        const seenNames = new Set<string>();
+        for (const bundle of roadBundlesRef.current.values()) {
+          for (const r of bundle.roads) {
+            if (!seenNames.has(r.name)) {
+              seenNames.add(r.name);
+              roadList.push(r);
+            }
+          }
+        }
+
+        if (roadList.length > 0) {
+          roadList.sort((a, b) => {
+            if (a.class !== b.class) {
+              return a.class === 'Interstate' ? -1 : 1;
+            }
+            const numA = parseInt(a.number, 10);
+            const numB = parseInt(b.number, 10);
+            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+              return numA - numB;
+            }
+            return a.name.localeCompare(b.name);
+          });
+
+          const currentIdx = roadList.findIndex((r) => r.name === selectedRoadRef.current?.name);
+          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + roadList.length) % roadList.length;
+          const nextRoad = roadList[nextIdx];
+
+          if (onSelectRoad) onSelectRoad(nextRoad);
+          selectedRoadRef.current = nextRoad;
+
+          const cx = (nextRoad.bbox[0] + nextRoad.bbox[2]) / 2;
+          const cy = (nextRoad.bbox[1] + nextRoad.bbox[3]) / 2;
+          const targetK = transformRef.current.k;
+          const vh = viewportSize.current.h;
+          const vw = viewportSize.current.w;
+          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+          animateTo(targetK, targetX, targetY, 250, () => {
+            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+          });
+          renderCanvas();
+        }
+        return;
+      }
+
+      // 2. L3 Region Selected: Iterate through siblings in the same L2 parent
+      if (selectedMunicipalityRef.current) {
+        const currentM = selectedMunicipalityRef.current;
+        const iso2 = currentM.iso2 || activeL3ParentRef.current?.iso2 || '';
+        const parentName = currentM.parentName || currentM.pref || activeL3ParentRef.current?.name;
+        const parentCode = currentM.parentCode || (currentM.prefId ? String(currentM.prefId) : undefined) || activeL3ParentRef.current?.code;
+        const parentId = currentM.prefId || activeL3ParentRef.current?.id;
+
+        const siblings = getL3SubdivisionsForParent(iso2, parentName, parentCode, parentId);
+
+        if (siblings.length > 0) {
+          const sortedChildren = [...siblings].sort((a, b) =>
+            (a.code || a.id).localeCompare(b.code || b.id) || a.name.localeCompare(b.name)
+          );
+
+          const currentIdx = sortedChildren.findIndex(
+            (c) => c.id === currentM.code || c.code === currentM.code || c.name === currentM.city
+          );
+          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + sortedChildren.length) % sortedChildren.length;
+          const nextChild = sortedChildren[nextIdx];
+
+          const cMeta = findCountry(nextChild.iso2);
+          const newMuni: MunicipalityDetail = {
+            code: nextChild.id || nextChild.code,
+            pref: nextChild.parentName,
+            city: nextChild.name,
+            nameZh: nextChild.nameZh || `${nextChild.parentName} ${nextChild.name}`,
+            iso2: nextChild.iso2,
+            countryName: cMeta?.name || '',
+            countryNameZh: cMeta?.nameZh || '',
+            countryFlag: cMeta?.flag || '🌐',
+            typeEn: nextChild.typeEn || 'District',
+            parentName: nextChild.parentName,
+            parentCode: nextChild.parentCode
+          };
+          if (nextChild.iso2 === 'JP' && (nextChild.parentCode || activeL3ParentRef.current?.id)) {
+            newMuni.prefId = Number(nextChild.parentCode || activeL3ParentRef.current?.id);
+          }
+
+          if (onSelectMunicipality) onSelectMunicipality(newMuni);
+          selectedMunicipalityRef.current = newMuni;
+
+          const cx = (nextChild.bbox[0] + nextChild.bbox[2]) / 2;
+          const cy = (nextChild.bbox[1] + nextChild.bbox[3]) / 2;
+          const targetK = transformRef.current.k;
+          const vh = viewportSize.current.h;
+          const vw = viewportSize.current.w;
+          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+          animateTo(targetK, targetX, targetY, 200, () => {
+            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+          });
+          renderCanvas();
+        }
+        return;
+      }
+
+      // 3. L2 Subdivision Selected: Iterate through subdivisions in current country
+      if (selectedL2SubdivisionRef.current) {
+        const iso2 = selectedL2SubdivisionRef.current.iso2;
+        const list = l2PathsByCountryRef.current[iso2] || activeL2SubdivisionPaths.filter((s) => s.iso2 === iso2);
+
+        if (list.length > 0) {
+          const sortedL2 = [...list].sort((a, b) =>
+            (a.code || a.name).localeCompare(b.code || b.name) || String(a.id).localeCompare(String(b.id))
+          );
+
+          const currentIdx = sortedL2.findIndex(
+            (s) => String(s.id) === String(selectedL2SubdivisionRef.current?.id)
+          );
+          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + sortedL2.length) % sortedL2.length;
+          const nextSub = sortedL2[nextIdx];
+
+          const selObj = { iso2: nextSub.iso2, id: nextSub.id };
+          setSelectedL2Subdivision(selObj);
+          selectedL2SubdivisionRef.current = selObj;
+
+          const cMeta = findCountry(nextSub.iso2);
+          if (cMeta) onSelectCountry(cMeta);
+
+          if (nextSub.iso2 === 'JP' && onSelectPrefecture) {
+            onSelectPrefecture(JAPAN_PREFECTURES[Number(nextSub.id)] || null);
+          } else if (onSelectPrefecture) {
+            onSelectPrefecture(null);
+          }
+
+          if (lodLevelRef.current === 'L3') {
+            loadL3PackForSubdivision(nextSub.iso2, nextSub.code, nextSub.name, nextSub.id);
+            activeL3ParentRef.current = {
+              iso2: nextSub.iso2,
+              id: nextSub.id,
+              name: nextSub.name,
+              code: nextSub.code,
+              bbox: nextSub.bbox,
+              path2D: nextSub.path2D
+            };
+          }
+
+          const [cx, cy] = nextSub.centroid;
+          const targetK = transformRef.current.k;
+          const vh = viewportSize.current.h;
+          const vw = viewportSize.current.w;
+          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+          animateTo(targetK, targetX, targetY, 250, () => {
+            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+          });
+          renderCanvas();
+        }
+        return;
+      }
+
+      // 4. L1 Country Selected: Iterate through countries
+      if (selectedCountryRef.current) {
+        if (deterministicCountries.length > 0) {
+          const currentC = selectedCountryRef.current;
+          const currentIdx = deterministicCountries.findIndex(
+            (c) => c.countryMeta?.id === currentC.id || c.countryMeta?.iso2 === currentC.iso2
+          );
+          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + deterministicCountries.length) % deterministicCountries.length;
+          const nextCountry = deterministicCountries[nextIdx];
+
+          if (nextCountry.countryMeta) {
+            onSelectCountry(nextCountry.countryMeta);
+            selectedCountryRef.current = nextCountry.countryMeta;
+            setSelectedL2Subdivision(null);
+            selectedL2SubdivisionRef.current = null;
+            if (onSelectPrefecture) onSelectPrefecture(null);
+            if (onSelectMunicipality) onSelectMunicipality(null);
+            selectedMunicipalityRef.current = null;
+
+            const [cx, cy] = nextCountry.centroid;
+            const currentK = transformRef.current.k;
+            const targetK = currentK > 2.8 ? 2.2 : currentK;
+            const vh = viewportSize.current.h;
+            const vw = viewportSize.current.w;
+            const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+            const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+            animateTo(targetK, targetX, targetY, 300, () => {
+              syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+            });
+            renderCanvas();
+          }
+        }
+        return;
+      }
+
+      // 5. Unclicked State: Smoothly pan the map
+      const PAN_STEP = e.shiftKey ? 280 : 120;
+      const { k, x, y } = transformRef.current;
+      const vh = viewportSize.current.h;
+      const vw = viewportSize.current.w;
+
+      let newX = x;
+      let newY = y;
+
+      if (e.key === 'ArrowUp') {
+        newY = clampY(y + PAN_STEP, k, vh);
+      } else if (e.key === 'ArrowDown') {
+        newY = clampY(y - PAN_STEP, k, vh);
+      } else if (e.key === 'ArrowLeft') {
+        newX = wrapX(x + PAN_STEP, k);
+      } else if (e.key === 'ArrowRight') {
+        newX = wrapX(x - PAN_STEP, k);
+      }
+
+      transformRef.current = { k, x: newX, y: newY };
+      renderCanvas();
+      syncAllViewports(k, newX, newY, vw, vh, lodLevelRef.current);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    deterministicCountries,
+    onSelectCountry,
+    onSelectPrefecture,
+    onSelectMunicipality,
+    onSelectRoad,
+    getL3SubdivisionsForParent,
+    loadL3PackForSubdivision,
+    activeL2SubdivisionPaths,
+    wrapX,
+    clampY,
+    animateTo,
+    syncAllViewports,
+    renderCanvas
+  ]);
 
   return (
     <div
