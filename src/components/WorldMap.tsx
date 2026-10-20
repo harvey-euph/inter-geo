@@ -177,6 +177,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const loadedL2DataRef = useRef<Map<string, L2SubdivisionPathData[]>>(new Map());
   const [l2PathsByCountry, setL2PathsByCountry] = useState<Record<string, L2SubdivisionPathData[]>>({});
   const l2PathsByCountryRef = useRef<Record<string, L2SubdivisionPathData[]>>({});
+  const allL2SubdivisionsRef = useRef<L2SubdivisionPathData[]>([]);
   const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedL2Subdivision, setSelectedL2Subdivision] = useState<{ iso2: string; id: number | string } | null>(null);
 
@@ -311,11 +312,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return list;
   }, [l2PathsByCountry]);
 
-  // Active L2 subdivision paths for rendering (empty at L1)
-  const activeL2SubdivisionPaths = useMemo(() => {
-    if (lodLevel === 'L1') return [];
-    return allL2Subdivisions;
-  }, [allL2Subdivisions, lodLevel]);
+  // Active L2 subdivision paths
+  const activeL2SubdivisionPaths = allL2Subdivisions;
 
   // Helper to fetch L3 child subdivisions for a specific parent (O(1) Map lookup)
   const getL3SubdivisionsForParent = useCallback(
@@ -571,23 +569,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       );
 
       // ----------------------------------------------------
-      // 1. Layer 1: L1 Countries
+      // 1. Layer 1: L1 Countries (Base World Layer)
       // ----------------------------------------------------
       for (let i = 0; i < countryPathData.length; i++) {
         const item = countryPathData[i];
         if (!item.path2D) continue;
 
-        const iso2 = item.countryMeta?.iso2;
-        const isL2Active =
-          iso2 &&
-          (currentLod === 'L2' || currentLod === 'L3') &&
-          !!l2PathsByCountryRef.current[iso2];
-        if (isL2Active) continue;
-
         const isHovered =
           hoveredC &&
           (hoveredC.id === item.countryMeta?.id || (item.countryMeta && hoveredC.iso2 === item.countryMeta.iso2));
         const isSelected =
+          !selectedL2 &&
           selectedC &&
           (selectedC.id === item.countryMeta?.id || (item.countryMeta && selectedC.iso2 === item.countryMeta.iso2));
 
@@ -617,12 +609,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
 
       // ----------------------------------------------------
-      // 2. Layer 2: Admin-1 Subdivisions
+      // 2. Layer 2: Admin-1 Subdivisions (Direct Overlay)
       // ----------------------------------------------------
       if ((currentLod === 'L2' || currentLod === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
         const copyOffset = copyIdx * MAP_W;
-        for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
-          const sub = activeL2SubdivisionPaths[i];
+        const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
+        for (let i = 0; i < allSubs.length; i++) {
+          const sub = allSubs[i];
           if (!sub.path2D) continue;
 
           // Viewport screen AABB culling
@@ -654,9 +647,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             (hoveredM && hoveredM.iso2 === sub.iso2) ||
             (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
 
-          let fill = '#1e293b';
-          let stroke = '#475569';
-          let strokeWidth = 0.6 / k;
+          let fill: string | null = null;
+          let stroke = 'rgba(255, 255, 255, 0.18)';
+          let strokeWidth = 0.55 / k;
 
           if (isSelected) {
             fill = '#38bdf8';
@@ -668,12 +661,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             strokeWidth = 1.4 / k;
           } else if (isSiblingHovered) {
             fill = 'rgba(251, 146, 60, 0.16)';
-            stroke = 'rgba(251, 146, 60, 0.35)';
+            stroke = 'rgba(251, 146, 60, 0.4)';
             strokeWidth = 0.6 / k;
           }
 
-          ctx.fillStyle = fill;
-          ctx.fill(sub.path2D);
+          if (fill) {
+            ctx.fillStyle = fill;
+            ctx.fill(sub.path2D);
+          }
           ctx.strokeStyle = stroke;
           ctx.lineWidth = strokeWidth;
           ctx.stroke(sub.path2D);
@@ -1120,8 +1115,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       // 2b. Check L2 Admin-1 Subdivisions (if L2 or L3 mode, and copy 0 or 1)
       if ((lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3') && (copyIdx === 0 || copyIdx === 1)) {
-        for (let i = 0; i < activeL2SubdivisionPaths.length; i++) {
-          const sub = activeL2SubdivisionPaths[i];
+        const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
+        for (let i = 0; i < allSubs.length; i++) {
+          const sub = allSubs[i];
           const [minX, minY, maxX, maxY] = sub.bbox;
           if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
           if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
@@ -1505,7 +1501,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     transformRef.current.y = clampY(newY, newK, vh);
 
     const nextLOD = getLODLevel(newK, lodThresholds);
-    if (nextLOD !== lodLevel) {
+    if (nextLOD !== lodLevelRef.current) {
       setLodLevel(nextLOD);
       lodLevelRef.current = nextLOD;
       if (nextLOD !== 'L3') {
@@ -1534,7 +1530,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const newY = clampY(cy - (cy - y) * (newK / k), newK, vh);
 
     const nextLOD = getLODLevel(newK, lodThresholds);
-    if (nextLOD !== lodLevel) {
+    if (nextLOD !== lodLevelRef.current) {
       setLodLevel(nextLOD);
       lodLevelRef.current = nextLOD;
       if (nextLOD !== 'L3') {
@@ -1699,6 +1695,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     l2PathsByCountryRef.current = l2PathsByCountry;
+    allL2SubdivisionsRef.current = Object.values(l2PathsByCountry).flat();
     renderCanvas();
   }, [l2PathsByCountry, renderCanvas]);
 
@@ -1814,6 +1811,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       try {
         const [loadedL1, loadedL2] = await Promise.all([loadL1(), loadAllL2()]);
         if (!isMounted) return;
+        const flattened = Object.values(loadedL2).flat();
+        allL2SubdivisionsRef.current = flattened;
         setFeatures(loadedL1);
         setL2PathsByCountry(loadedL2);
         l2PathsByCountryRef.current = loadedL2;
