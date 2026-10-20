@@ -1,11 +1,12 @@
 import React from 'react';
 import { X, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phone, MapPin, Search, Compass } from 'lucide-react';
 import type { CountryData } from '../types/geo';
-import type { PrefectureDetail, MunicipalityDetail } from '../types/lod';
+import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import type { RoadPathData } from './WorldMap';
 
 interface CountryDetailPanelProps {
   country: CountryData | null;
+  subdivision?: L2SubdivisionDetail | null;
   prefecture?: PrefectureDetail | null;
   municipality?: MunicipalityDetail | null;
   road?: RoadPathData | null;
@@ -16,6 +17,7 @@ interface CountryDetailPanelProps {
 
 export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
   country,
+  subdivision,
   prefecture,
   municipality,
   road,
@@ -473,6 +475,173 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               {metaTip}
             </div>
           </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // 2b. Worldwide L2 Subdivision Detail
+  if (subdivision) {
+    const flag = subdivision.countryFlag || '🌐';
+    const cMeta = country;
+
+    return (
+      <aside className="country-drawer">
+        <div className="drawer-header">
+          <div className="drawer-country-title">
+            <span className="drawer-flag" role="img" aria-label="flag">{flag}</span>
+            <div>
+              <div className="drawer-name-zh">{subdivision.nameZh}</div>
+              <div className="drawer-name-en">
+                {subdivision.nameEn && subdivision.nameEn !== subdivision.nameZh ? `${subdivision.nameEn} · ` : ''}
+                {subdivision.countryNameZh} ({subdivision.countryName}) · {subdivision.typeEn || '一級行政區'}
+              </div>
+            </div>
+          </div>
+          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="drawer-content">
+          {/* Quick Badges */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div
+              className="intel-tag highlight"
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                borderColor: '#10b981',
+                color: '#34d399',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '4px 10px'
+              }}
+            >
+              🏛️ {subdivision.typeEn || '一級行政區'}
+            </div>
+
+            {subdivision.code && (
+              <div
+                className="intel-tag"
+                style={{
+                  backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                  borderColor: 'rgba(56, 189, 248, 0.4)',
+                  color: '#38bdf8',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 10px'
+                }}
+              >
+                代碼：#{subdivision.code}
+              </div>
+            )}
+
+            {subdivision.postal && (
+              <div
+                className="intel-tag"
+                style={{
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  borderColor: 'rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 10px'
+                }}
+              >
+                📮 郵遞簡碼：{subdivision.postal}
+              </div>
+            )}
+
+            <div className="intel-tag" style={{ fontSize: 12, padding: '4px 10px' }}>
+              🌐 {subdivision.countryNameZh} ({subdivision.iso2})
+            </div>
+          </div>
+
+          {/* Region / Country Intel if available */}
+          {cMeta && (
+            <>
+              {/* Driving & Coverage */}
+              <div className="intel-grid">
+                <div className="intel-card">
+                  <div className="intel-card-header">
+                    <Navigation size={16} />
+                    <span>通行方向 (Driving Side)</span>
+                  </div>
+                  <div className="intel-card-body">
+                    <span className="badge-highlight">
+                      {cMeta.drivingSide === 'left' ? '🚗 左側通行 (Left-hand Drive)' : '🚙 右側通行 (Right-hand Drive)'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="intel-card">
+                  <div className="intel-card-header">
+                    <Car size={16} />
+                    <span>街景車鏡頭 (Camera Gen)</span>
+                  </div>
+                  <div className="intel-card-body">
+                    <div className="intel-tag-row">
+                      {cMeta.cameraGens.map((gen) => (
+                        <span key={gen} className="intel-tag">
+                          {gen}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* License Plate info */}
+              <div className="intel-card">
+                <div className="intel-card-header">
+                  <Car size={16} color="#ec4899" />
+                  <span style={{ color: '#f472b6' }}>國家車牌特徵 (License Plates)</span>
+                </div>
+                <div className="intel-card-body">{cMeta.plateDesc}</div>
+              </div>
+
+              {/* Road lines & Street view car */}
+              <div className="intel-card">
+                <div className="intel-card-header">
+                  <Shield size={16} color="#38bdf8" />
+                  <span style={{ color: '#38bdf8' }}>標線與車載特徵 (Road Lines & Car Meta)</span>
+                </div>
+                <div className="intel-card-body">
+                  <div><strong>道路標線：</strong>{cMeta.roadLinesDesc}</div>
+                  <div style={{ marginTop: 6 }}><strong>車載特徵：</strong>{cMeta.carMetaDesc}</div>
+                </div>
+              </div>
+
+              {/* Utility Poles & Bollards */}
+              <div className="intel-card">
+                <div className="intel-card-header">
+                  <Lightbulb size={16} color="#facc15" />
+                  <span style={{ color: '#facc15' }}>電線桿與護欄防撞桿 (Poles & Bollards)</span>
+                </div>
+                <div className="intel-card-body">
+                  <div><strong>電線桿：</strong>{cMeta.poleDesc}</div>
+                  <div style={{ marginTop: 6 }}><strong>防撞桿：</strong>{cMeta.bollardDesc}</div>
+                </div>
+              </div>
+
+              {/* Key Hints */}
+              {cMeta.keyHints && cMeta.keyHints.length > 0 && (
+                <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)' }}>
+                  <div className="intel-card-header">
+                    <Lightbulb size={16} color="#38bdf8" />
+                    <span>GeoGuessr 秒殺要訣 (Key Hints)</span>
+                  </div>
+                  <ul className="hints-list">
+                    {cMeta.keyHints.map((hint, idx) => (
+                      <li key={idx} className="hint-item">
+                        {hint}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </aside>
     );

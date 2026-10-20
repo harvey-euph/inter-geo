@@ -5,7 +5,7 @@ import { WorldMap } from './components/WorldMap';
 import { CountryDetailPanel } from './components/CountryDetailPanel';
 import { QuizModal } from './components/QuizModal';
 import type { CountryData } from './types/geo';
-import type { PrefectureDetail, MunicipalityDetail } from './types/lod';
+import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import './App.css';
@@ -14,6 +14,7 @@ export function App() {
   const [activeFilterId, setActiveFilterId] = useState<string>('none');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
+  const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedPrefecture, setSelectedPrefecture] = useState<PrefectureDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
@@ -26,16 +27,27 @@ export function App() {
   const handleSelectCountry = (country: CountryData | null) => {
     setSelectedCountry(country);
     if (country) {
+      setSelectedSubdivision(null);
       setSelectedPrefecture(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
     }
   };
 
+  const handleSelectSubdivision = useCallback((sub: L2SubdivisionDetail | null) => {
+    setSelectedSubdivision(sub);
+    if (sub) {
+      setSelectedPrefecture(null);
+      setSelectedMunicipality(null);
+      setSelectedRoad(null);
+    }
+  }, []);
+
   const handleSelectPrefecture = (pref: PrefectureDetail | null) => {
     setSelectedPrefecture(pref);
     if (pref) {
       setSelectedCountry(null);
+      setSelectedSubdivision(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
     }
@@ -45,6 +57,7 @@ export function App() {
     setSelectedMunicipality(muni);
     if (muni) {
       setSelectedCountry(null);
+      setSelectedSubdivision(null);
       setSelectedPrefecture(null);
       setSelectedRoad(null);
     }
@@ -54,6 +67,7 @@ export function App() {
     setSelectedRoad(road);
     if (road) {
       setSelectedCountry(null);
+      setSelectedSubdivision(null);
       setSelectedPrefecture(null);
       setSelectedMunicipality(null);
     }
@@ -65,6 +79,7 @@ export function App() {
         setSelectedRoad(null);
       } else {
         setSelectedCountry(null);
+        setSelectedSubdivision(null);
         setSelectedPrefecture(null);
         setSelectedMunicipality(null);
       }
@@ -74,6 +89,7 @@ export function App() {
 
   const handleClosePanel = useCallback(() => {
     setSelectedCountry(null);
+    setSelectedSubdivision(null);
     setSelectedPrefecture(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
@@ -148,6 +164,8 @@ export function App() {
             isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
             onSelectCountry={handleSelectCountry}
+            selectedSubdivision={selectedSubdivision}
+            onSelectSubdivision={handleSelectSubdivision}
             selectedPrefecture={selectedPrefecture}
             onSelectPrefecture={handleSelectPrefecture}
             selectedMunicipality={selectedMunicipality}
@@ -162,9 +180,10 @@ export function App() {
           />
         </section>
 
-        {/* Side Detail Dossier Panel (Supports Country, Prefecture L2, Municipality L3, Highway/Route) */}
+        {/* Side Detail Dossier Panel (Supports Country, Subdivision L2, Prefecture L2, Municipality L3, Highway/Route) */}
         <CountryDetailPanel
           country={selectedCountry}
+          subdivision={selectedSubdivision}
           prefecture={selectedPrefecture}
           municipality={selectedMunicipality}
           road={selectedRoad}

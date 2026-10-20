@@ -18,7 +18,7 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
     minK: 1.0,
     maxK: 6.0,
     labelZh: 'L1 · 國家模式',
-    sublabelZh: '顯示 L2 輪廓 · 點選與懸停以國家為單位',
+    sublabelZh: '以 L2 輪廓為基礎描繪 · 點選與懸停以國家為單位',
     color: '#38bdf8'
   },
   {
@@ -26,7 +26,7 @@ export const LOD_THRESHOLDS: LODThreshold[] = [
     minK: 6.0,
     maxK: MAX_ZOOM_K,
     labelZh: 'L2 · 行政區模式',
-    sublabelZh: '點選與懸停以省/州/都道府縣為單位',
+    sublabelZh: '點選與懸停以 L2 行政區為單位 · 顯示獨立情報卡',
     color: '#10b981'
   },
   {
@@ -63,6 +63,20 @@ export function getLODLevel(
   if (k >= thresholds.l3Threshold - eps) return 'L3';
   if (k >= thresholds.l2Threshold - eps) return 'L2';
   return 'L1';
+}
+
+export interface L2SubdivisionDetail {
+  id: number | string;
+  iso2: string;
+  name: string;
+  nameEn: string;
+  nameZh: string;
+  typeEn: string;
+  code: string;
+  postal: string;
+  countryName: string;
+  countryNameZh: string;
+  countryFlag: string;
 }
 
 export interface PrefectureDetail {
