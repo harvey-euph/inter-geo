@@ -1,38 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * FlatGeobuf (FGB) Shell Data Inspector & Visualizer
+ * FlatGeobuf (FGB) Shell Data Content & Semantics Inspector
  * 
  * Inspect vector data contents, schema semantics, field meanings, 
- * value distributions, and geometric shapes directly in the terminal!
+ * value distributions, and geometric records directly in the terminal!
  * 
  * Usage:
- *   node scripts/fgb-visualizer.mjs <file.fgb | ISO2> [options]
- * 
- * Data Content & Semantic Modes:
- *   --data, --table          View all data records in an aligned tabular view
- *   --schema, --dict         View the Data Dictionary: field meanings, types & purposes
- *   --distinct <field>       Show value distribution & frequency breakdown for any column
- *   --filter <key=val|str>   Filter records matching specific attribute values or substrings
- *   --json [name|id]         Dump raw JSON properties for full programmatic inspection
- *   --limit <num>            Set maximum records to display (default: 50, use 0 for all)
- *   --page <num>             Pagination page number
- * 
- * Visual & Geometry Modes:
- *   -f, --feature <name|id>  Zoom into a specific feature, view detailed shape & all attributes
- *   -h, --highlight <name>   Render full map with a designated feature highlighted
- *   -l, --list               Compact list with parts & vertex counts
- *   -s, --stat               Geometry complexity statistics & vertex distribution
- *   --no-map                 Skip rendering ASCII/Braille map (data content only)
+ *   node scripts/fgb-visualizer.mjs <file.fgb> [options]
  * 
  * Examples:
- *   node scripts/fgb-visualizer.mjs TW --data
- *   node scripts/fgb-visualizer.mjs US --schema
- *   node scripts/fgb-visualizer.mjs US --distinct type_en
- *   node scripts/fgb-visualizer.mjs TW --distinct type_en
- *   node scripts/fgb-visualizer.mjs US --filter postal=CA
- *   node scripts/fgb-visualizer.mjs public/data/roads/US.fgb --distinct class
- *   node scripts/fgb-visualizer.mjs public/data/roads/US.fgb --filter class=Interstate --limit 10
+ *   node scripts/fgb-visualizer.mjs public/data/l2/TW.fgb
+ *   node scripts/fgb-visualizer.mjs public/data/l2/US.fgb
+ *   node scripts/fgb-visualizer.mjs public/data/roads/US.fgb
+ *   node scripts/fgb-visualizer.mjs public/data/l3/US/US-CA.fgb
+ *   node scripts/fgb-visualizer.mjs public/data/l2/US.fgb --distinct type_en
+ *   node scripts/fgb-visualizer.mjs public/data/l2/US.fgb --filter postal=CA
+ *   node scripts/fgb-visualizer.mjs public/data/l2/US.fgb -f "Colorado"
+ *   node scripts/fgb-visualizer.mjs public/data/l2/TW.fgb --map
  */
 
 import fs from 'fs';
@@ -44,7 +29,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-// ANSI Color Helpers
+// ANSI Color Palette
 const C = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
@@ -66,8 +51,7 @@ const C = {
 };
 
 /**
- * Knowledge Base: Data Dictionary & Field Meanings
- * Defines the real-world semantics, standards, and gameplay/system purposes for every known field.
+ * Knowledge Base: Schema Dictionary & Real-World Semantics
  */
 const FIELD_DICTIONARY = {
   id: {
@@ -98,7 +82,7 @@ const FIELD_DICTIONARY = {
     labelZh: '在地化中文地名 (Chinese Name)',
     type: 'string',
     meaning: '正體/繁體中文翻譯地名 (如 加利福尼亞州、東京都、桃園市)。台灣縣市已自動校正為正體字。',
-    purpose: '中文使用者介面核心顯示、GeoGuessr 繁中地理知識卡片。'
+    purpose: '中文使用者介面核心呈現、GeoGuessr 繁中地理知識卡片。'
   },
   type_en: {
     labelZh: '一級體制型態 (Division Type)',
@@ -163,7 +147,7 @@ const FIELD_DICTIONARY = {
   city: {
     labelZh: '市町村/城市名 (Municipality City)',
     type: 'string',
-    meaning: '日本/各國二級或三級自治體名稱 (如 札幌市、中央区)。',
+    meaning: '二級或三級地方自治體名稱 (如 札幌市、中央区)。',
     purpose: '細部行政區劃標記。'
   },
   pref: {
@@ -283,9 +267,6 @@ class ColoredBrailleCanvas {
   }
 }
 
-/**
- * Scan features to compute bounding box and vertex count
- */
 function scanGeometryStats(feature) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   let vertexCount = 0;
@@ -327,13 +308,10 @@ function scanGeometryStats(feature) {
   };
 }
 
-/**
- * Render collection of features onto terminal canvas
- */
 function renderFeaturesToCanvas(features, options = {}) {
   const {
-    pixelWidth = 120,
-    pixelHeight = 56,
+    pixelWidth = 100,
+    pixelHeight = 44,
     highlightName = '',
     customBBox = null
   } = options;
@@ -436,72 +414,126 @@ function renderFeaturesToCanvas(features, options = {}) {
 }
 
 /**
- * Resolve input argument to existing .fgb file path
+ * Flexible Path Resolver:
+ * Accepts exact path, relative path, or file name anywhere in public/data
  */
 function resolveFgbPath(inputArg) {
   if (!inputArg) return null;
-  if (fs.existsSync(inputArg)) return inputArg;
 
+  // 1. Exact path or relative to current directory
+  if (fs.existsSync(inputArg)) return path.resolve(inputArg);
   const directPath = path.resolve(process.cwd(), inputArg);
   if (fs.existsSync(directPath)) return directPath;
 
-  // Check public/data/l2/<ISO2>.fgb
-  const l2Path = path.join(rootDir, 'public', 'data', 'l2', `${inputArg.toUpperCase()}.fgb`);
-  if (fs.existsSync(l2Path)) return l2Path;
+  // 2. Relative to project root
+  const rootRel = path.resolve(rootDir, inputArg);
+  if (fs.existsSync(rootRel)) return rootRel;
 
-  // Check public/data/<filename>
-  const dataPath = path.join(rootDir, 'public', 'data', inputArg.endsWith('.fgb') ? inputArg : `${inputArg}.fgb`);
+  // 3. Match in public/data/l2/<ISO2>.fgb
+  const fgbName = inputArg.endsWith('.fgb') ? inputArg : `${inputArg}.fgb`;
+  const l2Path = path.join(rootDir, 'public', 'data', 'l2', fgbName);
+  if (fs.existsSync(l2Path)) return l2Path;
+  const l2Upper = path.join(rootDir, 'public', 'data', 'l2', `${inputArg.toUpperCase()}.fgb`);
+  if (fs.existsSync(l2Upper)) return l2Upper;
+
+  // 4. Match in public/data/<filename>
+  const dataPath = path.join(rootDir, 'public', 'data', fgbName);
   if (fs.existsSync(dataPath)) return dataPath;
 
-  // Check public/data/roads/<filename>
-  const roadPath = path.join(rootDir, 'public', 'data', 'roads', inputArg.endsWith('.fgb') ? inputArg : `${inputArg}.fgb`);
+  // 5. Match in public/data/roads/<filename>
+  const roadPath = path.join(rootDir, 'public', 'data', 'roads', fgbName);
   if (fs.existsSync(roadPath)) return roadPath;
+
+  // 6. Recursive search inside public/data (for L3 subdivisions like US-CA.fgb, etc.)
+  function findRecursive(dir, target) {
+    if (!fs.existsSync(dir)) return null;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        const res = findRecursive(full, target);
+        if (res) return res;
+      } else if (e.name.toLowerCase() === target.toLowerCase()) {
+        return full;
+      }
+    }
+    return null;
+  }
+
+  const found = findRecursive(path.join(rootDir, 'public', 'data'), fgbName);
+  if (found) return found;
 
   return null;
 }
 
 /**
- * 1. Render Schema & Semantic Meanings Data Dictionary
+ * Render Schema Dictionary
  */
 function renderSchemaDictionary(features, filename) {
   if (features.length === 0) return;
   const propKeys = Object.keys(features[0].properties || {});
 
-  console.log(`\n${C.bold}${C.brightCyan}📖 Data Dictionary & Schema Semantics: ${path.basename(filename)}${C.reset}`);
-  console.log(`${C.gray}${'═'.repeat(90)}${C.reset}`);
-  console.log(`${C.bold}此檔案共偵測到 ${C.yellow}${propKeys.length}${C.reset}${C.bold} 個屬性欄位。以下為各欄位的資料定義、現實語意與系統用途：${C.reset}\n`);
+  console.log(`\n${C.bold}${C.brightCyan}📖 欄位語意說明 (Schema & Meanings):${C.reset}`);
+  console.log(`${C.gray}${'─'.repeat(84)}${C.reset}`);
 
-  propKeys.forEach((key, idx) => {
+  propKeys.forEach((key) => {
     const meta = FIELD_DICTIONARY[key] || {
-      labelZh: '自訂屬性',
+      labelZh: '特徵屬性',
       type: typeof (features[0].properties?.[key]),
-      meaning: '圖資所攜帶之地理或屬性欄位',
-      purpose: '前端屬性顯示或過濾條件'
+      meaning: '圖資所攜帶之屬性欄位',
+      purpose: '前端屬性顯示'
     };
 
-    // Collect 3 sample distinct values
-    const sampleVals = [];
-    for (const f of features) {
-      const v = f.properties?.[key];
-      if (v !== undefined && v !== null && v !== '' && !sampleVals.includes(String(v))) {
-        sampleVals.push(String(v));
-        if (sampleVals.length >= 3) break;
-      }
-    }
-
-    console.log(`${C.bold}${C.brightYellow}[${idx + 1}] 欄位名稱: ${C.cyan}${key}${C.reset}  ${C.gray}── ${meta.labelZh} (${meta.type})${C.reset}`);
-    console.log(`    ${C.bold}語意說明:${C.reset} ${meta.meaning}`);
-    console.log(`    ${C.bold}系統用途:${C.reset} ${meta.purpose}`);
-    console.log(`    ${C.bold}範例數值:${C.reset} ${C.white}${sampleVals.map((s) => `'${s}'`).join(', ')}${C.reset}\n`);
+    console.log(`  • ${C.bold}${C.brightYellow}${key.padEnd(12)}${C.reset} ${C.gray}(${meta.type})${C.reset} : ${C.white}${meta.labelZh}${C.reset}`);
+    console.log(`    ${C.dim}語意:${C.reset} ${meta.meaning}`);
+    console.log(`    ${C.dim}用途:${C.reset} ${meta.purpose}`);
   });
 
-  console.log(`${C.gray}${'═'.repeat(90)}${C.reset}\n`);
+  console.log(`${C.gray}${'─'.repeat(84)}${C.reset}`);
 }
 
 /**
- * 2. Render Full Data Content Table
+ * Render Distinct Breakdown
  */
-function renderDataContentTable(features, options = {}) {
+function renderDistinctDistribution(features, field) {
+  const counts = new Map();
+  let nullCount = 0;
+
+  for (const f of features) {
+    const v = f.properties?.[field];
+    if (v === undefined || v === null || v === '') {
+      nullCount++;
+    } else {
+      const s = String(v);
+      counts.set(s, (counts.get(s) || 0) + 1);
+    }
+  }
+
+  if (counts.size === 0 && nullCount === 0) return;
+
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const total = features.length;
+  const maxLabelLen = Math.max(10, ...sorted.map(([k]) => k.length));
+
+  console.log(`\n${C.bold}📊 類別分佈統計 (${field} Distribution):${C.reset}`);
+
+  sorted.forEach(([val, count]) => {
+    const pct = ((count / total) * 100).toFixed(1);
+    const barLen = Math.round((count / total) * 20);
+    const bar = `${C.brightCyan}${'█'.repeat(barLen)}${C.gray}${'░'.repeat(20 - barLen)}${C.reset}`;
+    console.log(`   ${val.padEnd(maxLabelLen + 2)} : ${count.toString().padStart(3)} 筆 (${pct.padStart(5)}%) ${bar}`);
+  });
+
+  if (nullCount > 0) {
+    const pct = ((nullCount / total) * 100).toFixed(1);
+    console.log(`   ${'(未定義)'.padEnd(maxLabelLen + 2)} : ${nullCount.toString().padStart(3)} 筆 (${pct.padStart(5)}%)`);
+  }
+}
+
+/**
+ * Render Data Records Table
+ */
+function renderDataTable(features, options = {}) {
   const {
     limit = 50,
     page = 1,
@@ -510,7 +542,6 @@ function renderDataContentTable(features, options = {}) {
 
   let filtered = features;
 
-  // Apply filtering if provided
   if (filterExpr) {
     const [filterKey, filterVal] = filterExpr.includes('=') ? filterExpr.split('=') : [null, filterExpr];
     filtered = features.filter((f) => {
@@ -529,18 +560,19 @@ function renderDataContentTable(features, options = {}) {
   const end = limit > 0 ? Math.min(total, start + limit) : total;
   const paged = filtered.slice(start, end);
 
-  console.log(`\n${C.bold}${C.brightGreen}📊 Data Content Records (${start + 1} ~ ${end} of ${total} total)${C.reset}`);
+  const isAll = limit >= total || limit === 0;
+  const rangeStr = isAll ? `顯示全部 ${total} 筆` : `顯示第 ${start + 1} ~ ${end} 筆 (共 ${total} 筆)`;
+
+  console.log(`\n${C.bold}📋 資料內容表 (${rangeStr}):${C.reset}`);
   if (filterExpr) {
-    console.log(`   ${C.yellow}Active Filter: ${filterExpr}${C.reset}`);
+    console.log(`   ${C.yellow}篩選條件: ${filterExpr}${C.reset}`);
   }
-  console.log(`${C.gray}${'─'.repeat(90)}${C.reset}`);
 
   if (paged.length === 0) {
-    console.log(`  ${C.dim}(No records matching filter)${C.reset}\n`);
+    console.log(`  ${C.dim}(無符合篩選條件的記錄)${C.reset}\n`);
     return;
   }
 
-  // Build dynamic table columns
   const firstProps = paged[0].properties || {};
   const propKeys = Object.keys(firstProps);
 
@@ -557,64 +589,12 @@ function renderDataContentTable(features, options = {}) {
   console.table(tableRows);
 
   if (limit > 0 && end < total) {
-    console.log(`\n${C.dim}💡 Use '--page ${page + 1}' to view next page, or '--limit 0' to view all ${total} records.${C.reset}`);
+    console.log(`  ${C.dim}💡 資料量較多，已預設顯示前 ${limit} 筆。加入 '--page ${page + 1}' 觀看下一頁，或 '--limit 0' 輸出全部記錄。${C.reset}`);
   }
-  console.log('');
 }
 
 /**
- * 3. Render Distinct Value Analysis & Frequency Distribution
- */
-function renderDistinctDistribution(features, field) {
-  console.log(`\n${C.bold}${C.brightMagenta}📈 Value Frequency Distribution for field: '${C.cyan}${field}${C.reset}'${C.reset}`);
-  console.log(`${C.gray}${'═'.repeat(70)}${C.reset}`);
-
-  const counts = new Map();
-  let nullCount = 0;
-
-  for (const f of features) {
-    const v = f.properties?.[field];
-    if (v === undefined || v === null || v === '') {
-      nullCount++;
-    } else {
-      const s = String(v);
-      counts.set(s, (counts.get(s) || 0) + 1);
-    }
-  }
-
-  if (counts.size === 0 && nullCount === 0) {
-    console.error(`\n${C.red}Field '${field}' not found in dataset.${C.reset}`);
-    const available = Object.keys(features[0]?.properties || {}).join(', ');
-    console.log(`Available fields: ${available}`);
-    return;
-  }
-
-  // Sort descending by count
-  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  const total = features.length;
-  const maxLabelLen = Math.max(8, ...sorted.map(([k]) => k.length));
-
-  console.log(`  Total Records: ${C.white}${total}${C.reset} | Distinct Values: ${C.yellow}${sorted.length}${C.reset}\n`);
-  console.log(`  ${C.gray}${'VALUE'.padEnd(maxLabelLen + 2)} COUNT     PERCENTAGE    DISTRIBUTION${C.reset}`);
-  console.log(`  ${C.gray}${'─'.repeat(maxLabelLen + 40)}${C.reset}`);
-
-  sorted.forEach(([val, count]) => {
-    const pct = ((count / total) * 100).toFixed(1);
-    const barLen = Math.round((count / total) * 24);
-    const bar = `${C.brightCyan}${'█'.repeat(barLen)}${C.gray}${'░'.repeat(24 - barLen)}${C.reset}`;
-    console.log(`  ${C.bold}${val.padEnd(maxLabelLen + 2)}${C.reset} ${count.toString().padStart(5)}     ${pct.padStart(5)}%     ${bar}`);
-  });
-
-  if (nullCount > 0) {
-    const pct = ((nullCount / total) * 100).toFixed(1);
-    console.log(`  ${C.dim}(null/empty)`.padEnd(maxLabelLen + 4) + ` ${nullCount.toString().padStart(5)}     ${pct.padStart(5)}%`);
-  }
-
-  console.log(`${C.gray}${'─'.repeat(maxLabelLen + 40)}${C.reset}\n`);
-}
-
-/**
- * Main Visualizer & Inspector Routine
+ * Main Entry Point
  */
 async function main() {
   const args = process.argv.slice(2);
@@ -623,17 +603,12 @@ async function main() {
   let highlightQuery = null;
   let distinctField = null;
   let filterExpr = null;
-  let showSchema = false;
-  let showData = false;
-  let showList = false;
+  let showMap = false;
   let showStat = false;
   let showCoords = false;
   let dumpJson = false;
-  let noMap = false;
   let limit = 50;
   let page = 1;
-  let termWidth = process.stdout.columns ? Math.min(130, Math.max(60, process.stdout.columns - 4)) : 80;
-  let termHeight = 24;
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -641,32 +616,22 @@ async function main() {
       featureQuery = args[++i];
     } else if (a === '-h' || a === '--highlight') {
       highlightQuery = args[++i];
-    } else if (a === '--schema' || a === '--dict') {
-      showSchema = true;
-    } else if (a === '--data' || a === '--table') {
-      showData = true;
+    } else if (a === '--map') {
+      showMap = true;
     } else if (a === '--distinct') {
       distinctField = args[++i];
     } else if (a === '--filter' || a === '-q') {
       filterExpr = args[++i];
     } else if (a === '--json') {
       dumpJson = true;
-    } else if (a === '-l' || a === '--list') {
-      showList = true;
     } else if (a === '-s' || a === '--stat') {
       showStat = true;
     } else if (a === '-c' || a === '--coords') {
       showCoords = true;
-    } else if (a === '--no-map') {
-      noMap = true;
     } else if (a === '--limit') {
       limit = parseInt(args[++i], 10);
     } else if (a === '--page') {
       page = parseInt(args[++i], 10);
-    } else if (a === '-w' || a === '--width') {
-      termWidth = parseInt(args[++i], 10);
-    } else if (a === '--height') {
-      termHeight = parseInt(args[++i], 10);
     } else if (!fileArg && !a.startsWith('-')) {
       fileArg = a;
     }
@@ -679,7 +644,8 @@ async function main() {
 
   const resolvedPath = resolveFgbPath(fileArg);
   if (!resolvedPath) {
-    console.error(`\n${C.red}Error: File not found for '${fileArg}'${C.reset}`);
+    console.error(`\n${C.red}錯誤: 找不到圖資檔案 '${fileArg}'${C.reset}`);
+    console.error(`請確認檔案路徑是否正確（如 public/data/l2/TW.fgb）`);
     process.exit(1);
   }
 
@@ -695,44 +661,24 @@ async function main() {
   }
 
   if (features.length === 0) {
-    console.log(`${C.yellow}Notice: FlatGeobuf file contains 0 features.${C.reset}`);
+    console.log(`${C.yellow}提示: 此 FlatGeobuf 檔案不包含任何 Feature 記錄。${C.reset}`);
     return;
   }
 
-  // 1. Distinct Distribution Mode
+  // 1. Raw JSON Dump Mode
+  if (dumpJson) {
+    console.log(JSON.stringify(features.map((f) => f.properties), null, 2));
+    return;
+  }
+
+  // 2. Distinct Mode
   if (distinctField) {
+    console.log(`\n${C.bold}📁 檔案: ${C.cyan}${resolvedPath}${C.reset}`);
     renderDistinctDistribution(features, distinctField);
     return;
   }
 
-  // 2. Schema / Dictionary Mode
-  if (showSchema) {
-    renderSchemaDictionary(features, resolvedPath);
-    return;
-  }
-
-  // 3. Raw JSON Dump Mode
-  if (dumpJson) {
-    if (featureQuery) {
-      const q = featureQuery.toLowerCase();
-      const target = features.find((f) => {
-        const p = f.properties || {};
-        return String(f.id) === q || String(p.name || '').toLowerCase() === q || String(p.code || '').toLowerCase() === q;
-      });
-      console.log(JSON.stringify(target || null, null, 2));
-    } else {
-      console.log(JSON.stringify(features.slice(0, limit || 10).map((f) => f.properties), null, 2));
-    }
-    return;
-  }
-
-  // 4. Data Content Table Mode
-  if (showData || filterExpr) {
-    renderDataContentTable(features, { limit, page, filterExpr });
-    return;
-  }
-
-  // 5. Single Feature Zoom Inspection
+  // 3. Zoom Single Feature
   if (featureQuery) {
     const q = featureQuery.toLowerCase();
     const target = features.find((f, idx) => {
@@ -746,216 +692,121 @@ async function main() {
     });
 
     if (!target) {
-      console.error(`\n${C.red}Feature '${featureQuery}' not found in ${path.basename(resolvedPath)}.${C.reset}`);
+      console.error(`\n${C.red}在 ${path.basename(resolvedPath)} 中找不到特徵 '${featureQuery}'${C.reset}`);
       process.exit(1);
     }
 
-    renderSingleFeatureView(target, { termWidth, termHeight, showCoords });
+    const p = target.properties || {};
+    const name = p.name || p.name_en || target.id || 'Unnamed';
+    const nameZh = p.name_zh ? ` (${p.name_zh})` : '';
+    const s = scanGeometryStats(target);
+
+    console.log(`\n${C.bold}${C.brightYellow}🔎 單一特徵記錄檢視: ${name}${nameZh}${C.reset}`);
+    console.log(`${C.gray}${'═'.repeat(70)}${C.reset}`);
+    console.log(`\n${C.bold}屬性與語意:${C.reset}`);
+    for (const [k, v] of Object.entries(p)) {
+      const meta = FIELD_DICTIONARY[k];
+      const annot = meta ? `${C.gray}# ${meta.labelZh}${C.reset}` : '';
+      console.log(`  ${C.cyan}${k.padEnd(14)}${C.reset} : ${C.bold}${C.white}${String(v).padEnd(20)}${C.reset} ${annot}`);
+    }
+
+    console.log(`\n${C.bold}空間座標資訊:${C.reset}`);
+    console.log(`  幾何型態:      ${C.green}${target.geometry.type}${C.reset}`);
+    console.log(`  離島/分塊數:   ${C.yellow}${s.partCount}${C.reset}`);
+    console.log(`  座標頂點數:    ${C.white}${s.vertexCount} pts${C.reset}`);
+    console.log(`  經緯度範圍:    [${s.bbox.minX.toFixed(4)}°, ${s.bbox.minY.toFixed(4)}°] ~ [${s.bbox.maxX.toFixed(4)}°, ${s.bbox.maxY.toFixed(4)}°]`);
+
+    if (showCoords) {
+      console.log(`\n${C.bold}頂點座標列表 (${s.vertexCount} 點):${C.reset}`);
+      console.log(JSON.stringify(target.geometry.coordinates, null, 2));
+    }
     return;
   }
 
-  // 6. Compact List Mode
-  if (showList) {
-    renderFeatureList(features, path.basename(resolvedPath));
-    return;
+  // 4. Default Mode: File Overview -> Schema & Meanings -> Auto Distribution -> Data Content Table!
+  let globalMinX = Infinity, globalMaxX = -Infinity;
+  let globalMinY = Infinity, globalMaxY = -Infinity;
+  let totalVerts = 0;
+  const geomTypes = new Set();
+
+  for (const f of features) {
+    const s = scanGeometryStats(f);
+    totalVerts += s.vertexCount;
+    if (f.geometry?.type) geomTypes.add(f.geometry.type);
+    if (isFinite(s.bbox.minX)) {
+      globalMinX = Math.min(globalMinX, s.bbox.minX);
+      globalMaxX = Math.max(globalMaxX, s.bbox.maxX);
+      globalMinY = Math.min(globalMinY, s.bbox.minY);
+      globalMaxY = Math.max(globalMaxY, s.bbox.maxY);
+    }
   }
 
-  // 7. Complexity Stats Mode
-  if (showStat) {
-    renderStatistics(features, resolvedPath, fileBytes);
-    return;
-  }
-
-  // 8. Default Combined View: File Overview + Schema Summary + Data Table Preview + Terminal Map
   console.log(`\n${C.bold}${C.brightCyan}╔══════════════════════════════════════════════════════════════════════════╗${C.reset}`);
-  console.log(`${C.bold}${C.brightCyan}║                     FlatGeobuf (FGB) Data Inspector                      ║${C.reset}`);
+  console.log(`${C.bold}${C.brightCyan}║              FlatGeobuf (FGB) 資料內容與語意檢視器                       ║${C.reset}`);
   console.log(`${C.bold}${C.brightCyan}╚══════════════════════════════════════════════════════════════════════════╝${C.reset}`);
 
-  console.log(`\n${C.bold}📁 File Overview:${C.reset}`);
-  console.log(`   Path:          ${C.cyan}${resolvedPath}${C.reset}`);
-  console.log(`   Size:          ${C.yellow}${(fileBytes / 1024).toFixed(1)} KB${C.reset} (${(fileBytes / 1024 / 1024).toFixed(2)} MB)`);
-  console.log(`   Features:      ${C.brightGreen}${features.length}${C.reset} records`);
+  // File Overview
+  console.log(`\n${C.bold}📁 檔案基本資訊:${C.reset}`);
+  console.log(`   檔案路徑:      ${C.cyan}${resolvedPath}${C.reset}`);
+  console.log(`   檔案體積:      ${C.yellow}${(fileBytes / 1024).toFixed(1)} KB${C.reset} (${(fileBytes / 1024 / 1024).toFixed(2)} MB)`);
+  console.log(`   記錄筆數:      ${C.brightGreen}${features.length}${C.reset} 筆`);
+  console.log(`   幾何型態:      ${Array.from(geomTypes).join(', ')} (總頂點數: ${totalVerts.toLocaleString()} 點)`);
+  console.log(`   經緯度範圍:    [${globalMinX.toFixed(2)}°E, ${globalMinY.toFixed(2)}°N] ~ [${globalMaxX.toFixed(2)}°E, ${globalMaxY.toFixed(2)}°N]`);
 
-  // Print Schema Summary
-  const propKeys = Object.keys(features[0].properties || {});
-  console.log(`\n${C.bold}📋 Data Schema (${propKeys.length} fields detected):${C.reset}`);
-  propKeys.forEach((k) => {
-    const meta = FIELD_DICTIONARY[k];
-    const desc = meta ? `${C.white}${meta.labelZh}${C.reset} (${meta.meaning})` : `${C.dim}自訂屬性${C.reset}`;
-    console.log(`   • ${C.brightYellow}${k.padEnd(12)}${C.reset}: ${desc}`);
-  });
+  // Schema Definitions & Meanings
+  renderSchemaDictionary(features, resolvedPath);
 
-  // Data Preview Table (First 5 records)
-  renderDataContentTable(features, { limit: 5, page: 1 });
+  // Auto-detect categorical distribution (e.g. type_en or class)
+  const firstProps = features[0]?.properties || {};
+  if ('type_en' in firstProps) {
+    renderDistinctDistribution(features, 'type_en');
+  } else if ('class' in firstProps) {
+    renderDistinctDistribution(features, 'class');
+  }
 
-  // Terminal Map Canvas
-  if (!noMap) {
-    console.log(`${C.bold}🗺️  Visual Map Canvas (Braille Sub-pixel):${C.reset}`);
-    const pixelW = termWidth * 2;
-    const pixelH = termHeight * 4;
+  // Data Content Table (Auto-fits small tables up to 50 records)
+  const autoLimit = features.length <= 50 ? features.length : limit;
+  renderDataTable(features, { limit: autoLimit, page, filterExpr });
+
+  // Optional Visual Map
+  if (showMap) {
+    console.log(`\n${C.bold}🗺️  點陣幾何輪廓圖:${C.reset}`);
     const mapStr = renderFeaturesToCanvas(features, {
-      pixelWidth: pixelW,
-      pixelHeight: pixelH,
+      pixelWidth: 100,
+      pixelHeight: 44,
       highlightName: highlightQuery
     });
     console.log(mapStr);
   }
 
-  console.log(`\n${C.dim}💡 Quick Data Exploration Commands:${C.reset}`);
-  console.log(`   - Full Data Table:     ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --data${C.reset}`);
-  console.log(`   - Data Dictionary:     ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --schema${C.reset}`);
-  console.log(`   - Value Breakdown:     ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --distinct <field>${C.reset}`);
-  console.log(`   - Search / Filter:     ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --filter <key=val>${C.reset}`);
-  console.log(`   - Feature Inspector:   ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} -f "<name>"${C.reset}\n`);
+  console.log(`${C.dim}💡 常用操作:${C.reset}`);
+  console.log(`   - 條件過濾:  ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --filter postal=CA${C.reset}`);
+  console.log(`   - 數值分佈:  ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --distinct <欄位名>${C.reset}`);
+  console.log(`   - 單筆聚焦:  ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} -f "<名稱>"${C.reset}`);
+  console.log(`   - 檢視地圖:  ${C.cyan}node scripts/fgb-visualizer.mjs ${fileArg} --map${C.reset}\n`);
 }
 
-/**
- * Render single zoomed feature
- */
-function renderSingleFeatureView(f, options) {
-  const p = f.properties || {};
-  const name = p.name || p.name_en || f.id || 'Unnamed';
-  const nameZh = p.name_zh ? ` (${p.name_zh})` : '';
-  const s = scanGeometryStats(f);
-
-  console.log(`\n${C.bold}${C.brightYellow}🔎 Inspecting Record: ${name}${nameZh}${C.reset}`);
-  console.log(`${C.gray}${'═'.repeat(70)}${C.reset}`);
-
-  // Properties Table with Semantics
-  console.log(`\n${C.bold}Attributes & Meanings:${C.reset}`);
-  for (const [k, v] of Object.entries(p)) {
-    const meta = FIELD_DICTIONARY[k];
-    const annot = meta ? `${C.gray}# ${meta.labelZh}${C.reset}` : '';
-    console.log(`  ${C.cyan}${k.padEnd(14)}${C.reset} : ${C.bold}${C.white}${String(v).padEnd(20)}${C.reset} ${annot}`);
-  }
-
-  console.log(`\n${C.bold}Spatial & Geometry Stats:${C.reset}`);
-  console.log(`  Type:          ${C.green}${f.geometry.type}${C.reset}`);
-  console.log(`  Parts/Islands: ${C.yellow}${s.partCount}${C.reset}`);
-  console.log(`  Total Vertices:${C.white} ${s.vertexCount} pts${C.reset}`);
-  console.log(`  Bounding Box:  [${s.bbox.minX.toFixed(4)}, ${s.bbox.minY.toFixed(4)}] to [${s.bbox.maxX.toFixed(4)}, ${s.bbox.maxY.toFixed(4)}]`);
-  console.log(`  Center:        [${((s.bbox.minX + s.bbox.maxX) / 2).toFixed(4)}, ${((s.bbox.minY + s.bbox.maxY) / 2).toFixed(4)}]`);
-
-  console.log(`\n${C.bold}Geometry Preview:${C.reset}`);
-  const mapStr = renderFeaturesToCanvas([f], {
-    pixelWidth: (options.termWidth || 80) * 2,
-    pixelHeight: 20 * 4,
-    customBBox: s.bbox
-  });
-  console.log(mapStr);
-
-  if (options.showCoords) {
-    console.log(`\n${C.bold}Coordinate Array (${s.vertexCount} points):${C.reset}`);
-    const coordsStr = JSON.stringify(f.geometry.coordinates, null, 2);
-    const lines = coordsStr.split('\n');
-    if (lines.length > 50) {
-      console.log(lines.slice(0, 40).join('\n'));
-      console.log(`${C.dim}  ... [${lines.length - 40} lines truncated] ...${C.reset}`);
-    } else {
-      console.log(coordsStr);
-    }
-  }
-}
-
-/**
- * List all features in tabular format
- */
-function renderFeatureList(features, filename) {
-  console.log(`\n${C.bold}📋 Inventory for ${C.cyan}${filename}${C.reset} (${features.length} features):\n`);
-  console.log(`${C.bold}${C.gray}  #    ID    NAME                     NAME (ZH)        CODE       PARTS  VERTICES${C.reset}`);
-  console.log(`${C.gray}  ${'─'.repeat(78)}${C.reset}`);
-
-  features.forEach((f, idx) => {
-    const p = f.properties || {};
-    const s = scanGeometryStats(f);
-    const id = String(f.id ?? p.id ?? idx + 1).padEnd(5);
-    const name = String(p.name || p.name_en || '-').slice(0, 22).padEnd(24);
-    const nameZh = String(p.name_zh || '-').slice(0, 14).padEnd(16);
-    const code = String(p.code || p.postal || '-').slice(0, 9).padEnd(10);
-    const parts = String(s.partCount).padStart(5);
-    const pts = String(s.vertexCount).padStart(9);
-
-    console.log(`  ${String(idx + 1).padStart(3)}  ${id} ${name} ${nameZh} ${code} ${parts} ${pts}`);
-  });
-  console.log(`${C.gray}  ${'─'.repeat(78)}${C.reset}\n`);
-}
-
-/**
- * Render complexity and vertex statistics
- */
-function renderStatistics(features, filepath, fileBytes) {
-  let totalVertices = 0;
-  const summaries = features.map((f, idx) => {
-    const s = scanGeometryStats(f);
-    totalVertices += s.vertexCount;
-    return {
-      index: idx + 1,
-      feature: f,
-      ...s
-    };
-  });
-
-  const avgVertices = Math.round(totalVertices / features.length);
-  const sortedByPts = [...summaries].sort((a, b) => b.vertexCount - a.vertexCount);
-
-  console.log(`\n${C.bold}📊 Geometry Complexity Analysis: ${C.cyan}${path.basename(filepath)}${C.reset}\n`);
-
-  console.log(`${C.bold}Top 5 Most Complex Features (Highest Vertex Count):${C.reset}`);
-  sortedByPts.slice(0, 5).forEach((s, idx) => {
-    const p = s.feature.properties || {};
-    const name = p.name || p.name_en || `#${s.index}`;
-    const pct = ((s.vertexCount / totalVertices) * 100).toFixed(1);
-    console.log(`  ${idx + 1}. ${C.yellow}${name.padEnd(20)}${C.reset} : ${C.white}${s.vertexCount.toLocaleString().padStart(6)} pts${C.reset} (${pct}% of file, ${s.partCount} parts)`);
-  });
-
-  console.log(`\n${C.bold}Top 5 Simplest / Cleanest Features (Lowest Vertex Count):${C.reset}`);
-  [...sortedByPts].reverse().slice(0, 5).forEach((s, idx) => {
-    const p = s.feature.properties || {};
-    const name = p.name || p.name_en || `#${s.index}`;
-    console.log(`  ${idx + 1}. ${C.green}${name.padEnd(20)}${C.reset} : ${C.white}${s.vertexCount.toString().padStart(6)} pts${C.reset} (${s.partCount} parts)`);
-  });
-
-  console.log(`\n${C.bold}Summary Metrics:${C.reset}`);
-  console.log(`  File Size:              ${(fileBytes / 1024).toFixed(1)} KB`);
-  console.log(`  Total Coordinate Verts: ${totalVertices.toLocaleString()}`);
-  console.log(`  Average Vertices/Shape: ${avgVertices}`);
-  console.log(`  Bytes per Vertex:       ${(fileBytes / totalVertices).toFixed(1)} B/pt\n`);
-}
-
-/**
- * Print CLI Help message
- */
 function printHelp() {
   console.log(`
-${C.bold}${C.brightCyan}FlatGeobuf (FGB) Shell Data Inspector & Visualizer${C.reset}
-Inspect vector data contents, schema semantics, and geographic shapes directly in your shell.
+${C.bold}${C.brightCyan}FlatGeobuf (FGB) Shell Data Inspector${C.reset}
+直接帶入 .fgb 檔案路徑即可檢視屬性內容與欄位語意說明。
 
-${C.bold}Usage:${C.reset}
-  node scripts/fgb-visualizer.mjs <file.fgb | ISO2> [options]
+${C.bold}使用方式:${C.reset}
+  node scripts/fgb-visualizer.mjs <檔案路徑.fgb> [選項]
 
-${C.bold}Data Inspection Options:${C.reset}
-  --data, --table          View all data records in an aligned tabular view
-  --schema, --dict         View Data Dictionary: field meanings, types & purposes
-  --distinct <field>       Show value distribution & frequency breakdown for any column
-  --filter <key=val|str>   Filter records matching specific attribute values or substrings
-  --json [name|id]         Dump raw JSON properties for full programmatic inspection
-  --limit <num>            Set maximum records to display (default: 50, use 0 for all)
-  --page <num>             Pagination page number
+${C.bold}範例:${C.reset}
+  node scripts/fgb-visualizer.mjs public/data/l2/TW.fgb
+  node scripts/fgb-visualizer.mjs public/data/l2/US.fgb
+  node scripts/fgb-visualizer.mjs public/data/roads/US.fgb
+  node scripts/fgb-visualizer.mjs public/data/l3/US/US-CA.fgb
 
-${C.bold}Map & Shape Options:${C.reset}
-  -f, --feature <name|id>  Zoom into a specific feature, view detailed shape & all attributes
-  -h, --highlight <name>   Render full map with a designated feature highlighted
-  -l, --list               Compact list with parts & vertex counts
-  -s, --stat               Geometry complexity statistics & vertex distribution
-  --no-map                 Skip rendering ASCII/Braille map (data content only)
-
-${C.bold}Examples:${C.reset}
-  node scripts/fgb-visualizer.mjs TW --data
-  node scripts/fgb-visualizer.mjs US --schema
-  node scripts/fgb-visualizer.mjs US --distinct type_en
-  node scripts/fgb-visualizer.mjs US --filter postal=CA
-  node scripts/fgb-visualizer.mjs roads/US.fgb --distinct class
-  node scripts/fgb-visualizer.mjs JP -f "Tokyo"
+${C.bold}查詢選項:${C.reset}
+  --filter <key=val>   依屬性條件過濾 (如: --filter postal=CA)
+  --distinct <欄位>    分析指定欄位的數值分佈比例 (如: --distinct type_en)
+  -f, --feature <名稱> 聚焦單筆記錄，顯示全部屬性與空間座標
+  --map                額外繪製終端機點字幾何地圖
+  --limit <筆數>       設定顯示筆數 (預設: 50, 0 為全部)
+  --page <頁碼>        分頁瀏覽
 `);
 }
 
