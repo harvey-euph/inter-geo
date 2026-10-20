@@ -6,7 +6,7 @@ import { ZoomIn, ZoomOut, RotateCcw, Route } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
-import { findCountry } from '../data/countries';
+import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThresholds, L2SubdivisionDetail } from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
@@ -210,6 +210,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const lodLevelRef = useRef<LODLevel>(lodLevel);
   const activeL3ParentRef = useRef<ActiveL3ParentInfo | null>(null);
   const l3PathsByParentRef = useRef<Map<string, L3SubdivisionPathData[]>>(new Map());
+
+  // Performance batching & spatial index refs
+  const l2CountryCombinedPathsRef = useRef<Record<string, Path2D>>({});
+  const l2AllOutlinesPathRef = useRef<Path2D>(new Path2D());
+  const countryBBoxesRef = useRef<Record<string, [number, number, number, number]>>({});
+  const countryDataMapRef = useRef<Map<string, CountryData>>(new Map());
+  const hoverRafId = useRef<number | null>(null);
 
   // Store container dimensions
   const viewportSize = useRef({ w: 1200, h: 800 });
@@ -608,96 +615,144 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       // ----------------------------------------------------
       if (copyIdx === 0 || copyIdx === 1) {
         const copyOffset = copyIdx * MAP_W;
-        const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
         const isL2RegionMode = currentLod === 'L2' || currentLod === 'L3';
+        const combinedByCountry = l2CountryCombinedPathsRef.current;
+        const countryBBoxes = countryBBoxesRef.current;
+        const countryMap = countryDataMapRef.current;
 
-        for (let i = 0; i < allSubs.length; i++) {
-          const sub = allSubs[i];
-          if (!sub.path2D) continue;
-
-          // Viewport screen AABB culling
-          const [minX, minY, maxX, maxY] = sub.bbox;
-          const sMinY = y + minY * k;
-          const sMaxY = y + maxY * k;
-          if (sMaxY < -50 || sMinY > viewportSize.current.h + 50) continue;
-          const sMinX = x + (minX + copyOffset) * k;
-          const sMaxX = x + (maxX + copyOffset) * k;
-          if (sMaxX < -50 || sMinX > viewportSize.current.w + 50) continue;
-
-          // If L3 mode and this subdivision is expanded into L3 units, skip L2 drawing
-          let isExpanded = false;
-          if (currentLod === 'L3') {
-            const activeParent = activeL3ParentRef.current;
-            if (activeParent && activeParent.iso2 === sub.iso2 && String(activeParent.id) === String(sub.id)) {
-              const children = getL3SubdivisionsForParent(sub.iso2, sub.name, sub.code, sub.id);
-              if (children && children.length > 0) {
-                isExpanded = true;
-              }
+        if (!isL2RegionMode && Object.keys(combinedByCountry).length > 0) {
+          // ========================================================
+          // L1 Ultra-Fast Mode: Batched Country Fills + Single Global Stroke
+          // ========================================================
+          for (const iso2 in combinedByCountry) {
+            const bbox = countryBBoxes[iso2];
+            if (bbox) {
+              const [minX, minY, maxX, maxY] = bbox;
+              const sMinY = y + minY * k;
+              const sMaxY = y + maxY * k;
+              if (sMaxY < -50 || sMinY > viewportSize.current.h + 50) continue;
+              const sMinX = x + (minX + copyOffset) * k;
+              const sMaxX = x + (maxX + copyOffset) * k;
+              if (sMaxX < -50 || sMinX > viewportSize.current.w + 50) continue;
             }
-          }
-          if (isExpanded) continue;
 
-          const cMeta = findCountry(sub.iso2);
-          const defaultFill = (cMeta && activeFilter.getColor(cMeta)) || '#232a38';
+            const isSelectedCountry = !selectedL2 && selectedC && selectedC.iso2 === iso2;
+            const isHoveredCountry = hoveredC && hoveredC.iso2 === iso2;
 
-          let fill: string;
-          let stroke: string;
-          let strokeWidth: number;
-
-          if (!isL2RegionMode) {
-            // L1 Mode: Hover / Select highlights entire parent Country using L2 geometry
-            const isHoveredCountry = hoveredC && hoveredC.iso2 === sub.iso2;
-            const isSelectedCountry = !selectedL2 && selectedC && selectedC.iso2 === sub.iso2;
-
+            let fill: string;
             if (isSelectedCountry) {
               fill = '#38bdf8';
-              stroke = '#38bdf8';
-              strokeWidth = 1.0 / k;
             } else if (isHoveredCountry) {
               fill = '#f97316';
-              stroke = 'rgba(255, 255, 255, 0.7)';
-              strokeWidth = 0.8 / k;
             } else {
-              fill = defaultFill;
-              stroke = 'rgba(255, 255, 255, 0.16)';
-              strokeWidth = 0.5 / k;
+              const cMeta = countryMap.get(iso2);
+              fill = (cMeta && activeFilter.getColor(cMeta)) || '#232a38';
             }
-          } else {
-            // L2 / L3 Mode: Hover / Select highlights specific L2 Subdivision
-            const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && String(selectedL2.id) === String(sub.id);
-            const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && String(hoveredL2.id) === String(sub.id);
-            const isSiblingHovered =
-              (hoveredL2 && hoveredL2.iso2 === sub.iso2) ||
-              (hoveredM && hoveredM.iso2 === sub.iso2) ||
-              (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
 
-            if (isSelected) {
-              fill = '#38bdf8';
-              stroke = '#38bdf8';
-              strokeWidth = 1.2 / k;
-              highlightSelectPaths.push(sub.path2D);
-            } else if (isHovered) {
-              fill = '#f97316';
-              stroke = '#ffffff';
-              strokeWidth = 1.4 / k;
-              highlightHoverPaths.push(sub.path2D);
-            } else if (isSiblingHovered) {
-              fill = 'rgba(251, 146, 60, 0.16)';
-              stroke = 'rgba(251, 146, 60, 0.4)';
-              strokeWidth = 0.6 / k;
-            } else {
-              fill = defaultFill;
-              stroke = 'rgba(255, 255, 255, 0.22)';
-              strokeWidth = 0.6 / k;
-            }
+            ctx.fillStyle = fill;
+            ctx.fill(combinedByCountry[iso2]);
           }
 
-          ctx.fillStyle = fill;
-          ctx.fill(sub.path2D);
+          // Single global outline stroke for all L2 borders in the visible world
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+          ctx.lineWidth = 0.5 / k;
+          ctx.stroke(l2AllOutlinesPathRef.current);
 
-          ctx.strokeStyle = stroke;
-          ctx.lineWidth = strokeWidth;
-          ctx.stroke(sub.path2D);
+          // Prominent stroke for hovered or selected country
+          if (hoveredC && combinedByCountry[hoveredC.iso2]) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 1.0 / k;
+            ctx.stroke(combinedByCountry[hoveredC.iso2]);
+          }
+          if (selectedC && combinedByCountry[selectedC.iso2]) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.2 / k;
+            ctx.stroke(combinedByCountry[selectedC.iso2]);
+          }
+        } else {
+          // ========================================================
+          // L2/L3 Region Mode: Filtered by Visible Countries
+          // ========================================================
+          const l2ByCountry = l2PathsByCountryRef.current;
+          for (const iso2 in l2ByCountry) {
+            const bbox = countryBBoxes[iso2];
+            if (bbox) {
+              const [minX, minY, maxX, maxY] = bbox;
+              const sMinY = y + minY * k;
+              const sMaxY = y + maxY * k;
+              if (sMaxY < -50 || sMinY > viewportSize.current.h + 50) continue;
+              const sMinX = x + (minX + copyOffset) * k;
+              const sMaxX = x + (maxX + copyOffset) * k;
+              if (sMaxX < -50 || sMinX > viewportSize.current.w + 50) continue;
+            }
+
+            const subs = l2ByCountry[iso2] || [];
+            const cMeta = countryMap.get(iso2);
+            const defaultFill = (cMeta && activeFilter.getColor(cMeta)) || '#232a38';
+
+            for (let i = 0; i < subs.length; i++) {
+              const sub = subs[i];
+              if (!sub.path2D) continue;
+
+              const [minX, minY, maxX, maxY] = sub.bbox;
+              const sMinY = y + minY * k;
+              const sMaxY = y + maxY * k;
+              if (sMaxY < -50 || sMinY > viewportSize.current.h + 50) continue;
+              const sMinX = x + (minX + copyOffset) * k;
+              const sMaxX = x + (maxX + copyOffset) * k;
+              if (sMaxX < -50 || sMinX > viewportSize.current.w + 50) continue;
+
+              let isExpanded = false;
+              if (currentLod === 'L3') {
+                const activeParent = activeL3ParentRef.current;
+                if (activeParent && activeParent.iso2 === sub.iso2 && String(activeParent.id) === String(sub.id)) {
+                  const children = getL3SubdivisionsForParent(sub.iso2, sub.name, sub.code, sub.id);
+                  if (children && children.length > 0) {
+                    isExpanded = true;
+                  }
+                }
+              }
+              if (isExpanded) continue;
+
+              const isSelected = selectedL2 && selectedL2.iso2 === sub.iso2 && String(selectedL2.id) === String(sub.id);
+              const isHovered = hoveredL2 && hoveredL2.iso2 === sub.iso2 && String(hoveredL2.id) === String(sub.id);
+              const isSiblingHovered =
+                (hoveredL2 && hoveredL2.iso2 === sub.iso2) ||
+                (hoveredM && hoveredM.iso2 === sub.iso2) ||
+                (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === sub.iso2);
+
+              let fill: string;
+              let stroke: string;
+              let strokeWidth: number;
+
+              if (isSelected) {
+                fill = '#38bdf8';
+                stroke = '#38bdf8';
+                strokeWidth = 1.2 / k;
+                highlightSelectPaths.push(sub.path2D);
+              } else if (isHovered) {
+                fill = '#f97316';
+                stroke = '#ffffff';
+                strokeWidth = 1.4 / k;
+                highlightHoverPaths.push(sub.path2D);
+              } else if (isSiblingHovered) {
+                fill = 'rgba(251, 146, 60, 0.16)';
+                stroke = 'rgba(251, 146, 60, 0.4)';
+                strokeWidth = 0.6 / k;
+              } else {
+                fill = defaultFill;
+                stroke = 'rgba(255, 255, 255, 0.22)';
+                strokeWidth = 0.6 / k;
+              }
+
+              ctx.fillStyle = fill;
+              ctx.fill(sub.path2D);
+
+              ctx.strokeStyle = stroke;
+              ctx.lineWidth = strokeWidth;
+              ctx.stroke(sub.path2D);
+            }
+          }
         }
       }
 
@@ -835,7 +890,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       highlightHoverPaths.length = 0;
       highlightSelectPaths.length = 0;
     }
-  }, [countryPathData, activeL2SubdivisionPaths, getL3SubdivisionsForParent]);
+  }, [countryPathData, getL3SubdivisionsForParent]);
 
   // Smooth animation tween using requestAnimationFrame
   const animateTo = useCallback(
@@ -1133,15 +1188,27 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       }
 
-      // 2b. Check L2 Admin-1 Subdivisions (Worldwide, in ALL LOD modes!)
+      // 2b. Check L2 Admin-1 Subdivisions with Hierarchical Country BBox Index
       if (copyIdx === 0 || copyIdx === 1) {
-        const allSubs = allL2SubdivisionsRef.current.length > 0 ? allL2SubdivisionsRef.current : activeL2SubdivisionPaths;
-        for (let i = 0; i < allSubs.length; i++) {
-          const sub = allSubs[i];
-          const [minX, minY, maxX, maxY] = sub.bbox;
-          if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-          if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
-            return { type: 'l2Subdivision', data: sub };
+        const countryBBoxes = countryBBoxesRef.current;
+        const l2ByCountry = l2PathsByCountryRef.current;
+
+        for (const iso2 in l2ByCountry) {
+          const cBox = countryBBoxes[iso2];
+          if (cBox) {
+            // Fast reject: If cursor is not inside country bbox, skip all its subdivisions!
+            if (mapX < cBox[0] || mapX > cBox[2] || mapY < cBox[1] || mapY > cBox[3]) continue;
+          }
+
+          const subs = l2ByCountry[iso2];
+          if (!subs) continue;
+          for (let i = 0; i < subs.length; i++) {
+            const sub = subs[i];
+            const [minX, minY, maxX, maxY] = sub.bbox;
+            if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+            if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
+              return { type: 'l2Subdivision', data: sub };
+            }
           }
         }
       }
@@ -1161,7 +1228,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     return null;
-  }, [activeL2SubdivisionPaths, countryPathData, getL3SubdivisionsForParent]);
+  }, [countryPathData, getL3SubdivisionsForParent]);
 
   // Map Click Handler: selects feature or deselects when clicking empty space
   const handleMapClick = useCallback(
@@ -1554,7 +1621,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return;
     }
 
-    updateHoverAtPoint(e.clientX, e.clientY);
+    if (!hoverRafId.current) {
+      hoverRafId.current = requestAnimationFrame(() => {
+        hoverRafId.current = null;
+        updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+      });
+    }
   };
 
   const handleMouseUp = () => {
@@ -1943,6 +2015,41 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (!isMounted) return;
         const flattened = Object.values(loadedL2).flat();
         allL2SubdivisionsRef.current = flattened;
+
+        // Build 1-pass fast rendering indexes and spatial index
+        const combinedByCountry: Record<string, Path2D> = {};
+        const bboxesByCountry: Record<string, [number, number, number, number]> = {};
+        const globalOutline = new Path2D();
+
+        for (const [iso2, subs] of Object.entries(loadedL2)) {
+          const countryPath = new Path2D();
+          let cMinX = Infinity, cMinY = Infinity, cMaxX = -Infinity, cMaxY = -Infinity;
+          for (let i = 0; i < subs.length; i++) {
+            const s = subs[i];
+            if (s.path2D) {
+              countryPath.addPath(s.path2D);
+              globalOutline.addPath(s.path2D);
+              if (s.bbox[0] < cMinX) cMinX = s.bbox[0];
+              if (s.bbox[1] < cMinY) cMinY = s.bbox[1];
+              if (s.bbox[2] > cMaxX) cMaxX = s.bbox[2];
+              if (s.bbox[3] > cMaxY) cMaxY = s.bbox[3];
+            }
+          }
+          combinedByCountry[iso2] = countryPath;
+          bboxesByCountry[iso2] = [cMinX, cMinY, cMaxX, cMaxY];
+        }
+        l2CountryCombinedPathsRef.current = combinedByCountry;
+        l2AllOutlinesPathRef.current = globalOutline;
+        countryBBoxesRef.current = bboxesByCountry;
+
+        // Populate countryDataMapRef for O(1) metadata lookups
+        const cMap = new Map<string, CountryData>();
+        for (const c of COUNTRIES_DATA) {
+          cMap.set(c.iso2, c);
+          cMap.set(c.id, c);
+        }
+        countryDataMapRef.current = cMap;
+
         setFeatures(loadedL1);
         setL2PathsByCountry(loadedL2);
         l2PathsByCountryRef.current = loadedL2;
@@ -1957,6 +2064,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       isMounted = false;
       if (rafId.current) cancelAnimationFrame(rafId.current);
       if (animRafId.current) cancelAnimationFrame(animRafId.current);
+      if (hoverRafId.current) cancelAnimationFrame(hoverRafId.current);
     };
   }, [pathGenerator]);
 
