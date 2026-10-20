@@ -227,6 +227,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const dragStart = useRef({ clientX: 0, clientY: 0, x: 0, y: 0 });
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
+  const isMouseInsideRef = useRef(false);
+  const pressedArrowKeys = useRef<Set<string>>(new Set());
+  const isShiftPressedRef = useRef(false);
+  const panVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
+  const panRafIdRef = useRef<number | null>(null);
+  const lastPanTimeRef = useRef<number>(0);
   const isInitializedRef = useRef(false);
 
   // Active filter definition
@@ -1273,7 +1279,182 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
   };
 
+  const updateHoverAtPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!isMouseInsideRef.current) return;
+      if (isDragging.current) return;
+
+      const hit = getFeatureAtPoint(clientX, clientY);
+
+      if (containerRef.current) {
+        containerRef.current.style.cursor = hit ? 'pointer' : 'grab';
+      }
+
+      if (!hit) {
+        let hadHover = false;
+        if (hoveredRoadRef.current) {
+          hoveredRoadRef.current = null;
+          setHoveredRoad(null);
+          hadHover = true;
+        }
+        if (hoveredCountryRef.current) {
+          hoveredCountryRef.current = null;
+          setHoveredCountry(null);
+          hadHover = true;
+        }
+        if (hoveredMunicipalityRef.current) {
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+          hadHover = true;
+        }
+        if (hoveredL2SubdivisionRef.current) {
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          hadHover = true;
+        }
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none';
+        }
+        if (hadHover) {
+          renderCanvas();
+        }
+        return;
+      }
+
+      if (hit.type === 'activeParentInterior') {
+        if (hoveredMunicipalityRef.current) {
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+          renderCanvas();
+        }
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none';
+        }
+        return;
+      }
+
+      if (hit.type === 'road') {
+        const road = hit.data;
+        if (hoveredRoadRef.current?.name !== road.name) {
+          hoveredRoadRef.current = road;
+          setHoveredRoad(road);
+          hoveredCountryRef.current = null;
+          setHoveredCountry(null);
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          renderCanvas();
+        }
+      } else if (hit.type === 'municipality') {
+        const m = hit.data;
+        if (hoveredMunicipalityRef.current?.code !== m.code || hoveredMunicipalityRef.current?.iso2 !== m.iso2) {
+          hoveredMunicipalityRef.current = m;
+          setHoveredMunicipality(m);
+          hoveredRoadRef.current = null;
+          setHoveredRoad(null);
+          hoveredCountryRef.current = null;
+          setHoveredCountry(null);
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          renderCanvas();
+        }
+      } else if (hit.type === 'l2Subdivision') {
+        const sub = hit.data;
+        loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+        if (lodLevelRef.current === 'L3') {
+          if (activeL3ParentRef.current?.iso2 !== sub.iso2 || activeL3ParentRef.current?.id !== sub.id) {
+            activeL3ParentRef.current = {
+              iso2: sub.iso2,
+              id: sub.id,
+              name: sub.name,
+              code: sub.code,
+              bbox: sub.bbox,
+              path2D: sub.path2D
+            };
+          }
+        }
+        if (
+          hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
+          hoveredL2SubdivisionRef.current?.id !== sub.id
+        ) {
+          const cMeta = findCountry(sub.iso2);
+          const subDetail: L2SubdivisionDetail = {
+            id: sub.id,
+            iso2: sub.iso2,
+            name: sub.name,
+            nameEn: sub.nameEn,
+            nameZh: sub.nameZh,
+            typeEn: sub.typeEn,
+            code: sub.code,
+            postal: sub.postal,
+            countryName: cMeta?.name || sub.nameEn,
+            countryNameZh: cMeta?.nameZh || sub.nameZh,
+            countryFlag: cMeta?.flag || '🌐'
+          };
+          hoveredL2SubdivisionRef.current = subDetail;
+          setHoveredL2Subdivision(subDetail);
+          hoveredRoadRef.current = null;
+          setHoveredRoad(null);
+          hoveredCountryRef.current = null;
+          setHoveredCountry(null);
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+          renderCanvas();
+        }
+      } else if (hit.type === 'country') {
+        const c = hit.data;
+        const cMeta = c.countryMeta || {
+          id: String(c.id),
+          iso2: '',
+          iso3: '',
+          name: c.name,
+          nameZh: c.name,
+          flag: '🌐',
+          continent: 'Asia',
+          region: '無官方街景覆蓋',
+          drivingSide: 'right',
+          coverage: 'none',
+          cameraGens: [],
+          plateType: 'white',
+          plateDesc: '無街景',
+          roadLines: ['white_dashed'],
+          roadLinesDesc: '無街景',
+          carMeta: ['none'],
+          carMetaDesc: '無街景',
+          poleDesc: '無資料',
+          bollardDesc: '無資料',
+          language: '當地語言',
+          tld: '',
+          keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
+        };
+        if (lodLevelRef.current === 'L3' && activeL3ParentRef.current && activeL3ParentRef.current.iso2 !== cMeta.iso2) {
+          activeL3ParentRef.current = null;
+        }
+        if (hoveredCountryRef.current?.id !== cMeta.id) {
+          hoveredCountryRef.current = cMeta;
+          setHoveredCountry(cMeta);
+          hoveredRoadRef.current = null;
+          setHoveredRoad(null);
+          hoveredMunicipalityRef.current = null;
+          setHoveredMunicipality(null);
+          hoveredL2SubdivisionRef.current = null;
+          setHoveredL2Subdivision(null);
+          renderCanvas();
+        }
+      }
+
+      if (tooltipRef.current) {
+        tooltipRef.current.style.display = 'flex';
+        tooltipRef.current.style.left = `${clientX}px`;
+        tooltipRef.current.style.top = `${clientY - 12}px`;
+      }
+    },
+    [getFeatureAtPoint, loadL3PackForSubdivision, renderCanvas, setHoveredCountry]
+  );
+
   const handleMouseMove = (e: React.MouseEvent) => {
+    isMouseInsideRef.current = true;
     mousePos.current = { x: e.clientX, y: e.clientY };
 
     if (isDragging.current) {
@@ -1310,174 +1491,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return;
     }
 
-    const hit = getFeatureAtPoint(e.clientX, e.clientY);
-
-    if (containerRef.current) {
-      containerRef.current.style.cursor = hit ? 'pointer' : 'grab';
-    }
-
-    if (!hit) {
-      if (lodLevelRef.current === 'L3' && activeL3ParentRef.current) {
-        activeL3ParentRef.current = null;
-      }
-      let hadHover = false;
-      if (hoveredRoadRef.current) {
-        hoveredRoadRef.current = null;
-        setHoveredRoad(null);
-        hadHover = true;
-      }
-      if (hoveredCountryRef.current) {
-        hoveredCountryRef.current = null;
-        setHoveredCountry(null);
-        hadHover = true;
-      }
-      if (hoveredMunicipalityRef.current) {
-        hoveredMunicipalityRef.current = null;
-        setHoveredMunicipality(null);
-        hadHover = true;
-      }
-      if (hoveredL2SubdivisionRef.current) {
-        hoveredL2SubdivisionRef.current = null;
-        setHoveredL2Subdivision(null);
-        hadHover = true;
-      }
-      if (tooltipRef.current) {
-        tooltipRef.current.style.display = 'none';
-      }
-      if (hadHover) {
-        renderCanvas();
-      }
-      return;
-    }
-
-    if (hit.type === 'activeParentInterior') {
-      if (hoveredMunicipalityRef.current) {
-        hoveredMunicipalityRef.current = null;
-        setHoveredMunicipality(null);
-        renderCanvas();
-      }
-      if (tooltipRef.current) {
-        tooltipRef.current.style.display = 'none';
-      }
-      return;
-    }
-
-    if (hit.type === 'road') {
-      const road = hit.data;
-      if (hoveredRoadRef.current?.name !== road.name) {
-        hoveredRoadRef.current = road;
-        setHoveredRoad(road);
-        hoveredCountryRef.current = null;
-        setHoveredCountry(null);
-        hoveredMunicipalityRef.current = null;
-        setHoveredMunicipality(null);
-        hoveredL2SubdivisionRef.current = null;
-        setHoveredL2Subdivision(null);
-        renderCanvas();
-      }
-    } else if (hit.type === 'municipality') {
-      const m = hit.data;
-      if (hoveredMunicipalityRef.current?.code !== m.code || hoveredMunicipalityRef.current?.iso2 !== m.iso2) {
-        hoveredMunicipalityRef.current = m;
-        setHoveredMunicipality(m);
-        hoveredRoadRef.current = null;
-        setHoveredRoad(null);
-        hoveredCountryRef.current = null;
-        setHoveredCountry(null);
-        hoveredL2SubdivisionRef.current = null;
-        setHoveredL2Subdivision(null);
-        renderCanvas();
-      }
-    } else if (hit.type === 'l2Subdivision') {
-      const sub = hit.data;
-      loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
-      if (lodLevelRef.current === 'L3') {
-        if (activeL3ParentRef.current?.iso2 !== sub.iso2 || activeL3ParentRef.current?.id !== sub.id) {
-          activeL3ParentRef.current = {
-            iso2: sub.iso2,
-            id: sub.id,
-            name: sub.name,
-            code: sub.code,
-            bbox: sub.bbox,
-            path2D: sub.path2D
-          };
-        }
-      }
-      if (
-        hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
-        hoveredL2SubdivisionRef.current?.id !== sub.id
-      ) {
-        const cMeta = findCountry(sub.iso2);
-        const subDetail: L2SubdivisionDetail = {
-          id: sub.id,
-          iso2: sub.iso2,
-          name: sub.name,
-          nameEn: sub.nameEn,
-          nameZh: sub.nameZh,
-          typeEn: sub.typeEn,
-          code: sub.code,
-          postal: sub.postal,
-          countryName: cMeta?.name || sub.nameEn,
-          countryNameZh: cMeta?.nameZh || sub.nameZh,
-          countryFlag: cMeta?.flag || '🌐'
-        };
-        hoveredL2SubdivisionRef.current = subDetail;
-        setHoveredL2Subdivision(subDetail);
-        hoveredRoadRef.current = null;
-        setHoveredRoad(null);
-        hoveredCountryRef.current = null;
-        setHoveredCountry(null);
-        hoveredMunicipalityRef.current = null;
-        setHoveredMunicipality(null);
-        renderCanvas();
-      }
-    } else if (hit.type === 'country') {
-      const c = hit.data;
-      const cMeta = c.countryMeta || {
-        id: String(c.id),
-        iso2: '',
-        iso3: '',
-        name: c.name,
-        nameZh: c.name,
-        flag: '🌐',
-        continent: 'Asia',
-        region: '無官方街景覆蓋',
-        drivingSide: 'right',
-        coverage: 'none',
-        cameraGens: [],
-        plateType: 'white',
-        plateDesc: '無街景',
-        roadLines: ['white_dashed'],
-        roadLinesDesc: '無街景',
-        carMeta: ['none'],
-        carMetaDesc: '無街景',
-        poleDesc: '無資料',
-        bollardDesc: '無資料',
-        language: '當地語言',
-        tld: '',
-        keyHints: ['此地區目前尚無 Google 街景官方車載覆蓋。']
-      };
-      if (lodLevelRef.current === 'L3' && activeL3ParentRef.current && activeL3ParentRef.current.iso2 !== cMeta.iso2) {
-        activeL3ParentRef.current = null;
-      }
-      if (hoveredCountryRef.current?.id !== cMeta.id) {
-        hoveredCountryRef.current = cMeta;
-        setHoveredCountry(cMeta);
-        hoveredRoadRef.current = null;
-        setHoveredRoad(null);
-        hoveredMunicipalityRef.current = null;
-        setHoveredMunicipality(null);
-        hoveredL2SubdivisionRef.current = null;
-        setHoveredL2Subdivision(null);
-        renderCanvas();
-      }
-    }
-
-    if (tooltipRef.current) {
-      tooltipRef.current.style.display = 'flex';
-      tooltipRef.current.style.left = `${e.clientX}px`;
-      tooltipRef.current.style.top = `${e.clientY - 12}px`;
-    }
+    updateHoverAtPoint(e.clientX, e.clientY);
   };
 
   const handleMouseUp = () => {
@@ -1488,6 +1502,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
     const { k, x, y } = transformRef.current;
     syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevelRef.current);
+    updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
   };
 
   // Wheel zoom centered on mouse pointer with Level of Detail (LOD) tracking
@@ -2017,6 +2032,66 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Arrow key navigation: Panning when unclicked, circular iteration when clicked
   useEffect(() => {
+    const startSmoothPan = () => {
+      if (panRafIdRef.current !== null) return;
+      lastPanTimeRef.current = performance.now();
+
+      const loop = (now: number) => {
+        const dt = Math.min((now - lastPanTimeRef.current) / 1000, 0.05);
+        lastPanTimeRef.current = now;
+
+        const keys = pressedArrowKeys.current;
+        let targetVx = 0;
+        let targetVy = 0;
+        const speed = isShiftPressedRef.current ? 1700 : 800;
+
+        if (keys.has('ArrowUp')) targetVy += speed;
+        if (keys.has('ArrowDown')) targetVy -= speed;
+        if (keys.has('ArrowLeft')) targetVx += speed;
+        if (keys.has('ArrowRight')) targetVx -= speed;
+
+        // Normalize diagonal speed
+        if (targetVx !== 0 && targetVy !== 0) {
+          targetVx *= 0.7071;
+          targetVy *= 0.7071;
+        }
+
+        const isHolding = targetVx !== 0 || targetVy !== 0;
+        const accelRate = isHolding ? 14 : 9;
+        const blend = Math.min(1, accelRate * dt);
+
+        const v = panVelocityRef.current;
+        v.vx += (targetVx - v.vx) * blend;
+        v.vy += (targetVy - v.vy) * blend;
+
+        const currentK = transformRef.current.k;
+        const vh = viewportSize.current.h;
+        const vw = viewportSize.current.w;
+
+        const newX = wrapX(transformRef.current.x + v.vx * dt, currentK);
+        const newY = clampY(transformRef.current.y + v.vy * dt, currentK, vh);
+
+        transformRef.current.x = newX;
+        transformRef.current.y = newY;
+
+        renderCanvas();
+        updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+        syncAllViewports(currentK, newX, newY, vw, vh, lodLevelRef.current);
+
+        if (!isHolding && Math.abs(v.vx) < 1.5 && Math.abs(v.vy) < 1.5) {
+          v.vx = 0;
+          v.vy = 0;
+          panRafIdRef.current = null;
+          updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+          return;
+        }
+
+        panRafIdRef.current = requestAnimationFrame(loop);
+      };
+
+      panRafIdRef.current = requestAnimationFrame(loop);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is typing in form controls or a modal is open
       if (
@@ -2033,9 +2108,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       // Prevent window scroll
       e.preventDefault();
+      isShiftPressedRef.current = e.shiftKey;
 
       const isForward = e.key === 'ArrowRight' || e.key === 'ArrowDown';
       const dir = isForward ? 1 : -1;
+
+      // Stop any unclicked smooth panning if entering clicked iteration
+      const isClicked =
+        !!selectedRoadRef.current ||
+        !!selectedMunicipalityRef.current ||
+        !!selectedL2SubdivisionRef.current ||
+        !!selectedCountryRef.current;
+
+      if (isClicked && panRafIdRef.current) {
+        cancelAnimationFrame(panRafIdRef.current);
+        panRafIdRef.current = null;
+        panVelocityRef.current = { vx: 0, vy: 0 };
+        pressedArrowKeys.current.clear();
+      }
 
       // 1. Road Selected: Iterate through highways/routes
       if (selectedRoadRef.current) {
@@ -2080,6 +2170,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           animateTo(targetK, targetX, targetY, 250, () => {
             syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
           });
           renderCanvas();
         }
@@ -2138,6 +2229,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           animateTo(targetK, targetX, targetY, 200, () => {
             syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
           });
           renderCanvas();
         }
@@ -2194,6 +2286,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           animateTo(targetK, targetX, targetY, 250, () => {
             syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
           });
           renderCanvas();
         }
@@ -2229,6 +2322,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
             animateTo(targetK, targetX, targetY, 300, () => {
               syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
+              updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
             });
             renderCanvas();
           }
@@ -2236,33 +2330,36 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         return;
       }
 
-      // 5. Unclicked State: Smoothly pan the map
-      const PAN_STEP = e.shiftKey ? 280 : 120;
-      const { k, x, y } = transformRef.current;
-      const vh = viewportSize.current.h;
-      const vw = viewportSize.current.w;
+      // 5. Unclicked State: Continuous smooth physics pan loop
+      pressedArrowKeys.current.add(e.key);
+      startSmoothPan();
+    };
 
-      let newX = x;
-      let newY = y;
+    const handleKeyUp = (e: KeyboardEvent) => {
+      pressedArrowKeys.current.delete(e.key);
+      isShiftPressedRef.current = e.shiftKey;
+    };
 
-      if (e.key === 'ArrowUp') {
-        newY = clampY(y + PAN_STEP, k, vh);
-      } else if (e.key === 'ArrowDown') {
-        newY = clampY(y - PAN_STEP, k, vh);
-      } else if (e.key === 'ArrowLeft') {
-        newX = wrapX(x + PAN_STEP, k);
-      } else if (e.key === 'ArrowRight') {
-        newX = wrapX(x - PAN_STEP, k);
+    const handleBlur = () => {
+      pressedArrowKeys.current.clear();
+      if (panRafIdRef.current) {
+        cancelAnimationFrame(panRafIdRef.current);
+        panRafIdRef.current = null;
+        panVelocityRef.current = { vx: 0, vy: 0 };
       }
-
-      transformRef.current = { k, x: newX, y: newY };
-      renderCanvas();
-      syncAllViewports(k, newX, newY, vw, vh, lodLevelRef.current);
     };
 
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+      if (panRafIdRef.current) {
+        cancelAnimationFrame(panRafIdRef.current);
+        panRafIdRef.current = null;
+      }
     };
   }, [
     deterministicCountries,
@@ -2277,7 +2374,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     clampY,
     animateTo,
     syncAllViewports,
-    renderCanvas
+    renderCanvas,
+    updateHoverAtPoint
   ]);
 
   return (
@@ -2288,7 +2386,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
+      onMouseEnter={(e) => {
+        isMouseInsideRef.current = true;
+        mousePos.current = { x: e.clientX, y: e.clientY };
+      }}
       onMouseLeave={() => {
+        isMouseInsideRef.current = false;
         isDragging.current = false;
         if (hoveredCountryRef.current) {
           hoveredCountryRef.current = null;
