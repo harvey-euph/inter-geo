@@ -19,7 +19,9 @@ export function App() {
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
-  const [showRoads, setShowRoads] = useState<boolean>(false);
+  const [showInterstates, setShowInterstates] = useState<boolean>(false);
+  const [showNumberedRoutes, setShowNumberedRoutes] = useState<boolean>(false);
+  const showRoads = showInterstates || showNumberedRoutes;
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
   const zoomToPrefectureRef = useRef<((prefId: number) => void) | null>(null);
@@ -73,18 +75,35 @@ export function App() {
     }
   };
 
-  const handleToggleRoads = () => {
-    setShowRoads((prev) => {
-      if (prev) {
+  const handleToggleInterstates = () => {
+    setShowInterstates((prev) => {
+      const next = !prev;
+      if (!next && selectedRoad?.class === 'Interstate') {
         setSelectedRoad(null);
-      } else {
-        setSelectedCountry(null);
-        setSelectedSubdivision(null);
-        setSelectedPrefecture(null);
-        setSelectedMunicipality(null);
       }
-      return !prev;
+      return next;
     });
+  };
+
+  const handleToggleNumberedRoutes = () => {
+    setShowNumberedRoutes((prev) => {
+      const next = !prev;
+      if (!next && selectedRoad && selectedRoad.class !== 'Interstate') {
+        setSelectedRoad(null);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleRoads = () => {
+    if (showRoads) {
+      setShowInterstates(false);
+      setShowNumberedRoutes(false);
+      setSelectedRoad(null);
+    } else {
+      setShowInterstates(true);
+      setShowNumberedRoutes(true);
+    }
   };
 
   const handleClosePanel = useCallback(() => {
@@ -142,9 +161,6 @@ export function App() {
         isFilterExpanded={isFilterExpanded}
         onToggleFilterExpanded={() => setIsFilterExpanded((prev) => !prev)}
         onSelectCountry={handleSelectCountry}
-        onOpenQuiz={() => setIsQuizOpen(true)}
-        showRoads={showRoads}
-        onToggleRoads={handleToggleRoads}
       />
 
       {/* Main Viewport */}
@@ -177,6 +193,10 @@ export function App() {
             zoomToPrefectureRef={zoomToPrefectureRef}
             showRoads={showRoads}
             onToggleRoads={handleToggleRoads}
+            showInterstates={showInterstates}
+            onToggleInterstates={handleToggleInterstates}
+            showNumberedRoutes={showNumberedRoutes}
+            onToggleNumberedRoutes={handleToggleNumberedRoutes}
           />
         </section>
 

@@ -461,11 +461,33 @@
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
 }
 
-.btn-road-active {
-  background-color: rgba(56, 189, 248, 0.2) !important;
+.btn-road-active,
+.btn-interstate-active {
+  background-color: rgba(56, 189, 248, 0.16) !important;
   border-color: #38bdf8 !important;
   color: #38bdf8 !important;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.3) !important;
+}
+
+.btn-numbered-active {
+  background-color: rgba(251, 191, 36, 0.16) !important;
+  border-color: #fbbf24 !important;
+  color: #fbbf24 !important;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.3) !important;
+}
+
+.map-control-btn.active-interstate {
+  background-color: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.map-control-btn.active-numbered {
+  background-color: rgba(251, 191, 36, 0.2);
+  border-color: #fbbf24;
+  color: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
 }
 
 /* GPU Hardware-Accelerated Road Canvas */

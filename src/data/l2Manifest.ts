@@ -331,7 +331,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "250",
     "name": "France",
     "nameZh": "法國",
-    "subdivisionCount": 101,
+    "subdivisionCount": 18,
     "bbox": {
       "minX": 323,
       "maxX": 660,
@@ -500,7 +500,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "380",
     "name": "Italy",
     "nameZh": "義大利",
-    "subdivisionCount": 110,
+    "subdivisionCount": 20,
     "bbox": {
       "minX": 513,
       "maxX": 556,
@@ -535,17 +535,17 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     }
   },
   {
-    "iso2": "KZ",
-    "countryId": "398",
-    "name": "Kazakhstan",
-    "nameZh": "哈薩克",
-    "subdivisionCount": 16,
-    "bbox": {
-      "minX": 624,
-      "maxX": 748,
-      "minY": 309,
-      "maxY": 381
-    }
+      "iso2": "KZ",
+      "countryId": "398",
+      "name": "Kazakhstan",
+      "nameZh": "哈薩克",
+      "subdivisionCount": 17,
+      "bbox": {
+          "minX": 624,
+          "maxX": 748,
+          "minY": 309,
+          "maxY": 381
+      }
   },
   {
     "iso2": "KE",
@@ -1003,17 +1003,17 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     }
   },
   {
-    "iso2": "ES",
-    "countryId": "724",
-    "name": "Spain",
-    "nameZh": "西班牙",
-    "subdivisionCount": 52,
-    "bbox": {
-      "minX": 445,
-      "maxX": 517,
-      "minY": 359,
-      "maxY": 425
-    }
+      "iso2": "ES",
+      "countryId": "724",
+      "name": "Spain",
+      "nameZh": "西班牙",
+      "subdivisionCount": 19,
+      "bbox": {
+          "minX": 445,
+          "maxX": 517,
+          "minY": 359,
+          "maxY": 425
+      }
   },
   {
     "iso2": "LK",
@@ -1146,17 +1146,17 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     }
   },
   {
-    "iso2": "GB",
-    "countryId": "826",
-    "name": "United Kingdom",
-    "nameZh": "英國",
-    "subdivisionCount": 232,
-    "bbox": {
-      "minX": 457,
-      "maxX": 510,
-      "minY": 281,
-      "maxY": 345
-    }
+      "iso2": "GB",
+      "countryId": "826",
+      "name": "United Kingdom",
+      "nameZh": "英國",
+      "subdivisionCount": 4,
+      "bbox": {
+          "minX": 457,
+          "maxX": 510,
+          "minY": 281,
+          "maxY": 345
+      }
   },
   {
     "iso2": "US",

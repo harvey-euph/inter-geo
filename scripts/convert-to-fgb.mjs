@@ -171,15 +171,20 @@ async function verifyFiles() {
   }
   console.log(`Verified ${prefCount} prefectures from FGB binary.`);
 
-  const muniBytes = fs.readFileSync(path.join(dataDir, 'japan-municipalities.fgb'));
-  let muniCount = 0;
-  for await (const feature of flatgeobuf.geojson.deserialize(new Uint8Array(muniBytes))) {
-    muniCount++;
-    if (muniCount === 1) {
-      console.log('Sample L3 Muni feature properties:', feature.properties);
+  const muniPath = path.join(dataDir, 'japan-municipalities.fgb');
+  if (fs.existsSync(muniPath)) {
+    const muniBytes = fs.readFileSync(muniPath);
+    let muniCount = 0;
+    for await (const feature of flatgeobuf.geojson.deserialize(new Uint8Array(muniBytes))) {
+      muniCount++;
+      if (muniCount === 1) {
+        console.log('Sample L3 Muni feature properties:', feature.properties);
+      }
     }
+    console.log(`Verified ${muniCount} municipalities from FGB binary.`);
+  } else {
+    console.log('[Notice] japan-municipalities.fgb has been partitioned and integrated into public/data/l3/JP/*.fgb.');
   }
-  console.log(`Verified ${muniCount} municipalities from FGB binary.`);
 }
 
 async function main() {
