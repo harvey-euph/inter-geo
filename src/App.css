@@ -671,7 +671,7 @@
   position: absolute;
   left: 20px;
   top: 20px;
-  background-color: rgba(24, 26, 32, 0.9);
+  background-color: rgba(24, 26, 32, 0.92);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -683,6 +683,7 @@
   box-shadow: var(--shadow-soft);
   max-width: 280px;
   transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
 }
 
 .filter-legend-card.with-filter-bar {
@@ -698,13 +699,15 @@
   gap: 6px;
 }
 
-.legend-items-list {
+.legend-items-list,
+.legend-items {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
-.legend-item-row {
+.legend-item-row,
+.legend-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -713,10 +716,19 @@
 }
 
 .legend-color-dot {
-  width: 12px;
-  height: 12px;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
   flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.legend-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
 }
 
 /* Side Drawer: Country Detail Dossier */

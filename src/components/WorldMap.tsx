@@ -3123,9 +3123,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         <div className="legend-title">
           <span>{activeFilterDef.nameZh}</span>
         </div>
-        <div className="legend-items">
+        <div className="legend-items-list legend-items">
           {activeFilterDef.legend.map((item) => (
-            <div key={item.key} className="legend-item">
+            <div key={item.key} className="legend-item-row legend-item">
               <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
               <span className="legend-label">{item.labelZh}</span>
             </div>
