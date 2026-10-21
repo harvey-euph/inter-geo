@@ -12,6 +12,8 @@ import './App.css';
 
 export function App() {
   const [activeFilterId, setActiveFilterId] = useState<string>('none');
+  const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(new Set());
+  const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
@@ -39,6 +41,7 @@ export function App() {
   const handleSelectSubdivision = useCallback((sub: L2SubdivisionDetail | null) => {
     setSelectedSubdivision(sub);
     if (sub) {
+      setSelectedCountry(null);
       setSelectedPrefecture(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
@@ -94,6 +97,37 @@ export function App() {
       return next;
     });
   };
+
+  const handleToggleTextFilter = useCallback((filterId: string) => {
+    // Activating a text filter closes the image filter
+    setActiveInternationalImageFilter(null);
+    setActiveTextFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filterId)) {
+        next.delete(filterId);
+      } else {
+        // Enforce max 2 concurrent text filters
+        if (next.size >= 2) {
+          const first = Array.from(next)[0];
+          next.delete(first);
+        }
+        next.add(filterId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleInternationalImageFilter = useCallback((filterId: string) => {
+    setActiveInternationalImageFilter((prev) => {
+      if (prev === filterId) {
+        return null;
+      } else {
+        // Activating an image filter closes all text filters!
+        setActiveTextFilters(new Set());
+        return filterId;
+      }
+    });
+  }, []);
 
   const handleToggleRoads = () => {
     if (showRoads) {
@@ -158,6 +192,10 @@ export function App() {
       <Header
         activeFilterId={activeFilterId}
         onSelectFilter={(filterId) => setActiveFilterId(filterId)}
+        activeTextFilters={activeTextFilters}
+        onToggleTextFilter={handleToggleTextFilter}
+        activeInternationalImageFilter={activeInternationalImageFilter}
+        onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
         isFilterExpanded={isFilterExpanded}
         onToggleFilterExpanded={() => setIsFilterExpanded((prev) => !prev)}
         onSelectCountry={handleSelectCountry}
@@ -170,6 +208,10 @@ export function App() {
           <FilterBar
             activeFilterId={activeFilterId}
             onSelectFilter={(filterId) => setActiveFilterId(filterId)}
+            activeTextFilters={activeTextFilters}
+            onToggleTextFilter={handleToggleTextFilter}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
             isExpanded={isFilterExpanded}
             onCollapse={() => setIsFilterExpanded(false)}
           />
@@ -177,6 +219,8 @@ export function App() {
           {/* Clean Raw SVG World Map with Dynamic LOD Precision Tracking */}
           <WorldMap
             activeFilterId={activeFilterId}
+            activeTextFilters={activeTextFilters}
+            activeInternationalImageFilter={activeInternationalImageFilter}
             isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
             onSelectCountry={handleSelectCountry}

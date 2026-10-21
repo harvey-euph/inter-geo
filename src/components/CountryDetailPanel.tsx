@@ -3,6 +3,13 @@ import { X, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phon
 import type { CountryData } from '../types/geo';
 import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import type { RoadPathData } from './WorldMap';
+import { getCountryCallingCode } from '../data/globalFilters';
+import { getSubdivisionAreaCode } from '../data/domesticAreaCodes';
+import { getCrossingSign } from '../data/pedestrianCrossing';
+import { getIndiaStateLanguageInfo } from '../data/indiaLanguages';
+import { getCountryLanguageMeta } from '../data/countryLanguages';
+import { findCountry } from '../data/countries';
+import { MarkdownLoreCards } from './MarkdownLoreCard';
 
 interface CountryDetailPanelProps {
   country: CountryData | null;
@@ -230,6 +237,14 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </li>
             </ul>
           </div>
+
+          {/* Dynamic Highway Markdown Lore Cards */}
+          <MarkdownLoreCards
+            query={{
+              roadName: road.name,
+              roadClass: road.class
+            }}
+          />
         </div>
       </aside>
     );
@@ -346,6 +361,15 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
             </div>
             <div className="intel-card-body">{prefecture.landscapeDesc}</div>
           </div>
+
+          {/* Dynamic Prefecture Markdown Lore Cards */}
+          <MarkdownLoreCards
+            query={{
+              countryIso2: 'JP',
+              subdivisionCode: String(prefecture.id).padStart(2, '0'),
+              subdivisionId: prefecture.id
+            }}
+          />
 
           {/* Zoom to Municipalities Button */}
           {onZoomToPrefecture && (
@@ -475,6 +499,14 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               {metaTip}
             </div>
           </div>
+
+          {/* Dynamic L3 Municipality Markdown Lore Cards */}
+          <MarkdownLoreCards
+            query={{
+              countryIso2: municipality.iso2,
+              municipalityCode: municipality.code
+            }}
+          />
         </div>
       </aside>
     );
@@ -483,7 +515,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
   // 2b. Worldwide L2 Subdivision Detail
   if (subdivision) {
     const flag = subdivision.countryFlag || '🌐';
-    const cMeta = country;
+    const cMeta = country || findCountry(subdivision.iso2);
 
     return (
       <aside className="country-drawer">
@@ -552,10 +584,39 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             )}
 
+            {(() => {
+              const domCode = getSubdivisionAreaCode(subdivision.iso2, subdivision);
+              if (!domCode) return null;
+              return (
+                <div
+                  className="intel-tag"
+                  style={{
+                    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                    borderColor: 'rgba(34, 197, 94, 0.4)',
+                    color: '#4ade80',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: '4px 10px'
+                  }}
+                >
+                  📞 國內區碼：{domCode}
+                </div>
+              );
+            })()}
+
             <div className="intel-tag" style={{ fontSize: 12, padding: '4px 10px' }}>
               🌐 {subdivision.countryNameZh} ({subdivision.iso2})
             </div>
           </div>
+
+          {/* Dynamic Markdown Lore & Dossier Cards */}
+          <MarkdownLoreCards
+            query={{
+              countryIso2: subdivision.iso2,
+              subdivisionCode: subdivision.code,
+              subdivisionId: subdivision.id
+            }}
+          />
 
           {/* Region / Country Intel if available */}
           {cMeta && (
@@ -623,6 +684,122 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
                   <div style={{ marginTop: 6 }}><strong>防撞桿：</strong>{cMeta.bollardDesc}</div>
                 </div>
               </div>
+
+              {/* European Pedestrian Crossing Sign */}
+              {(() => {
+                const sign = getCrossingSign(subdivision.iso2);
+                if (!sign) return null;
+                return (
+                  <div
+                    className="intel-card"
+                    style={{
+                      borderColor: 'rgba(56, 189, 248, 0.45)',
+                      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+                    }}
+                  >
+                    <div className="intel-card-header">
+                      <span style={{ fontSize: 16 }}>🚸</span>
+                      <span style={{ color: '#38bdf8' }}>國家行人穿越道告示 (Pedestrian Crossing Sign)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                      <div
+                        style={{
+                          width: 68,
+                          height: 68,
+                          minWidth: 68,
+                          borderRadius: 8,
+                          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          padding: 4,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                        }}
+                      >
+                        <img
+                          src={sign.imagePath}
+                          alt={`${sign.nameZh} 行人穿越道告示牌`}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
+                        <div style={{ fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>
+                          {sign.nameZh}（{sign.nameEn}）
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: 12 }}>
+                          {sign.descriptionZh}
+                        </div>
+                        <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {sign.stripes > 0 ? (
+                            <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                              斑馬線：{sign.stripes} 條
+                            </span>
+                          ) : (
+                            <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                              地面標記：{sign.iso2 === 'PL' ? '白色橫道實線' : '水平虛線/點狀標記'}
+                            </span>
+                          )}
+                          <span className="intel-tag" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
+                            行人方向：{sign.direction === 'left' ? '向左走 🚶‍♂️' : '向右走 🚶‍♂️'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* India State-Level Language & Script Meta */}
+              {subdivision.iso2 === 'IN' && (() => {
+                const stateInfo = getIndiaStateLanguageInfo(subdivision.code || subdivision.nameEn || subdivision.nameZh);
+                if (!stateInfo) return null;
+                return (
+                  <div
+                    className="intel-card"
+                    style={{
+                      borderColor: 'rgba(168, 85, 247, 0.45)',
+                      backgroundColor: 'rgba(168, 85, 247, 0.08)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+                    }}
+                  >
+                    <div className="intel-card-header">
+                      <span style={{ fontSize: 16 }}>🇮🇳</span>
+                      <span style={{ color: '#c084fc', fontWeight: 700 }}>
+                        {stateInfo.nameZh} 官方語言與文字辨識 (State Script Meta)
+                      </span>
+                    </div>
+                    <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+                      <div><strong>官方語言：</strong>{stateInfo.officialLanguages.join('、')}</div>
+                      <div><strong>主導字型：</strong>{stateInfo.primaryScript}</div>
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <strong>文字樣例：</strong>
+                        <span
+                          style={{
+                            fontSize: 16,
+                            color: '#38bdf8',
+                            fontWeight: 700,
+                            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                            padding: '2px 8px',
+                            borderRadius: 4
+                          }}
+                        >
+                          {stateInfo.scriptNativeSample}
+                        </span>
+                      </div>
+                      {stateInfo.sampleSentence && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
+                          <strong>政府/公營標牌：</strong>{stateInfo.sampleSentence}
+                        </div>
+                      )}
+                      <div style={{ marginTop: 8, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.1)', padding: '6px 10px', borderRadius: 6 }}>
+                        <strong>💡 GeoGuessr 辨識要訣：</strong>{stateInfo.scriptTipsZh}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Key Hints */}
               {cMeta.keyHints && cMeta.keyHints.length > 0 && (
@@ -705,7 +882,86 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               網域名稱：{country.tld}
             </div>
           )}
+
+          {(country.callingCode || getCountryCallingCode(country.iso2)) && (
+            <div className="intel-tag" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 10px', color: '#34d399' }}>
+              電話國碼：{country.callingCode || getCountryCallingCode(country.iso2)}
+            </div>
+          )}
         </div>
+
+        {/* European Pedestrian Crossing Sign */}
+        {(() => {
+          const sign = getCrossingSign(country.iso2);
+          if (!sign) return null;
+          return (
+            <div
+              className="intel-card"
+              style={{
+                borderColor: 'rgba(56, 189, 248, 0.45)',
+                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+              }}
+            >
+              <div className="intel-card-header">
+                <span style={{ fontSize: 16 }}>🚸</span>
+                <span style={{ color: '#38bdf8' }}>行人穿越道告示 (Pedestrian Crossing Sign)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                <div
+                  style={{
+                    width: 68,
+                    height: 68,
+                    minWidth: 68,
+                    borderRadius: 8,
+                    backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                  }}
+                >
+                  <img
+                    src={sign.imagePath}
+                    alt={`${sign.nameZh} 行人穿越道告示牌`}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+                <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>
+                    {sign.nameZh}（{sign.nameEn}）
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: 12 }}>
+                    {sign.descriptionZh}
+                  </div>
+                  <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {sign.stripes > 0 ? (
+                      <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                        斑馬線：{sign.stripes} 條
+                      </span>
+                    ) : (
+                      <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                        地面標記：{sign.iso2 === 'PL' ? '白色橫道實線' : '水平虛線/點狀標記'}
+                      </span>
+                    )}
+                    <span className="intel-tag" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
+                      行人方向：{sign.direction === 'left' ? '向左走 🚶‍♂️' : '向右走 🚶‍♂️'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Dynamic Markdown Lore & Dossier Cards */}
+        <MarkdownLoreCards
+          query={{
+            countryIso2: country.iso2
+          }}
+        />
 
         {/* Pro Tips / Key Clues */}
         {country.keyHints && country.keyHints.length > 0 && (
@@ -781,7 +1037,49 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
             <Globe size={16} color="#a855f7" />
             <span style={{ color: '#c084fc' }}>語言與文字 (Language & Script)</span>
           </div>
-          <div className="intel-card-body">{country.language}</div>
+          <div className="intel-card-body">
+            <div>{country.language}</div>
+            {(() => {
+              const langMeta = getCountryLanguageMeta(country.iso2);
+              if (!langMeta) return null;
+              return (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
+                      字系：{langMeta.scriptFamily}
+                    </span>
+                    <span className="intel-tag" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
+                      母語字樣：{langMeta.nativeSample}
+                    </span>
+                  </div>
+                  {langMeta.distinctiveLetters && langMeta.distinctiveLetters.length > 0 && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>特徵字母：</span>
+                      {langMeta.distinctiveLetters.map((l) => (
+                        <span
+                          key={l}
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                            borderRadius: 4,
+                            color: '#38bdf8'
+                          }}
+                        >
+                          {l}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 8, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.1)', padding: '6px 10px', borderRadius: 6, fontSize: 12, lineHeight: 1.5 }}>
+                    <strong>💡 GeoGuessr 字母秒殺：</strong>{langMeta.geoGuessrMetaZh}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </div>
 
         {/* Confused With */}

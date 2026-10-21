@@ -1,4 +1,5 @@
 import type { CountryData, FilterCategory, LegendItem } from '../types/geo';
+import { getCountryRoadMarking } from './roadMarkings';
 
 export interface FilterDefinition {
   id: string;
@@ -92,18 +93,17 @@ export const FILTERS: FilterDefinition[] = [
   {
     id: 'roadLines',
     category: 'roadLines',
-    nameZh: '🛣️ 道路中央標線',
-    descriptionZh: '美洲與台灣標準雙黃線，歐洲全白線，挪威與日本罕見黃線',
+    nameZh: '🛣️ 道路標線 (邊線與中線)',
+    descriptionZh: '國家幾何三等分著色：兩側外段為邊線顏色，中央段為車道中線顏色（如白邊+雙黃、全白、黃邊+白中線）',
     legend: [
-      { key: 'yellow_double', labelZh: '雙黃實線 (美洲多數 / 台灣)', color: '#eab308' },
-      { key: 'yellow_single', labelZh: '單黃實線 (挪威 / 日本 / 紐西蘭)', color: '#f97316' },
-      { key: 'white_dashed', labelZh: '全白標線 (歐洲普遍 / 智利 / 阿根廷)', color: '#67e8f9' }
+      { key: 'white_outer_yellow_center', labelZh: '左右白邊線 + 中央黃線（美洲 / 台灣 / 日本）', color: '#f59e0b' },
+      { key: 'white_outer_white_center', labelZh: '左右白邊線 + 中央白線（歐洲全白 / 智利 / 阿根廷）', color: '#f1f5f9' },
+      { key: 'yellow_outer_white_center', labelZh: '左右黃邊線 + 中央白線（挪威 / 南非 / 波札那 / 史瓦帝尼）', color: '#eab308' },
+      { key: 'other', labelZh: '其他或無標線道路', color: '#334155' }
     ],
     getColor: (country) => {
-      if (country.roadLines.includes('yellow_double')) return '#eab308';
-      if (country.roadLines.includes('yellow_single')) return '#f97316';
-      if (country.roadLines.includes('white_solid') || country.roadLines.includes('white_dashed')) return '#67e8f9';
-      return '#334155';
+      const rm = getCountryRoadMarking(country.iso2);
+      return rm ? rm.centerColor : '#334155';
     }
   },
   {

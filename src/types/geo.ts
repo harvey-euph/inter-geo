@@ -67,6 +67,7 @@ export interface CountryData {
   bollardDesc?: string;
   language: string;
   tld: string;
+  callingCode?: string;
   keyHints: string[];
   confusedWith?: string[];
 }

@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { geoMercator, geoPath, geoArea } from 'd3-geo';
 import * as flatgeobuf from 'flatgeobuf';
+import * as topojsonServer from 'topojson-server';
+import * as topojsonClient from 'topojson-client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -184,8 +186,68 @@ async function processJapan() {
   let totalCount = 0;
 
   for (const [prefKey, group] of groups.entries()) {
-    let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
+    const prefId = group.prefId;
+    const prefName = group.prefName;
+
+    // Dissolve designated cities administrative wards if any
+    const cityWardsMap = new Map();
+    const otherFeatures = [];
+
     for (const f of group.features) {
+      const gun = f.properties?.gun || '';
+      if (gun.endsWith('市')) {
+        if (!cityWardsMap.has(gun)) {
+          cityWardsMap.set(gun, []);
+        }
+        cityWardsMap.get(gun).push(f);
+      } else {
+        otherFeatures.push(f);
+      }
+    }
+
+    let finalFeatures = [];
+    if (cityWardsMap.size > 0) {
+      const mergedCities = [];
+      for (const [cityName, wards] of cityWardsMap.entries()) {
+        const firstWard = wards[0];
+        const p = firstWard.properties;
+        const sampleCode = String(p.code || '');
+        const cityCode = sampleCode.length >= 4 ? sampleCode.slice(0, 4) + '0' : sampleCode;
+
+        const topology = topojsonServer.topology({ wards: { type: 'FeatureCollection', features: wards } }, 1e5);
+        const mergedGeom = topojsonClient.merge(topology, topology.objects.wards.geometries);
+
+        let mergedFeature = {
+          type: 'Feature',
+          id: cityCode,
+          properties: {
+            id: cityCode,
+            iso2: 'JP',
+            name: cityName,
+            name_en: cityName,
+            name_zh: `${prefName} ${cityName}`,
+            type_en: 'Municipality',
+            parent_name: prefName,
+            parent_code: prefKey,
+            code: cityCode,
+            pref_id: prefId,
+            city: cityName,
+            pref: prefName,
+            gun: ''
+          },
+          geometry: mergedGeom
+        };
+
+        mergedFeature = normalizeFeatureWinding(mergedFeature);
+        mergedCities.push(mergedFeature);
+      }
+      finalFeatures = [...otherFeatures, ...mergedCities];
+    } else {
+      finalFeatures = group.features;
+    }
+
+    let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
+    for (const f of finalFeatures) {
       try {
         const bounds = pathGen.bounds(f);
         if (bounds && !isNaN(bounds[0][0]) && !isNaN(bounds[1][0])) {
@@ -207,12 +269,12 @@ async function processJapan() {
     countryMinY = Math.min(countryMinY, pMinY);
     countryMaxX = Math.max(countryMaxX, pMaxX);
     countryMaxY = Math.max(countryMaxY, pMaxY);
-    totalCount += group.features.length;
+    totalCount += finalFeatures.length;
 
     const outFile = path.join(jpDir, `${prefKey}.fgb`);
     const fgbBytes = flatgeobuf.geojson.serialize({
       type: 'FeatureCollection',
-      features: group.features
+      features: finalFeatures
     });
     fs.writeFileSync(outFile, Buffer.from(fgbBytes));
 
@@ -222,7 +284,7 @@ async function processJapan() {
       parentName: group.prefName,
       parentCode: prefKey,
       file: `/data/l3/JP/${prefKey}.fgb`,
-      subdivisionCount: group.features.length,
+      subdivisionCount: finalFeatures.length,
       bbox: {
         minX: Math.round(pMinX),
         maxX: Math.round(pMaxX),

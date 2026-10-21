@@ -171,12 +171,25 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
+.filter-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+}
+
 .filter-pills-row {
   display: flex;
   align-items: center;
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
+}
+
+.text-overlay-filter-pill {
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .filter-pill {
@@ -490,6 +503,55 @@
   box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
 }
 
+/* Regional Controls Section (Dynamic by Viewport) */
+.regional-controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: popInControls 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.map-controls-divider {
+  width: 24px;
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 2px auto;
+  opacity: 0.6;
+}
+
+@keyframes popInControls {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.regional-control-btn {
+  font-family: var(--font-mono);
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.regional-btn-floating-tooltip {
+  animation: tooltipFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
 /* GPU Hardware-Accelerated Road Canvas */
 .roads-gpu-canvas {
   position: absolute;
@@ -522,7 +584,16 @@
   padding: 4px 8px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  max-width: 580px;
+  max-width: 860px;
+}
+
+.headline-filter-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--border-color);
+  margin: 0 3px;
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .headline-filter-label {
@@ -570,6 +641,11 @@
   border-color: rgba(56, 189, 248, 0.4);
   color: #38bdf8;
   font-weight: 600;
+}
+
+.headline-filter-pill.text-overlay-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .headline-toggle-btn {
@@ -729,6 +805,41 @@
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.35;
+}
+
+.legend-text-overlays-section {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legend-divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--border-color);
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+
+.legend-text-overlays-header {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.legend-text-overlays-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.legend-text-pill {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid;
 }
 
 /* Side Drawer: Country Detail Dossier */

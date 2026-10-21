@@ -1927,7 +1927,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
     "name": "Japan",
     "nameZh": "日本",
     "unitNameZh": "市區町村 (Municipality)",
-    "subdivisionCount": 1906,
+    "subdivisionCount": 1751,
     "bbox": {
       "minX": 842,
       "maxX": 928,
@@ -1941,7 +1941,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "北海道",
         "parentCode": "1",
         "file": "/data/l3/JP/1.fgb",
-        "subdivisionCount": 194,
+        "subdivisionCount": 185,
         "bbox": {
           "minX": 887,
           "maxX": 914,
@@ -1983,7 +1983,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "宮城県",
         "parentCode": "4",
         "file": "/data/l3/JP/4.fgb",
-        "subdivisionCount": 39,
+        "subdivisionCount": 35,
         "bbox": {
           "minX": 890,
           "maxX": 894,
@@ -2081,7 +2081,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "埼玉県",
         "parentCode": "11",
         "file": "/data/l3/JP/11.fgb",
-        "subdivisionCount": 72,
+        "subdivisionCount": 63,
         "bbox": {
           "minX": 885,
           "maxX": 889,
@@ -2095,7 +2095,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "千葉県",
         "parentCode": "12",
         "file": "/data/l3/JP/12.fgb",
-        "subdivisionCount": 60,
+        "subdivisionCount": 55,
         "bbox": {
           "minX": 888,
           "maxX": 891,
@@ -2123,7 +2123,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "神奈川県",
         "parentCode": "14",
         "file": "/data/l3/JP/14.fgb",
-        "subdivisionCount": 58,
+        "subdivisionCount": 33,
         "bbox": {
           "minX": 886,
           "maxX": 888,
@@ -2137,7 +2137,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "新潟県",
         "parentCode": "15",
         "file": "/data/l3/JP/15.fgb",
-        "subdivisionCount": 37,
+        "subdivisionCount": 30,
         "bbox": {
           "minX": 882,
           "maxX": 889,
@@ -2235,7 +2235,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "静岡県",
         "parentCode": "22",
         "file": "/data/l3/JP/22.fgb",
-        "subdivisionCount": 43,
+        "subdivisionCount": 35,
         "bbox": {
           "minX": 882,
           "maxX": 887,
@@ -2249,7 +2249,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "愛知県",
         "parentCode": "23",
         "file": "/data/l3/JP/23.fgb",
-        "subdivisionCount": 70,
+        "subdivisionCount": 55,
         "bbox": {
           "minX": 880,
           "maxX": 883,
@@ -2291,7 +2291,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "京都府",
         "parentCode": "26",
         "file": "/data/l3/JP/26.fgb",
-        "subdivisionCount": 36,
+        "subdivisionCount": 26,
         "bbox": {
           "minX": 875,
           "maxX": 878,
@@ -2305,7 +2305,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "大阪府",
         "parentCode": "27",
         "file": "/data/l3/JP/27.fgb",
-        "subdivisionCount": 72,
+        "subdivisionCount": 43,
         "bbox": {
           "minX": 875,
           "maxX": 877,
@@ -2319,7 +2319,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "兵庫県",
         "parentCode": "28",
         "file": "/data/l3/JP/28.fgb",
-        "subdivisionCount": 49,
+        "subdivisionCount": 41,
         "bbox": {
           "minX": 873,
           "maxX": 876,
@@ -2389,7 +2389,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "岡山県",
         "parentCode": "33",
         "file": "/data/l3/JP/33.fgb",
-        "subdivisionCount": 30,
+        "subdivisionCount": 27,
         "bbox": {
           "minX": 870,
           "maxX": 873,
@@ -2403,7 +2403,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "広島県",
         "parentCode": "34",
         "file": "/data/l3/JP/34.fgb",
-        "subdivisionCount": 30,
+        "subdivisionCount": 23,
         "bbox": {
           "minX": 867,
           "maxX": 871,
@@ -2487,7 +2487,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "福岡県",
         "parentCode": "40",
         "file": "/data/l3/JP/40.fgb",
-        "subdivisionCount": 72,
+        "subdivisionCount": 60,
         "bbox": {
           "minX": 861,
           "maxX": 864,
@@ -2529,7 +2529,7 @@ export const L3_MANIFEST: L3CountryMeta[] = [
         "parentName": "熊本県",
         "parentCode": "43",
         "file": "/data/l3/JP/43.fgb",
-        "subdivisionCount": 49,
+        "subdivisionCount": 45,
         "bbox": {
           "minX": 861,
           "maxX": 865,

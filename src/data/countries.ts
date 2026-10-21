@@ -1995,7 +1995,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     tld: ".ca",
     keyHints: [
       "速度單位為公里（標牌寫『MAXIMUM 50 / 80 / 100』，無 MPH 字樣）",
-      "魁北克省停車再開標誌寫『ARRÊT』，商店招牌全法文",
+      "魁北克省商店招牌全法文，車牌必帶法語箴言『Je me souviens』",
       "路邊常有綠色楓葉國道標誌 (Trans-Canada Highway) 或省道盾牌標誌",
       "高緯度針葉林、木質電桿帶絕緣子、常有積雪痕跡"
     ],
