@@ -94,11 +94,11 @@ export const FILTERS: FilterDefinition[] = [
     id: 'roadLines',
     category: 'roadLines',
     nameZh: '🛣️ 道路標線 (邊線與中線)',
-    descriptionZh: '國家幾何三等分著色：兩側外段為邊線顏色，中央段為車道中線顏色（如白邊+雙黃、全白、黃邊+白中線）',
+    descriptionZh: '國家多邊形輪廓雙層著色：外圈邊界為邊線顏色，內部中心為車道中線顏色（如白邊+雙黃、全白、黃邊+白中線）',
     legend: [
-      { key: 'white_outer_yellow_center', labelZh: '左右白邊線 + 中央黃線（美洲 / 台灣 / 日本）', color: '#f59e0b' },
-      { key: 'white_outer_white_center', labelZh: '左右白邊線 + 中央白線（歐洲全白 / 智利 / 阿根廷）', color: '#f1f5f9' },
-      { key: 'yellow_outer_white_center', labelZh: '左右黃邊線 + 中央白線（挪威 / 南非 / 波札那 / 史瓦帝尼）', color: '#eab308' },
+      { key: 'white_outer_yellow_center', labelZh: '外圈白邊線 + 中心黃線（美洲 / 台灣 / 日本）', color: '#f59e0b' },
+      { key: 'white_outer_white_center', labelZh: '外圈白邊線 + 中心白線（歐洲全白 / 智利 / 阿根廷）', color: '#f1f5f9' },
+      { key: 'yellow_outer_white_center', labelZh: '外圈黃邊線 + 中心白線（挪威 / 南非 / 波札那 / 史瓦帝尼）', color: '#eab308' },
       { key: 'other', labelZh: '其他或無標線道路', color: '#334155' }
     ],
     getColor: (country) => {

@@ -110,19 +110,33 @@ export function queryLore(query: LoreQuery): LoreCard[] {
     }
   }
 
-  // 4. Road targets (e.g. 'INTERSTATE', 'US-ROUTE', 'I-90', 'US 66')
+  // 4. Road targets (e.g. 'INTERSTATE', 'US-ROUTE', 'I-90', 'US 66', 'DE-HIGHWAY', 'E-ROAD')
   if (query.roadClass) {
     const rClass = query.roadClass.toUpperCase().trim();
     candidateKeys.push({ key: rClass, weight: 15 });
     candidateKeys.push({ key: `US-${rClass}`, weight: 15 });
     candidateKeys.push({ key: 'ROAD', weight: 5 });
     candidateKeys.push({ key: 'HIGHWAY', weight: 5 });
+    if (query.countryIso2) {
+      const iso = query.countryIso2.toUpperCase().trim();
+      candidateKeys.push({ key: `${iso}-HIGHWAY`, weight: 25 });
+      candidateKeys.push({ key: `${iso}-${rClass}`, weight: 25 });
+      candidateKeys.push({ key: `${iso}-ROAD`, weight: 20 });
+    }
   }
 
   if (query.roadName) {
     const rName = query.roadName.toUpperCase().replace(/\s+/g, '-').trim();
     candidateKeys.push({ key: rName, weight: 35 });
     candidateKeys.push({ key: `US-${rName}`, weight: 35 });
+    if (query.countryIso2) {
+      const iso = query.countryIso2.toUpperCase().trim();
+      candidateKeys.push({ key: `${iso}-${rName}`, weight: 35 });
+    }
+    if (/^E-?\d+/i.test(rName)) {
+      candidateKeys.push({ key: 'E-ROAD', weight: 30 });
+      candidateKeys.push({ key: 'EUROPE-HIGHWAY', weight: 20 });
+    }
   }
 
   // 5. Taipower Grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER')

@@ -15,7 +15,7 @@ interface PrecisionHUDProps {
   onZoomChange: (targetK: number) => void;
 }
 
-export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
+export const PrecisionHUD: React.FC<PrecisionHUDProps> = React.memo(({
   currentLOD,
   currentZoomK,
   lodThresholds,
@@ -231,4 +231,4 @@ export const PrecisionHUD: React.FC<PrecisionHUDProps> = ({
       </div>
     </div>
   );
-};
+});

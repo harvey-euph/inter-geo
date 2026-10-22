@@ -443,6 +443,9 @@
   flex-direction: column;
   gap: 6px;
   z-index: 30;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .map-control-btn {
@@ -907,6 +910,74 @@
 .close-btn:hover {
   background-color: var(--bg-input);
   color: var(--text-primary);
+}
+
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.drawer-back-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.drawer-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.drawer-breadcrumb-link {
+  color: #38bdf8;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.drawer-breadcrumb-link:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+.drawer-breadcrumb-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+.drawer-breadcrumb-current {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .drawer-content {

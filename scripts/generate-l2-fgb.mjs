@@ -148,16 +148,37 @@ function normalizeFeatureWinding(feature) {
     const geom = feature.geometry;
     if (geom) {
       if (geom.type === 'Polygon') {
-        if (geoArea(geom) > 2 * Math.PI) {
+        geom.coordinates = geom.coordinates.filter((ring) => {
+          if (!ring || ring.length < 4) return false;
+          try {
+            return geoArea({ type: 'Polygon', coordinates: [ring] }) > 1e-12;
+          } catch {
+            return false;
+          }
+        });
+        if (geom.coordinates.length > 0 && geoArea(geom) > 2 * Math.PI) {
           geom.coordinates = geom.coordinates.map((ring) => ring.slice().reverse());
         }
       } else if (geom.type === 'MultiPolygon') {
-        geom.coordinates = geom.coordinates.map((poly) => {
-          if (geoArea({ type: 'Polygon', coordinates: poly }) > 2 * Math.PI) {
-            return poly.map((ring) => ring.slice().reverse());
+        const newCoords = [];
+        for (const poly of geom.coordinates) {
+          const cleanRings = poly.filter((ring) => {
+            if (!ring || ring.length < 4) return false;
+            try {
+              return geoArea({ type: 'Polygon', coordinates: [ring] }) > 1e-12;
+            } catch {
+              return false;
+            }
+          });
+          if (cleanRings.length > 0) {
+            if (geoArea({ type: 'Polygon', coordinates: cleanRings }) > 2 * Math.PI) {
+              newCoords.push(cleanRings.map((ring) => ring.slice().reverse()));
+            } else {
+              newCoords.push(cleanRings);
+            }
           }
-          return poly;
-        });
+        }
+        geom.coordinates = newCoords;
       }
     }
   } catch {

@@ -5,6 +5,10 @@
  * is actively within the viewport.
  */
 
+import { ROADS_MANIFEST } from './roadsManifest';
+import type { RoadShieldType } from './roadsMeta';
+import { findCountry } from './countries';
+
 export interface NationwideFilterDef {
   /** Unique filter identifier */
   id: string;
@@ -12,6 +16,12 @@ export interface NationwideFilterDef {
   targetIso2: string;
   /** Multi-country ISO-2 list if applicable */
   targetIso2s?: string[];
+  /** Country ISO-2 code for road filters */
+  countryIso2?: string;
+  /** Road classification if layerType is 'roads' */
+  roadClass?: 'Interstate' | 'Federal';
+  /** Authentic road shield type for button rendering */
+  shieldType?: RoadShieldType;
   /** Display name in Traditional Chinese */
   nameZh: string;
   /** Display name in English */
@@ -35,6 +45,13 @@ export interface NationwideFilterDef {
     minY: number;
     maxY: number;
   };
+  /** Optional multiple custom bounding boxes (e.g. mainland + islands) */
+  customBBoxes?: Array<{
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  }>;
   descriptionZh: string;
 }
 
@@ -46,7 +63,283 @@ export const COUNTRIES_WITH_CAPITALS = [
   'NO', 'FI', 'PE', 'CL', 'CO'
 ];
 
-export const NATIONWIDE_FILTERS: NationwideFilterDef[] = [
+export const COUNTRIES_WITH_ROADS = Object.keys(ROADS_MANIFEST);
+
+/**
+ * Generates country-specific, authentic road filter buttons with their respective
+ * official highway shields (Interstate shield, US route cutout, Autobahn blue sign,
+ * Japan green expressway, Taiwan plum blossom, UK motorway, etc.).
+ */
+export function getRoadFiltersForCountry(iso2: string): NationwideFilterDef[] {
+  const upper = iso2.toUpperCase();
+  const cMeta = findCountry(upper);
+  const nameZh = cMeta?.nameZh || upper;
+
+  if (upper === 'US') {
+    return [
+      {
+        id: 'roads-US-interstates',
+        countryIso2: 'US',
+        targetIso2: 'US',
+        roadClass: 'Interstate',
+        shieldType: 'interstate',
+        nameZh: '美國州際公路',
+        nameEn: 'Interstate Highways',
+        shortBadge: 'I-',
+        titleZh: '美國艾森豪州際公路網 (Interstate Highways)',
+        titleEn: 'Interstate Highway System',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBoxes: [
+          // Conterminous / Mainland United States
+          { minX: 150, maxX: 320, minY: 340, maxY: 440 },
+          // Hawaii (Interstate H-1, H-2, H-3)
+          { minX: 55, maxX: 68, minY: 435, maxY: 448 }
+        ],
+        descriptionZh: '美國艾森豪州際公路網，雙位數幹線與三位數環線/支線'
+      },
+      {
+        id: 'roads-US-routes',
+        countryIso2: 'US',
+        targetIso2: 'US',
+        roadClass: 'Federal',
+        shieldType: 'us-route',
+        nameZh: '美國編號國道',
+        nameEn: 'U.S. Numbered Routes',
+        shortBadge: 'US',
+        titleZh: '美國編號國道 (U.S. Routes)',
+        titleEn: 'United States Numbered Highway System',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 150, maxX: 320, minY: 340, maxY: 440 },
+        descriptionZh: '美國編號國道系統（US 66、US 101、US 1、US 40 等歷史名路）'
+      }
+    ];
+  }
+
+  if (upper === 'DE') {
+    return [
+      {
+        id: 'roads-DE-autobahn',
+        countryIso2: 'DE',
+        targetIso2: 'DE',
+        roadClass: 'Interstate',
+        shieldType: 'autobahn',
+        nameZh: '德國聯邦高速',
+        nameEn: 'Autobahn',
+        shortBadge: 'A',
+        titleZh: '德國聯邦高速公路 (Bundesautobahn)',
+        titleEn: 'German Autobahn Network',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBox: { minX: 516, maxX: 542, minY: 310, maxY: 338 },
+        descriptionZh: '德國無速限聯邦高速公路網，A1~A9 全國骨幹與二三位數區域線'
+      },
+      {
+        id: 'roads-DE-bundesstrasse',
+        countryIso2: 'DE',
+        targetIso2: 'DE',
+        roadClass: 'Federal',
+        shieldType: 'bundesstrasse',
+        nameZh: '德國聯邦公路',
+        nameEn: 'Bundesstraße',
+        shortBadge: 'B',
+        titleZh: '德國聯邦公路 (Bundesstraße)',
+        titleEn: 'German Federal Highway System',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 516, maxX: 542, minY: 310, maxY: 338 },
+        descriptionZh: '德國黃底黑字聯邦公路（B1~B500 等一級國家幹道）'
+      }
+    ];
+  }
+
+  if (upper === 'JP') {
+    return [
+      {
+        id: 'roads-JP-expressway',
+        countryIso2: 'JP',
+        targetIso2: 'JP',
+        roadClass: 'Interstate',
+        shieldType: 'jp-expressway',
+        nameZh: '日本高速道路',
+        nameEn: 'Expressways',
+        shortBadge: 'E',
+        titleZh: '日本高速自動車國道 (Expressways)',
+        titleEn: 'Japan Expressway Network',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBox: { minX: 860, maxX: 905, minY: 355, maxY: 410 },
+        descriptionZh: '日本綠底高速自動車國道與都市高速道路（E1 東名、E4 東北等）'
+      },
+      {
+        id: 'roads-JP-national',
+        countryIso2: 'JP',
+        targetIso2: 'JP',
+        roadClass: 'Federal',
+        shieldType: 'jp-national',
+        nameZh: '日本一般國道',
+        nameEn: 'National Routes',
+        shortBadge: '国',
+        titleZh: '日本一般國道 (National Highways)',
+        titleEn: 'Japan National Routes System',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 860, maxX: 905, minY: 355, maxY: 410 },
+        descriptionZh: '日本藍底倒三角盾牌一般國道（國道 1 號至 507 號幹道）'
+      }
+    ];
+  }
+
+  if (upper === 'TW') {
+    return [
+      {
+        id: 'roads-TW-freeway',
+        countryIso2: 'TW',
+        targetIso2: 'TW',
+        roadClass: 'Interstate',
+        shieldType: 'tw-freeway',
+        nameZh: '台灣國道高速',
+        nameEn: 'Freeways',
+        shortBadge: '國',
+        titleZh: '台灣國道高速公路 (梅花號誌)',
+        titleEn: 'Taiwan National Freeway System',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBox: { minX: 833, maxX: 840, minY: 426, maxY: 440 },
+        descriptionZh: '台灣梅花標誌國道高速公路（國 1 中山高、國 3 福高、國 5 蔣渭水高等）'
+      },
+      {
+        id: 'roads-TW-provincial',
+        countryIso2: 'TW',
+        targetIso2: 'TW',
+        roadClass: 'Federal',
+        shieldType: 'tw-provincial',
+        nameZh: '台灣省道幹道',
+        nameEn: 'Provincial Highways',
+        shortBadge: '台',
+        titleZh: '台灣省道公路系統 (盾牌號誌)',
+        titleEn: 'Taiwan Provincial Highway System',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 833, maxX: 840, minY: 426, maxY: 440 },
+        descriptionZh: '台灣紅藍盾牌省道公路與東西向快速公路（台 1 線、台 9 線、台 61 線等）'
+      }
+    ];
+  }
+
+  if (upper === 'GB') {
+    return [
+      {
+        id: 'roads-GB-motorway',
+        countryIso2: 'GB',
+        targetIso2: 'GB',
+        roadClass: 'Interstate',
+        shieldType: 'gb-motorway',
+        nameZh: '英國高速公路',
+        nameEn: 'Motorways',
+        shortBadge: 'M',
+        titleZh: '英國高速公路 (Motorways)',
+        titleEn: 'United Kingdom Motorway System',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBox: { minX: 475, maxX: 506, minY: 295, maxY: 350 },
+        descriptionZh: '英國藍底 M 級高速公路網（M1、M4、M6、M25 倫敦外環等）'
+      },
+      {
+        id: 'roads-GB-aroad',
+        countryIso2: 'GB',
+        targetIso2: 'GB',
+        roadClass: 'Federal',
+        shieldType: 'gb-aroad',
+        nameZh: '英國主要幹道',
+        nameEn: 'A-Roads',
+        shortBadge: 'A',
+        titleZh: '英國主要幹道與主幹線 (A-Roads)',
+        titleEn: 'United Kingdom Primary Route Network',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 475, maxX: 506, minY: 295, maxY: 350 },
+        descriptionZh: '英國綠底金字 A 級主要幹線（A1、A38、A40 等歷史骨幹）'
+      }
+    ];
+  }
+
+  if (upper === 'FR') {
+    return [
+      {
+        id: 'roads-FR-autoroute',
+        countryIso2: 'FR',
+        targetIso2: 'FR',
+        roadClass: 'Interstate',
+        shieldType: 'fr-autoroute',
+        nameZh: '法國高速公路',
+        nameEn: 'Autoroutes',
+        shortBadge: 'A',
+        titleZh: '法國高速公路 (Autoroutes)',
+        titleEn: 'French Autoroute System',
+        activeColor: '#38bdf8',
+        layerType: 'roads',
+        customBBox: { minX: 485, maxX: 526, minY: 334, maxY: 386 },
+        descriptionZh: '法國藍底 A 級高速公路網絡（A1、A6 太陽高速、A8 普羅旺斯等）'
+      },
+      {
+        id: 'roads-FR-national',
+        countryIso2: 'FR',
+        targetIso2: 'FR',
+        roadClass: 'Federal',
+        shieldType: 'generic-route',
+        nameZh: '法國國家國道',
+        nameEn: 'Routes Nationales',
+        shortBadge: 'N',
+        titleZh: '法國國家國道幹道 (Routes Nationales)',
+        titleEn: 'French National Route Network',
+        activeColor: '#fbbf24',
+        layerType: 'roads',
+        customBBox: { minX: 485, maxX: 526, minY: 334, maxY: 386 },
+        descriptionZh: '法國紅框 N 級國家幹道公路網絡'
+      }
+    ];
+  }
+
+  // European countries fallback
+  const isEurope = ['IT', 'ES', 'NL', 'BE', 'PL', 'AT', 'CH', 'CZ', 'PT', 'SE', 'NO', 'FI', 'DK'].includes(upper);
+
+  return [
+    {
+      id: `roads-${upper}-expressway`,
+      countryIso2: upper,
+      targetIso2: upper,
+      roadClass: 'Interstate',
+      shieldType: isEurope ? 'e-road' : 'generic-expressway',
+      nameZh: `${nameZh}高速公路`,
+      nameEn: 'Expressways',
+      shortBadge: isEurope ? 'E' : 'EXP',
+      titleZh: `${nameZh}主要高速公路與快速道路網`,
+      titleEn: `${cMeta?.name || upper} Expressway & Highway Network`,
+      activeColor: '#38bdf8',
+      layerType: 'roads',
+      descriptionZh: `${nameZh}的主要封閉式高速公路與快速道路幹線`
+    },
+    {
+      id: `roads-${upper}-primary`,
+      countryIso2: upper,
+      targetIso2: upper,
+      roadClass: 'Federal',
+      shieldType: 'generic-route',
+      nameZh: `${nameZh}主要幹道`,
+      nameEn: 'Primary Routes',
+      shortBadge: 'RT',
+      titleZh: `${nameZh}國家編號公路與主要幹道`,
+      titleEn: `${cMeta?.name || upper} Primary National Highway Network`,
+      activeColor: '#fbbf24',
+      layerType: 'roads',
+      descriptionZh: `${nameZh}的一級主要幹道與編號公路系統`
+    }
+  ];
+}
+
+export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
   // 1. Coloring Layer: Capital Subdivision Highlight
   {
     id: 'nationwide-capital',
@@ -89,35 +382,11 @@ export const NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     activeColor: '#10b981',
     layerType: 'text',
     descriptionZh: '顯示當前國家各一級行政區之國內電話區號（巴西 1x~9x、日本 01~09、法國 01~05、泰國 02~07、俄羅斯 495 等）'
-  },
-
-  // 3. Image / Road Network Layer: US Highway Systems
-  {
-    id: 'us-interstates',
-    targetIso2: 'US',
-    nameZh: '州際公路',
-    nameEn: 'Interstate Highways',
-    shortBadge: 'I-',
-    titleZh: '美國州際公路 (Interstate Highways)',
-    titleEn: 'Interstate Highway System',
-    activeColor: '#38bdf8',
-    layerType: 'roads',
-    customBBox: { minX: 50, maxX: 330, minY: 280, maxY: 480 },
-    descriptionZh: '美國艾森豪州際公路網，雙位數幹線與三位數環線/支線'
-  },
-  {
-    id: 'us-numbered-routes',
-    targetIso2: 'US',
-    nameZh: '編號國道',
-    nameEn: 'U.S. Numbered Routes',
-    shortBadge: 'US',
-    titleZh: '美國編號國道 (U.S. Routes)',
-    titleEn: 'United States Numbered Highway System',
-    activeColor: '#fbbf24',
-    layerType: 'roads',
-    customBBox: { minX: 50, maxX: 330, minY: 280, maxY: 480 },
-    descriptionZh: '美國編號國道系統（US 66、US 101、US 1、US 40 等歷史名路）'
   }
+];
+
+export const NATIONWIDE_FILTERS: NationwideFilterDef[] = [
+  ...BASE_NATIONWIDE_FILTERS
 ];
 
 export const NATIONWIDE_FILTERS_BY_ID = new Map<string, NationwideFilterDef>(
@@ -125,14 +394,44 @@ export const NATIONWIDE_FILTERS_BY_ID = new Map<string, NationwideFilterDef>(
 );
 
 /**
- * Returns available nationwide filters for a country visible in viewport
+ * Resolves a nationwide filter definition by ID, dynamically retrieving
+ * country-specific highway shield filters when requested.
+ */
+export function getNationwideFilterById(id: string): NationwideFilterDef | undefined {
+  if (NATIONWIDE_FILTERS_BY_ID.has(id)) {
+    return NATIONWIDE_FILTERS_BY_ID.get(id);
+  }
+  if (id.startsWith('roads-')) {
+    const parts = id.split('-');
+    const iso2 = parts[1];
+    if (iso2) {
+      const filters = getRoadFiltersForCountry(iso2);
+      const match = filters.find((f) => f.id === id);
+      if (match) {
+        NATIONWIDE_FILTERS_BY_ID.set(id, match);
+        return match;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Returns available nationwide filters for a country visible in viewport,
+ * including country-specific highway shield filters if roads data exists.
  */
 export function getNationwideFiltersForCountry(iso2: string): NationwideFilterDef[] {
   const upper = iso2.toUpperCase();
-  return NATIONWIDE_FILTERS.filter(
+  const filters = BASE_NATIONWIDE_FILTERS.filter(
     (f) =>
       f.targetIso2 === '*' ||
       f.targetIso2 === upper ||
       (f.targetIso2s && f.targetIso2s.includes(upper))
   );
+
+  if (COUNTRIES_WITH_ROADS.includes(upper)) {
+    filters.push(...getRoadFiltersForCountry(upper));
+  }
+
+  return filters;
 }

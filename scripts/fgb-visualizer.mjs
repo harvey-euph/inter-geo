@@ -81,7 +81,7 @@ const FIELD_DICTIONARY = {
   name_zh: {
     labelZh: '在地化中文地名 (Chinese Name)',
     type: 'string',
-    meaning: '正體/繁體中文翻譯地名 (如 加利福尼亞州、東京都、桃園市)。台灣縣市已自動校正為正體字。',
+    meaning: '繁體中文翻譯地名 (如 加利福尼亞州、東京都、桃園市)。台灣縣市已自動校正為正體字。',
     purpose: '中文使用者介面核心呈現、GeoGuessr 繁中地理知識卡片。'
   },
   type_en: {

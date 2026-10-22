@@ -4989,6 +4989,427 @@ export const L3_MANIFEST: L3CountryMeta[] = [
       }
     ]
   }
+,
+  {
+    "iso2": "CH",
+    "countryId": "756",
+    "name": "Switzerland",
+    "nameZh": "瑞士",
+    "unitNameZh": "邦/州 (Canton)",
+    "subdivisionCount": 26,
+    "bbox": {
+      "minX": 517,
+      "maxX": 529,
+      "minY": 348,
+      "maxY": 356
+    },
+    "partitions": [
+      {
+        "key": "CH",
+        "iso2": "CH",
+        "parentName": "Switzerland",
+        "parentCode": "CH",
+        "file": "/data/l3/CH/CH.fgb",
+        "subdivisionCount": 26,
+        "bbox": {
+          "minX": 517,
+          "maxX": 529,
+          "minY": 348,
+          "maxY": 356
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "SI",
+    "countryId": "705",
+    "name": "Slovenia",
+    "nameZh": "斯洛維尼亞",
+    "unitNameZh": "區/市鎮 (Občina)",
+    "subdivisionCount": 193,
+    "bbox": {
+      "minX": 537,
+      "maxX": 546,
+      "minY": 352,
+      "maxY": 358
+    },
+    "partitions": [
+      {
+        "key": "SI",
+        "iso2": "SI",
+        "parentName": "Slovenia",
+        "parentCode": "SI",
+        "file": "/data/l3/SI/SI.fgb",
+        "subdivisionCount": 193,
+        "bbox": {
+          "minX": 537,
+          "maxX": 546,
+          "minY": 352,
+          "maxY": 358
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "LV",
+    "countryId": "428",
+    "name": "Latvia",
+    "nameZh": "拉脫維亞",
+    "unitNameZh": "市/市鎮 (Novads)",
+    "subdivisionCount": 119,
+    "bbox": {
+      "minX": 558,
+      "maxX": 578,
+      "minY": 301,
+      "maxY": 313
+    },
+    "partitions": [
+      {
+        "key": "LV",
+        "iso2": "LV",
+        "parentName": "Latvia",
+        "parentCode": "LV",
+        "file": "/data/l3/LV/LV.fgb",
+        "subdivisionCount": 119,
+        "bbox": {
+          "minX": 558,
+          "maxX": 578,
+          "minY": 301,
+          "maxY": 313
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "IE",
+    "countryId": "372",
+    "name": "Ireland",
+    "nameZh": "愛爾蘭",
+    "unitNameZh": "郡 (County)",
+    "subdivisionCount": 34,
+    "bbox": {
+      "minX": 471,
+      "maxX": 483,
+      "minY": 314,
+      "maxY": 333
+    },
+    "partitions": [
+      {
+        "key": "IE",
+        "iso2": "IE",
+        "parentName": "Ireland",
+        "parentCode": "IE",
+        "file": "/data/l3/IE/IE.fgb",
+        "subdivisionCount": 34,
+        "bbox": {
+          "minX": 471,
+          "maxX": 483,
+          "minY": 314,
+          "maxY": 333
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "MK",
+    "countryId": "807",
+    "name": "North Macedonia",
+    "nameZh": "北馬其頓",
+    "unitNameZh": "區/市鎮 (Opština)",
+    "subdivisionCount": 84,
+    "bbox": {
+      "minX": 557,
+      "maxX": 564,
+      "minY": 370,
+      "maxY": 375
+    },
+    "partitions": [
+      {
+        "key": "MK",
+        "iso2": "MK",
+        "parentName": "North Macedonia",
+        "parentCode": "MK",
+        "file": "/data/l3/MK/MK.fgb",
+        "subdivisionCount": 84,
+        "bbox": {
+          "minX": 557,
+          "maxX": 564,
+          "minY": 370,
+          "maxY": 375
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "LK",
+    "countryId": "144",
+    "name": "Sri Lanka",
+    "nameZh": "斯里蘭卡",
+    "unitNameZh": "區/省 (District)",
+    "subdivisionCount": 25,
+    "bbox": {
+      "minX": 721,
+      "maxX": 727,
+      "minY": 473,
+      "maxY": 484
+    },
+    "partitions": [
+      {
+        "key": "LK",
+        "iso2": "LK",
+        "parentName": "Sri Lanka",
+        "parentCode": "LK",
+        "file": "/data/l3/LK/LK.fgb",
+        "subdivisionCount": 25,
+        "bbox": {
+          "minX": 721,
+          "maxX": 727,
+          "minY": 473,
+          "maxY": 484
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "UY",
+    "countryId": "858",
+    "name": "Uruguay",
+    "nameZh": "烏拉圭",
+    "unitNameZh": "省/省份 (Departamento)",
+    "subdivisionCount": 19,
+    "bbox": {
+      "minX": 338,
+      "maxX": 352,
+      "minY": 588,
+      "maxY": 604
+    },
+    "partitions": [
+      {
+        "key": "UY",
+        "iso2": "UY",
+        "parentName": "Uruguay",
+        "parentCode": "UY",
+        "file": "/data/l3/UY/UY.fgb",
+        "subdivisionCount": 19,
+        "bbox": {
+          "minX": 338,
+          "maxX": 352,
+          "minY": 588,
+          "maxY": 604
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "EC",
+    "countryId": "218",
+    "name": "Ecuador",
+    "nameZh": "厄瓜多",
+    "unitNameZh": "省/省份 (Provincia)",
+    "subdivisionCount": 24,
+    "bbox": {
+      "minX": 244,
+      "maxX": 291,
+      "minY": 495,
+      "maxY": 514
+    },
+    "partitions": [
+      {
+        "key": "EC",
+        "iso2": "EC",
+        "parentName": "Ecuador",
+        "parentCode": "EC",
+        "file": "/data/l3/EC/EC.fgb",
+        "subdivisionCount": 24,
+        "bbox": {
+          "minX": 244,
+          "maxX": 291,
+          "minY": 495,
+          "maxY": 514
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "GT",
+    "countryId": "320",
+    "name": "Guatemala",
+    "nameZh": "瓜地馬拉",
+    "unitNameZh": "省/省份 (Departamento)",
+    "subdivisionCount": 22,
+    "bbox": {
+      "minX": 244,
+      "maxX": 255,
+      "minY": 450,
+      "maxY": 461
+    },
+    "partitions": [
+      {
+        "key": "GT",
+        "iso2": "GT",
+        "parentName": "Guatemala",
+        "parentCode": "GT",
+        "file": "/data/l3/GT/GT.fgb",
+        "subdivisionCount": 22,
+        "bbox": {
+          "minX": 244,
+          "maxX": 255,
+          "minY": 450,
+          "maxY": 461
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "DO",
+    "countryId": "214",
+    "name": "Dominican Republic",
+    "nameZh": "多明尼加",
+    "unitNameZh": "省/省份 (Provincia)",
+    "subdivisionCount": 32,
+    "bbox": {
+      "minX": 300,
+      "maxX": 310,
+      "minY": 443,
+      "maxY": 450
+    },
+    "partitions": [
+      {
+        "key": "DO",
+        "iso2": "DO",
+        "parentName": "Dominican Republic",
+        "parentCode": "DO",
+        "file": "/data/l3/DO/DO.fgb",
+        "subdivisionCount": 32,
+        "bbox": {
+          "minX": 300,
+          "maxX": 310,
+          "minY": 443,
+          "maxY": 450
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "PA",
+    "countryId": "591",
+    "name": "Panama",
+    "nameZh": "巴拿馬",
+    "unitNameZh": "省/特區 (Provincia)",
+    "subdivisionCount": 12,
+    "bbox": {
+      "minX": 269,
+      "maxX": 286,
+      "minY": 473,
+      "maxY": 480
+    },
+    "partitions": [
+      {
+        "key": "PA",
+        "iso2": "PA",
+        "parentName": "Panama",
+        "parentCode": "PA",
+        "file": "/data/l3/PA/PA.fgb",
+        "subdivisionCount": 12,
+        "bbox": {
+          "minX": 269,
+          "maxX": 286,
+          "minY": 473,
+          "maxY": 480
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "UG",
+    "countryId": "800",
+    "name": "Uganda",
+    "nameZh": "烏干達",
+    "unitNameZh": "區/省 (District)",
+    "subdivisionCount": 112,
+    "bbox": {
+      "minX": 582,
+      "maxX": 597,
+      "minY": 488,
+      "maxY": 504
+    },
+    "partitions": [
+      {
+        "key": "UG",
+        "iso2": "UG",
+        "parentName": "Uganda",
+        "parentCode": "UG",
+        "file": "/data/l3/UG/UG.fgb",
+        "subdivisionCount": 112,
+        "bbox": {
+          "minX": 582,
+          "maxX": 597,
+          "minY": 488,
+          "maxY": 504
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "RW",
+    "countryId": "646",
+    "name": "Rwanda",
+    "nameZh": "盧安達",
+    "unitNameZh": "省 (Intara)",
+    "subdivisionCount": 5,
+    "bbox": {
+      "minX": 580,
+      "maxX": 586,
+      "minY": 503,
+      "maxY": 508
+    },
+    "partitions": [
+      {
+        "key": "RW",
+        "iso2": "RW",
+        "parentName": "Rwanda",
+        "parentCode": "RW",
+        "file": "/data/l3/RW/RW.fgb",
+        "subdivisionCount": 5,
+        "bbox": {
+          "minX": 580,
+          "maxX": 586,
+          "minY": 503,
+          "maxY": 508
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "BT",
+    "countryId": "064",
+    "name": "Bhutan",
+    "nameZh": "不丹",
+    "unitNameZh": "宗/宗管轄區 (Dzongkhag)",
+    "subdivisionCount": 20,
+    "bbox": {
+      "minX": 746,
+      "maxX": 756,
+      "minY": 418,
+      "maxY": 423
+    },
+    "partitions": [
+      {
+        "key": "BT",
+        "iso2": "BT",
+        "parentName": "Bhutan",
+        "parentCode": "BT",
+        "file": "/data/l3/BT/BT.fgb",
+        "subdivisionCount": 20,
+        "bbox": {
+          "minX": 746,
+          "maxX": 756,
+          "minY": 418,
+          "maxY": 423
+        }
+      }
+    ]
+  }
 ];
 
 export const L3_PARTITIONS_BY_COUNTRY: Record<string, L3PartitionMeta[]> = {};

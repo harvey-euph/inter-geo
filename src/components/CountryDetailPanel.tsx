@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phone, MapPin, Search, Compass } from 'lucide-react';
+import { X, ChevronLeft, Navigation, Car, Shield, Lightbulb, Globe, Layers, AlertCircle, Phone, MapPin, Search, Compass } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
-import type { RoadPathData } from './WorldMap';
+import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCountryCallingCode } from '../data/globalFilters';
 import { getSubdivisionAreaCode } from '../data/domesticAreaCodes';
 import { getCrossingSign } from '../data/pedestrianCrossing';
@@ -18,23 +18,41 @@ interface CountryDetailPanelProps {
   municipality?: MunicipalityDetail | null;
   road?: RoadPathData | null;
   onClose: () => void;
+  onNavigateBack?: () => void;
+  onNavigateToCountry?: (country: CountryData) => void;
   onSelectCountryName?: (name: string) => void;
   onZoomToPrefecture?: (prefId: number) => void;
 }
 
-export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
+export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(({
   country,
   subdivision,
   prefecture,
   municipality,
   road,
   onClose,
+  onNavigateBack,
+  onNavigateToCountry,
   onSelectCountryName,
   onZoomToPrefecture
 }) => {
   // 0. Highway & Route Detail (Roads Mode)
   if (road) {
     const isInterstate = road.class === 'Interstate';
+    const roadCountry = (road.iso2 ? findCountry(road.iso2) : undefined) || country || undefined;
+    const parentCountryName = roadCountry?.nameZh || road.iso2 || '國家';
+    const roadMeta = getRoadSystemMeta(road, roadCountry);
+    const isUS = (road.iso2 || 'US').toUpperCase() === 'US';
+
+    const handleBack = () => {
+      if (roadCountry && onNavigateToCountry) {
+        onNavigateToCountry(roadCountry);
+      } else if (onNavigateBack) {
+        onNavigateBack();
+      }
+    };
+
+    // US-specific road classification logic
     const num = parseInt(road.number, 10);
     const hasNum = !isNaN(num);
     const isEven = hasNum && num % 2 === 0;
@@ -44,42 +62,120 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
     const firstDigit = isAuxiliary ? parseInt(road.number[0], 10) : 0;
     const isBeltway = isAuxiliary && firstDigit % 2 === 0;
 
-    let numberingRule: string;
-    let locationClue: string;
-    if (isInterstate) {
-      if (isEven) {
-        numberingRule = '偶數編號為東西走向 (East-West)。全美號碼自南向北遞增（I-10 橫貫最南方美墨邊界/墨西哥灣，I-90 橫貫最北方加拿大邊界）。';
-        if (num <= 20) locationClue = '號碼偏小（如 I-10, I-20）：位於美國南部陽光地帶（加州、德州、佛羅里達等）。';
-        else if (num <= 40) locationClue = '號碼居中（如 I-40）：橫貫美國南部偏中帶（北卡、田納西、奧克拉荷馬、新墨西哥、亞利桑那）。';
-        else if (num <= 70) locationClue = '號碼偏中上（如 I-70）：橫貫美國心臟地帶（馬里蘭、俄亥俄、堪薩斯、科羅拉多、猶他）。';
-        else locationClue = '號碼偏大（如 I-80, I-90, I-94）：橫貫美國中北部及五大湖區（紐約、芝加哥、明尼蘇達、華盛頓州西雅圖）。';
+    let usNumberingRule = '';
+    let usLocationClue = '';
+    if (isUS) {
+      if (isInterstate) {
+        if (isEven) {
+          usNumberingRule = '偶數編號為東西走向 (East-West)。全美號碼自南向北遞增（I-10 橫貫最南方美墨邊界/墨西哥灣，I-90 橫貫最北方加拿大邊界）。';
+          if (num <= 20) usLocationClue = '號碼偏小（如 I-10, I-20）：位於美國南部陽光地帶（加州、德州、佛羅里達等）。';
+          else if (num <= 40) usLocationClue = '號碼居中（如 I-40）：橫貫美國南部偏中帶（北卡、田納西、奧克拉荷馬、新墨西哥、亞利桑那）。';
+          else if (num <= 70) usLocationClue = '號碼偏中上（如 I-70）：橫貫美國心臟地帶（馬里蘭、俄亥俄、堪薩斯、科羅拉多、猶他）。';
+          else usLocationClue = '號碼偏大（如 I-80, I-90, I-94）：橫貫美國中北部及五大湖區（紐約、芝加哥、明尼蘇達、華盛頓州西雅圖）。';
+        } else {
+          usNumberingRule = '奇數編號為南北走向 (North-South)。全美號碼自西向東遞增（I-5 緊貼西海岸太平洋，I-95 緊貼東海岸大西洋）。';
+          if (num <= 15) usLocationClue = '號碼偏小（如 I-5, I-15）：縱貫美國西部與太平洋沿岸（加州、奧勒岡、華盛頓州、內華達、猶他）。';
+          else if (num <= 35) usLocationClue = '號碼居中（如 I-25, I-35）：縱貫大平原與中西部（德州、堪薩斯、內布拉斯加、新墨西哥）。';
+          else if (num <= 65) usLocationClue = '號碼偏中東（如 I-55, I-65, I-75）：縱貫密西西比河流域至五大湖（芝加哥、印第安納、肯塔基、田納西、阿拉巴馬）。';
+          else usLocationClue = '號碼偏大（如 I-85, I-95）：縱貫美國大西洋東海岸（波士頓、紐約、費城、DC、北卡、佛羅里達）。';
+        }
       } else {
-        numberingRule = '奇數編號為南北走向 (North-South)。全美號碼自西向東遞增（I-5 緊貼西海岸太平洋，I-95 緊貼東海岸大西洋）。';
-        if (num <= 15) locationClue = '號碼偏小（如 I-5, I-15）：縱貫美國西部與太平洋沿岸（加州、奧勒岡、華盛頓州、內華達、猶他）。';
-        else if (num <= 35) locationClue = '號碼居中（如 I-25, I-35）：縱貫大平原與中西部（德州、堪薩斯、內布拉斯加、新墨西哥）。';
-        else if (num <= 65) locationClue = '號碼偏中東（如 I-55, I-65, I-75）：縱貫密西西比河流域至五大湖（芝加哥、印第安納、肯塔基、田納西、阿拉巴馬）。';
-        else locationClue = '號碼偏大（如 I-85, I-95）：縱貫美國大西洋東海岸（波士頓、紐約、費城、DC、北卡、佛羅里達）。';
-      }
-    } else {
-      if (isEven) {
-        numberingRule = '偶數編號為東西走向 (East-West)。重要：國道號碼走向與州際相反！號碼自北向南遞增（US 2 沿加拿大邊境，US 90/98 位於最南端墨西哥灣）。';
-        if (num <= 30) locationClue = '號碼偏小（如 US 2, US 20, US 30）：位於美國中北部偏向加拿大與五大湖。';
-        else if (num <= 60) locationClue = '號碼居中（如 US 40, US 50, US 60）：橫貫美國中部俄亥俄河流域至內華達沙漠。';
-        else locationClue = '號碼偏大（如 US 80, US 90, US 98）：位於美國南部墨西哥灣沿岸與美墨邊界。';
-      } else {
-        numberingRule = '奇數編號為南北走向 (North-South)。重要：國道號碼走向與州際相反！號碼自東向西遞增（US 1 沿大西洋東岸，US 101 沿太平洋西岸）。';
-        if (num <= 31) locationClue = '號碼偏小（如 US 1, US 13, US 17, US 23）：緊貼美國東海岸大西洋與新英格蘭地區。';
-        else if (num <= 61) locationClue = '號碼居中（如 US 31, US 41, US 51, US 61）：縱貫美國中西部密西西比河流域（如經典藍調公路 US 61）。';
-        else locationClue = '號碼偏大（如 US 75, US 83, US 95, US 101）：縱貫美國大平原以西至太平洋沿岸（US 101 為西海岸經典風景線）。';
+        if (isEven) {
+          usNumberingRule = '偶數編號為東西走向 (East-West)。重要：國道號碼走向與州際相反！號碼自北向南遞增（US 2 沿加拿大邊境，US 90/98 位於最南端墨西哥灣）。';
+          if (num <= 30) usLocationClue = '號碼偏小（如 US 2, US 20, US 30）：位於美國中北部偏向加拿大與五大湖。';
+          else if (num <= 60) usLocationClue = '號碼居中（如 US 40, US 50, US 60）：橫貫美國中部俄亥俄河流域至內華達沙漠。';
+          else usLocationClue = '號碼偏大（如 US 80, US 90, US 98）：位於美國南部墨西哥灣沿岸與美墨邊界。';
+        } else {
+          usNumberingRule = '奇數編號為南北走向 (North-South)。重要：國道號碼走向與州際相反！號碼自東向西遞增（US 1 沿大西洋東岸，US 101 沿太平洋西岸）。';
+          if (num <= 31) usLocationClue = '號碼偏小（如 US 1, US 13, US 17, US 23）：緊貼美國東海岸大西洋與新英格蘭地區。';
+          else if (num <= 61) usLocationClue = '號碼居中（如 US 31, US 41, US 51, US 61）：縱貫美國中西部密西西比河流域（如經典藍調公路 US 61）。';
+          else usLocationClue = '號碼偏大（如 US 75, US 83, US 95, US 101）：縱貫美國大平原以西至太平洋沿岸（US 101 為西海岸經典風景線）。';
+        }
       }
     }
 
-    let auxClue = '';
-    if (isAuxiliary) {
+    let usAuxClue = '';
+    if (isUS && isAuxiliary) {
       if (isBeltway) {
-        auxClue = `三位數首位為偶數 (${firstDigit})：此為「環城公路或雙頭聯絡道 (Loop / Beltway)」，兩端皆銜接母幹線 I-${road.number.slice(1)}，通常環繞大都會區（如洛杉磯 I-405、亞特蘭大 I-285）。`;
+        usAuxClue = `三位數首位為偶數 (${firstDigit})：此為「環城公路或雙頭聯絡道 (Loop / Beltway)」，兩端皆銜接母幹線 I-${road.number.slice(1)}，通常環繞大都會區（如洛杉磯 I-405、亞特蘭大 I-285）。`;
       } else {
-        auxClue = `三位數首位為奇數 (${firstDigit})：此為「單頭分支支線 (Spur Route)」，僅有一端銜接母幹線 I-${road.number.slice(1)}，通常深入市中心、港口或機場（如舊金山 I-280 支線、DC I-395）。`;
+        usAuxClue = `三位數首位為奇數 (${firstDigit})：此為「單頭分支支線 (Spur Route)」，僅有一端銜接母幹線 I-${road.number.slice(1)}，通常深入市中心、港口或機場（如舊金山 I-280 支線、DC I-395）。`;
+      }
+    }
+
+    // International road intelligence
+    const iso = (road.iso2 || '').toUpperCase();
+    const isERoad = road.name.startsWith('E ') || road.name.startsWith('E-') || /^E\d+/.test(road.name);
+    let intlNumberingRule = '';
+    let intlCorridorClue = '';
+    let intlMetaTips: Array<{ title: string; desc: string }> = [];
+
+    if (!isUS) {
+      if (iso === 'DE') {
+        intlNumberingRule = '【德國高速公路編號法則】單數位（A 1 ~ A 9）為貫穿德國全境之骨幹動脈；雙數位（A 10 ~ A 99）為跨邦區域幹線；三數位為大都會區支線與環線。';
+        if (hasNum) {
+          if (num % 2 !== 0) {
+            intlCorridorClue = '奇數編號為南北縱貫走向：號碼自西向東遞增（A 1 位於西德魯爾區至漢堡，A 9 縱貫東部連接柏林與慕尼黑）。';
+          } else {
+            intlCorridorClue = '偶數編號為東西橫貫走向：號碼自北向南遞增（A 2 連接魯爾區與柏林，A 8 連接卡斯魯爾至慕尼黑與奧地利）。';
+          }
+        }
+        intlMetaTips = [
+          { title: '藍底白字高速公路牌', desc: '德國 Autobahn 採用極具識別度的深藍底白字指標與藍底白字盾牌，與聯邦公路（黃底黑字）形成強烈對比。' },
+          { title: '速度限制與行車文化', desc: '絕大多數 Autobahn 路段未設法定速限（建議速限 130 km/h），最內側車道僅供超車，嚴禁右側超車。' },
+          { title: '護欄與反光防撞桿', desc: '黑白配色的 Leitpfosten 反光防撞標桿（右側為長條反光條，左側為雙點圓形反光條）。' }
+        ];
+      } else if (iso === 'JP') {
+        intlNumberingRule = '【日本高速公路路線編號】以「E + 兩位數」表示主要高速公路（Expressway）；以「C + 兩位數」表示都市環狀線（Circular，如 C1 都心環狀線、C2 中央環狀線、C3 東京外環道）。';
+        intlCorridorClue = road.name.startsWith('C')
+          ? '大都會環狀公路（Loop/Beltway），有效引導穿越車流避開市中心樞紐。'
+          : (isInterstate ? '跨區域高速自動車國道（如 E1 東名/名神高速、E4 東北道），為日本經濟大動脈。' : '日本一般國道（1號~507號），以藍底倒三角形盾牌標示。');
+        intlMetaTips = [
+          { title: '標牌配色系統', desc: '高速公路一律使用深綠底白字路標；一般國道與主要都道府縣道採用藍底白字盾牌與路標。' },
+          { title: '靠左行駛與道路線條', desc: '日本為左側通行（車道靠左），車道中線白色虛線代表可變換車道，黃色實線代表禁止變換/超車。' },
+          { title: 'ETC 收費站與防撞標桿', desc: '出入口與交流道均有紫色 ETC 專用車道牌；路側常有箭頭朝下的紅色防雪反光引導桿（雪國特徵）。' }
+        ];
+      } else if (iso === 'TW') {
+        intlNumberingRule = '【台灣公路路網編號系統】國道高速公路以綠底「梅花」圖案標示；省道快速公路以紅底「盾牌」標示；一般省道以藍底「盾牌」標示。';
+        intlCorridorClue = isInterstate
+          ? '奇數國道為南北縱貫（國1 中山高、國3 福爾摩沙高、國5 蔣渭水高）；偶數國道為東西橫貫聯絡道（國2 桃機、國4 台中、國6 南投、國8 台南、國10 高雄）。'
+          : (road.name.includes('6') || road.name.includes('7') || road.name.includes('8') ? '省道快速公路（台61 西濱、台62、台64、台66、台74、台76、台84 等），速限多為 80~90 km/h。' : '一級縱貫省道（台1線、台3線、台9線環島大動脈）。');
+        intlMetaTips = [
+          { title: '梅花 vs 盾牌辨識法', desc: '看見梅花圖案必定為國道高速公路；看見紅底盾牌為省道快速公路（禁行機車但開放大型重機）；藍底盾牌為普通省道。' },
+          { title: '行車方向與標線', desc: '靠右行駛。路面中央雙黃實線代表禁止跨越對向車道，路側常有白底黑字之省道路牌與台電電力座標桿。' }
+        ];
+      } else if (iso === 'GB') {
+        intlNumberingRule = '【英國公路放射分區法則】以倫敦為中心順時針劃分 1~4 號區；以愛丁堡為中心順時針劃分 7~9 號區。高速公路以 M 開頭，主要幹道以 A 開頭。';
+        intlCorridorClue = isInterstate
+          ? '藍底白字 Motorway 高速公路網（如 M1 連接倫敦與里茲、M4 橫貫威爾斯與倫敦、M25 倫敦大外環）。'
+          : '綠底白字 Primary A-Road 主要幹道（如 A1 歷史經典大北路 Great North Road）。';
+        intlMetaTips = [
+          { title: '左側駕駛與經典車牌', desc: '全英靠左行駛。車輛前車牌為白底黑字、後車牌為黃底黑字，為街景最經典必殺特徵。' },
+          { title: '路標配色原則', desc: '藍底代表 Motorway 高速公路；綠底代表 Primary Route 主要幹道；白底黑字代表非主要公路（B-Roads）。' }
+        ];
+      } else if (iso === 'FR') {
+        intlNumberingRule = '【法國公路分類網格】A 開頭代表 Autoroute 高速公路（藍底紅框標籤）；N 開頭代表 Route Nationale 國道（紅底標籤）；D 開頭代表 Route Départementale 省道（黃底標籤）。';
+        intlCorridorClue = isInterstate
+          ? '法國全封閉收費高速公路網（A 1 連接巴黎與里爾、A 6/A 7 陽光高速公路直達地中海）。'
+          : '跨大區的重要國道幹道（如歷史知名的 N 7 巴黎直達尼斯蔚藍海岸）。';
+        intlMetaTips = [
+          { title: '頂部小方塊標籤 (Cartouche)', desc: '法國路標指示牌頂部會有紅底 (A/N)、黃底 (D)、綠底 (E) 的小矩形標註路線號碼。' },
+          { title: '右方車輛優先 (Priorité à Droite)', desc: '鄉間或無號誌路口若無黃色菱形主幹道優先標誌，一律由右側來車優先通行。' }
+        ];
+      } else if (isERoad) {
+        intlNumberingRule = '【歐洲國際 E 級公路網 (European Route)】由聯合國歐洲經濟委員會制定之跨國公路系統，使用綠底白字矩形路牌。';
+        intlCorridorClue = '以 0 結尾的雙位數為東西橫貫主要走廊（E10~E90，自北向南遞增）；以 5 結尾為南北縱貫主要走廊（E05~E125，自西向東遞增）。如 E40 橫貫西歐至中亞！';
+        intlMetaTips = [
+          { title: '綠底白字跨國路牌', desc: '歐洲各國的高速公路上常同時標註本國公路號碼與綠底白字的 E 級公路號碼。' },
+          { title: '長程洲際走廊', desc: 'E 級公路常橫跨多個國家與申根邊境，從大西洋沿岸一路延伸至烏拉山脈乃至中亞。' }
+        ];
+      } else {
+        intlNumberingRule = `【${roadMeta.countryNameZh} 公路系統】${roadMeta.systemZh}（${roadMeta.systemEn}）。`;
+        intlCorridorClue = road.number ? `主要路線編號：${road.number}` : (road.type ? `道路等級：${road.type}` : '國家主要運輸動脈');
+        intlMetaTips = [
+          { title: '行車方向與標線', desc: `${roadCountry?.nameZh || '該國'}為${roadCountry?.drivingSide === 'left' ? '靠左行駛 (LHT)' : '靠右行駛 (RHT)'}。${roadCountry?.roadLinesDesc ? `道路中央標線：${roadCountry.roadLinesDesc}` : ''}` },
+          { title: '車載與街景特徵', desc: roadCountry?.carMetaDesc || '全球重要國家骨幹路網，為跨區長途物流與城際交通動脈。' }
+        ];
       }
     }
 
@@ -96,9 +192,13 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
                 borderRadius: 6,
                 fontSize: 14,
                 fontWeight: 800,
-                background: isInterstate ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                background: isInterstate
+                  ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                  : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
                 color: '#ffffff',
-                boxShadow: isInterstate ? '0 0 12px rgba(56, 189, 248, 0.45)' : '0 0 12px rgba(251, 191, 36, 0.45)',
+                boxShadow: isInterstate
+                  ? '0 0 12px rgba(56, 189, 248, 0.45)'
+                  : '0 0 12px rgba(251, 191, 36, 0.45)',
                 letterSpacing: 0.5
               }}
             >
@@ -106,16 +206,27 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
             </span>
             <div>
               <div className="drawer-name-zh">
-                {road.name} · {isInterstate ? '美國州際公路' : '美國國道系統'}
+                {roadMeta.flag} {road.name} · {roadMeta.systemZh}
               </div>
               <div className="drawer-name-en">
-                {isInterstate ? 'Dwight D. Eisenhower Interstate System' : 'U.S. Numbered Highway System'}
+                {roadMeta.systemEn}
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
-            <X size={20} />
-          </button>
+          <div className="drawer-header-actions">
+            {(onNavigateToCountry || onNavigateBack) && (
+              <button
+                className="drawer-back-btn"
+                onClick={handleBack}
+                title={`回上一頁：${parentCountryName}`}
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="drawer-content">
@@ -132,89 +243,142 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
                 padding: '4px 10px'
               }}
             >
-              🛣️ {isInterstate ? '州際高速公路' : '聯邦國道系統'}
+              🛣️ {roadMeta.classBadge}
             </div>
 
-            <div
-              className="intel-tag"
-              style={{
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                borderColor: 'rgba(59, 130, 246, 0.4)',
-                color: '#60a5fa',
-                fontSize: 12,
-                fontWeight: 600,
-                padding: '4px 10px'
-              }}
-            >
-              {isEven ? '↔️ 東西走向 (E-W)' : isOdd ? '↕️ 南北走向 (N-S)' : '🔄 環狀／特殊走向'}
-            </div>
-
-            {isMajor && (
+            {roadCountry && (
               <div
                 className="intel-tag"
                 style={{
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                  borderColor: 'rgba(245, 158, 11, 0.4)',
-                  color: '#fbbf24',
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  borderColor: 'rgba(99, 102, 241, 0.4)',
+                  color: '#a5b4fc',
                   fontSize: 12,
                   fontWeight: 600,
                   padding: '4px 10px'
                 }}
               >
-                🌟 全美主要橫貫／縱貫大動脈
+                {roadCountry.flag} {roadCountry.nameZh} ({roadCountry.iso2})
               </div>
             )}
 
-            {isAuxiliary && (
-              <div
-                className="intel-tag"
-                style={{
-                  backgroundColor: 'rgba(168, 85, 247, 0.15)',
-                  borderColor: 'rgba(168, 85, 247, 0.4)',
-                  color: '#c084fc',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: '4px 10px'
-                }}
-              >
-                {isBeltway ? '🔄 環城雙頭聯絡道 (Beltway)' : '📍 單頭市區支線 (Spur)'}
-              </div>
+            {isUS ? (
+              <>
+                <div
+                  className="intel-tag"
+                  style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    borderColor: 'rgba(59, 130, 246, 0.4)',
+                    color: '#60a5fa',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: '4px 10px'
+                  }}
+                >
+                  {isEven ? '↔️ 東西走向 (E-W)' : isOdd ? '↕️ 南北走向 (N-S)' : '🔄 環狀／特殊走向'}
+                </div>
+
+                {isMajor && (
+                  <div
+                    className="intel-tag"
+                    style={{
+                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                      borderColor: 'rgba(245, 158, 11, 0.4)',
+                      color: '#fbbf24',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '4px 10px'
+                    }}
+                  >
+                    🌟 全美主要橫貫／縱貫大動脈
+                  </div>
+                )}
+
+                {isAuxiliary && (
+                  <div
+                    className="intel-tag"
+                    style={{
+                      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                      borderColor: 'rgba(168, 85, 247, 0.4)',
+                      color: '#c084fc',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '4px 10px'
+                    }}
+                  >
+                    {isBeltway ? '🔄 環城雙頭聯絡道 (Beltway)' : '📍 單頭市區支線 (Spur)'}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {road.number && (
+                  <div
+                    className="intel-tag"
+                    style={{
+                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      borderColor: 'rgba(59, 130, 246, 0.4)',
+                      color: '#60a5fa',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '4px 10px'
+                    }}
+                  >
+                    🔢 號碼：{road.number}
+                  </div>
+                )}
+                {roadCountry && (
+                  <div
+                    className="intel-tag"
+                    style={{
+                      backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                      borderColor: 'rgba(34, 197, 94, 0.4)',
+                      color: '#4ade80',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '4px 10px'
+                    }}
+                  >
+                    🚗 {roadCountry.drivingSide === 'left' ? '靠左通行 (LHT)' : '靠右通行 (RHT)'}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Numbering Grid Rule */}
+          {/* System Numbering Grid Rule */}
           <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)', backgroundColor: 'rgba(14, 25, 42, 0.6)' }}>
             <div className="intel-card-header">
               <Compass size={16} color="#38bdf8" />
-              <span>全美號碼走向網格法則 (Grid Orientation)</span>
+              <span>{isUS ? '全美號碼走向網格法則 (Grid Orientation)' : '公路系統與編號法則 (Route Classification)'}</span>
             </div>
             <div className="intel-card-body" style={{ color: '#e2e8f0', lineHeight: 1.5 }}>
-              {numberingRule}
+              {isUS ? usNumberingRule : intlNumberingRule}
             </div>
           </div>
 
-          {/* Location Clue */}
-          {locationClue && (
+          {/* Location / Corridor Clue */}
+          {(isUS ? usLocationClue : intlCorridorClue) && (
             <div className="intel-card">
               <div className="intel-card-header">
                 <MapPin size={16} color="#4ade80" />
-                <span style={{ color: '#4ade80' }}>全美地理區間速查 (Geographic Corridor)</span>
+                <span style={{ color: '#4ade80' }}>地理區間與路線定位 (Geographic Corridor)</span>
               </div>
               <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                {locationClue}
+                {isUS ? usLocationClue : intlCorridorClue}
               </div>
             </div>
           )}
 
-          {/* 3-digit Auxiliary Clue */}
-          {auxClue && (
+          {/* US 3-digit Auxiliary Clue */}
+          {isUS && usAuxClue && (
             <div className="intel-card">
               <div className="intel-card-header">
                 <Layers size={16} color="#c084fc" />
                 <span style={{ color: '#c084fc' }}>三位數支線判讀密技 (3-Digit Auxiliary)</span>
               </div>
               <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                {auxClue}
+                {usAuxClue}
               </div>
             </div>
           )}
@@ -225,24 +389,35 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               <Lightbulb size={16} color="#facc15" />
               <span style={{ color: '#facc15' }}>GeoGuessr 實戰秒殺密技 (Street View Meta)</span>
             </div>
-            <ul className="hints-list">
-              <li className="hint-item">
-                <strong>出口編號對應里程標牌：</strong>全美絕大多數州的州際公路 Exit 編號代表該州起點之英里里程數 (Mile Marker)，里程自南向北、自西向東累加。
-              </li>
-              <li className="hint-item">
-                <strong>路牌盾牌特徵：</strong>州際公路為經典紅白藍三色盾牌；舊美國國道 (U.S. Routes) 為白底黑字黑邊盾牌。
-              </li>
-              <li className="hint-item">
-                <strong>末碼為 0 或 5：</strong>兩位數且以 0 結尾的州際公路貫穿全美東西（如 I-10, I-40, I-80, I-90）；以 5 結尾貫穿全美南北（如 I-5, I-15, I-35, I-75, I-95）。
-              </li>
-            </ul>
+            {isUS ? (
+              <ul className="hints-list">
+                <li className="hint-item">
+                  <strong>出口編號對應里程標牌：</strong>全美絕大多數州的州際公路 Exit 編號代表該州起點之英里里程數 (Mile Marker)，里程自南向北、自西向東累加。
+                </li>
+                <li className="hint-item">
+                  <strong>路牌盾牌特徵：</strong>州際公路為經典紅白藍三色盾牌；舊美國國道 (U.S. Routes) 為白底黑字黑邊盾牌。
+                </li>
+                <li className="hint-item">
+                  <strong>末碼為 0 或 5：</strong>兩位數且以 0 結尾的州際公路貫穿全美東西（如 I-10, I-40, I-80, I-90）；以 5 結尾貫穿全美南北（如 I-5, I-15, I-35, I-75, I-95）。
+                </li>
+              </ul>
+            ) : (
+              <ul className="hints-list">
+                {intlMetaTips.map((tip, idx) => (
+                  <li key={idx} className="hint-item">
+                    <strong>{tip.title}：</strong>{tip.desc}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Dynamic Highway Markdown Lore Cards */}
           <MarkdownLoreCards
             query={{
               roadName: road.name,
-              roadClass: road.class
+              roadClass: road.class,
+              countryIso2: road.iso2
             }}
           />
         </div>
@@ -264,12 +439,32 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
-            <X size={20} />
-          </button>
+          <div className="drawer-header-actions">
+            {onNavigateBack && (
+              <button className="drawer-back-btn" onClick={onNavigateBack} title="回上一頁：日本">
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="drawer-content">
+          {/* Breadcrumbs Navigation */}
+          <div className="drawer-breadcrumbs">
+            <span
+              className="drawer-breadcrumb-link"
+              onClick={onNavigateBack}
+              title="查看 日本 國家情報"
+            >
+              🇯🇵 日本
+            </span>
+            <span className="drawer-breadcrumb-sep">›</span>
+            <span className="drawer-breadcrumb-current">{prefecture.nameZh}</span>
+          </div>
+
           {/* Quick Badges */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <div
@@ -393,6 +588,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
     const flag = municipality.countryFlag || (isJapan ? '🗾' : '🏙️');
     const countryNameZh = municipality.countryNameZh || (isJapan ? '日本' : '');
     const countryNameEn = municipality.countryName || (isJapan ? 'Japan' : '');
+    const parentL2Name = municipality.pref || municipality.parentName || (isJapan ? '都道府縣' : '一級行政區');
     const unitType = municipality.typeEn || (isJapan ? '市區町村' : '二級行政區');
 
     let metaTip = '此區域已達 L3 最高精度層級。可觀察路口路牌、巴士站牌、市政設施或路標進行精準定位！';
@@ -424,12 +620,43 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
-            <X size={20} />
-          </button>
+          <div className="drawer-header-actions">
+            {onNavigateBack && (
+              <button className="drawer-back-btn" onClick={onNavigateBack} title={`回上一頁：${parentL2Name}`}>
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="drawer-content">
+          {/* Breadcrumbs Navigation */}
+          <div className="drawer-breadcrumbs">
+            <span
+              className="drawer-breadcrumb-link"
+              onClick={() => {
+                const c = findCountry(municipality.iso2 || 'JP');
+                if (c && onNavigateToCountry) onNavigateToCountry(c);
+              }}
+              title={`查看 ${countryNameZh || '國家'} 國家情報`}
+            >
+              {isJapan ? '🇯🇵' : (municipality.countryFlag || '🌐')} {countryNameZh || (isJapan ? '日本' : '國家')}
+            </span>
+            <span className="drawer-breadcrumb-sep">›</span>
+            <span
+              className="drawer-breadcrumb-link"
+              onClick={onNavigateBack}
+              title={`查看 ${parentL2Name} 行政區情報`}
+            >
+              {parentL2Name}
+            </span>
+            <span className="drawer-breadcrumb-sep">›</span>
+            <span className="drawer-breadcrumb-current">{municipality.city}</span>
+          </div>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <div
               className="intel-tag highlight"
@@ -530,12 +757,36 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
               </div>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
-            <X size={20} />
-          </button>
+          <div className="drawer-header-actions">
+            {onNavigateBack && (
+              <button
+                className="drawer-back-btn"
+                onClick={onNavigateBack}
+                title={`回上一頁：${subdivision.countryNameZh}`}
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="drawer-content">
+          {/* Breadcrumbs Navigation */}
+          <div className="drawer-breadcrumbs">
+            <span
+              className="drawer-breadcrumb-link"
+              onClick={onNavigateBack}
+              title={`查看 ${subdivision.countryNameZh} 國家情報`}
+            >
+              {subdivision.countryFlag || '🌐'} {subdivision.countryNameZh}
+            </span>
+            <span className="drawer-breadcrumb-sep">›</span>
+            <span className="drawer-breadcrumb-current">{subdivision.nameZh}</span>
+          </div>
+
           {/* Quick Badges */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <div
@@ -847,6 +1098,13 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
 
       {/* Drawer Body Content */}
       <div className="drawer-content">
+        {/* Breadcrumbs Navigation */}
+        <div className="drawer-breadcrumbs">
+          <span className="drawer-breadcrumb-current">
+            {country.flag} {country.nameZh} ({country.name}) · {country.continent} / {country.region}
+          </span>
+        </div>
+
         {/* Core Quick Badges */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <div
@@ -1105,4 +1363,4 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = ({
       </div>
     </aside>
   );
-};
+});

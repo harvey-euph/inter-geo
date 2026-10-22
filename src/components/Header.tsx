@@ -18,7 +18,7 @@ interface HeaderProps {
   onOpenQuiz?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = React.memo(({
   activeFilterId,
   onSelectFilter,
   activeTextFilters,
@@ -214,4 +214,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});

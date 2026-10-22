@@ -15,7 +15,7 @@ interface FilterBarProps {
   onCollapse: () => void;
 }
 
-export const FilterBar: React.FC<FilterBarProps> = ({
+export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   activeFilterId,
   onSelectFilter,
   activeTextFilters,
@@ -152,4 +152,4 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
     </div>
   );
-};
+});
