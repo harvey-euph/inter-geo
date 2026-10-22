@@ -1,212 +1,85 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Feature, Geometry } from 'geojson';
 import * as flatgeobuf from 'flatgeobuf';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
-import type { LODLevel, PrefectureDetail, MunicipalityDetail, CustomLODThresholds, L2SubdivisionDetail } from '../types/lod';
+import type {
+  LODLevel,
+  PrefectureDetail,
+  MunicipalityDetail,
+  CustomLODThresholds,
+  L2SubdivisionDetail
+} from '../types/lod';
 import { JAPAN_PREFECTURES } from '../data/japanData';
 import { PrecisionHUD } from './PrecisionHUD';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { L3_MANIFEST, L3_PARTITIONS_BY_KEY } from '../data/l3Manifest';
 import type { L3PartitionMeta } from '../data/l3Manifest';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
-import { type RoadPathData, getRoadSystemMeta } from '../data/roadsMeta';
-export type { RoadPathData } from '../data/roadsMeta';
+import type { RoadPathData } from '../data/roadsMeta';
 import {
   NATIONWIDE_FILTERS,
-  COUNTRIES_WITH_AREA_CODES,
   COUNTRIES_WITH_ROADS,
-  getRoadFiltersForCountry,
-  getNationwideFilterById,
-  NATIONWIDE_FILTERS_BY_ID
+  getRoadFiltersForCountry
 } from '../data/nationwideFilters';
 import type { NationwideFilterDef } from '../data/nationwideFilters';
-import { RoadShieldBadge } from './RoadShieldBadge';
-import { getSubdivisionAreaCodeBadge } from '../data/domesticAreaCodes';
-import { EUROPEAN_CROSSING_SIGNS, getCrossingSign } from '../data/pedestrianCrossing';
-import { getCountryRoadMarking } from '../data/roadMarkings';
-import { isCapitalSubdivision } from '../data/capitalSubdivisions';
-import { queryLore } from '../lore/loreRegistry';
+import { EUROPEAN_CROSSING_SIGNS } from '../data/pedestrianCrossing';
 import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
-import {
-  GLOBAL_TEXT_FILTERS_BY_ID,
-  COUNTRY_CALLING_CODES,
-  COUNTRY_LABEL_CENTROIDS
-} from '../data/globalFilters';
 import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo';
 import { decodeGeo } from '../map/geoWorkerClient';
+import {
+  WORLD_COPIES,
+  getCountryBBox,
+  normParentKey,
+  makeUnknownCountry,
+  toL2Detail,
+  type WorldCountryProperties,
+  type GeoFeature,
+  type CountryPathData,
+  type L2SubdivisionPathData,
+  type L3SubdivisionPathData,
+  type ActiveL3ParentInfo,
+  type TaipowerZoneRenderItem,
+  type RoadBundle,
+  type CrossingBadgeBox,
+  type HitFeature
+} from '../map/types';
+import {
+  drawWorldCopyLayers,
+  drawGlobalTextBadges,
+  drawAreaCodeBadges,
+  drawCrossingSignBadges,
+  drawTaipowerLabels,
+  type RenderContext
+} from '../map/render/renderLayers';
+import { hitTestMapFeature } from '../map/hitTest';
+import { useKeyboardNav } from '../map/hooks/useKeyboardNav';
+import { MapTooltip } from '../map/MapTooltip';
+import { MapLegend } from '../map/MapLegend';
+import { MapControls } from '../map/MapControls';
+
+export type {
+  RoadPathData,
+  L2SubdivisionDetail,
+  WorldCountryProperties,
+  CountryPathData,
+  L2SubdivisionPathData,
+  L3SubdivisionPathData,
+  ActiveL3ParentInfo
+};
 
 type RegionalFilterDef = NationwideFilterDef;
 const REGIONAL_FILTERS = NATIONWIDE_FILTERS;
-
-const L2_COUNTRY_BBOX_MAP = new Map<string, { minX: number; maxX: number; minY: number; maxY: number }>();
-for (let i = 0; i < L2_MANIFEST.length; i++) {
-  const c = L2_MANIFEST[i];
-  L2_COUNTRY_BBOX_MAP.set(c.iso2, c.bbox);
-}
-
-function getCountryBBox(iso2: string): { minX: number; maxX: number; minY: number; maxY: number } | null {
-  return ROADS_MANIFEST[iso2]?.bbox || L2_COUNTRY_BBOX_MAP.get(iso2) || null;
-}
-
-export interface WorldCountryProperties {
-  id?: string;
-  name: string;
-}
-
-type GeoFeature = Feature<Geometry, WorldCountryProperties> & { id: string };
-
-export interface CountryPathData {
-  path2D: Path2D;
-  bbox: [number, number, number, number];
-  countryMeta: CountryData | undefined;
-  id: string;
-  name: string;
-  centroid: [number, number];
-}
-
-export interface L2SubdivisionPathData {
-  path2D: Path2D;
-  bbox: [number, number, number, number];
-  id: number | string;
-  iso2: string;
-  name: string;
-  nameEn: string;
-  nameZh: string;
-  typeEn: string;
-  code: string;
-  postal: string;
-  centroid: [number, number];
-}
-
-export type { L2SubdivisionDetail };
-
-export interface L3SubdivisionPathData {
-  path2D: Path2D;
-  bbox: [number, number, number, number];
-  id: string;
-  iso2: string;
-  name: string;
-  nameEn: string;
-  nameZh: string;
-  typeEn: string;
-  parentName: string;
-  parentCode: string;
-  code: string;
-}
-
-export interface ActiveL3ParentInfo {
-  iso2: string;
-  id: string | number;
-  name: string;
-  code?: string;
-  bbox: [number, number, number, number];
-  path2D: Path2D;
-}
-
-function normParentKey(iso2: string, text: string): string {
-  return `${(iso2 || '').toLowerCase()}-${String(text || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[\s\-_~]+/g, '')}`;
-}
-
-function makeUnknownCountry(
-  id: string,
-  iso2: string,
-  name: string,
-  nameZh = name,
-  keyHints: string[] = []
-): CountryData {
-  return {
-    id,
-    iso2,
-    iso3: '',
-    name,
-    nameZh,
-    flag: '🌐',
-    continent: 'Asia',
-    region: '無官方街景覆蓋',
-    drivingSide: 'right',
-    coverage: 'none',
-    cameraGens: [],
-    plateType: 'white',
-    plateDesc: '無街景',
-    roadLines: ['white_dashed'],
-    roadLinesDesc: '無街景',
-    carMeta: ['none'],
-    carMetaDesc: '無街景',
-    poleDesc: '無資料',
-    bollardDesc: '無資料',
-    language: '當地語言',
-    tld: '',
-    keyHints
-  };
-}
-
-function toL2Detail(sub: L2SubdivisionPathData): L2SubdivisionDetail {
-  const cMeta = findCountry(sub.iso2);
-  return {
-    id: sub.id,
-    iso2: sub.iso2,
-    name: sub.name,
-    nameEn: sub.nameEn,
-    nameZh: sub.nameZh,
-    typeEn: sub.typeEn,
-    code: sub.code,
-    postal: sub.postal,
-    countryName: cMeta?.name || sub.nameEn,
-    countryNameZh: cMeta?.nameZh || sub.nameZh,
-    countryFlag: cMeta?.flag || '🌐'
-  };
-}
-
-/**
- * Fills a country or subdivision polygon according to road marking color specs:
- * Center/interior is painted with center line color; perimeter edge is stroked with outer line color.
- */
-function fillRoadMarkingPolygon(
-  c: CanvasRenderingContext2D,
-  path: Path2D,
-  iso2: string,
-  lineWidth: number,
-  overrideFillColor?: string
-) {
-  const rm = getCountryRoadMarking(iso2);
-  const centerColor = overrideFillColor || rm.centerColor;
-  if (rm.outerColor === rm.centerColor || overrideFillColor) {
-    c.fillStyle = centerColor;
-    c.fill(path);
-  } else {
-    c.save();
-    c.clip(path);
-    c.fillStyle = centerColor;
-    c.fill(path);
-    c.strokeStyle = rm.outerColor;
-    c.lineWidth = lineWidth;
-    c.stroke(path);
-    c.restore();
-  }
-}
-
-type HitFeature =
-  | { type: 'road'; data: RoadPathData }
-  | { type: 'municipality'; data: MunicipalityDetail }
-  | { type: 'activeParentInterior'; data: ActiveL3ParentInfo }
-  | { type: 'l2Subdivision'; data: L2SubdivisionPathData }
-  | { type: 'country'; data: CountryPathData }
-  | { type: 'taipowerZone'; data: TaipowerZoneDef };
 
 interface WorldMapProps {
   activeFilterId: string;
   activeTextFilters?: Set<string>;
   activeInternationalImageFilter?: string | null;
+  activeRegionalFilters?: Set<string>;
+  onVisibleRegionalFiltersChange?: (filters: NationwideFilterDef[]) => void;
   isFilterExpanded?: boolean;
   selectedCountry: CountryData | null;
   onSelectCountry: (country: CountryData | null) => void;
@@ -228,13 +101,12 @@ interface WorldMapProps {
   onSelectRoad?: (road: RoadPathData | null) => void;
 }
 
-// World copies rendered side-by-side for infinite continuous periodic wrapping
-const WORLD_COPIES = [-1, 0, 1, 2, 3];
-
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
   activeTextFilters,
   activeInternationalImageFilter,
+  activeRegionalFilters: activeRegionalFiltersProp,
+  onVisibleRegionalFiltersChange,
   isFilterExpanded = false,
   selectedCountry,
   onSelectCountry,
@@ -249,9 +121,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   zoomToPrefectureRef,
   showRoads: showRoadsProp,
   showInterstates: showInterstatesProp,
-  onToggleInterstates: onToggleInterstatesProp,
   showNumberedRoutes: showNumberedRoutesProp,
-  onToggleNumberedRoutes: onToggleNumberedRoutesProp,
   selectedRoad,
   onSelectRoad
 }) => {
@@ -263,19 +133,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [lodThresholds, setLodThresholds] = useState<CustomLODThresholds>(DEFAULT_LOD_THRESHOLDS);
   const lodThresholdsRef = useRef<CustomLODThresholds>(lodThresholds);
   const [zoomK, setZoomK] = useState<number>(1.0);
-
-  interface TaipowerZoneRenderItem {
-    zone: TaipowerZoneDef;
-    polygonPath2D: Path2D;
-    innerGridPath2D: Path2D;
-    pSW: [number, number];
-    pSE: [number, number];
-    pNE: [number, number];
-    pNW: [number, number];
-    pCenter: [number, number];
-    bbox: [number, number, number, number];
-    hoverFillColor: string;
-  }
 
   // Hover state (managed locally inside WorldMap to avoid re-rendering siblings in App)
   const [internalHoveredCountry, setInternalHoveredCountry] = useState<CountryData | null>(null);
@@ -305,15 +162,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const loadedL3PacksRef = useRef<Set<string>>(new Set());
 
   // Road network overlay state and refs
-  const [internalShowInterstates, setInternalShowInterstates] = useState<boolean>(false);
-  const [internalShowNumberedRoutes, setInternalShowNumberedRoutes] = useState<boolean>(false);
-
-  const showRoads = showRoadsProp !== undefined
-    ? showRoadsProp
-    : (internalShowInterstates || internalShowNumberedRoutes);
-
-  const showInterstates = showInterstatesProp !== undefined ? showInterstatesProp : internalShowInterstates;
-  const showNumberedRoutes = showNumberedRoutesProp !== undefined ? showNumberedRoutesProp : internalShowNumberedRoutes;
+  const showInterstates = showInterstatesProp ?? false;
+  const showNumberedRoutes = showNumberedRoutesProp ?? false;
+  const showRoads = showRoadsProp !== undefined ? showRoadsProp : showInterstates || showNumberedRoutes;
   const showRoadsRef = useRef<boolean>(showRoads);
   const showInterstatesRef = useRef<boolean>(showInterstates);
   const showNumberedRoutesRef = useRef<boolean>(showNumberedRoutes);
@@ -322,19 +173,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const visibleRoadCopiesRef = useRef<number[]>([0]);
   const inFlightRoadFetchesRef = useRef<Set<string>>(new Set());
   const loadedRoadsRef = useRef<Map<string, RoadPathData[]>>(new Map());
-  const roadBundlesRef = useRef<
-    Map<string, { roads: RoadPathData[]; interstatesPath2D: Path2D; usRoutesPath2D: Path2D }>
-  >(new Map());
+  const roadBundlesRef = useRef<Map<string, RoadBundle>>(new Map());
   const [hoveredRoad, setHoveredRoad] = useState<RoadPathData | null>(null);
   const hoveredRoadRef = useRef<RoadPathData | null>(null);
   const selectedRoadRef = useRef<RoadPathData | null>(selectedRoad || null);
 
   // Dynamic Regional Filters state (surfaced only when target region is visible in viewport)
-  const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<RegionalFilterDef[]>([]);
   const visibleRegionalFiltersRef = useRef<RegionalFilterDef[]>([]);
-  const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(new Set());
+  const [internalActiveRegionalFilters] = useState<Set<string>>(new Set());
+  const activeRegionalFilters = activeRegionalFiltersProp ?? internalActiveRegionalFilters;
   const activeRegionalFiltersRef = useRef<Set<string>>(activeRegionalFilters);
-  const [hoveredRegionalFilterId, setHoveredRegionalFilterId] = useState<string | null>(null);
 
   // Taiwan Power Pole Grid hover state
   const [hoveredTaipowerZone, setHoveredTaipowerZone] = useState<TaipowerZoneDef | null>(null);
@@ -342,9 +190,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Feature Regional Filter: European Pedestrian Crossing Signs image cache & hit-testing boxes
   const crossingImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
-  const renderedCrossingBadgesRef = useRef<
-    Array<{ x1: number; y1: number; x2: number; y2: number; iso2: string }>
-  >([]);
+  const renderedCrossingBadgesRef = useRef<CrossingBadgeBox[]>([]);
 
   // Global Text Overlay Filters ref
   const activeTextFiltersRef = useRef<Set<string>>(activeTextFilters || new Set());
@@ -353,7 +199,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Unified Canvas and Container Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const animRafId = useRef<number | null>(null);
 
   // Real-time synchronization refs for 120fps render loop
@@ -392,11 +238,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
   const isMouseInsideRef = useRef(false);
-  const pressedArrowKeys = useRef<Set<string>>(new Set());
-  const isShiftPressedRef = useRef(false);
-  const panVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
-  const panRafIdRef = useRef<number | null>(null);
-  const lastPanTimeRef = useRef<number>(0);
   const isInitializedRef = useRef(false);
 
   const requestRender = useCallback(() => {
@@ -414,6 +255,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setZoomK(Number(transformRef.current.k.toFixed(1)));
     });
     void nextK;
+  }, []);
+
+  const setTooltipNode = useCallback((node: HTMLDivElement | null) => {
+    tooltipRef.current = node;
+    if (node) {
+      node.style.left = `${mousePos.current.x}px`;
+      node.style.top = `${mousePos.current.y - 12}px`;
+    }
   }, []);
 
   // Active filter definition
@@ -443,7 +292,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       const innerGridPath2D = new Path2D();
       for (const pct of [0.2, 0.4, 0.6, 0.8]) {
-        // Vertical lines (South to North)
         const bX = (1 - pct) * pSW[0] + pct * pSE[0];
         const bY = (1 - pct) * pSW[1] + pct * pSE[1];
         const tX = (1 - pct) * pNW[0] + pct * pNE[0];
@@ -451,7 +299,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         innerGridPath2D.moveTo(bX, bY);
         innerGridPath2D.lineTo(tX, tY);
 
-        // Horizontal lines (West to East)
         const lX = (1 - pct) * pSW[0] + pct * pNW[0];
         const lY = (1 - pct) * pSW[1] + pct * pNW[1];
         const rX = (1 - pct) * pSE[0] + pct * pNE[0];
@@ -555,7 +402,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const deterministicCountries = useMemo(() => {
     return [...countryPathData]
       .filter((c) => !!c.countryMeta)
-      .sort((a, b) => a.countryMeta!.name.localeCompare(b.countryMeta!.name) || a.countryMeta!.iso2.localeCompare(b.countryMeta!.iso2));
+      .sort(
+        (a, b) =>
+          a.countryMeta!.name.localeCompare(b.countryMeta!.name) ||
+          a.countryMeta!.iso2.localeCompare(b.countryMeta!.iso2)
+      );
   }, [countryPathData]);
 
   // Helper to fetch L3 child subdivisions for a specific parent (O(1) Map lookup)
@@ -639,7 +490,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (overlapY < minOverlapPx) return false;
 
       for (const c of WORLD_COPIES) {
-        // Ensure this periodic world copy actually intersects the horizontal viewport
         const copyLeft = x + c * MAP_W * k;
         const copyRight = copyLeft + MAP_W * k;
         if (copyRight < 0 || copyLeft > vw) continue;
@@ -735,8 +585,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
 
       if (upper === 'US') {
-        if (roadClass === 'Interstate' && (set.has('us-interstates') || (showRoadsRef.current && showInterstatesRef.current))) return true;
-        if (roadClass === 'Federal' && (set.has('us-numbered-routes') || (showRoadsRef.current && showNumberedRoutesRef.current))) return true;
+        if (
+          roadClass === 'Interstate' &&
+          (set.has('us-interstates') || (showRoadsRef.current && showInterstatesRef.current))
+        ) {
+          return true;
+        }
+        if (
+          roadClass === 'Federal' &&
+          (set.has('us-numbered-routes') || (showRoadsRef.current && showNumberedRoutesRef.current))
+        ) {
+          return true;
+        }
       }
 
       return false;
@@ -823,14 +683,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const isL2Active = currentLOD === 'L2' || currentLOD === 'L3';
       const nextVisible: RegionalFilterDef[] = [];
 
-      // Nationwide filters only surface when L2 subdivision data is actively displayed
       if (isL2Active) {
         for (let i = 0; i < REGIONAL_FILTERS.length; i++) {
           const filter = REGIONAL_FILTERS[i];
           if (filter.minZoomK && k < filter.minZoomK) continue;
 
           if (filter.targetIso2 === '*') {
-            // Filter applies globally to supported countries if ANY is strictly in viewport
             const anyVisible = filter.targetIso2s?.some((iso) => {
               const b = getCountryBBox(iso);
               return b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20);
@@ -881,10 +739,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (changed) {
         visibleRegionalFiltersRef.current = nextVisible;
-        setVisibleRegionalFilters(nextVisible);
+        if (onVisibleRegionalFiltersChange) {
+          onVisibleRegionalFiltersChange(nextVisible);
+        }
       }
     },
-    [isCountryVisibleOnScreen]
+    [isCountryVisibleOnScreen, onVisibleRegionalFiltersChange]
   );
 
   // Unified viewport synchronizer for L3, Road networks, and Regional Filters
@@ -895,67 +755,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       syncRegionalFiltersViewport(k, x, y, vw, vh, currentLOD);
     },
     [syncL3Viewport, syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive]
-  );
-
-  // Toggle highway and route overlay layers
-  const handleToggleInterstates = useCallback(() => {
-    setHoveredRoad(null);
-    hoveredRoadRef.current = null;
-    if (onToggleInterstatesProp) {
-      onToggleInterstatesProp();
-    } else {
-      setInternalShowInterstates((prev) => !prev);
-    }
-  }, [onToggleInterstatesProp]);
-
-  const handleToggleNumberedRoutes = useCallback(() => {
-    setHoveredRoad(null);
-    hoveredRoadRef.current = null;
-    if (onToggleNumberedRoutesProp) {
-      onToggleNumberedRoutesProp();
-    } else {
-      setInternalShowNumberedRoutes((prev) => !prev);
-    }
-  }, [onToggleNumberedRoutesProp]);
-
-  const isRegionalFilterActive = useCallback(
-    (filterId: string): boolean => {
-      if (filterId === 'us-interstates') return showInterstates || activeRegionalFilters.has('roads-US-interstates');
-      if (filterId === 'us-numbered-routes') return showNumberedRoutes || activeRegionalFilters.has('roads-US-routes');
-      return activeRegionalFilters.has(filterId);
-    },
-    [showInterstates, showNumberedRoutes, activeRegionalFilters]
-  );
-
-  const handleToggleRegionalFilter = useCallback(
-    (filterId: string) => {
-      setActiveRegionalFilters((prev) => {
-        const next = new Set(prev);
-        if (next.has(filterId)) {
-          next.delete(filterId);
-        } else {
-          // Mutually exclusive: if activating road layer, close text layer (area codes)
-          if (filterId.startsWith('roads-') || filterId === 'us-interstates' || filterId === 'us-numbered-routes') {
-            next.delete('nationwide-area-codes');
-          } else if (filterId === 'nationwide-area-codes') {
-            for (const id of prev) {
-              if (id.startsWith('roads-')) next.delete(id);
-            }
-          }
-          next.add(filterId);
-        }
-        activeRegionalFiltersRef.current = next;
-        return next;
-      });
-
-      if (filterId === 'us-interstates') handleToggleInterstates();
-      if (filterId === 'us-numbered-routes') handleToggleNumberedRoutes();
-
-      const { k, x, y } = transformRef.current;
-      syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, isAnyRoadActive());
-      requestRender();
-    },
-    [handleToggleInterstates, handleToggleNumberedRoutes, syncRoadsViewport, isAnyRoadActive, requestRender]
   );
 
   // ==========================================
@@ -997,876 +796,63 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
     if (visibleCopies.length === 0) visibleCopies.push(0);
 
-    const hoveredC = hoveredCountryRef.current;
-    const selectedC = selectedCountryRef.current;
-    const hoveredM = hoveredMunicipalityRef.current;
-    const selectedM = selectedMunicipalityRef.current;
-    const hoveredL2 = hoveredL2SubdivisionRef.current;
-    const selectedL2 = selectedL2SubdivisionRef.current;
-
-    const activeFilter = activeFilterDefRef.current;
     const currentLod = lodLevelRef.current;
-    const isL2RegionMode = currentLod === 'L2' || currentLod === 'L3';
-
-    const highlightHoverPaths: Path2D[] = [];
-    const highlightSelectPaths: Path2D[] = [];
-
-    const combinedByCountry = l2CountryCombinedPathsRef.current;
-    const dissolvedByCountry = l2CountryDissolvedPathsRef.current;
-    const countryBBoxes = countryBBoxesRef.current;
-    const countryMap = countryDataMapRef.current;
-    const l2ByCountry = l2PathsByCountryRef.current;
-
-    for (const copyIdx of visibleCopies) {
-      ctx.setTransform(
-        k * dpr,
-        0,
-        0,
-        k * dpr,
-        (x + copyIdx * MAP_W * k) * dpr,
-        y * dpr
-      );
-
-      const copyOffset = copyIdx * MAP_W;
-
-      // ========================================================
-      // 1. Layer 1: Country Landmass (Direct Vector Rendering at L1 & Non-L2 Countries at L2/L3)
-      // ========================================================
-      const useHighRes = k >= 1.8;
-      for (let i = 0; i < countryPathData.length; i++) {
-        const item = countryPathData[i];
-        if (!item.path2D) continue;
-
-        const iso2 = item.countryMeta?.iso2;
-        // In L2/L3 region mode, skip countries that have L2 subdivision datasets loaded
-        if (isL2RegionMode && iso2 && l2ByCountry[iso2]) continue;
-
-        // Viewport culling
-        const [minX, minY, maxX, maxY] = (useHighRes && iso2 && countryBBoxes[iso2]) || item.bbox;
-        const sMinY = y + minY * k;
-        const sMaxY = y + maxY * k;
-        if (sMaxY < -50 || sMinY > vh + 50) continue;
-        const sMinX = x + (minX + copyOffset) * k;
-        const sMaxX = x + (maxX + copyOffset) * k;
-        if (sMaxX < -50 || sMinX > vw + 50) continue;
-
-        const isHovered =
-          hoveredC &&
-          (hoveredC.id === item.countryMeta?.id || (item.countryMeta && hoveredC.iso2 === item.countryMeta.iso2));
-        const isSelected =
-          !selectedL2 &&
-          selectedC &&
-          (selectedC.id === item.countryMeta?.id || (item.countryMeta && selectedC.iso2 === item.countryMeta.iso2));
-
-        // Scheme C: Sub-pixel screen-space culling
-        const screenW = (maxX - minX) * k;
-        const screenH = (maxY - minY) * k;
-        if (!isSelected && !isHovered && screenW < 1.5 && screenH < 1.5) continue;
-
-        let fillColor: string | CanvasGradient;
-        if (isSelected) {
-          fillColor = '#38bdf8';
-        } else if (isHovered) {
-          fillColor = '#f97316';
-        } else if (!item.countryMeta) {
-          fillColor = '#1a1f2b';
-        } else {
-          fillColor = activeFilter.getColor(item.countryMeta) || '#232a38';
-        }
-
-        const renderPath = (useHighRes && iso2 && dissolvedByCountry[iso2]) || item.path2D;
-
-        if (activeFilter.id === 'roadLines' && !isSelected && !isHovered && item.countryMeta) {
-          fillRoadMarkingPolygon(ctx, renderPath, item.countryMeta.iso2, 5.0 / k);
-        } else {
-          ctx.fillStyle = fillColor;
-          ctx.fill(renderPath);
-        }
-
-        // At regional zoom (k >= 1.8), stroke individual country boundary
-        if (useHighRes) {
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 1.8 / k;
-          ctx.stroke(renderPath);
-        }
-
-        if (isSelected) {
-          highlightSelectPaths.push(renderPath);
-        } else if (isHovered) {
-          highlightHoverPaths.push(renderPath);
-        }
-      }
-
-      // At overview zoom (k < 1.8), stroke all national borders in 1 single ultra-fast batched call
-      if (!useHighRes) {
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1.8 / k;
-        ctx.stroke(l1WorldBordersPath);
-      }
-
-      // 2. Layer 2: Admin-1 Subdivisions (Worldwide L2 Base Layer - Only in L2/L3 mode)
-      if (isL2RegionMode && (copyIdx === 0 || copyIdx === 1)) {
-        for (const iso2 in l2ByCountry) {
-          const bbox = countryBBoxes[iso2];
-          if (bbox) {
-            const [minX, minY, maxX, maxY] = bbox;
-            const sMinY = y + minY * k;
-            const sMaxY = y + maxY * k;
-            if (sMaxY < -50 || sMinY > vh + 50) continue;
-            const sMinX = x + (minX + copyOffset) * k;
-            const sMaxX = x + (maxX + copyOffset) * k;
-            if (sMaxX < -50 || sMinX > vw + 50) continue;
-          }
-
-          const countryCombined = combinedByCountry[iso2];
-          if (!countryCombined) continue;
-
-          const cMeta = countryMap.get(iso2);
-          const isCapitalFilterActive = activeRegionalFiltersRef.current?.has('nationwide-capital');
-
-          if (isCapitalFilterActive) {
-            const subs = l2ByCountry[iso2];
-            if (subs) {
-              for (let sIdx = 0; sIdx < subs.length; sIdx++) {
-                const sub = subs[sIdx];
-                const isCapital = isCapitalSubdivision(iso2, sub);
-                if (isCapital) {
-                  ctx.fillStyle = '#f59e0b';
-                  ctx.fill(sub.path2D);
-                  ctx.strokeStyle = '#fef08a';
-                  ctx.lineWidth = 1.6 / k;
-                  ctx.stroke(sub.path2D);
-                } else {
-                  ctx.fillStyle = 'rgba(20, 26, 38, 0.75)';
-                  ctx.fill(sub.path2D);
-                  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-                  ctx.lineWidth = 0.5 / k;
-                  ctx.stroke(sub.path2D);
-                }
-              }
-            }
-            // Stroke national boundary with bold crisp black line
-            const nationalBorder = dissolvedByCountry[iso2] || countryPathMap.get(iso2)?.path2D;
-            if (nationalBorder) {
-              ctx.strokeStyle = '#000000';
-              ctx.lineWidth = 2.2 / k;
-              ctx.stroke(nationalBorder);
-            }
-          } else {
-            const isSiblingHovered =
-              (hoveredL2 && hoveredL2.iso2 === iso2) ||
-              (hoveredM && hoveredM.iso2 === iso2) ||
-              (activeL3ParentRef.current && activeL3ParentRef.current.iso2 === iso2);
-
-            // 1. Fill all subdivisions of this country in 1 draw call
-            if (activeFilter.id === 'roadLines') {
-              fillRoadMarkingPolygon(
-                ctx,
-                countryCombined,
-                iso2,
-                5.0 / k,
-                isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : undefined
-              );
-            } else {
-              const defaultFill = (cMeta && activeFilter.getColor(cMeta)) || '#232a38';
-              ctx.fillStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
-              ctx.fill(countryCombined);
-            }
-
-            // 2. Stroke all subdivision borders of this country in 1 draw call (Thin internal boundaries: 0.6 / k)
-            ctx.strokeStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';
-            ctx.lineWidth = 0.6 / k;
-            ctx.stroke(countryCombined);
-
-            // 3. Stroke national boundary with bold crisp black line (National border: 2.2 / k)
-            const nationalBorder = dissolvedByCountry[iso2] || countryPathMap.get(iso2)?.path2D;
-            if (nationalBorder) {
-              ctx.strokeStyle = '#000000';
-              ctx.lineWidth = 2.2 / k;
-              ctx.stroke(nationalBorder);
-            }
-          }
-        }
-
-        // 3. Highlight Selected L2 Subdivision on top
-        if (selectedL2) {
-          const subs = l2ByCountry[selectedL2.iso2];
-          const selSub = subs?.find((s) => String(s.id) === String(selectedL2.id));
-          if (selSub?.path2D) {
-            ctx.fillStyle = '#38bdf8';
-            ctx.fill(selSub.path2D);
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.2 / k;
-            ctx.stroke(selSub.path2D);
-            highlightSelectPaths.push(selSub.path2D);
-          }
-        }
-
-        // 4. Highlight Hovered L2 Subdivision on top
-        if (
-          hoveredL2 &&
-          (!selectedL2 || hoveredL2.iso2 !== selectedL2.iso2 || String(hoveredL2.id) !== String(selectedL2.id))
-        ) {
-          const subs = l2ByCountry[hoveredL2.iso2];
-          const hovSub = subs?.find((s) => String(s.id) === String(hoveredL2.id));
-          if (hovSub?.path2D) {
-            ctx.fillStyle = '#f97316';
-            ctx.fill(hovSub.path2D);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1.4 / k;
-            ctx.stroke(hovSub.path2D);
-            highlightHoverPaths.push(hovSub.path2D);
-          }
-        }
-      }
-
-      // ----------------------------------------------------
-      // 3. Layer 3: L3 Subdivisions (Municipalities, Counties, Landkreise, etc.)
-      // ----------------------------------------------------
-      if (currentLod === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
-        const activeParent = activeL3ParentRef.current;
-        if (activeParent) {
-          const children = getL3SubdivisionsForParent(activeParent.iso2, activeParent.name, activeParent.code, activeParent.id);
-          for (let cIdx = 0; cIdx < children.length; cIdx++) {
-            const item = children[cIdx];
-            if (!item.path2D) continue;
-
-            const [minX, minY, maxX, maxY] = item.bbox;
-            const sMinY = y + minY * k;
-            const sMaxY = y + maxY * k;
-            if (sMaxY < -50 || sMinY > vh + 50) continue;
-            const sMinX = x + (minX + copyOffset) * k;
-            const sMaxX = x + (maxX + copyOffset) * k;
-            if (sMaxX < -50 || sMinX > vw + 50) continue;
-
-            const isHovered =
-              hoveredM &&
-              hoveredM.iso2 === item.iso2 &&
-              (hoveredM.code === item.id || hoveredM.code === item.code);
-            const isSelected =
-              selectedM &&
-              selectedM.iso2 === item.iso2 &&
-              (selectedM.code === item.id || selectedM.code === item.code);
-
-            // Scheme C: Sub-pixel screen-space culling
-            const screenW = (maxX - minX) * k;
-            const screenH = (maxY - minY) * k;
-            if (!isSelected && !isHovered && screenW < 1.5 && screenH < 1.5) continue;
-
-            let fill = 'rgba(234, 88, 12, 0.25)';
-            let stroke = 'rgba(251, 146, 60, 0.45)';
-            let strokeWidth = 0.35 / k;
-
-            if (isSelected) {
-              fill = '#38bdf8';
-              stroke = '#38bdf8';
-              strokeWidth = 0.8 / k;
-            } else if (isHovered) {
-              fill = '#f97316';
-              stroke = '#ffffff';
-              strokeWidth = 0.8 / k;
-            }
-
-            ctx.fillStyle = fill;
-            ctx.fill(item.path2D);
-            ctx.strokeStyle = stroke;
-            ctx.lineWidth = strokeWidth;
-            ctx.stroke(item.path2D);
-
-            if (isSelected) {
-              highlightSelectPaths.push(item.path2D);
-            } else if (isHovered) {
-              highlightHoverPaths.push(item.path2D);
-            }
-          }
-        }
-      }
-
-      // ----------------------------------------------------
-      // Layer 3b: Taiwan Taipower Pole Grid Overlay (Nationwide Coloring Filter)
-      // ----------------------------------------------------
-      const isTaipowerGridActive = isL2RegionMode && activeRegionalFiltersRef.current?.has('taiwan-power-poles');
-      if (isTaipowerGridActive) {
-        const tpItems = taipowerZoneRenderItemsRef.current;
-        const hoveredZ = hoveredTaipowerZoneRef.current;
-
-        for (let i = 0; i < tpItems.length; i++) {
-          const item = tpItems[i];
-          const minMapX = item.bbox[0] + copyOffset;
-          const maxMapX = item.bbox[2] + copyOffset;
-          const minMapY = item.bbox[1];
-          const maxMapY = item.bbox[3];
-
-          if (x + maxMapX * k < 0 || x + minMapX * k > vw || y + maxMapY * k < 0 || y + minMapY * k > vh) continue;
-
-          const isHovered = hoveredZ?.letter === item.zone.letter;
-
-          // 1. Transparent fill
-          ctx.fillStyle = isHovered ? item.hoverFillColor : item.zone.fillColor;
-          ctx.fill(item.polygonPath2D);
-
-          // 2. Dashed inner percentage grid lines (20%, 40%, 60%, 80%) - ONLY in L3 state
-          if (currentLod === 'L3') {
-            ctx.save();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-            ctx.lineWidth = 0.9 / k;
-            ctx.setLineDash([3 / k, 3 / k]);
-            ctx.stroke(item.innerGridPath2D);
-            ctx.restore();
-          }
-
-          // 3. Perimeter border
-          ctx.strokeStyle = isHovered ? '#ffffff' : item.zone.color;
-          ctx.lineWidth = (isHovered ? 2.5 : 1.4) / k;
-          ctx.stroke(item.polygonPath2D);
-        }
-      }
-
-      // ----------------------------------------------------
-      // 4. Layer 4: Highway and Route Network Overlay
-      // ----------------------------------------------------
-      if (isAnyRoadActive()) {
-        for (const iso2 of visibleRoadIso2sRef.current) {
-          const bundle = roadBundlesRef.current.get(iso2);
-          if (!bundle) continue;
-
-          const showFed = isCountryRoadClassActive(iso2, 'Federal');
-          const showInter = isCountryRoadClassActive(iso2, 'Interstate');
-
-          // ========================================================
-          // FULL SPIDERWEB HIGHWAY NETWORK (Optimized batch strokes)
-          // ========================================================
-          // 4a. Primary / Federal Routes (Gold / Amber, 1.0px spiderweb mesh)
-          if (showFed) {
-            ctx.strokeStyle = '#fbbf24';
-            ctx.lineWidth = 1.0 / k;
-            ctx.globalAlpha = 0.75;
-            ctx.lineCap = 'butt';
-            ctx.lineJoin = 'miter';
-            ctx.stroke(bundle.usRoutesPath2D);
-          }
-
-          // 4b. Interstates / Expressways (Sky Blue, 1.6px arterial corridors)
-          if (showInter) {
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.6 / k;
-            ctx.globalAlpha = 0.92;
-            ctx.lineCap = 'butt';
-            ctx.lineJoin = 'miter';
-            ctx.stroke(bundle.interstatesPath2D);
-          }
-          ctx.globalAlpha = 1.0;
-        }
-
-        // 4c. Highlight selected highway with prominent glowing neon orange outline
-        const selectedRoadItem = selectedRoadRef.current;
-        if (
-          selectedRoadItem &&
-          selectedRoadItem.path2D &&
-          isCountryRoadClassActive(selectedRoadItem.iso2 || 'US', selectedRoadItem.class)
-        ) {
-          ctx.save();
-          const isInterstate = selectedRoadItem.class === 'Interstate';
-          ctx.strokeStyle = '#f97316';
-          ctx.lineWidth = (isInterstate ? 4.2 : 3.4) / k;
-          ctx.globalAlpha = 1.0;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.shadowColor = 'rgba(249, 115, 22, 1.0)';
-          ctx.shadowBlur = 12 * dpr;
-          ctx.stroke(selectedRoadItem.path2D);
-          ctx.restore();
-        }
-
-        // 4d. Highlight currently hovered highway with vibrant neon orange and soft shadow glow
-        const hoveredRoadItem = hoveredRoadRef.current;
-        if (
-          hoveredRoadItem &&
-          hoveredRoadItem.path2D &&
-          hoveredRoadItem.name !== selectedRoadItem?.name &&
-          isCountryRoadClassActive(hoveredRoadItem.iso2 || 'US', hoveredRoadItem.class)
-        ) {
-          ctx.save();
-          const isInterstate = hoveredRoadItem.class === 'Interstate';
-          ctx.strokeStyle = '#fb923c';
-          ctx.lineWidth = (isInterstate ? 3.4 : 2.8) / k;
-          ctx.globalAlpha = 0.95;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
-          ctx.shadowBlur = 8 * dpr;
-          ctx.stroke(hoveredRoadItem.path2D);
-          ctx.restore();
-        }
-      }
-
-      // ----------------------------------------------------
-      // 5. Layer 5: Glowing Highlights on top of all borders
-      // ----------------------------------------------------
-      for (const p of highlightHoverPaths) {
-        ctx.save();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5 / k;
-        ctx.shadowColor = 'rgba(249, 115, 22, 0.8)';
-        ctx.shadowBlur = 8 * dpr;
-        ctx.stroke(p);
-        ctx.restore();
-      }
-
-      for (const p of highlightSelectPaths) {
-        ctx.save();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0 / k;
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.9)';
-        ctx.shadowBlur = 10 * dpr;
-        ctx.stroke(p);
-        ctx.restore();
-      }
-
-      highlightHoverPaths.length = 0;
-      highlightSelectPaths.length = 0;
-    }
-
-    // ----------------------------------------------------
-    // 6. Layer 6: Global Text Overlays (Calling Code / Domain / ccTLD)
-    // ----------------------------------------------------
-    const activeText = activeTextFiltersRef.current;
-    if (activeText && activeText.size > 0 && countryPathData.length > 0) {
-      const hasPhone = activeText.has('callingCode');
-      const hasTld = activeText.has('tld');
-
-      ctx.save();
-      // Render in crisp 1:1 CSS screen space
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.font = 'bold 11px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      const widthCache = badgeWidthCacheRef.current;
-      const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
-      const isCrowded = k < 1.7;
-
-      for (let i = 0; i < countryPathData.length; i++) {
-        const item = countryPathData[i];
-        const cMeta = item.countryMeta;
-        if (!cMeta) continue;
-
-        let badgeText = '';
-        if (hasPhone && hasTld) {
-          const tld = cMeta.tld || (cMeta.iso2 ? `.${cMeta.iso2.toLowerCase()}` : '');
-          const phone = cMeta.callingCode || COUNTRY_CALLING_CODES[cMeta.iso2] || '';
-          if (tld && phone) badgeText = `${tld}  ${phone}`;
-          else badgeText = tld || phone;
-        } else if (hasPhone) {
-          badgeText = cMeta.callingCode || COUNTRY_CALLING_CODES[cMeta.iso2] || '';
-        } else if (hasTld) {
-          badgeText = cMeta.tld || (cMeta.iso2 ? `.${cMeta.iso2.toLowerCase()}` : '');
-        }
-
-        if (!badgeText) continue;
-
-        let textWidth = widthCache.get(badgeText);
-        if (textWidth === undefined) {
-          textWidth = ctx.measureText(badgeText).width;
-          widthCache.set(badgeText, textWidth);
-        }
-        const badgeW = Math.round(textWidth + 10);
-        const badgeH = 18;
-
-        const override = COUNTRY_LABEL_CENTROIDS[cMeta.iso2];
-        const cx = override ? override[0] : item.centroid[0];
-        const cy = override ? override[1] : item.centroid[1];
-
-        for (const copyIdx of visibleCopies) {
-          const screenX = (cx + copyIdx * MAP_W) * k + x;
-          const screenY = cy * k + y;
-
-          // Viewport culling
-          if (screenX < -60 || screenX > vw + 60 || screenY < -30 || screenY > vh + 30) continue;
-
-          const isHovered = hoveredC && hoveredC.iso2 === cMeta.iso2;
-          const isSelected = selectedC && selectedC.iso2 === cMeta.iso2;
-
-          // Culling check for small crowded countries at low zoom
-          if (!isHovered && !isSelected && isCrowded) {
-            const [minX, minY, maxX, maxY] = item.bbox;
-            const screenW = (maxX - minX) * k;
-            const screenH = (maxY - minY) * k;
-            if (screenW < 14 && screenH < 14) continue;
-          }
-
-          const badgeX = Math.round(screenX - badgeW / 2);
-          const badgeY = Math.round(screenY - badgeH / 2);
-
-          // Overlap prevention (unless hovered or selected)
-          if (!isHovered && !isSelected) {
-            let collides = false;
-            for (let b = 0; b < placedBoxes.length; b++) {
-              const pb = placedBoxes[b];
-              if (
-                badgeX < pb.x2 + 2 &&
-                badgeX + badgeW > pb.x1 - 2 &&
-                badgeY < pb.y2 + 2 &&
-                badgeY + badgeH > pb.y1 - 2
-              ) {
-                collides = true;
-                break;
-              }
-            }
-            if (collides) continue;
-          }
-
-          placedBoxes.push({
-            x1: badgeX,
-            y1: badgeY,
-            x2: badgeX + badgeW,
-            y2: badgeY + badgeH
-          });
-
-          // Draw pill background
-          ctx.beginPath();
-          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-
-          if (isSelected) {
-            ctx.fillStyle = 'rgba(14, 165, 233, 0.95)';
-            ctx.fill();
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          } else if (isHovered) {
-            ctx.fillStyle = 'rgba(249, 115, 22, 0.95)';
-            ctx.fill();
-            ctx.strokeStyle = '#fb923c';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          // Draw text
-          ctx.fillStyle = (isSelected || isHovered) ? '#ffffff' : (hasPhone && !hasTld ? '#34d399' : (hasTld && !hasPhone ? '#38bdf8' : '#f8fafc'));
-          ctx.fillText(badgeText, screenX, screenY + 0.5);
-        }
-      }
-      ctx.restore();
-    }
-
-    // ----------------------------------------------------
-    // 7. Layer 7: Nationwide Domestic Area Codes
-    // ----------------------------------------------------
-    const activeReg = activeRegionalFiltersRef.current;
-    const isAreaCodeActive =
-      activeReg &&
-      (activeReg.has('nationwide-area-codes') ||
-        activeReg.has('br-ddd-codes') ||
-        activeReg.has('jp-area-codes') ||
-        activeReg.has('au-area-codes') ||
-        activeReg.has('fr-area-codes'));
-
-    if (isAreaCodeActive && isL2RegionMode) {
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.font = 'bold 11px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      const widthCache = badgeWidthCacheRef.current;
-
-      for (const iso2 of COUNTRIES_WITH_AREA_CODES) {
-        const subs = l2PathsByCountryRef.current[iso2];
-        if (!subs || subs.length === 0) continue;
-
-        for (let i = 0; i < subs.length; i++) {
-          const sub = subs[i];
-          const badgeText = getSubdivisionAreaCodeBadge(iso2, sub);
-          if (!badgeText) continue;
-
-          let textWidth = widthCache.get(badgeText);
-          if (textWidth === undefined) {
-            textWidth = ctx.measureText(badgeText).width;
-            widthCache.set(badgeText, textWidth);
-          }
-          const badgeW = Math.round(textWidth + 12);
-          const badgeH = 20;
-
-          for (const copyIdx of visibleCopies) {
-            const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
-            const screenY = sub.centroid[1] * k + y;
-
-            if (screenX < -70 || screenX > vw + 70 || screenY < -30 || screenY > vh + 30) continue;
-
-            const isSubHovered =
-              hoveredL2 &&
-              hoveredL2.iso2 === sub.iso2 &&
-              (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name);
-            const isSubSelected =
-              selectedL2 &&
-              selectedL2.iso2 === sub.iso2 &&
-              String(selectedL2.id) === String(sub.id);
-
-            const badgeX = Math.round(screenX - badgeW / 2);
-            const badgeY = Math.round(screenY - badgeH / 2);
-
-            // Draw rounded pill background
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
-
-            if (isSubSelected) {
-              ctx.fillStyle = 'rgba(14, 165, 233, 0.96)';
-              ctx.fill();
-              ctx.strokeStyle = '#38bdf8';
-              ctx.lineWidth = 1.6;
-              ctx.stroke();
-            } else if (isSubHovered) {
-              ctx.fillStyle = 'rgba(249, 115, 22, 0.96)';
-              ctx.fill();
-              ctx.strokeStyle = '#fb923c';
-              ctx.lineWidth = 1.6;
-              ctx.stroke();
-            } else {
-              ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
-              ctx.fill();
-              ctx.strokeStyle = '#10b981';
-              ctx.lineWidth = 1.2;
-              ctx.stroke();
-            }
-
-            // Draw badge text
-            ctx.fillStyle = (isSubSelected || isSubHovered) ? '#ffffff' : '#34d399';
-            ctx.fillText(badgeText, screenX, screenY + 0.5);
-          }
-        }
-      }
-      ctx.restore();
-    }
-
-    // ----------------------------------------------------
-    // 8. Layer 8: European Pedestrian Crossing Signs (International Image Filter)
-    // ----------------------------------------------------
-    const activeCrossingSign =
-      activeInternationalImageFilterRef.current === 'pedestrian-crossing' ||
-      (activeReg && activeReg.has('eu-pedestrian-crossing'));
-    const currentRenderedBadges: Array<{ x1: number; y1: number; x2: number; y2: number; iso2: string }> = [];
-
-    if (activeCrossingSign) {
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const placedCrossingBoxes: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-
-      for (let i = 0; i < countryPathData.length; i++) {
-        const item = countryPathData[i];
-        const cMeta = item.countryMeta;
-        if (!cMeta || !cMeta.iso2) continue;
-
-        const signMeta = EUROPEAN_CROSSING_SIGNS[cMeta.iso2];
-        if (!signMeta) continue;
-
-        const img = crossingImagesRef.current.get(cMeta.iso2);
-        if (!img || !img.complete || img.naturalWidth === 0) continue;
-
-        const override = COUNTRY_LABEL_CENTROIDS[cMeta.iso2];
-        const cx = override ? override[0] : item.centroid[0];
-        const cy = override ? override[1] : item.centroid[1];
-
-        for (const copyIdx of visibleCopies) {
-          const screenX = (cx + copyIdx * MAP_W) * k + x;
-          const screenY = cy * k + y;
-
-          // Viewport culling (with margin)
-          if (screenX < -70 || screenX > vw + 70 || screenY < -70 || screenY > vh + 70) continue;
-
-          const isHovered =
-            (hoveredC && hoveredC.iso2 === cMeta.iso2) ||
-            (hoveredL2 && hoveredL2.iso2 === cMeta.iso2);
-          const isSelected =
-            (selectedC && selectedC.iso2 === cMeta.iso2) ||
-            (selectedL2 && selectedL2.iso2 === cMeta.iso2);
-
-          const imgSize = (isHovered || isSelected) ? 38 : 32;
-          const cardW = (isHovered || isSelected) ? 64 : 56;
-          const cardH = imgSize + 22;
-          const cardX = Math.round(screenX - cardW / 2);
-          const cardY = Math.round(screenY - cardH / 2);
-
-          // Overlap prevention (hovered or selected always renders)
-          if (!isHovered && !isSelected) {
-            let collides = false;
-            for (let b = 0; b < placedCrossingBoxes.length; b++) {
-              const pb = placedCrossingBoxes[b];
-              if (
-                cardX < pb.x2 + 4 &&
-                cardX + cardW > pb.x1 - 4 &&
-                cardY < pb.y2 + 4 &&
-                cardY + cardH > pb.y1 - 4
-              ) {
-                collides = true;
-                break;
-              }
-            }
-            if (collides) continue;
-          }
-
-          placedCrossingBoxes.push({
-            x1: cardX,
-            y1: cardY,
-            x2: cardX + cardW,
-            y2: cardY + cardH
-          });
-
-          currentRenderedBadges.push({
-            x1: cardX,
-            y1: cardY,
-            x2: cardX + cardW,
-            y2: cardY + cardH,
-            iso2: cMeta.iso2
-          });
-
-          // Draw card background
-          ctx.beginPath();
-          ctx.roundRect(cardX, cardY, cardW, cardH, 7);
-
-          if (isSelected) {
-            ctx.fillStyle = 'rgba(14, 165, 233, 0.96)';
-            ctx.fill();
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          } else if (isHovered) {
-            ctx.fillStyle = 'rgba(249, 115, 22, 0.96)';
-            ctx.fill();
-            ctx.strokeStyle = '#fb923c';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          // Draw SVG icon
-          const imgX = Math.round(cardX + (cardW - imgSize) / 2);
-          const imgY = Math.round(cardY + 5);
-          ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
-
-          // Draw stripe count / shape tag with direction arrow
-          const dirArrow = signMeta.direction === 'left' ? '←' : '→';
-          let detail: string;
-          if (signMeta.iso2 === 'IS') {
-            detail = '黃△';
-          } else if (signMeta.shape === 'yellow_diamond') {
-            detail = '菱形';
-          } else if (signMeta.shape === 'red_triangle') {
-            detail = '三角';
-          } else if (signMeta.stripes > 0) {
-            detail = `${signMeta.stripes}條`;
-          } else if (signMeta.iso2 === 'PL') {
-            detail = '橫道';
-          } else {
-            detail = '虛線';
-          }
-
-          const stripeTag = `${signMeta.iso2} · ${detail} ${dirArrow}`;
-
-          ctx.font = 'bold 9px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillStyle = (isSelected || isHovered) ? '#ffffff' : '#94a3b8';
-          ctx.fillText(stripeTag, screenX, cardY + imgSize + 12);
-        }
-      }
-      ctx.restore();
-    }
-
-    // ----------------------------------------------------
-    // Layer 7b: Taiwan Taipower Grid Letters & L3 Percentage Coordinate Markers
-    // ----------------------------------------------------
-    const isTaipowerGridActive = isL2RegionMode && activeRegionalFiltersRef.current?.has('taiwan-power-poles');
-    if (isTaipowerGridActive) {
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const tpItems = taipowerZoneRenderItemsRef.current;
-      const hoveredZ = hoveredTaipowerZoneRef.current;
-      const currentLod = lodLevelRef.current;
-
-      for (let i = 0; i < tpItems.length; i++) {
-        const item = tpItems[i];
-        for (const copyIdx of visibleCopies) {
-          const copyOffset = copyIdx * MAP_W;
-          const scrX = (item.pCenter[0] + copyOffset) * k + x;
-          const scrY = item.pCenter[1] * k + y;
-
-          if (scrX < -100 || scrX > vw + 100 || scrY < -60 || scrY > vh + 60) continue;
-
-          const isHovered = hoveredZ?.letter === item.zone.letter;
-
-          // Render ONLY the Letter (larger, bold, no box)
-          ctx.save();
-          ctx.translate(scrX, scrY);
-
-          const letterText = item.zone.letter;
-          const gridW = (item.bbox[2] - item.bbox[0]) * k;
-          const gridH = (item.bbox[3] - item.bbox[1]) * k;
-          const gridDim = Math.min(gridW, gridH);
-          const fontSize = Math.max(16, Math.round(gridDim * 0.42));
-          ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Dark halo stroke for readability without an intrusive background box
-          ctx.lineJoin = 'round';
-          ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.12));
-          ctx.strokeStyle = 'rgba(10, 15, 26, 0.92)';
-          ctx.strokeText(letterText, 0, 0);
-
-          // Fill letter
-          ctx.fillStyle = isHovered ? '#ffffff' : item.zone.color;
-          ctx.fillText(letterText, 0, 0);
-
-          ctx.restore();
-
-          // Percentage coordinate marks on borders: ONLY in L3 mode
-          if (currentLod === 'L3') {
-            const pSWScr = [(item.pSW[0] + copyOffset) * k + x, item.pSW[1] * k + y];
-            const pSEScr = [(item.pSE[0] + copyOffset) * k + x, item.pSE[1] * k + y];
-            const pNWScr = [(item.pNW[0] + copyOffset) * k + x, item.pNW[1] * k + y];
-
-            const pctFontSize = Math.min(16, Math.max(10, Math.round(8 + k * 0.15)));
-            ctx.font = `bold ${pctFontSize}px ui-monospace, "JetBrains Mono", monospace`;
-            ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
-
-            // X axis percentage marks along South border
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            for (const pct of [0.2, 0.4, 0.6, 0.8]) {
-              const tickX = (1 - pct) * pSWScr[0] + pct * pSEScr[0];
-              const tickY = (1 - pct) * pSWScr[1] + pct * pSEScr[1];
-              ctx.fillText(`${Math.round(pct * 100)}%`, tickX, tickY + 3);
-            }
-
-            // Y axis percentage marks along West border
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'middle';
-            for (const pct of [0.2, 0.4, 0.6, 0.8]) {
-              const tickX = (1 - pct) * pSWScr[0] + pct * pNWScr[0];
-              const tickY = (1 - pct) * pSWScr[1] + pct * pNWScr[1];
-              ctx.fillText(`${Math.round(pct * 100)}%`, tickX - 4, tickY);
-            }
-          }
-        }
-      }
-      ctx.restore();
-    }
-
-    renderedCrossingBadgesRef.current = currentRenderedBadges;
-  }, [countryPathData, countryPathMap, l1WorldBordersPath, getL3SubdivisionsForParent, isAnyRoadActive, isCountryRoadClassActive]);
+    const rc: RenderContext = {
+      ctx,
+      k,
+      x,
+      y,
+      vw,
+      vh,
+      dpr,
+      visibleCopies,
+      currentLod,
+      isL2RegionMode: currentLod === 'L2' || currentLod === 'L3',
+      activeFilter: activeFilterDefRef.current,
+      activeTextFilters: activeTextFiltersRef.current,
+      activeInternationalImageFilter: activeInternationalImageFilterRef.current,
+      activeRegionalFilters: activeRegionalFiltersRef.current,
+      countryPathData,
+      countryPathMap,
+      l1WorldBordersPath,
+      combinedByCountry: l2CountryCombinedPathsRef.current,
+      dissolvedByCountry: l2CountryDissolvedPathsRef.current,
+      countryBBoxes: countryBBoxesRef.current,
+      countryMap: countryDataMapRef.current,
+      l2ByCountry: l2PathsByCountryRef.current,
+      activeL3Parent: activeL3ParentRef.current,
+      getL3SubdivisionsForParent,
+      taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
+      hoveredTaipowerZone: hoveredTaipowerZoneRef.current,
+      visibleRoadIso2s: visibleRoadIso2sRef.current,
+      roadBundles: roadBundlesRef.current,
+      isAnyRoadActive,
+      isCountryRoadClassActive,
+      selectedRoad: selectedRoadRef.current,
+      hoveredRoad: hoveredRoadRef.current,
+      hoveredCountry: hoveredCountryRef.current,
+      selectedCountry: selectedCountryRef.current,
+      hoveredMunicipality: hoveredMunicipalityRef.current,
+      selectedMunicipality: selectedMunicipalityRef.current,
+      hoveredL2Subdivision: hoveredL2SubdivisionRef.current,
+      selectedL2Subdivision: selectedL2SubdivisionRef.current,
+      badgeWidthCache: badgeWidthCacheRef.current,
+      crossingImages: crossingImagesRef.current
+    };
+
+    drawWorldCopyLayers(rc);
+    drawGlobalTextBadges(rc);
+    drawAreaCodeBadges(rc);
+    renderedCrossingBadgesRef.current = drawCrossingSignBadges(rc);
+    drawTaipowerLabels(rc);
+  }, [
+    countryPathData,
+    countryPathMap,
+    l1WorldBordersPath,
+    getL3SubdivisionsForParent,
+    isAnyRoadActive,
+    isCountryRoadClassActive
+  ]);
 
   useEffect(() => {
     renderCanvasRef.current = renderCanvas;
@@ -1920,11 +906,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       inFlightL3PacksRef.current.add(filePath);
 
       try {
-        const { features } = await decodeGeo(filePath, 'l3');
+        const { features: decoded } = await decodeGeo(filePath, 'l3');
         const paths: L3SubdivisionPathData[] = [];
 
-        for (let i = 0; i < features.length; i++) {
-          const f = features[i];
+        for (let i = 0; i < decoded.length; i++) {
+          const f = decoded[i];
           const p = f.props;
           const iso2 = String(p.iso2 || '');
           paths.push({
@@ -1992,7 +978,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       let partition: L3PartitionMeta | undefined;
       if (code) {
-        partition = L3_PARTITIONS_BY_KEY[`${normIso2}:${code}`] || L3_PARTITIONS_BY_KEY[`${normIso2}:${normLookup(code)}`];
+        partition =
+          L3_PARTITIONS_BY_KEY[`${normIso2}:${code}`] ||
+          L3_PARTITIONS_BY_KEY[`${normIso2}:${normLookup(code)}`];
       }
       if (!partition && name) {
         partition = L3_PARTITIONS_BY_KEY[`${normIso2}:${normLookup(name)}`];
@@ -2015,243 +1003,43 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // ==========================================
   // UNIFIED HIT-TESTING PIPELINE (Canvas 2D)
   // ==========================================
-  const getFeatureAtPoint = useCallback((clientX: number, clientY: number): HitFeature | null => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return null;
-    const mx = clientX - rect.left;
-    const my = clientY - rect.top;
-
-    const { k, x, y } = transformRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    const canvas = canvasRef.current;
-    if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    // 0. European Pedestrian Crossing Sign Badges (Direct click / hover on floating badge)
-    if (
-      activeInternationalImageFilterRef.current === 'pedestrian-crossing' ||
-      activeRegionalFiltersRef.current?.has('eu-pedestrian-crossing')
-    ) {
-      for (let b = 0; b < renderedCrossingBadgesRef.current.length; b++) {
-        const badge = renderedCrossingBadgesRef.current[b];
-        if (mx >= badge.x1 && mx <= badge.x2 && my >= badge.y1 && my <= badge.y2) {
-          const c = countryPathMap.get(badge.iso2);
-          if (c) {
-            return { type: 'country', data: c };
-          }
-        }
-      }
-    }
-
-    // 1. In Highway Exploration Mode: Hit test roads with 10px stroke tolerance
-    if (isAnyRoadActive()) {
-      const tolerancePx = 10;
-      const toleranceMap = tolerancePx / k;
-      let candidateFederal: RoadPathData | null = null;
-
-      for (const copyIdx of visibleRoadCopiesRef.current) {
-        const mapX = (mx - x) / k - copyIdx * MAP_W;
-        const mapY = (my - y) / k;
-
-        ctx.setTransform(
-          k * dpr,
-          0,
-          0,
-          k * dpr,
-          (x + copyIdx * MAP_W * k) * dpr,
-          y * dpr
-        );
-        ctx.lineWidth = (tolerancePx * 2) / k;
-        ctx.lineCap = 'butt';
-        ctx.lineJoin = 'miter';
-
-        for (const iso2 of visibleRoadIso2sRef.current) {
-          if (!isCountryAnyRoadActive(iso2)) continue;
-
-          const entry = ROADS_MANIFEST[iso2];
-          if (entry) {
-            const b = entry.bbox;
-            if (
-              mapX < b.minX - toleranceMap ||
-              mapX > b.maxX + toleranceMap ||
-              mapY < b.minY - toleranceMap ||
-              mapY > b.maxY + toleranceMap
-            ) {
-              continue;
-            }
-          }
-          const roads = loadedRoadsRef.current.get(iso2);
-          if (!roads) continue;
-
-          for (let i = 0; i < roads.length; i++) {
-            const road = roads[i];
-            const roadIso = road.iso2 || iso2;
-            if (!isCountryRoadClassActive(roadIso, road.class)) continue;
-
-            const [minX, minY, maxX, maxY] = road.bbox;
-            if (
-              mapX < minX - toleranceMap ||
-              mapX > maxX + toleranceMap ||
-              mapY < minY - toleranceMap ||
-              mapY > maxY + toleranceMap
-            ) {
-              continue;
-            }
-
-            if (road.path2D && ctx.isPointInStroke(road.path2D, mx * dpr, my * dpr)) {
-              if (road.class === 'Interstate') {
-                return { type: 'road', data: road };
-              }
-              if (!candidateFederal) {
-                candidateFederal = road;
-              }
-            }
-          }
-        }
-      }
-      if (candidateFederal) {
-        return { type: 'road', data: candidateFederal };
-      }
-    }
-
-    // 2. Normal Mode: Hierarchical Polygon Hit-Testing (L3 -> L2 Prefectures -> L2 Subdivisions -> L1 Countries)
-    for (const copyIdx of WORLD_COPIES) {
-      const mapX = (mx - x) / k - copyIdx * MAP_W;
-      const mapY = (my - y) / k;
-
-      if (mapX < 0 || mapX > MAP_W || mapY < 0 || mapY > MAP_H) {
-        continue;
-      }
-
-      ctx.setTransform(
-        k * dpr,
-        0,
-        0,
-        k * dpr,
-        (x + copyIdx * MAP_W * k) * dpr,
-        y * dpr
-      );
-
-      // 2a. Check L3 Municipalities / Subdivisions (if L3 mode and copy 0 or 1)
-      if (lodLevelRef.current === 'L3' && (copyIdx === 0 || copyIdx === 1)) {
-        const activeParent = activeL3ParentRef.current;
-        if (activeParent) {
-          const children = getL3SubdivisionsForParent(
-            activeParent.iso2,
-            activeParent.name,
-            activeParent.code,
-            activeParent.id
-          );
-          for (let pIdx = 0; pIdx < children.length; pIdx++) {
-            const item = children[pIdx];
-            const [minX, minY, maxX, maxY] = item.bbox;
-            if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-
-            if (ctx.isPointInPath(item.path2D, mx * dpr, my * dpr)) {
-              const cMeta = findCountry(item.iso2);
-              return {
-                type: 'municipality',
-                data: {
-                  code: item.id || item.code,
-                  pref: item.parentName,
-                  city: item.name,
-                  nameZh: item.nameZh || `${item.parentName} ${item.name}`,
-                  iso2: item.iso2,
-                  countryName: cMeta?.name || '',
-                  countryNameZh: cMeta?.nameZh || '',
-                  countryFlag: cMeta?.flag || '🌐',
-                  typeEn: item.typeEn || 'District',
-                  parentName: item.parentName,
-                  parentCode: item.parentCode
-                }
-              };
-            }
-          }
-
-          // Check if cursor is over water/gap within active parent
-          if (activeParent.path2D) {
-            const [minX, minY, maxX, maxY] = activeParent.bbox;
-            if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
-              if (ctx.isPointInPath(activeParent.path2D, mx * dpr, my * dpr)) {
-                return {
-                  type: 'activeParentInterior',
-                  data: activeParent
-                };
-              }
-            }
-          }
-        }
-      }
-
-      // 2a-2. Check Taipower Grid Zones (if filter active at L2/L3)
-      const isL2RegionMode = lodLevelRef.current === 'L2' || lodLevelRef.current === 'L3';
-      if (isL2RegionMode && activeRegionalFiltersRef.current?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
-        const tpItems = taipowerZoneRenderItemsRef.current;
-        for (let i = 0; i < tpItems.length; i++) {
-          const item = tpItems[i];
-          const [minX, minY, maxX, maxY] = item.bbox;
-          if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-          if (ctx.isPointInPath(item.polygonPath2D, mx * dpr, my * dpr)) {
-            return {
-              type: 'taipowerZone',
-              data: item.zone
-            };
-          }
-        }
-      }
-
-      // 2b. Check L2 Admin-1 Subdivisions with Hierarchical Country BBox Index (Only in L2/L3 mode)
-      if (isL2RegionMode && (copyIdx === 0 || copyIdx === 1)) {
-        const countryBBoxes = countryBBoxesRef.current;
-        const l2ByCountry = l2PathsByCountryRef.current;
-
-        for (const iso2 in l2ByCountry) {
-          const cBox = countryBBoxes[iso2];
-          if (cBox) {
-            // Fast reject: If cursor is not inside country bbox, skip all its subdivisions!
-            if (mapX < cBox[0] || mapX > cBox[2] || mapY < cBox[1] || mapY > cBox[3]) continue;
-          }
-
-          const subs = l2ByCountry[iso2];
-          if (!subs) continue;
-          for (let i = 0; i < subs.length; i++) {
-            const sub = subs[i];
-            const [minX, minY, maxX, maxY] = sub.bbox;
-            if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-            if (ctx.isPointInPath(sub.path2D, mx * dpr, my * dpr)) {
-              return { type: 'l2Subdivision', data: sub };
-            }
-          }
-        }
-      }
-
-      // 2c. Check L1 Countries (At L1, check ALL countries; at L2/L3, check countries NOT covered by L2)
-      const useHighRes = k >= 1.8;
-      for (let i = 0; i < countryPathData.length; i++) {
-        const c = countryPathData[i];
-        const iso2 = c.countryMeta?.iso2;
-        if (isL2RegionMode && iso2 && l2PathsByCountryRef.current[iso2]) continue;
-
-        const path = (useHighRes && !isL2RegionMode && iso2 && l2CountryDissolvedPathsRef.current[iso2]) || c.path2D;
-        const [minX, minY, maxX, maxY] =
-          (useHighRes && !isL2RegionMode && iso2 && countryBBoxesRef.current[iso2]) || c.bbox;
-        if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
-        if (ctx.isPointInPath(path, mx * dpr, my * dpr)) {
-          return { type: 'country', data: c };
-        }
-      }
-    }
-
-    return null;
-  }, [
-    countryPathData,
-    countryPathMap,
-    getL3SubdivisionsForParent,
-    isAnyRoadActive,
-    isCountryAnyRoadActive,
-    isCountryRoadClassActive
-  ]);
+  const getFeatureAtPoint = useCallback(
+    (clientX: number, clientY: number): HitFeature | null => {
+      return hitTestMapFeature({
+        clientX,
+        clientY,
+        container: containerRef.current,
+        canvas: canvasRef.current,
+        transform: transformRef.current,
+        currentLod: lodLevelRef.current,
+        activeInternationalImageFilter: activeInternationalImageFilterRef.current,
+        activeRegionalFilters: activeRegionalFiltersRef.current,
+        renderedCrossingBadges: renderedCrossingBadgesRef.current,
+        countryPathData,
+        countryPathMap,
+        isAnyRoadActive,
+        isCountryAnyRoadActive,
+        isCountryRoadClassActive,
+        visibleRoadCopies: visibleRoadCopiesRef.current,
+        visibleRoadIso2s: visibleRoadIso2sRef.current,
+        loadedRoads: loadedRoadsRef.current,
+        activeL3Parent: activeL3ParentRef.current,
+        getL3SubdivisionsForParent,
+        taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
+        countryBBoxes: countryBBoxesRef.current,
+        l2ByCountry: l2PathsByCountryRef.current,
+        l2DissolvedByCountry: l2CountryDissolvedPathsRef.current
+      });
+    },
+    [
+      countryPathData,
+      countryPathMap,
+      getL3SubdivisionsForParent,
+      isAnyRoadActive,
+      isCountryAnyRoadActive,
+      isCountryRoadClassActive
+    ]
+  );
 
   // Map Click Handler: selects feature or deselects when clicking empty space
   const handleMapClick = useCallback(
@@ -2301,7 +1089,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const currentLod = lodLevelRef.current;
 
         if (currentLod === 'L1') {
-          // L1 Mode: Click selects the parent Country and displays L1 Country card
           const cMeta = findCountry(sub.iso2);
           selectedL2SubdivisionRef.current = null;
           if (onSelectSubdivision) onSelectSubdivision(null);
@@ -2313,7 +1100,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             onSelectCountry(null);
           }
         } else {
-          // L2 / L3 Mode: Click selects the L2 Subdivision and displays L2 Subdivision card
           const selObj = { iso2: sub.iso2, id: sub.id };
           selectedL2SubdivisionRef.current = selObj;
           loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
@@ -2357,7 +1143,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
       requestRender();
     },
-    [onSelectRoad, onSelectCountry, onSelectSubdivision, onSelectPrefecture, onSelectMunicipality, getFeatureAtPoint, loadL3PackForSubdivision, requestRender]
+    [
+      onSelectRoad,
+      onSelectCountry,
+      onSelectSubdivision,
+      onSelectPrefecture,
+      onSelectMunicipality,
+      getFeatureAtPoint,
+      loadL3PackForSubdivision,
+      requestRender
+    ]
   );
 
   const clearHover = useCallback((): boolean => {
@@ -2394,15 +1189,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   }, [setHoveredCountry]);
 
   const applyHover = useCallback(
-    (
-      next: {
-        road?: RoadPathData | null;
-        country?: CountryData | null;
-        municipality?: MunicipalityDetail | null;
-        l2?: L2SubdivisionDetail | null;
-        taipower?: TaipowerZoneDef | null;
-      }
-    ) => {
+    (next: {
+      road?: RoadPathData | null;
+      country?: CountryData | null;
+      municipality?: MunicipalityDetail | null;
+      l2?: L2SubdivisionDetail | null;
+      taipower?: TaipowerZoneDef | null;
+    }) => {
       const road = next.road ?? null;
       const country = next.country ?? null;
       const municipality = next.municipality ?? null;
@@ -2512,7 +1305,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const currentLod = lodLevelRef.current;
 
         if (currentLod === 'L1') {
-          // L1 Mode: Map detected L2 subdivision to its parent L1 Country!
           const cMeta =
             findCountry(sub.iso2) ||
             makeUnknownCountry(sub.iso2, sub.iso2, sub.nameEn || sub.iso2, sub.nameZh || sub.iso2);
@@ -2521,7 +1313,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             applyHover({ country: cMeta });
           }
         } else {
-          // L2 / L3 Mode: Hover target is the L2 subdivision itself!
           if (currentLod === 'L3') {
             if (activeL3ParentRef.current?.iso2 !== sub.iso2 || activeL3ParentRef.current?.id !== sub.id) {
               activeL3ParentRef.current = {
@@ -2590,7 +1381,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const now = performance.now();
       if (now - lastDragSyncTime.current > 200) {
         lastDragSyncTime.current = now;
-        syncRegionalFiltersViewport(k, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, lodLevelRef.current);
+        syncRegionalFiltersViewport(
+          k,
+          transformRef.current.x,
+          transformRef.current.y,
+          viewportSize.current.w,
+          vh,
+          lodLevelRef.current
+        );
       }
 
       if (!rafId.current) {
@@ -2602,9 +1400,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return;
     }
 
-    // When hovering over UI controls, shield canvas from penetration
     const target = e.target as Element | null;
-    const isOverControl = !!target?.closest('.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud');
+    const isOverControl = !!target?.closest(
+      '.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud'
+    );
 
     if (isOverControl) {
       if (hoverRafId.current !== null) {
@@ -2706,28 +1505,34 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return () => el.removeEventListener('wheel', onWheel);
   }, [wrapX, clampY, applyLOD, scheduleZoomKState, syncAllViewports, requestRender]);
 
-  const handleZoom = (direction: 'in' | 'out') => {
-    const factor = direction === 'in' ? 1.35 : 0.74;
-    const { k, x, y } = transformRef.current;
-    const vh = viewportSize.current.h;
-    const vw = viewportSize.current.w;
-    const kMin = vh / MAP_H;
-    const newK = Math.min(Math.max(k * factor, kMin), MAX_ZOOM_K);
+  const handleZoom = useCallback(
+    (direction: 'in' | 'out') => {
+      const factor = direction === 'in' ? 1.35 : 0.74;
+      const { k, x, y } = transformRef.current;
+      const vh = viewportSize.current.h;
+      const vw = viewportSize.current.w;
+      const kMin = vh / MAP_H;
+      const newK = Math.min(Math.max(k * factor, kMin), MAX_ZOOM_K);
 
-    const cx = vw / 2;
-    const cy = vh / 2;
-    const newX = wrapX(cx - (cx - x) * (newK / k), newK);
-    const newY = clampY(cy - (cy - y) * (newK / k), newK, vh);
+      const cx = vw / 2;
+      const cy = vh / 2;
+      const newX = wrapX(cx - (cx - x) * (newK / k), newK);
+      const newY = clampY(cy - (cy - y) * (newK / k), newK, vh);
 
-    const nextLOD = getLODLevel(newK, lodThresholds);
-    applyLOD(nextLOD);
-    setZoomK(Number(newK.toFixed(1)));
-    animateTo(newK, newX, newY, 280, () => {
-      syncAllViewports(newK, newX, newY, vw, vh, nextLOD);
-    });
-  };
+      const nextLOD = getLODLevel(newK, lodThresholdsRef.current);
+      applyLOD(nextLOD);
+      setZoomK(Number(newK.toFixed(1)));
+      animateTo(newK, newX, newY, 280, () => {
+        syncAllViewports(newK, newX, newY, vw, vh, nextLOD);
+      });
+    },
+    [wrapX, clampY, applyLOD, animateTo, syncAllViewports]
+  );
 
-  const handleResetZoom = () => {
+  const handleZoomIn = useCallback(() => handleZoom('in'), [handleZoom]);
+  const handleZoomOut = useCallback(() => handleZoom('out'), [handleZoom]);
+
+  const handleResetZoom = useCallback(() => {
     const vh = viewportSize.current.h;
     const vw = viewportSize.current.w;
     const kMin = vh / MAP_H;
@@ -2735,13 +1540,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const targetX = wrapX(vw / 2 - (MAP_W / 2) * kMin, kMin);
     const targetY = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
 
-    const targetLOD = getLODLevel(kMin, lodThresholds);
+    const targetLOD = getLODLevel(kMin, lodThresholdsRef.current);
     setZoomK(Number(kMin.toFixed(1)));
     applyLOD(targetLOD);
     animateTo(kMin, targetX, targetY, 320, () => {
       syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
     });
-  };
+  }, [wrapX, clampY, applyLOD, animateTo, syncAllViewports]);
 
   // Draggable continuous slider zoom adjustment
   const handleSliderZoom = useCallback(
@@ -2796,7 +1601,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Synchronize state and prop changes into render refs
   useEffect(() => {
     selectedCountryRef.current = selectedCountry;
-    if (selectedCountry && selectedL2SubdivisionRef.current && selectedL2SubdivisionRef.current.iso2 !== selectedCountry.iso2) {
+    if (
+      selectedCountry &&
+      selectedL2SubdivisionRef.current &&
+      selectedL2SubdivisionRef.current.iso2 !== selectedCountry.iso2
+    ) {
       selectedL2SubdivisionRef.current = null;
     }
     requestRender();
@@ -2840,8 +1649,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     activeRegionalFiltersRef.current = activeRegionalFilters;
+    const { k, x, y } = transformRef.current;
+    syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, isAnyRoadActive());
     requestRender();
-  }, [activeRegionalFilters, requestRender]);
+  }, [activeRegionalFilters, syncRoadsViewport, isAnyRoadActive, requestRender]);
 
   // Preload European pedestrian crossing sign images when filter is activated
   useEffect(() => {
@@ -2964,7 +1775,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
             const paths: L2SubdivisionPathData[] = [];
             const countryPath = new Path2D();
-            let cMinX = Infinity, cMinY = Infinity, cMaxX = -Infinity, cMaxY = -Infinity;
+            let cMinX = Infinity,
+              cMinY = Infinity,
+              cMaxX = -Infinity,
+              cMaxY = -Infinity;
 
             for (let i = 0; i < decoded.length; i++) {
               const f = decoded[i];
@@ -2999,7 +1813,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               l2CountryDissolvedPathsRef.current[iso2] = new Path2D(dissolvedD);
             }
 
-            // Redraw if already zoomed into high-res L1 (k >= 1.8) or L2/L3 mode
             if (transformRef.current.k >= 1.8 || lodLevelRef.current !== 'L1') {
               requestRender();
             }
@@ -3061,7 +1874,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets (decoded in background worker)
   useEffect(() => {
-    if (!showRoads) return;
+    if (!showRoads && !isAnyRoadActive()) return;
 
     let isMounted = true;
     for (const iso2 of visibleRoadIso2s) {
@@ -3071,15 +1884,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       (async () => {
         try {
-          const { features } = await decodeGeo(`/data/roads/${iso2}.fgb`, 'roads', iso2);
+          const { features: decoded } = await decodeGeo(`/data/roads/${iso2}.fgb`, 'roads', iso2);
           if (!isMounted) return;
 
           const paths: RoadPathData[] = [];
           const interstatesPath2D = new Path2D();
           const usRoutesPath2D = new Path2D();
 
-          for (let i = 0; i < features.length; i++) {
-            const f = features[i];
+          for (let i = 0; i < decoded.length; i++) {
+            const f = decoded[i];
             const p = f.props;
             const roadClass = p.class === 'Interstate' ? 'Interstate' : 'Federal';
             const path2D = new Path2D(f.d);
@@ -3123,7 +1936,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [visibleRoadIso2s, showRoads, requestRender]);
+  }, [visibleRoadIso2s, showRoads, activeRegionalFilters, isAnyRoadActive, requestRender]);
 
   // Update container size on resize
   useEffect(() => {
@@ -3217,346 +2030,46 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   }, [zoomToPrefectureRef, wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD]);
 
-  // Arrow key navigation: Panning when unclicked, circular iteration when clicked
-  useEffect(() => {
-    const startSmoothPan = () => {
-      if (panRafIdRef.current !== null) return;
-      lastPanTimeRef.current = performance.now();
-
-      const loop = (now: number) => {
-        const dt = Math.min((now - lastPanTimeRef.current) / 1000, 0.05);
-        lastPanTimeRef.current = now;
-
-        const keys = pressedArrowKeys.current;
-        let targetVx = 0;
-        let targetVy = 0;
-        const speed = isShiftPressedRef.current ? 1700 : 800;
-
-        if (keys.has('ArrowUp')) targetVy += speed;
-        if (keys.has('ArrowDown')) targetVy -= speed;
-        if (keys.has('ArrowLeft')) targetVx += speed;
-        if (keys.has('ArrowRight')) targetVx -= speed;
-
-        // Normalize diagonal speed
-        if (targetVx !== 0 && targetVy !== 0) {
-          targetVx *= 0.7071;
-          targetVy *= 0.7071;
-        }
-
-        const isHolding = targetVx !== 0 || targetVy !== 0;
-        const accelRate = isHolding ? 14 : 9;
-        const blend = Math.min(1, accelRate * dt);
-
-        const v = panVelocityRef.current;
-        v.vx += (targetVx - v.vx) * blend;
-        v.vy += (targetVy - v.vy) * blend;
-
-        const currentK = transformRef.current.k;
-        const vh = viewportSize.current.h;
-        const vw = viewportSize.current.w;
-
-        const newX = wrapX(transformRef.current.x + v.vx * dt, currentK);
-        const newY = clampY(transformRef.current.y + v.vy * dt, currentK, vh);
-
-        transformRef.current.x = newX;
-        transformRef.current.y = newY;
-
-        renderCanvas();
-        updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-        syncAllViewports(currentK, newX, newY, vw, vh, lodLevelRef.current);
-
-        if (!isHolding && Math.abs(v.vx) < 1.5 && Math.abs(v.vy) < 1.5) {
-          v.vx = 0;
-          v.vy = 0;
-          panRafIdRef.current = null;
-          updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-          return;
-        }
-
-        panRafIdRef.current = requestAnimationFrame(loop);
-      };
-
-      panRafIdRef.current = requestAnimationFrame(loop);
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in form controls or a modal is open
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target as HTMLElement)?.isContentEditable ||
-        document.querySelector('.modal-overlay')
-      ) {
-        return;
-      }
-
-      const isArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
-      if (!isArrowKey) return;
-
-      // Prevent window scroll
-      e.preventDefault();
-      isShiftPressedRef.current = e.shiftKey;
-
-      const isForward = e.key === 'ArrowRight' || e.key === 'ArrowDown';
-      const dir = isForward ? 1 : -1;
-
-      // Stop any unclicked smooth panning if entering clicked iteration
-      const isClicked =
-        !!selectedRoadRef.current ||
-        !!selectedMunicipalityRef.current ||
-        !!selectedL2SubdivisionRef.current ||
-        !!selectedCountryRef.current;
-
-      if (isClicked && panRafIdRef.current) {
-        cancelAnimationFrame(panRafIdRef.current);
-        panRafIdRef.current = null;
-        panVelocityRef.current = { vx: 0, vy: 0 };
-        pressedArrowKeys.current.clear();
-      }
-
-      // 1. Road Selected: Iterate through highways/routes
-      if (selectedRoadRef.current) {
-        const roadList: RoadPathData[] = [];
-        const seenNames = new Set<string>();
-        for (const bundle of roadBundlesRef.current.values()) {
-          for (const r of bundle.roads) {
-            if (!seenNames.has(r.name)) {
-              seenNames.add(r.name);
-              roadList.push(r);
-            }
-          }
-        }
-
-        if (roadList.length > 0) {
-          roadList.sort((a, b) => {
-            if (a.class !== b.class) {
-              return a.class === 'Interstate' ? -1 : 1;
-            }
-            const numA = parseInt(a.number, 10);
-            const numB = parseInt(b.number, 10);
-            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
-              return numA - numB;
-            }
-            return a.name.localeCompare(b.name);
-          });
-
-          const currentIdx = roadList.findIndex((r) => r.name === selectedRoadRef.current?.name);
-          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + roadList.length) % roadList.length;
-          const nextRoad = roadList[nextIdx];
-
-          if (onSelectRoad) onSelectRoad(nextRoad);
-          selectedRoadRef.current = nextRoad;
-
-          const cx = (nextRoad.bbox[0] + nextRoad.bbox[2]) / 2;
-          const cy = (nextRoad.bbox[1] + nextRoad.bbox[3]) / 2;
-          const targetK = transformRef.current.k;
-          const vh = viewportSize.current.h;
-          const vw = viewportSize.current.w;
-          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
-
-          animateTo(targetK, targetX, targetY, 250, () => {
-            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
-            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-          });
-          requestRender();
-        }
-        return;
-      }
-
-      // 2. L3 Region Selected: Iterate through siblings in the same L2 parent
-      if (selectedMunicipalityRef.current) {
-        const currentM = selectedMunicipalityRef.current;
-        const iso2 = currentM.iso2 || activeL3ParentRef.current?.iso2 || '';
-        const parentName = currentM.parentName || currentM.pref || activeL3ParentRef.current?.name;
-        const parentCode = currentM.parentCode || (currentM.prefId ? String(currentM.prefId) : undefined) || activeL3ParentRef.current?.code;
-        const parentId = currentM.prefId || activeL3ParentRef.current?.id;
-
-        const siblings = getL3SubdivisionsForParent(iso2, parentName, parentCode, parentId);
-
-        if (siblings.length > 0) {
-          const sortedChildren = [...siblings].sort((a, b) =>
-            (a.code || a.id).localeCompare(b.code || b.id) || a.name.localeCompare(b.name)
-          );
-
-          const currentIdx = sortedChildren.findIndex(
-            (c) => c.id === currentM.code || c.code === currentM.code || c.name === currentM.city
-          );
-          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + sortedChildren.length) % sortedChildren.length;
-          const nextChild = sortedChildren[nextIdx];
-
-          const cMeta = findCountry(nextChild.iso2);
-          const newMuni: MunicipalityDetail = {
-            code: nextChild.id || nextChild.code,
-            pref: nextChild.parentName,
-            city: nextChild.name,
-            nameZh: nextChild.nameZh || `${nextChild.parentName} ${nextChild.name}`,
-            iso2: nextChild.iso2,
-            countryName: cMeta?.name || '',
-            countryNameZh: cMeta?.nameZh || '',
-            countryFlag: cMeta?.flag || '🌐',
-            typeEn: nextChild.typeEn || 'District',
-            parentName: nextChild.parentName,
-            parentCode: nextChild.parentCode
-          };
-          if (nextChild.iso2 === 'JP' && (nextChild.parentCode || activeL3ParentRef.current?.id)) {
-            newMuni.prefId = Number(nextChild.parentCode || activeL3ParentRef.current?.id);
-          }
-
-          if (onSelectMunicipality) onSelectMunicipality(newMuni);
-          selectedMunicipalityRef.current = newMuni;
-
-          const cx = (nextChild.bbox[0] + nextChild.bbox[2]) / 2;
-          const cy = (nextChild.bbox[1] + nextChild.bbox[3]) / 2;
-          const targetK = transformRef.current.k;
-          const vh = viewportSize.current.h;
-          const vw = viewportSize.current.w;
-          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
-
-          animateTo(targetK, targetX, targetY, 200, () => {
-            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
-            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-          });
-          requestRender();
-        }
-        return;
-      }
-
-      // 3. L2 Subdivision Selected: Iterate through subdivisions in current country
-      if (selectedL2SubdivisionRef.current) {
-        const iso2 = selectedL2SubdivisionRef.current.iso2;
-        const list = l2PathsByCountryRef.current[iso2] || [];
-
-        if (list.length > 0) {
-          const sortedL2 = [...list].sort((a, b) =>
-            (a.code || a.name).localeCompare(b.code || b.name) || String(a.id).localeCompare(String(b.id))
-          );
-
-          const currentIdx = sortedL2.findIndex(
-            (s) => String(s.id) === String(selectedL2SubdivisionRef.current?.id)
-          );
-          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + sortedL2.length) % sortedL2.length;
-          const nextSub = sortedL2[nextIdx];
-
-          const selObj = { iso2: nextSub.iso2, id: nextSub.id };
-          selectedL2SubdivisionRef.current = selObj;
-
-          const nextSubDetail = toL2Detail(nextSub);
-          if (onSelectSubdivision) onSelectSubdivision(nextSubDetail);
-          if (onSelectCountry) onSelectCountry(null);
-
-          if (nextSub.iso2 === 'JP' && onSelectPrefecture) {
-            onSelectPrefecture(JAPAN_PREFECTURES[Number(nextSub.id)] || null);
-          } else if (onSelectPrefecture) {
-            onSelectPrefecture(null);
-          }
-
-          if (lodLevelRef.current === 'L3') {
-            loadL3PackForSubdivision(nextSub.iso2, nextSub.code, nextSub.name, nextSub.id);
-            activeL3ParentRef.current = {
-              iso2: nextSub.iso2,
-              id: nextSub.id,
-              name: nextSub.name,
-              code: nextSub.code,
-              bbox: nextSub.bbox,
-              path2D: nextSub.path2D
-            };
-          }
-
-          const [cx, cy] = nextSub.centroid;
-          const targetK = transformRef.current.k;
-          const vh = viewportSize.current.h;
-          const vw = viewportSize.current.w;
-          const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-          const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
-
-          animateTo(targetK, targetX, targetY, 250, () => {
-            syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
-            updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-          });
-          requestRender();
-        }
-        return;
-      }
-
-      // 4. L1 Country Selected: Iterate through countries
-      if (selectedCountryRef.current) {
-        if (deterministicCountries.length > 0) {
-          const currentC = selectedCountryRef.current;
-          const currentIdx = deterministicCountries.findIndex(
-            (c) => c.countryMeta?.id === currentC.id || c.countryMeta?.iso2 === currentC.iso2
-          );
-          const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + deterministicCountries.length) % deterministicCountries.length;
-          const nextCountry = deterministicCountries[nextIdx];
-
-          if (nextCountry.countryMeta) {
-            onSelectCountry(nextCountry.countryMeta);
-            selectedCountryRef.current = nextCountry.countryMeta;
-            selectedL2SubdivisionRef.current = null;
-            if (onSelectSubdivision) onSelectSubdivision(null);
-            if (onSelectPrefecture) onSelectPrefecture(null);
-            if (onSelectMunicipality) onSelectMunicipality(null);
-            selectedMunicipalityRef.current = null;
-
-            const [cx, cy] = nextCountry.centroid;
-            const currentK = transformRef.current.k;
-            const targetK = currentK > 2.8 ? 2.2 : currentK;
-            const vh = viewportSize.current.h;
-            const vw = viewportSize.current.w;
-            const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-            const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
-
-            animateTo(targetK, targetX, targetY, 300, () => {
-              syncAllViewports(targetK, targetX, targetY, vw, vh, lodLevelRef.current);
-              updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-            });
-            requestRender();
-          }
-        }
-        return;
-      }
-
-      // 5. Unclicked State: Continuous smooth physics pan loop
-      pressedArrowKeys.current.add(e.key);
-      startSmoothPan();
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      pressedArrowKeys.current.delete(e.key);
-      isShiftPressedRef.current = e.shiftKey;
-    };
-
-    const handleBlur = () => {
-      pressedArrowKeys.current.clear();
-      if (panRafIdRef.current) {
-        cancelAnimationFrame(panRafIdRef.current);
-        panRafIdRef.current = null;
-        panVelocityRef.current = { vx: 0, vy: 0 };
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', handleBlur);
-      if (panRafIdRef.current) {
-        cancelAnimationFrame(panRafIdRef.current);
-        panRafIdRef.current = null;
-      }
-    };
-  }, [
+  // Arrow key navigation hook
+  useKeyboardNav({
     deterministicCountries,
+    getTransform: () => transformRef.current,
+    setTransformXY: (x, y) => {
+      transformRef.current.x = x;
+      transformRef.current.y = y;
+    },
+    getViewport: () => viewportSize.current,
+    getMousePos: () => mousePos.current,
+    getLodLevel: () => lodLevelRef.current,
+    getSelectedRoad: () => selectedRoadRef.current,
+    setSelectedRoadRef: (r) => {
+      selectedRoadRef.current = r;
+    },
+    getSelectedMunicipality: () => selectedMunicipalityRef.current,
+    setSelectedMunicipalityRef: (m) => {
+      selectedMunicipalityRef.current = m;
+    },
+    getSelectedL2Subdivision: () => selectedL2SubdivisionRef.current,
+    setSelectedL2SubdivisionRef: (s) => {
+      selectedL2SubdivisionRef.current = s;
+    },
+    getSelectedCountry: () => selectedCountryRef.current,
+    setSelectedCountryRef: (c) => {
+      selectedCountryRef.current = c;
+    },
+    getActiveL3Parent: () => activeL3ParentRef.current,
+    setActiveL3Parent: (p) => {
+      activeL3ParentRef.current = p;
+    },
+    getRoadBundles: () => roadBundlesRef.current,
+    getL2PathsForCountry: (iso2) => l2PathsByCountryRef.current[iso2] || [],
+    getL3SubdivisionsForParent,
+    loadL3PackForSubdivision,
     onSelectCountry,
     onSelectSubdivision,
     onSelectPrefecture,
     onSelectMunicipality,
     onSelectRoad,
-    getL3SubdivisionsForParent,
-    loadL3PackForSubdivision,
     wrapX,
     clampY,
     animateTo,
@@ -3564,7 +2077,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     renderCanvas,
     requestRender,
     updateHoverAtPoint
-  ]);
+  });
 
   return (
     <div
@@ -3624,315 +2137,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           </div>
         </div>
       ) : (
-        <canvas
-          ref={canvasRef}
-          className="world-map-canvas"
-        />
+        <canvas ref={canvasRef} className="world-map-canvas" />
       )}
 
       {/* Dynamic Floating Hover Tooltip */}
-      {(hoveredRoad || hoveredCountry || hoveredMunicipality || hoveredL2Subdivision || hoveredTaipowerZone) && (
-        <div
-          ref={(node) => {
-            tooltipRef.current = node;
-            if (node) {
-              node.style.left = `${mousePos.current.x}px`;
-              node.style.top = `${mousePos.current.y - 12}px`;
-            }
-          }}
-          className="map-tooltip"
-        >
-          {/* Taiwan Taipower Pole Grid Tooltip */}
-          {!hoveredRoad && hoveredTaipowerZone && (
-            <>
-              <div className="tooltip-header">
-                <span className="tooltip-flag" role="img" aria-label="grid">⚡</span>
-                <div>
-                  <div className="tooltip-name" style={{ color: hoveredTaipowerZone.color }}>
-                    台電電力座標 · {hoveredTaipowerZone.letter} 區
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {hoveredTaipowerZone.nameZh}
-                  </div>
-                </div>
-              </div>
-              <div className="tooltip-meta" style={{ flexWrap: 'wrap', gap: 4 }}>
-                <span className="tooltip-badge" style={{ color: '#fbbf24', fontFamily: 'monospace', fontWeight: 700 }}>
-                  電桿範例: {hoveredTaipowerZone.examplePoleCode}
-                </span>
-                <span className="tooltip-badge" style={{ color: '#38bdf8' }}>
-                  80km × 50km 大分區
-                </span>
-              </div>
-              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
-                <div style={{ color: '#38bdf8', fontWeight: 600, marginBottom: 2 }}>【GeoGuessr 百分比座標解讀】</div>
-                <div>• 首字「<strong style={{ color: hoveredTaipowerZone.color }}>{hoveredTaipowerZone.letter}</strong>」：代表本 80km × 50km 大分區</div>
-                <div>• 前兩碼數字：由西向東橫向百分比（X% · 00~99）</div>
-                <div>• 後兩碼數字：由南向北縱向百分比（Y% · 00~99）</div>
-                <div style={{ marginTop: 4, color: '#cbd5e1' }}>涵蓋：{hoveredTaipowerZone.subdivisionsZh.join('、')}</div>
-              </div>
-            </>
-          )}
-
-          {/* L3 Municipality / Subdivision Tooltip */}
-          {!hoveredRoad && hoveredMunicipality && (
-            <>
-              <div className="tooltip-header">
-                <span className="tooltip-flag" role="img" aria-label="muni">{hoveredMunicipality.countryFlag || '🏙️'}</span>
-                <div>
-                  <div className="tooltip-name">{hoveredMunicipality.city}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {hoveredMunicipality.pref} · {hoveredMunicipality.countryNameZh || '日本'}
-                  </div>
-                </div>
-              </div>
-              <div className="tooltip-meta">
-                <span className="tooltip-badge" style={{ color: '#fbbf24' }}>
-                  {hoveredMunicipality.typeEn || '市區町村'}
-                </span>
-                {hoveredMunicipality.code && (
-                  <span className="tooltip-badge" style={{ color: '#38bdf8' }}>
-                    #{hoveredMunicipality.code}
-                  </span>
-                )}
-                <span className="tooltip-badge" style={{ color: '#34d399' }}>
-                  點擊展開詳細
-                </span>
-              </div>
-            </>
-          )}
-
-          {/* L2 Worldwide Subdivision Tooltip */}
-          {!hoveredRoad && hoveredL2Subdivision && (
-            <>
-              <div className="tooltip-header">
-                <span className="tooltip-flag">{hoveredL2Subdivision.countryFlag}</span>
-                <div>
-                  <div className="tooltip-name">
-                    {hoveredL2Subdivision.nameZh}
-                    {hoveredL2Subdivision.nameEn && hoveredL2Subdivision.nameEn !== hoveredL2Subdivision.nameZh
-                      ? ` (${hoveredL2Subdivision.nameEn})`
-                      : ''}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {hoveredL2Subdivision.countryNameZh} ({hoveredL2Subdivision.countryName})
-                    {hoveredL2Subdivision.typeEn ? ` · ${hoveredL2Subdivision.typeEn}` : ''}
-                  </div>
-                </div>
-              </div>
-              <div className="tooltip-meta">
-                <span className="tooltip-badge" style={{ color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                  L2 · 第一級行政區
-                </span>
-                {hoveredL2Subdivision.code && (
-                  <span className="tooltip-badge" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                    {hoveredL2Subdivision.code}
-                  </span>
-                )}
-                {hoveredL2Subdivision.postal && (
-                  <span className="tooltip-badge" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
-                    郵區: {hoveredL2Subdivision.postal}
-                  </span>
-                )}
-              </div>
-              {activeRegionalFilters.has('eu-pedestrian-crossing') && (() => {
-                const cSign = getCrossingSign(hoveredL2Subdivision.iso2);
-                if (!cSign) return null;
-                return (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      paddingTop: 6,
-                      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8
-                    }}
-                  >
-                    <img
-                      src={cSign.imagePath}
-                      alt="crossing"
-                      style={{ width: 24, height: 24, objectFit: 'contain' }}
-                    />
-                    <div style={{ fontSize: 11, color: '#38bdf8', lineHeight: 1.25 }}>
-                      <strong>行人告示：</strong>{cSign.descriptionZh}
-                    </div>
-                  </div>
-                );
-              })()}
-              {activeRegionalFilters.has('nationwide-capital') &&
-                isCapitalSubdivision(hoveredL2Subdivision.iso2, hoveredL2Subdivision) && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      paddingTop: 6,
-                      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      color: '#f59e0b',
-                      fontSize: 11,
-                      fontWeight: 600
-                    }}
-                  >
-                    <span>👑 國家首都所在一級行政區</span>
-                  </div>
-                )}
-            </>
-          )}
-
-          {/* Road Network Tooltip */}
-          {hoveredRoad && (() => {
-            const roadCountry = hoveredRoad.iso2 ? findCountry(hoveredRoad.iso2) : undefined;
-            const meta = getRoadSystemMeta(hoveredRoad, roadCountry);
-            return (
-              <>
-                <div className="tooltip-header">
-                  <span className="tooltip-flag">{meta.flag}</span>
-                  <div>
-                    <div className="tooltip-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: hoveredRoad.class === 'Interstate' ? '#0284c7' : '#d97706',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {hoveredRoad.name}
-                      </span>
-                      <span>
-                        {meta.systemZh}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {meta.systemEn}
-                    </div>
-                  </div>
-                </div>
-                <div className="tooltip-meta">
-                  <span
-                    className="tooltip-badge"
-                    style={{
-                      color: meta.classColor,
-                      borderColor: `${meta.classColor}4d`
-                    }}
-                  >
-                    {meta.classBadge}
-                  </span>
-                  {meta.corridorClue && (
-                    <span className="tooltip-badge">
-                      {meta.corridorClue}
-                    </span>
-                  )}
-                  {meta.subClue && (
-                    <span className="tooltip-badge" style={{ color: '#94a3b8' }}>
-                      {meta.subClue}
-                    </span>
-                  )}
-                </div>
-              </>
-            );
-          })()}
-
-          {/* L1 Country Tooltip */}
-          {!hoveredRoad && hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && (
-            <>
-              <div className="tooltip-header">
-                <span className="tooltip-flag">{hoveredCountry.flag}</span>
-                <div>
-                  <div className="tooltip-name">{hoveredCountry.nameZh}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hoveredCountry.name}</div>
-                </div>
-              </div>
-              <div className="tooltip-meta">
-                <span className="tooltip-badge">
-                  {hoveredCountry.drivingSide === 'left' ? '🚗 靠左行駛' : '🚙 靠右行駛'}
-                </span>
-                {hoveredCountry.coverage === 'official' ? (
-                  <span className="tooltip-badge" style={{ color: '#10b981' }}>官方街景</span>
-                ) : (
-                  <span className="tooltip-badge" style={{ color: '#94a3b8' }}>無官方街景</span>
-                )}
-              </div>
-              {(() => {
-                const mdCards = queryLore({ countryIso2: hoveredCountry.iso2 });
-                if (mdCards && mdCards.length > 0) {
-                  const card = mdCards[0];
-                  const firstItem = card.items[0];
-                  return (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: card.accentColor || '#fbbf24',
-                        marginTop: 4,
-                        lineHeight: 1.3,
-                        borderTop: '1px solid var(--border-color)',
-                        paddingTop: 4
-                      }}
-                    >
-                      {card.icon || '💡'} <strong>{card.title}</strong>
-                      {firstItem && (
-                        <div style={{ color: '#cbd5e1', marginTop: 2, fontSize: 10.5 }}>
-                          {firstItem.label ? `${firstItem.label} ` : ''}
-                          {firstItem.content.length > 75 ? `${firstItem.content.slice(0, 75)}...` : firstItem.content}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-                if (hoveredCountry.keyHints && hoveredCountry.keyHints.length > 0) {
-                  return (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: '#93c5fd',
-                        marginTop: 4,
-                        lineHeight: 1.3,
-                        borderTop: '1px solid var(--border-color)',
-                        paddingTop: 4
-                      }}
-                    >
-                      💡 {hoveredCountry.keyHints[0]}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              {activeRegionalFilters.has('eu-pedestrian-crossing') && (() => {
-                const cSign = getCrossingSign(hoveredCountry.iso2);
-                if (!cSign) return null;
-                return (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      paddingTop: 6,
-                      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8
-                    }}
-                  >
-                    <img
-                      src={cSign.imagePath}
-                      alt="crossing"
-                      style={{ width: 24, height: 24, objectFit: 'contain' }}
-                    />
-                    <div style={{ fontSize: 11, color: '#38bdf8', lineHeight: 1.25 }}>
-                      <strong>行人告示：</strong>{cSign.descriptionZh}
-                    </div>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
-      )}
+      <MapTooltip
+        setTooltipNode={setTooltipNode}
+        hoveredRoad={hoveredRoad}
+        hoveredCountry={hoveredCountry}
+        hoveredMunicipality={hoveredMunicipality}
+        hoveredL2Subdivision={hoveredL2Subdivision}
+        hoveredTaipowerZone={hoveredTaipowerZone}
+        activeRegionalFilters={activeRegionalFilters}
+      />
 
       {/* Floating Precision LOD Tracker HUD */}
       <PrecisionHUD
@@ -3944,236 +2161,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       />
 
       {/* Filter Legend Card */}
-      <div className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''}`}>
-        <div className="legend-title">
-          <span>{activeFilterDef.nameZh}</span>
-        </div>
-        <div className="legend-items-list legend-items">
-          {activeFilterDef.legend.map((item) => (
-            <div key={item.key} className="legend-item-row legend-item">
-              <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
-              <span className="legend-label">{item.labelZh}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Text / Image Overlay Status in Legend */}
-        {((activeTextFilters && activeTextFilters.size > 0) || activeInternationalImageFilter) && (
-          <div className="legend-text-overlays-section">
-            <div className="legend-divider" />
-            <div className="legend-text-overlays-header">
-              <span>已疊加標籤：</span>
-            </div>
-            <div className="legend-text-overlays-pills">
-              {activeTextFilters &&
-                Array.from(activeTextFilters).map((id) => {
-                  const tf = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
-                  if (!tf) return null;
-                  return (
-                    <span
-                      key={id}
-                      className="legend-text-pill"
-                      style={{
-                        borderColor: tf.accentColor,
-                        color: tf.accentColor,
-                        backgroundColor: `${tf.accentColor}18`
-                      }}
-                    >
-                      {tf.shortBadge}
-                    </span>
-                  );
-                })}
-              {activeInternationalImageFilter === 'pedestrian-crossing' && (
-                <span
-                  className="legend-text-pill"
-                  style={{
-                    borderColor: '#38bdf8',
-                    color: '#38bdf8',
-                    backgroundColor: 'rgba(56, 189, 248, 0.12)'
-                  }}
-                >
-                  🚸 人行道告示
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Nationwide Overlay Status in Legend (surfaced only at L2/L3) */}
-        {(lodLevel === 'L2' || lodLevel === 'L3') && activeRegionalFilters.size > 0 && (
-          <div className="legend-text-overlays-section">
-            <div className="legend-divider" />
-            <div className="legend-text-overlays-header">
-              <span>國內專屬圖層：</span>
-            </div>
-            <div className="legend-text-overlays-pills">
-              {Array.from(activeRegionalFilters).map((id) => {
-                const rf = getNationwideFilterById(id) || NATIONWIDE_FILTERS_BY_ID.get(id);
-                if (!rf) return null;
-                return (
-                  <span
-                    key={id}
-                    className="legend-text-pill"
-                    style={{
-                      borderColor: rf.activeColor,
-                      color: rf.activeColor,
-                      backgroundColor: `${rf.activeColor}18`
-                    }}
-                  >
-                    {rf.shortBadge} {rf.nameZh}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+      <MapLegend
+        activeFilterDef={activeFilterDef}
+        isFilterExpanded={isFilterExpanded}
+        activeTextFilters={activeTextFilters}
+        activeInternationalImageFilter={activeInternationalImageFilter}
+        lodLevel={lodLevel}
+        activeRegionalFilters={activeRegionalFilters}
+      />
 
       {/* Map Control Buttons */}
-      <div className="map-controls-panel map-controls">
-        {/* Dynamic Nationwide Filters (Surfaced only when target region is in viewport at L2) */}
-        {visibleRegionalFilters.length > 0 && (
-          <div className="regional-controls-section" title="Nationwide Filter (國內專屬濾鏡 · 僅於 L2 且國家在視野內顯示)">
-            {visibleRegionalFilters.map((filter) => {
-              const isActive = isRegionalFilterActive(filter.id);
-              const isHovered = hoveredRegionalFilterId === filter.id;
-              return (
-                <div
-                  key={filter.id}
-                  style={{ position: 'relative' }}
-                  onMouseEnter={() => setHoveredRegionalFilterId(filter.id)}
-                  onMouseLeave={() => setHoveredRegionalFilterId(null)}
-                >
-                  <button
-                    className={`map-control-btn regional-control-btn ${isActive ? 'active' : ''} ${isHovered ? 'hovered' : ''}`}
-                    onClick={() => handleToggleRegionalFilter(filter.id)}
-                    style={
-                      isActive
-                        ? {
-                            borderColor: filter.activeColor,
-                            backgroundColor: filter.activeColor,
-                            color: '#ffffff',
-                            boxShadow: isHovered
-                              ? `0 0 16px ${filter.activeColor}99`
-                              : `0 0 10px ${filter.activeColor}66`,
-                            transform: isHovered ? 'scale(1.08)' : undefined
-                          }
-                        : isHovered
-                        ? {
-                            borderColor: filter.activeColor,
-                            backgroundColor: `${filter.activeColor}20`,
-                            color: filter.activeColor,
-                            boxShadow: `0 0 14px ${filter.activeColor}45`,
-                            transform: 'scale(1.08)'
-                          }
-                        : undefined
-                    }
-                  >
-                    {filter.shieldType ? (
-                      <RoadShieldBadge
-                        type={filter.shieldType}
-                        label={filter.shortBadge}
-                        active={isActive}
-                        size={22}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 800,
-                          color: isActive ? '#ffffff' : isHovered ? filter.activeColor : 'inherit'
-                        }}
-                      >
-                        {filter.shortBadge}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Enhanced floating tooltip reflecting on the button */}
-                  {isHovered && (
-                    <div
-                      className="regional-btn-floating-tooltip"
-                      style={{
-                        position: 'absolute',
-                        right: 'calc(100% + 12px)',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        backgroundColor: 'rgba(15, 23, 42, 0.96)',
-                        backdropFilter: 'blur(8px)',
-                        border: `1px solid ${filter.activeColor}60`,
-                        borderRadius: 8,
-                        padding: '6px 12px',
-                        whiteSpace: 'nowrap',
-                        color: '#f8fafc',
-                        boxShadow: `0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px ${filter.activeColor}30`,
-                        pointerEvents: 'none',
-                        zIndex: 100,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
-                        {filter.shieldType ? (
-                          <RoadShieldBadge
-                            type={filter.shieldType}
-                            label={filter.shortBadge}
-                            active={isActive}
-                            size={18}
-                          />
-                        ) : (
-                          <span>{filter.shortBadge}</span>
-                        )}
-                        <span style={{ color: isActive ? '#38bdf8' : filter.activeColor }}>{filter.nameZh}</span>
-                        <span style={{ fontSize: 10, fontWeight: 500, color: isActive ? '#38bdf8' : '#94a3b8' }}>
-                          {isActive ? '● 已啟用 (點擊關閉)' : '○ 點擊啟用'}
-                        </span>
-                      </div>
-                      {filter.descriptionZh && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: '#94a3b8',
-                            fontWeight: 400,
-                            maxWidth: 280,
-                            whiteSpace: 'normal',
-                            lineHeight: 1.35
-                          }}
-                        >
-                          {filter.descriptionZh}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <div className="map-controls-divider" />
-          </div>
-        )}
-
-        <button
-          className="map-control-btn"
-          onClick={() => handleZoom('in')}
-          title="放大地圖 (Zoom In)"
-        >
-          <ZoomIn size={18} />
-        </button>
-        <button
-          className="map-control-btn"
-          onClick={() => handleZoom('out')}
-          title="縮小地圖 (Zoom Out)"
-        >
-          <ZoomOut size={18} />
-        </button>
-        <button
-          className="map-control-btn"
-          onClick={handleResetZoom}
-          title="還原縮放比例 (Reset View)"
-        >
-          <RotateCcw size={16} />
-        </button>
-      </div>
+      <MapControls
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
+      />
     </div>
   );
 };

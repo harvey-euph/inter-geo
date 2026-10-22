@@ -4,11 +4,10 @@
  * Each Taipower utility pole or transformer box in Taiwan has a blue plaque
  * or yellow sign showing a 9-to-11-character code (e.g., "B8230 AA93").
  *
- * GeoGuessr Meta:
  * - 1st character (Letter A-Z, omitting I): 80km × 50km macro-grid block indicating the region.
- * - Digits 2-5 (PPQQ): Percentage coordinates within the block!
- *   - PP (00-99): Horizontal distance percentage from West boundary (PP × 800m).
- *   - QQ (00-99): Vertical distance percentage from South boundary (QQ × 500m).
+ * - Digits 2-5 (XXYY): Percentage coordinates within the block!
+ *   - XX (00-99): Horizontal distance percentage from West boundary (XX × 800m).
+ *   - YY (00-99): Vertical distance percentage from South boundary (YY × 500m).
  * - Characters 6-7 (AA-HE): 100m subgrid within the 800m×500m block.
  * - Digits 8-9 (00-99): 10m precision within the 100m subgrid.
  */

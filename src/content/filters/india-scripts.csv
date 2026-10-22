@@ -1,0 +1,43 @@
+// india-scripts.csv
+// @id: indiaScripts
+// @nameZh: 南亞文字特徵 (印/斯/孟)
+// @nameEn: South Asia Scripts (IN/LK/BD)
+// @shortBadge: 🕉️ 南亞文字
+// @accentColor: #f472b6
+// @descriptionZh: 顯示印度各邦、斯里蘭卡與孟加拉的專屬書寫文字與代表字特徵（如泰米爾文 தமிழ்、僧伽羅文 සිංහල、馬拉雅拉姆文 മലയാളം、孟加拉文 বাংলা 等）
+
+// Neighboring South Asian Countries (Sri Lanka & Bangladesh)
+LK, සිංහල (අ ආ ඇ) / தமிழ்
+BD, বাংলা (ক খ গ)
+
+// South India (Dravidian Scripts - 圓弧與鉤線特徵)
+TN, தமிழ் (ழ ற ன)
+KL, മലയാളം (ള ഴ ற)
+KA, ಕನ್ನಡ (ಕ ಗ ಜ)
+AP, తెలుగు (త గ మ)
+TG, తెలుగు (త గ మ)
+
+// West India (無頂線或特殊字母)
+GJ, ગુજરાતી (ક ગ જ - 無頂線)
+MH, मराठी (ळ क ख)
+GA, कोंकणी (ळ)
+
+// East & Northeast India (三角形與斜線頂桿)
+WB, বাংলা (ক খ গ)
+AS, অসমীয়া (ৰ ৱ)
+OR, ଓଡ଼ିଆ (ଓ କ ଗ - 圓頂傘狀)
+MN, মৈতৈলোন্ (ꯚ ꯘ)
+
+// North & Central India (Gurmukhi / Devanagari / Perso-Arabic)
+PB, ਗੁਰਮੁਖੀ (ੳ ਅ ੲ)
+DL, देवनागरी (क ख) / اردو
+UP, देवनागरी (क ख ग)
+RJ, देवनागरी (क ख ग)
+MP, देवनागरी (क ख ग)
+BR, देवनागरी (क ख ग)
+HR, देवनागरी (क ख)
+HP, देवनागरी (क ख)
+UT, देवनागरी (क ख)
+JH, देवनागरी (क ख)
+CT, देवनागरी (क ख)
+JK, اردو / كٲشُر

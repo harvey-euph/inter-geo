@@ -1,0 +1,124 @@
+// tld.csv
+// @id: tld
+// @nameZh: 頂級網域
+// @nameEn: Domain Name (ccTLD)
+// @shortBadge: 🌐 網域
+// @accentColor: #38bdf8
+// @descriptionZh: 顯示各國國家頂級網域名稱（ccTLD，如 .tw、.jp、.uk、.us 等）
+
+// Asia
+TW, .tw
+JP, .jp
+KR, .kr
+PH, .ph
+TH, .th
+KH, .kh
+VN, .vn
+LA, .la
+MY, .my
+ID, .id
+SG, .sg
+HK, .hk
+MN, .mn
+KG, .kg
+KZ, .kz
+IN, .in
+BD, .bd
+BT, .bt
+LK, .lk
+IL, .il
+AE, .ae
+JO, .jo
+QA, .qa
+OM, .om
+
+// Europe
+RU, .ru
+UA, .ua
+GB, .uk / .co.uk
+IE, .ie
+FR, .fr
+DE, .de
+NL, .nl
+BE, .be
+LU, .lu
+AT, .at
+CH, .ch
+IT, .it
+ES, .es
+PT, .pt
+PL, .pl
+CZ, .cz
+SK, .sk
+HU, .hu
+RO, .ro
+BG, .bg
+HR, .hr
+SI, .si
+RS, .rs
+ME, .me
+MK, .mk
+AL, .al
+GR, .gr
+CY, .cy
+MT, .mt
+TR, .tr
+DK, .dk
+NO, .no
+SE, .se
+FI, .fi
+IS, .is
+EE, .ee
+LV, .lv
+LT, .lt
+
+// Americas
+GL, .gl
+US, .us / .com / .gov
+CA, .ca
+MX, .mx
+GT, .gt
+PA, .pa
+DO, .do
+PR, .pr
+CO, .co
+EC, .ec
+PE, .pe
+BO, .bo
+BR, .br
+AR, .ar
+CL, .cl
+UY, .uy
+
+// Oceania
+AU, .com.au
+NZ, .co.nz
+
+// Africa
+ZA, .co.za
+KE, .ke
+UG, .ug
+RW, .rw
+GH, .gh
+NG, .ng
+SN, .sn
+BW, .bw
+SZ, .sz
+LS, .ls
+TN, .tn
+
+// Additional non-streetview countries
+CN, .cn
+MO, .mo
+SA, .sa
+IR, .ir
+IQ, .iq
+EG, .eg
+MA, .ma
+DZ, .dz
+PK, .pk
+NP, .np
+MM, .mm
+CU, .cu
+VE, .ve
+CR, .cr

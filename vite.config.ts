@@ -7,5 +7,27 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vendor',
+              test: /node_modules/
+            },
+            {
+              name: 'manifests',
+              test: /src\/data\/(l2Manifest|l3Manifest|roadsManifest)/
+            },
+            {
+              name: 'geo-data',
+              test: /src\/(data|lore|filters|content)\//
+            }
+          ]
+        }
+      }
+    }
   }
 })

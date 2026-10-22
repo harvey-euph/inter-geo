@@ -8,6 +8,7 @@
 import { ROADS_MANIFEST } from './roadsManifest';
 import type { RoadShieldType } from './roadsMeta';
 import { findCountry } from './countries';
+import { getRegisteredCsvFilters } from '../filters/csvFilterRegistry';
 
 export interface NationwideFilterDef {
   /** Unique filter identifier */
@@ -382,15 +383,48 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     activeColor: '#10b981',
     layerType: 'text',
     descriptionZh: '顯示當前國家各一級行政區之國內電話區號（巴西 1x~9x、日本 01~09、法國 01~05、泰國 02~07、俄羅斯 495 等）'
-  }
+  },
+
+  // 3. Dynamically registered Nationwide CSV Filters from filter-reg.csv
+  ...getRegisteredCsvFilters()
+    .filter((f) => f.rangeKind === 'Nationwide')
+    .map(
+      (f): NationwideFilterDef => ({
+        id: f.id,
+        targetIso2: f.targetIso2,
+        targetIso2s: f.targetIso2s,
+        nameZh: f.nameZh,
+        nameEn: f.nameEn,
+        shortBadge: f.shortBadge,
+        titleZh: f.descriptionZh,
+        titleEn: f.nameEn,
+        activeColor: f.accentColor,
+        layerType:
+          f.type === 'FillColor'
+            ? 'coloring'
+            : f.type === 'Image'
+              ? 'image'
+              : 'text',
+        descriptionZh: f.descriptionZh
+      })
+    )
 ];
 
 export const NATIONWIDE_FILTERS: NationwideFilterDef[] = [
   ...BASE_NATIONWIDE_FILTERS
 ];
 
+/**
+ * Complete catalog of all Nationwide filters across all supported countries
+ * (used when "Hide outside window ones" is unchecked in the Filter Selector).
+ */
+export const ALL_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
+  ...BASE_NATIONWIDE_FILTERS,
+  ...COUNTRIES_WITH_ROADS.flatMap((iso2) => getRoadFiltersForCountry(iso2))
+];
+
 export const NATIONWIDE_FILTERS_BY_ID = new Map<string, NationwideFilterDef>(
-  NATIONWIDE_FILTERS.map((f) => [f.id, f])
+  ALL_NATIONWIDE_FILTERS.map((f) => [f.id, f])
 );
 
 /**

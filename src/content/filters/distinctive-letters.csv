@@ -1,0 +1,67 @@
+// distinctive-letters.csv
+// @id: distinctiveLetters
+// @nameZh: 特色字母
+// @nameEn: Distinctive Letters
+// @shortBadge: 🔤 特色字
+// @accentColor: #a78bfa
+// @descriptionZh: 顯示各國最具辨識度的專屬字母或書寫特徵（如冰島 Ð Þ、捷克 Ř Ů、波蘭 Ł Ą、土耳其 Ğ İ、越南 Đ Ơ Ư 等）
+
+// Nordic & Baltic
+IS, Ð ð Þ þ Æ
+DK, Æ Ø Å
+NO, Æ Ø Å
+SE, Å Ä Ö
+FI, Ä Ö (aa/kk/tt)
+EE, Õ Ä Ö Ü
+LV, Ā Ē Ī Ū Ģ Ķ Ļ Ņ
+LT, Ą Ę Ė Į Ų Ū
+
+// Central & Eastern Europe
+PL, Ł Ą Ę Ś Ć Ż Ź Ń
+CZ, Ř Ů Ě Č Š Ž
+SK, Ľ Ĺ Ŕ Ô Ä
+HU, Ő Ű Á É Í Ó Ö Ü
+RO, Ă Â Î Ș Ț
+DE, ß Ä Ö Ü
+AT, ß Ä Ö Ü
+CH, Ä Ö Ü
+SI, Č Š Ž
+HR, Č Ć Đ Š Ž
+
+// Balkans, Mediterranean & Turkey
+TR, Ğ İ ı Ş Ç Ö Ü
+AL, Ë Ç
+GR, α β γ δ ε λ π ω
+CY, α β γ δ ω
+MT, Ċ Ġ Ħ Ż
+ES, Ñ ¿ ¡
+PT, Ã Õ Ç
+FR, Œ Ç Ê Ë
+
+// Cyrillic Variants
+RU, Ы Э Ъ Ё
+UA, Ї Є Ґ І
+RS, Ђ Љ Њ Ћ Џ
+ME, Ђ Љ Њ Ћ Џ Ś Ź
+MK, Ѓ Ќ Ѕ Љ Њ Џ
+BG, Ъ Щ Ю Я
+KG, Ө Ү Ң
+KZ, Ә Ғ Қ Ң Ө Ұ Ү І
+MN, Ө Ү
+
+// Asia
+TW, 繁體 (臺/灣/裡)
+HK, 繁體 (邨/涌/埗)
+JP, あ ア の ツ (仮名)
+KR, 한글 (ㅇ ㅎ ㅂ)
+VN, Đ Ă Â Ê Ô Ơ Ư
+TH, ก ข ค ฅ ฆ (泰文)
+LA, ກ ຂ ຄ ງ ຈ (寮文)
+KH, ក ខ គ ឃ ង (高棉文)
+LK, සිංහල (අ ආ) / தமிழ்
+IL, א ב ג ד ה (希伯來)
+AE, ا ب ت ث ج (阿拉伯)
+JO, ا ب ت ث ج (阿拉伯)
+QA, ا ب ت ث ج (阿拉伯)
+OM, ا ب ت ث ج (阿拉伯)
+BT, ཀ ཁ ག ང (宗卡文)

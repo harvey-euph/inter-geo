@@ -1,8 +1,13 @@
 import type { CountryData } from '../types/geo';
+import {
+  getRegisteredCsvFilters,
+  getCsvFilterRecord,
+  getCsvFilterValue
+} from '../filters/csvFilterRegistry';
 
 export interface TextFilterDef {
-  /** Unique filter identifier */
-  id: 'callingCode' | 'tld';
+  /** Unique filter identifier (loaded dynamically from filter-reg.csv) */
+  id: string;
   /** Display name in Traditional Chinese */
   nameZh: string;
   /** Display name in English */
@@ -19,126 +24,15 @@ export interface TextFilterDef {
 
 /**
  * Standard International Calling Codes (ISO-2 -> Telephone Prefix)
- * Covers all 91 streetview countries + common neighboring regions
+ * Populated from `/src/content/filters/country-code.csv` via `filter-reg.csv`
  */
-export const COUNTRY_CALLING_CODES: Record<string, string> = {
-  // Asia
-  TW: '+886',
-  JP: '+81',
-  KR: '+82',
-  PH: '+63',
-  TH: '+66',
-  KH: '+855',
-  VN: '+84',
-  LA: '+856',
-  MY: '+60',
-  ID: '+62',
-  SG: '+65',
-  HK: '+852',
-  MN: '+976',
-  KG: '+996',
-  KZ: '+7',
-  IN: '+91',
-  BD: '+880',
-  BT: '+975',
-  LK: '+94',
-  IL: '+972',
-  AE: '+971',
-  JO: '+962',
-  QA: '+974',
-  OM: '+968',
+export const COUNTRY_CALLING_CODES: Record<string, string> = getCsvFilterRecord('callingCode');
 
-  // Europe
-  RU: '+7',
-  UA: '+380',
-  GB: '+44',
-  IE: '+353',
-  FR: '+33',
-  DE: '+49',
-  NL: '+31',
-  BE: '+32',
-  LU: '+352',
-  AT: '+43',
-  CH: '+41',
-  IT: '+39',
-  ES: '+34',
-  PT: '+351',
-  PL: '+48',
-  CZ: '+420',
-  SK: '+421',
-  HU: '+36',
-  RO: '+40',
-  BG: '+359',
-  HR: '+385',
-  SI: '+386',
-  RS: '+381',
-  ME: '+382',
-  MK: '+389',
-  AL: '+355',
-  GR: '+30',
-  CY: '+357',
-  MT: '+356',
-  TR: '+90',
-  DK: '+45',
-  NO: '+47',
-  SE: '+46',
-  FI: '+358',
-  IS: '+354',
-  EE: '+372',
-  LV: '+371',
-  LT: '+370',
-
-  // Americas
-  GL: '+299',
-  US: '+1',
-  CA: '+1',
-  MX: '+52',
-  GT: '+502',
-  PA: '+507',
-  DO: '+1',
-  PR: '+1',
-  CO: '+57',
-  EC: '+593',
-  PE: '+51',
-  BO: '+591',
-  BR: '+55',
-  AR: '+54',
-  CL: '+56',
-  UY: '+598',
-
-  // Oceania
-  AU: '+61',
-  NZ: '+64',
-
-  // Africa
-  ZA: '+27',
-  KE: '+254',
-  UG: '+256',
-  RW: '+250',
-  GH: '+233',
-  NG: '+234',
-  SN: '+221',
-  BW: '+267',
-  SZ: '+268',
-  LS: '+266',
-  TN: '+216',
-
-  // Additional non-streetview countries
-  CN: '+86',
-  MO: '+853',
-  SA: '+966',
-  IR: '+98',
-  IQ: '+964',
-  EG: '+20',
-  MA: '+212',
-  DZ: '+213',
-  PK: '+92',
-  NP: '+977',
-  MM: '+95',
-  CU: '+53',
-  VE: '+58',
-  CR: '+506'
-};
+/**
+ * Country Top-Level Domains (ISO-2 -> ccTLD)
+ * Populated from `/src/content/filters/tld.csv` via `filter-reg.csv`
+ */
+export const COUNTRY_TLDS: Record<string, string> = getCsvFilterRecord('tld');
 
 /**
  * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
@@ -167,44 +61,46 @@ export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = {
   ZA: [568, 584]  // South Africa
 };
 
-export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = [
-  {
-    id: 'callingCode',
-    nameZh: '電話國碼',
-    nameEn: 'Calling Code',
-    shortBadge: '📞 國碼',
-    descriptionZh: '顯示全球各國國際電話區號（如 +886、+81、+1、+44 等）',
-    accentColor: '#34d399',
-    getText: (c) => c.callingCode || COUNTRY_CALLING_CODES[c.iso2] || null
-  },
-  {
-    id: 'tld',
-    nameZh: '頂級網域',
-    nameEn: 'Domain Name (ccTLD)',
-    shortBadge: '🌐 網域',
-    descriptionZh: '顯示各國國家頂級網域名稱（ccTLD，如 .tw、.jp、.uk、.us 等）',
-    accentColor: '#38bdf8',
-    getText: (c) => c.tld || (c.iso2 ? `.${c.iso2.toLowerCase()}` : null)
-  }
-];
+/**
+ * Dynamically builds `GLOBAL_TEXT_FILTERS` from all `International` + `Text` filters
+ * registered in `/src/content/filters/filter-reg.csv`.
+ */
+export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
+  .filter((f) => f.rangeKind === 'International' && f.type === 'Text')
+  .map((f) => ({
+    id: f.id,
+    nameZh: f.nameZh,
+    nameEn: f.nameEn,
+    shortBadge: f.shortBadge,
+    descriptionZh: f.descriptionZh,
+    accentColor: f.accentColor,
+    getText: (c: CountryData) => {
+      const csvVal = getCsvFilterValue(f.id, c.iso2);
+      if (csvVal) return csvVal;
+      if (f.id === 'callingCode') return c.callingCode || null;
+      if (f.id === 'tld') return c.tld || (c.iso2 ? `.${c.iso2.toLowerCase()}` : null);
+      return null;
+    }
+  }));
 
 export const GLOBAL_TEXT_FILTERS_BY_ID = new Map<string, TextFilterDef>(
   GLOBAL_TEXT_FILTERS.map((f) => [f.id, f])
 );
 
 export function getCountryCallingCode(iso2: string): string | null {
-  return COUNTRY_CALLING_CODES[iso2.toUpperCase()] || null;
+  return getCsvFilterValue('callingCode', iso2);
+}
+
+export function getCountryTld(iso2: string): string | null {
+  return getCsvFilterValue('tld', iso2);
 }
 
 export function getCombinedTextOverlay(country: CountryData, activeFilterIds: Set<string>): string | null {
   const parts: string[] = [];
-  if (activeFilterIds.has('tld')) {
-    const tld = country.tld || (country.iso2 ? `.${country.iso2.toLowerCase()}` : '');
-    if (tld) parts.push(tld);
-  }
-  if (activeFilterIds.has('callingCode')) {
-    const code = country.callingCode || COUNTRY_CALLING_CODES[country.iso2];
-    if (code) parts.push(code);
+  for (const id of activeFilterIds) {
+    const def = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
+    const val = def ? def.getText(country) : getCsvFilterValue(id, country.iso2);
+    if (val) parts.push(val);
   }
   return parts.length > 0 ? parts.join('  ') : null;
 }

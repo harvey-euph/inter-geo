@@ -1,20 +1,31 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { WorldMap } from './components/WorldMap';
-import { CountryDetailPanel } from './components/CountryDetailPanel';
-import { QuizModal } from './components/QuizModal';
 import type { CountryData } from './types/geo';
 import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import { JAPAN_PREFECTURES } from './data/japanData';
+import {
+  getNationwideFilterById,
+  type NationwideFilterDef
+} from './data/nationwideFilters';
 import './App.css';
+
+const CountryDetailPanel = lazy(() =>
+  import('./components/CountryDetailPanel').then((m) => ({ default: m.CountryDetailPanel }))
+);
+const QuizModal = lazy(() =>
+  import('./components/QuizModal').then((m) => ({ default: m.QuizModal }))
+);
 
 export function App() {
   const [activeFilterId, setActiveFilterId] = useState<string>('none');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(new Set());
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(null);
+  const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(new Set());
+  const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideFilterDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
@@ -129,6 +140,45 @@ export function App() {
     });
   }, []);
 
+  const handleToggleRegionalFilter = useCallback((filterId: string) => {
+    const targetDef = getNationwideFilterById(filterId);
+    setActiveRegionalFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filterId)) {
+        next.delete(filterId);
+        if (targetDef?.layerType === 'roads') {
+          setSelectedRoad((r) => {
+            if (!r) return null;
+            const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
+            if (r.iso2 === targetDef.countryIso2 && rClass === targetDef.roadClass) {
+              return null;
+            }
+            return r;
+          });
+        }
+      } else {
+        // Single-select within 'coloring' layerType
+        if (targetDef?.layerType === 'coloring') {
+          for (const existingId of Array.from(next)) {
+            const existingDef = getNationwideFilterById(existingId);
+            if (existingDef?.layerType === 'coloring') {
+              next.delete(existingId);
+            }
+          }
+        }
+        next.add(filterId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleResetAllFilters = useCallback(() => {
+    setActiveFilterId('none');
+    setActiveTextFilters(new Set());
+    setActiveInternationalImageFilter(null);
+    setActiveRegionalFilters(new Set());
+  }, []);
+
   const handleClosePanel = useCallback(() => {
     setSelectedCountry(null);
     setSelectedSubdivision(null);
@@ -157,6 +207,10 @@ export function App() {
           setIsQuizOpen(false);
           return;
         }
+        if (isFilterExpanded) {
+          setIsFilterExpanded(false);
+          return;
+        }
         handleClosePanel();
       }
     };
@@ -165,7 +219,7 @@ export function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isQuizOpen, handleClosePanel]);
+  }, [isQuizOpen, isFilterExpanded, handleClosePanel]);
 
   const handleSelectCountryByName = useCallback(
     (name: string) => {
@@ -252,16 +306,17 @@ export function App() {
     setSelectedRoad(null);
   }, []);
 
+  const activeFilterCount =
+    (activeFilterId !== 'none' ? 1 : 0) +
+    activeTextFilters.size +
+    (activeInternationalImageFilter ? 1 : 0) +
+    activeRegionalFilters.size;
+
   return (
     <div className="app-layout">
-      {/* Top Navigation Headline with Collapsed Filters */}
+      {/* Top Navigation Headline with Single Filter Trigger Button */}
       <Header
-        activeFilterId={activeFilterId}
-        onSelectFilter={handleSelectFilter}
-        activeTextFilters={activeTextFilters}
-        onToggleTextFilter={handleToggleTextFilter}
-        activeInternationalImageFilter={activeInternationalImageFilter}
-        onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+        activeFilterCount={activeFilterCount}
         isFilterExpanded={isFilterExpanded}
         onToggleFilterExpanded={handleToggleFilterExpanded}
         onSelectCountry={handleSelectCountry}
@@ -270,7 +325,7 @@ export function App() {
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
-          {/* Collapsible Floating Filter Bar Window */}
+          {/* Tree-based Filter Selector Window */}
           <FilterBar
             activeFilterId={activeFilterId}
             onSelectFilter={handleSelectFilter}
@@ -278,6 +333,10 @@ export function App() {
             onToggleTextFilter={handleToggleTextFilter}
             activeInternationalImageFilter={activeInternationalImageFilter}
             onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+            activeRegionalFilters={activeRegionalFilters}
+            onToggleRegionalFilter={handleToggleRegionalFilter}
+            visibleRegionalFilters={visibleRegionalFilters}
+            onResetAll={handleResetAllFilters}
             isExpanded={isFilterExpanded}
             onCollapse={handleCollapseFilter}
           />
@@ -287,6 +346,8 @@ export function App() {
             activeFilterId={activeFilterId}
             activeTextFilters={activeTextFilters}
             activeInternationalImageFilter={activeInternationalImageFilter}
+            activeRegionalFilters={activeRegionalFilters}
+            onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
             isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
             onSelectCountry={handleSelectCountry}
@@ -308,26 +369,32 @@ export function App() {
         </section>
 
         {/* Side Detail Dossier Panel (Supports Country, Subdivision L2, Prefecture L2, Municipality L3, Highway/Route) */}
-        <CountryDetailPanel
-          country={selectedCountry}
-          subdivision={selectedSubdivision}
-          prefecture={selectedPrefecture}
-          municipality={selectedMunicipality}
-          road={selectedRoad}
-          onClose={handleClosePanel}
-          onNavigateBack={handleNavigateBack}
-          onNavigateToCountry={handleNavigateToCountry}
-          onSelectCountryName={handleSelectCountryByName}
-          onZoomToPrefecture={handleZoomToPrefecture}
-        />
+        {(selectedCountry || selectedSubdivision || selectedPrefecture || selectedMunicipality || selectedRoad) && (
+          <Suspense fallback={null}>
+            <CountryDetailPanel
+              country={selectedCountry}
+              subdivision={selectedSubdivision}
+              prefecture={selectedPrefecture}
+              municipality={selectedMunicipality}
+              road={selectedRoad}
+              onClose={handleClosePanel}
+              onNavigateBack={handleNavigateBack}
+              onNavigateToCountry={handleNavigateToCountry}
+              onSelectCountryName={handleSelectCountryByName}
+              onZoomToPrefecture={handleZoomToPrefecture}
+            />
+          </Suspense>
+        )}
       </div>
 
       {/* Quiz Modal */}
       {isQuizOpen && (
-        <QuizModal
-          onClose={() => setIsQuizOpen(false)}
-          onSelectCountryByIso2={handleSelectCountryByIso2}
-        />
+        <Suspense fallback={null}>
+          <QuizModal
+            onClose={() => setIsQuizOpen(false)}
+            onSelectCountryByIso2={handleSelectCountryByIso2}
+          />
+        </Suspense>
       )}
     </div>
   );

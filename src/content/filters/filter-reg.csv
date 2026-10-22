@@ -1,0 +1,9 @@
+// filter-reg.csv
+// 濾鏡註冊表 (CSV Filter Registry)
+// 欄位: Loaded Timing (init | on-demand), Effective Range (International | Nationwide:<ISO2>), Path, Type (FillColor | Text | Image | Special)
+Loaded Timing, Effective Range, Path, Type
+init, International, /src/content/filters/country-code.csv, Text
+init, International, /src/content/filters/tld.csv, Text
+init, International, /src/content/filters/currency.csv, Text
+init, International, /src/content/filters/distinctive-letters.csv, Text
+init, Nationwide:IN|LK|BD, /src/content/filters/india-scripts.csv, Text

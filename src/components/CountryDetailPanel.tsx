@@ -3,7 +3,7 @@ import { X, ChevronLeft, Navigation, Car, Shield, Lightbulb, Globe, Layers, Aler
 import type { CountryData } from '../types/geo';
 import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
-import { getCountryCallingCode } from '../data/globalFilters';
+import { getCountryCallingCode, getCountryTld } from '../data/globalFilters';
 import { getSubdivisionAreaCode } from '../data/domesticAreaCodes';
 import { getCrossingSign } from '../data/pedestrianCrossing';
 import { getIndiaStateLanguageInfo } from '../data/indiaLanguages';
@@ -1135,9 +1135,9 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             {country.coverage === 'official' ? '✅ 官方車載街景覆蓋' : '⚠️ 局部或特殊覆蓋'}
           </div>
 
-          {country.tld && (
+          {(getCountryTld(country.iso2) || country.tld) && (
             <div className="intel-tag" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 10px' }}>
-              網域名稱：{country.tld}
+              網域名稱：{getCountryTld(country.iso2) || country.tld}
             </div>
           )}
 
