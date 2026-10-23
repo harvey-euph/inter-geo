@@ -1807,7 +1807,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
             for (let i = 0; i < decoded.length; i++) {
               const f = decoded[i];
-              const p = f.props;
+
+              if (!f) {
+                console.error(`[L2] ${iso2}: missing feature at index ${i}`);
+                continue;
+              }
+
+              if (!f.bbox || f.bbox.length < 4) {
+                console.error(`[L2] ${iso2}: invalid bbox at feature ${i}`, f);
+                continue;
+              }
+
+              if (typeof f.d !== 'string') {
+                console.error(`[L2] ${iso2}: invalid path data at feature ${i}`, f);
+                continue;
+              }
+
+              const p = f.props ?? {};
               const path2D = new Path2D(f.d);
               const bbox = f.bbox;
               countryPath.addPath(path2D);
@@ -1827,7 +1843,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 typeEn: String(p.type_en || ''),
                 code: String(p.code || ''),
                 postal: String(p.postal || ''),
-                centroid: f.centroid || [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
+                centroid: f.centroid || [
+                  (bbox[0] + bbox[2]) / 2,
+                  (bbox[1] + bbox[3]) / 2
+                ]
               });
             }
 
