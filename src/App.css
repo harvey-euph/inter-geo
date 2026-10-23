@@ -238,6 +238,7 @@
   position: relative;
   cursor: grab;
   user-select: none;
+  touch-action: none; /* 阻止瀏覽器把單指滑動當成頁面捲動/縮放 */
 }
 
 .svg-map-wrapper:active {

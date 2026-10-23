@@ -1231,9 +1231,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [setHoveredCountry, requestRender]
   );
 
-  // Mouse Pan Handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+  // Pointer Pan Handlers（滑鼠 + 觸控共用）
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // 只擋滑鼠右鍵；觸控沒有 button 概念，不要用 e.button !== 0 直接 return
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
     const target = e.target as Element | null;
     if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud')) {
       return;
@@ -1250,6 +1252,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       x: transformRef.current.x,
       y: transformRef.current.y
     };
+    // 關鍵：手指移出元素也不會斷
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const updateHoverAtPoint = useCallback(
@@ -1358,7 +1362,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [getFeatureAtPoint, clearHover, applyHover, requestRender]
   );
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     isMouseInsideRef.current = true;
     mousePos.current = { x: e.clientX, y: e.clientY };
 
@@ -1431,7 +1435,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     isDragging.current = false;
     if (rafId.current) {
       cancelAnimationFrame(rafId.current);
@@ -1440,6 +1444,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const { k, x, y } = transformRef.current;
     syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevelRef.current);
     updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+    // 可選：releasePointerCapture
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch { /* already released */ }
   };
 
   // Apply LOD transition side effects (clear sub-level hovers/selections when zooming out)
@@ -2129,22 +2137,22 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     <div
       ref={containerRef}
       className={`svg-map-wrapper ${showRoads ? 'roads-mode-active' : ''}`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseEnter={(e) => {
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}   // 系統中斷手勢時也要結束拖曳
+      onPointerEnter={(e) => {
         isMouseInsideRef.current = true;
         mousePos.current = { x: e.clientX, y: e.clientY };
       }}
-      onMouseLeave={() => {
+      onPointerLeave={() => {
         isMouseInsideRef.current = false;
-        isDragging.current = false;
-        const changed = clearHover();
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = 'none';
-        }
-        if (changed) {
-          requestRender();
+        // 注意：有 setPointerCapture 時，leave 不一定代表結束拖曳
+        // 若沒在 dragging，才清 hover
+        if (!isDragging.current) {
+          const changed = clearHover();
+          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+          if (changed) requestRender();
         }
       }}
       onClick={handleMapClick}
