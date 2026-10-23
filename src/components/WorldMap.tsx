@@ -78,6 +78,28 @@ export type {
 type RegionalFilterDef = NationwideFilterDef;
 const REGIONAL_FILTERS = NATIONWIDE_FILTERS;
 
+const isPinching = useRef(false);
+const pinchStart = useRef({
+  distance: 0,
+  k: 1,
+  x: 0,
+  y: 0,
+  midX: 0, // client 座標
+  midY: 0,
+});
+// 追蹤目前畫面上的 pointer（pointerId → clientX/Y）
+const activePointers = useRef(new Map<number, { x: number; y: number }>());
+
+function getDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy);
+}
+
+function getMidpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
 interface WorldMapProps {
   activeFilterId: string;
   activeTextFilters?: Set<string>;
@@ -1233,27 +1255,52 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Pointer Pan Handlers（滑鼠 + 觸控共用）
   const handlePointerDown = (e: React.PointerEvent) => {
-    // 只擋滑鼠右鍵；觸控沒有 button 概念，不要用 e.button !== 0 直接 return
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     const target = e.target as Element | null;
     if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud')) {
       return;
     }
+
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
     if (animRafId.current) {
       cancelAnimationFrame(animRafId.current);
       animRafId.current = null;
     }
+
+    const pts = [...activePointers.current.values()];
+
+    if (pts.length >= 2) {
+      // 進入 / 重設 pinch
+      isPinching.current = true;
+      isDragging.current = false; // 取消單指拖曳
+      hasDragged.current = true;  // 避免 pinch 結束後觸發 click
+
+      const [p0, p1] = pts;
+      const mid = getMidpoint(p0, p1);
+      pinchStart.current = {
+        distance: getDistance(p0, p1),
+        k: transformRef.current.k,
+        x: transformRef.current.x,
+        y: transformRef.current.y,
+        midX: mid.x,
+        midY: mid.y,
+      };
+      return;
+    }
+
+    // 單指 → pan
+    isPinching.current = false;
     isDragging.current = true;
     hasDragged.current = false;
     dragStart.current = {
       clientX: e.clientX,
       clientY: e.clientY,
       x: transformRef.current.x,
-      y: transformRef.current.y
+      y: transformRef.current.y,
     };
-    // 關鍵：手指移出元素也不會斷
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const updateHoverAtPoint = useCallback(
@@ -1363,10 +1410,73 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   );
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (!activePointers.current.has(e.pointerId)) return;
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
     isMouseInsideRef.current = true;
     mousePos.current = { x: e.clientX, y: e.clientY };
 
-    if (isDragging.current) {
+    const pts = [...activePointers.current.values()];
+
+    // —— 雙指縮放 ——
+    if (pts.length >= 2 && isPinching.current) {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+
+      const [p0, p1] = pts;
+      const dist = getDistance(p0, p1);
+      if (pinchStart.current.distance < 1e-6) return;
+
+      const scale = dist / pinchStart.current.distance;
+      const vh = viewportSize.current.h;
+      const kMin = vh / MAP_H;
+      const newK = Math.min(
+        Math.max(pinchStart.current.k * scale, kMin),
+        MAX_ZOOM_K
+      );
+
+      // 以「開始 pinch 時的兩指中點」為錨（和 wheel 的 mx/my 相同概念）
+      const mx = pinchStart.current.midX - rect.left;
+      const my = pinchStart.current.midY - rect.top;
+      const { k: startK, x: startX, y: startY } = pinchStart.current;
+      const ratio = newK / startK;
+
+      const newX = mx - (mx - startX) * ratio;
+      const newY = my - (my - startY) * ratio;
+
+      transformRef.current.k = newK;
+      transformRef.current.x = wrapX(newX, newK);
+      transformRef.current.y = clampY(newY, newK, vh);
+
+      const nextLOD = getLODLevel(newK, lodThresholdsRef.current);
+      applyLOD(nextLOD);
+      scheduleZoomKState(newK);
+
+      const now = performance.now();
+      if (now - lastDragSyncTime.current > 200) {
+        lastDragSyncTime.current = now;
+        syncAllViewports(
+          newK,
+          transformRef.current.x,
+          transformRef.current.y,
+          viewportSize.current.w,
+          vh,
+          nextLOD
+        );
+      }
+
+      if (!rafId.current) {
+        rafId.current = requestAnimationFrame(() => {
+          renderCanvas();
+          rafId.current = null;
+        });
+      }
+      return;
+    }
+
+    // —— 單指 pan ——
+    if (isDragging.current && pts.length === 1) {
       const dx = e.clientX - dragStart.current.clientX;
       const dy = e.clientY - dragStart.current.clientY;
 
@@ -1408,6 +1518,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return;
     }
 
+    // —— hover（非拖曳、非 pinch）——
     const target = e.target as Element | null;
     const isOverControl = !!target?.closest(
       '.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud'
@@ -1436,18 +1547,43 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    isDragging.current = false;
-    if (rafId.current) {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = null;
-    }
-    const { k, x, y } = transformRef.current;
-    syncAllViewports(k, x, y, viewportSize.current.w, viewportSize.current.h, lodLevelRef.current);
-    updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
-    // 可選：releasePointerCapture
+    activePointers.current.delete(e.pointerId);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { /* already released */ }
+    } catch { /* ignore */ }
+
+    const remaining = activePointers.current.size;
+
+    if (remaining < 2) {
+      isPinching.current = false;
+    }
+
+    if (remaining === 0) {
+      isDragging.current = false;
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+        rafId.current = null;
+      }
+      const { k, x, y } = transformRef.current;
+      syncAllViewports(
+        k, x, y,
+        viewportSize.current.w,
+        viewportSize.current.h,
+        lodLevelRef.current
+      );
+      updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+    } else if (remaining === 1) {
+      // 從雙指變單指：可選「接下 pan」，或直接停到手指全部放開
+      // 簡單做法：結束 pinch，不立刻開始 pan，避免跳一下
+      isDragging.current = false;
+      const { k, x, y } = transformRef.current;
+      syncAllViewports(
+        k, x, y,
+        viewportSize.current.w,
+        viewportSize.current.h,
+        lodLevelRef.current
+      );
+    }
   };
 
   // Apply LOD transition side effects (clear sub-level hovers/selections when zooming out)
