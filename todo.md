@@ -2,8 +2,33 @@
 
 - [x] 支援 image 路徑插入圖片，要能合理配置空間，控制圖片 size ，完成後將 "行人穿越道告示 (Pedestrian Crossing Sign)" 在資訊卡的內容統一成 md framework (原 l2 層級顯示 "國家行人穿越道告示 (Pedestrian Crossing Sign)" 可拔掉)
 
-# 要修正
-- [x] 將以下國家的 l2 資料放到 l3 去， l2 變成該國家本身，因為已經夠小了，l2 跑出更細的行政區沒有意義: 荷蘭 比利時 賴索托 史瓦帝尼 malta 以色列
-- [x] 讓 filter 也像 lore 一樣，只更新個別 csv 檔案，就可以直接載入標籤/meta ，然後按需載入完整資訊，可以用 csv 前幾列註解作為 header / meta
-- [x] 有些國家沒有 l3， hover 出現 l2 資訊 (符合預期) 但 clicked 不會彈出 l2 資訊卡 (須修正)
-- [x] 資訊卡的回上一頁標籤直接置入路徑 (例如 🇨🇦 加拿大 > 魁北克 [<回上一頁>])
+# Bug
+
+- [ ] 在 scripts/generate-l2-fgb.mjs 寫出 fgb 前過濾空幾何（你已有類似 geoArea 過濾，但空 ring 可能沒擋到）：
+
+```ts
+function hasUsableRing(geom) {
+  if (!geom) return false;
+  if (geom.type === 'Polygon') {
+    return (geom.coordinates || []).some((r) => r && r.length >= 4);
+  }
+  if (geom.type === 'MultiPolygon') {
+    return (geom.coordinates || []).some(
+      (poly) => poly && poly.some((r) => r && r.length >= 4)
+    );
+  }
+  return false;
+}
+
+// optimizedFeatures 寫檔前：
+optimizedFeatures = optimizedFeatures.filter((f) => hasUsableRing(f.geometry));
+```
+
+- [ ] 展開/閉合資訊卡的時候會讓地圖產生一瞬間的橫向縮放，會導致螢幕閃一下，我希望螢幕不要出現這種現象
+
+
+# Feature
+
+- [ ] 點按左上角 icon 可以把 filter-legend-card 收納/展開
+- [ ] 道路標線的著色都只畫 L1 區域 (國家層級) 就好，不用畫到 L2，邊界寬度可以稍微再寬一點
+- [ ] 台灣電力座標的字母展示，字母不需要外圍圓圈，只要字母本身，並且隨著方框縮放跟著變大變小

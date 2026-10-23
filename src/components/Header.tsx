@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           title="開啟 / 關閉濾鏡選擇器 (Filter Selector)"
         >
           <SlidersHorizontal size={14} className="filter-trigger-icon" />
-          <span className="filter-trigger-label">Filters 濾鏡</span>
+          <span className="filter-trigger-label">選項</span>
           {activeFilterCount > 0 && (
             <span className="filter-trigger-badge">{activeFilterCount}</span>
           )}
