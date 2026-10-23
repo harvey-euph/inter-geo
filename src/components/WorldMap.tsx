@@ -910,7 +910,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       inFlightL3PacksRef.current.add(filePath);
 
       try {
-        const { features: decoded } = await decodeGeo(filePath, 'l3');
+        const { features: decoded } = await decodeGeo(`${import.meta.env.BASE_URL}/${filePath}`, 'l3');
         const paths: L3SubdivisionPathData[] = [];
 
         for (let i = 0; i < decoded.length; i++) {
@@ -1758,7 +1758,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     const loadL1 = async (): Promise<GeoFeature[]> => {
       try {
-        const res = await fetch(`${import.meta.env.BASE_URL}data/countries-110m.fgb`);
+        const res = await fetch(`${import.meta.env.BASE_URL}/data/countries-110m.fgb`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         if (!isMounted) return [];
@@ -1792,7 +1792,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           if (!c) break;
           const iso2 = c.iso2;
           try {
-            const { features: decoded, dissolvedD } = await decodeGeo(`/data/l2/${iso2}.fgb`, 'l2', iso2);
+            
+            const { features: decoded, dissolvedD } = await decodeGeo(
+              `${import.meta.env.BASE_URL}/data/l2/${iso2}.fgb`, 'l2', iso2
+            );
             if (!isMounted) return;
 
             const paths: L2SubdivisionPathData[] = [];
@@ -1906,7 +1909,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       (async () => {
         try {
-          const { features: decoded } = await decodeGeo(`/data/roads/${iso2}.fgb`, 'roads', iso2);
+          const { features: decoded } = await decodeGeo(
+            `${import.meta.env.BASE_URL}/data/roads/${iso2}.fgb`, 'roads', iso2
+          );
           if (!isMounted) return;
 
           const paths: RoadPathData[] = [];
