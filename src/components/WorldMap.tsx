@@ -78,18 +78,6 @@ export type {
 type RegionalFilterDef = NationwideFilterDef;
 const REGIONAL_FILTERS = NATIONWIDE_FILTERS;
 
-const isPinching = useRef(false);
-const pinchStart = useRef({
-  distance: 0,
-  k: 1,
-  x: 0,
-  y: 0,
-  midX: 0, // client 座標
-  midY: 0,
-});
-// 追蹤目前畫面上的 pointer（pointerId → clientX/Y）
-const activePointers = useRef(new Map<number, { x: number; y: number }>());
-
 function getDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -260,6 +248,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const isDragging = useRef(false);
   const hasDragged = useRef(false);
   const dragStart = useRef({ clientX: 0, clientY: 0, x: 0, y: 0 });
+
+  const isPinching = useRef(false);
+  const pinchStart = useRef({ distance: 0, k: 1, x: 0, y: 0, midX: 0, midY: 0, });
+  // 追蹤目前畫面上的 pointer（pointerId → clientX/Y）
+  const activePointers = useRef(new Map<number, { x: number; y: number }>());
+
   const lastDragSyncTime = useRef(0);
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
