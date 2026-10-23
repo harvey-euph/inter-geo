@@ -158,7 +158,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                   }}
                 >
                   <img
-                    src={cSign.imagePath}
+                    src={`${import.meta.env.BASE_URL}/${cSign.imagePath}`}
                     alt="crossing"
                     style={{ width: 24, height: 24, objectFit: 'contain' }}
                   />
@@ -326,7 +326,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                   }}
                 >
                   <img
-                    src={cSign.imagePath}
+                    src={`${import.meta.env.BASE_URL}/${cSign.imagePath}`}
                     alt="crossing"
                     style={{ width: 24, height: 24, objectFit: 'contain' }}
                   />

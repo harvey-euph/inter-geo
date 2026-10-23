@@ -1687,7 +1687,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     for (const [iso2, meta] of Object.entries(EUROPEAN_CROSSING_SIGNS)) {
       if (!crossingImagesRef.current.has(iso2)) {
         const img = new Image();
-        img.src = meta.imagePath;
+        img.src = `${import.meta.env.BASE_URL}/${meta.imagePath}`;
         img.onload = () => {
           requestRender();
         };
