@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight, List } from 'lucide-react';
 import type { FilterDefinition } from '../data/filters';
 import { GLOBAL_TEXT_FILTERS_BY_ID } from '../data/globalFilters';
 import { getNationwideFilterById, NATIONWIDE_FILTERS_BY_ID } from '../data/nationwideFilters';
@@ -21,89 +22,108 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   lodLevel,
   activeRegionalFilters
 }) => {
-  return (
-    <div className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''}`}>
-      <div className="legend-title">
-        <span>{activeFilterDef.nameZh}</span>
-      </div>
-      <div className="legend-items-list legend-items">
-        {activeFilterDef.legend.map((item) => (
-          <div key={item.key} className="legend-item-row legend-item">
-            <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
-            <span className="legend-label">{item.labelZh}</span>
-          </div>
-        ))}
-      </div>
+  const [collapsed, setCollapsed] = useState(false);
 
-      {/* Text / Image Overlay Status in Legend */}
-      {((activeTextFilters && activeTextFilters.size > 0) || activeInternationalImageFilter) && (
-        <div className="legend-text-overlays-section">
-          <div className="legend-divider" />
-          <div className="legend-text-overlays-header">
-            <span>已疊加標籤：</span>
+  return (
+    <div
+      className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''} ${
+        collapsed ? 'is-collapsed' : ''
+      }`}
+    >
+      <button
+        type="button"
+        className="legend-title legend-toggle"
+        onClick={() => setCollapsed((v) => !v)}
+        aria-expanded={!collapsed}
+        title={collapsed ? '展開圖例' : '收合圖例'}
+      >
+        <span className="legend-toggle-icon" aria-hidden>
+          {/* 左上角 icon：收合用右箭頭、展開用下箭頭；也可用固定 List */}
+          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+        </span>
+        <span className="legend-title-text">{activeFilterDef.nameZh}</span>
+      </button>
+
+      {!collapsed && (
+        <>
+          <div className="legend-items-list legend-items">
+            {activeFilterDef.legend.map((item) => (
+              <div key={item.key} className="legend-item-row legend-item">
+                <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
+                <span className="legend-label">{item.labelZh}</span>
+              </div>
+            ))}
           </div>
-          <div className="legend-text-overlays-pills">
-            {activeTextFilters &&
-              Array.from(activeTextFilters).map((id) => {
-                const tf = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
-                if (!tf) return null;
-                return (
+
+          {((activeTextFilters && activeTextFilters.size > 0) || activeInternationalImageFilter) && (
+            <div className="legend-text-overlays-section">
+              <div className="legend-divider" />
+              <div className="legend-text-overlays-header">
+                <span>已疊加標籤：</span>
+              </div>
+              <div className="legend-text-overlays-pills">
+                {activeTextFilters &&
+                  Array.from(activeTextFilters).map((id) => {
+                    const tf = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
+                    if (!tf) return null;
+                    return (
+                      <span
+                        key={id}
+                        className="legend-text-pill"
+                        style={{
+                          borderColor: tf.accentColor,
+                          color: tf.accentColor,
+                          backgroundColor: `${tf.accentColor}18`
+                        }}
+                      >
+                        {tf.shortBadge}
+                      </span>
+                    );
+                  })}
+                {activeInternationalImageFilter === 'pedestrian-crossing' && (
                   <span
-                    key={id}
                     className="legend-text-pill"
                     style={{
-                      borderColor: tf.accentColor,
-                      color: tf.accentColor,
-                      backgroundColor: `${tf.accentColor}18`
+                      borderColor: '#38bdf8',
+                      color: '#38bdf8',
+                      backgroundColor: 'rgba(56, 189, 248, 0.12)'
                     }}
                   >
-                    {tf.shortBadge}
+                    🚸 人行道告示
                   </span>
-                );
-              })}
-            {activeInternationalImageFilter === 'pedestrian-crossing' && (
-              <span
-                className="legend-text-pill"
-                style={{
-                  borderColor: '#38bdf8',
-                  color: '#38bdf8',
-                  backgroundColor: 'rgba(56, 189, 248, 0.12)'
-                }}
-              >
-                🚸 人行道告示
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+                )}
+              </div>
+            </div>
+          )}
 
-      {/* Nationwide Overlay Status in Legend (surfaced only at L2/L3) */}
-      {(lodLevel === 'L2' || lodLevel === 'L3') && activeRegionalFilters.size > 0 && (
-        <div className="legend-text-overlays-section">
-          <div className="legend-divider" />
-          <div className="legend-text-overlays-header">
-            <span>國內專屬圖層：</span>
-          </div>
-          <div className="legend-text-overlays-pills">
-            {Array.from(activeRegionalFilters).map((id) => {
-              const rf = getNationwideFilterById(id) || NATIONWIDE_FILTERS_BY_ID.get(id);
-              if (!rf) return null;
-              return (
-                <span
-                  key={id}
-                  className="legend-text-pill"
-                  style={{
-                    borderColor: rf.activeColor,
-                    color: rf.activeColor,
-                    backgroundColor: `${rf.activeColor}18`
-                  }}
-                >
-                  {rf.shortBadge} {rf.nameZh}
-                </span>
-              );
-            })}
-          </div>
-        </div>
+          {(lodLevel === 'L2' || lodLevel === 'L3') && activeRegionalFilters.size > 0 && (
+            <div className="legend-text-overlays-section">
+              <div className="legend-divider" />
+              <div className="legend-text-overlays-header">
+                <span>國內專屬圖層：</span>
+              </div>
+              <div className="legend-text-overlays-pills">
+                {Array.from(activeRegionalFilters).map((id) => {
+                  const rf = getNationwideFilterById(id) || NATIONWIDE_FILTERS_BY_ID.get(id);
+                  if (!rf) return null;
+                  return (
+                    <span
+                      key={id}
+                      className="legend-text-pill"
+                      style={{
+                        borderColor: rf.activeColor,
+                        color: rf.activeColor,
+                        backgroundColor: `${rf.activeColor}18`
+                      }}
+                    >
+                      {rf.shortBadge} {rf.nameZh}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

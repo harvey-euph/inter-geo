@@ -1128,6 +1128,55 @@
   gap: 6px;
 }
 
+.legend-toggle {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: -2px -4px; /* 點擊區稍大一點 */
+}
+
+.legend-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.legend-toggle:focus-visible {
+  outline: 1px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 2px;
+}
+
+.legend-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+.legend-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 收合時卡片更扁、只留標題列 */
+.filter-legend-card.is-collapsed {
+  padding: 8px 10px;
+  gap: 0;
+}
+
 .legend-items-list,
 .legend-items {
   display: flex;

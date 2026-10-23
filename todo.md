@@ -4,7 +4,7 @@
 
 # Bug
 
-- [ ] 在 scripts/generate-l2-fgb.mjs 寫出 fgb 前過濾空幾何（你已有類似 geoArea 過濾，但空 ring 可能沒擋到）：
+- [ ] 在 scripts/generate-l2-fgb.mjs 寫出 fgb 前過濾空幾何（已有類似 geoArea 過濾，但空 ring 可能沒擋到）：
 
 ```ts
 function hasUsableRing(geom) {
@@ -25,10 +25,15 @@ optimizedFeatures = optimizedFeatures.filter((f) => hasUsableRing(f.geometry));
 ```
 
 - [ ] 展開/閉合資訊卡的時候會讓地圖產生一瞬間的橫向縮放，會導致螢幕閃一下，我希望螢幕不要出現這種現象
+- [ ] 公路該顯示的時候沒有顯示
 
 
 # Feature
 
 - [ ] 點按左上角 icon 可以把 filter-legend-card 收納/展開
 - [ ] 道路標線的著色都只畫 L1 區域 (國家層級) 就好，不用畫到 L2，邊界寬度可以稍微再寬一點
-- [ ] 台灣電力座標的字母展示，字母不需要外圍圓圈，只要字母本身，並且隨著方框縮放跟著變大變小
+- [ ] Selected Nationwide Filter / (Search or any reason) Clicked a Region -> Move window to the target Region
+- [ ] Hover Region 跳出來的小資訊卡
+    - 要自動換行，不要拖太長
+    - 要測量螢幕邊界，不可以跑到外面
+

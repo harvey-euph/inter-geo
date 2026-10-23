@@ -996,25 +996,34 @@ export function drawTaipowerLabels(rc: RenderContext): void {
 
       if (cxScr < -100 || cxScr > vw + 100 || cyScr < -100 || cyScr > vh + 100) continue;
 
+      // 格子在螢幕上的寬/高（用實際四角，比 bbox 更準）
+      const swx = (item.pSW[0] + copyOffset) * k + x;
+      const swy = item.pSW[1] * k + y;
+      const sex = (item.pSE[0] + copyOffset) * k + x;
+      const sey = item.pSE[1] * k + y;
+      const nwx = (item.pNW[0] + copyOffset) * k + x;
+      const nwy = item.pNW[1] * k + y;
+
+      const edgeW = Math.hypot(sex - swx, sey - swy);
+      const edgeH = Math.hypot(nwx - swx, nwy - swy);
+      const minEdge = Math.min(edgeW, edgeH);
+
+      const fontSize = Math.min(120, Math.max(10, minEdge * 0.75));
+
+      if (fontSize < 11) continue;
+
       const letterText = item.zone.letter;
-      const fontSize = currentLod === 'L3' ? 28 : Math.min(26, Math.max(15, Math.round(k * 2.2)));
 
       ctx.save();
       ctx.translate(cxScr, cyScr);
-      ctx.rotate((-7 * Math.PI) / 180);
 
       ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const pillR = Math.round(fontSize * 0.85);
-      ctx.beginPath();
-      ctx.arc(0, 0, pillR, 0, Math.PI * 2);
-      ctx.fillStyle = isHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.80)';
-      ctx.fill();
-      ctx.strokeStyle = isHovered ? '#ffffff' : item.zone.color;
-      ctx.lineWidth = isHovered ? 2.5 : 1.8;
-      ctx.stroke();
+      ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
+      ctx.strokeStyle = isHovered ? 'rgba(15, 23, 42, 0.9)' : 'rgba(15, 23, 42, 0.75)';
+      ctx.strokeText(letterText, 0, 0);
 
       ctx.fillStyle = isHovered ? '#ffffff' : item.zone.color;
       ctx.fillText(letterText, 0, 0);
@@ -1022,11 +1031,11 @@ export function drawTaipowerLabels(rc: RenderContext): void {
       ctx.restore();
 
       if (currentLod === 'L3') {
-        const pSWScr = [(item.pSW[0] + copyOffset) * k + x, item.pSW[1] * k + y];
-        const pSEScr = [(item.pSE[0] + copyOffset) * k + x, item.pSE[1] * k + y];
-        const pNWScr = [(item.pNW[0] + copyOffset) * k + x, item.pNW[1] * k + y];
+        const pSWScr = [swx, swy];
+        const pSEScr = [sex, sey];
+        const pNWScr = [nwx, nwy];
 
-        const pctFontSize = Math.min(16, Math.max(10, Math.round(8 + k * 0.15)));
+        const pctFontSize = Math.min(18, Math.max(9, minEdge * 0.08));
         ctx.font = `bold ${pctFontSize}px ui-monospace, "JetBrains Mono", monospace`;
         ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
 
