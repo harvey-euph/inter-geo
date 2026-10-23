@@ -179,7 +179,7 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
         }}
       >
         <img
-          src={card.image}
+          src={`${import.meta.env.BASE_URL}/${card.image}`}
           alt={card.imageAlt || card.title}
           loading="lazy"
           style={{
