@@ -1404,8 +1404,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   );
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!activePointers.current.has(e.pointerId)) return;
-    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.current.has(e.pointerId)) {
+      activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
 
     isMouseInsideRef.current = true;
     mousePos.current = { x: e.clientX, y: e.clientY };
@@ -1513,6 +1514,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
 
     // —— hover（非拖曳、非 pinch）——
+    if (isPinching.current) return;
     const target = e.target as Element | null;
     const isOverControl = !!target?.closest(
       '.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud'
