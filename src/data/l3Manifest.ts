@@ -5410,6 +5410,187 @@ export const L3_MANIFEST: L3CountryMeta[] = [
       }
     ]
   }
+,
+  {
+    "iso2": "NL",
+    "countryId": "528",
+    "name": "Netherlands",
+    "nameZh": "荷蘭",
+    "unitNameZh": "省 (Provincie)",
+    "subdivisionCount": 15,
+    "bbox": {
+      "minX": 310,
+      "maxX": 520,
+      "minY": 323,
+      "maxY": 466
+    },
+    "partitions": [
+      {
+        "key": "NL",
+        "iso2": "NL",
+        "parentName": "Netherlands",
+        "parentCode": "NL",
+        "file": "/data/l3/NL/NL.fgb",
+        "subdivisionCount": 15,
+        "bbox": {
+          "minX": 310,
+          "maxX": 520,
+          "minY": 323,
+          "maxY": 466
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "BE",
+    "countryId": "056",
+    "name": "Belgium",
+    "nameZh": "比利時",
+    "unitNameZh": "省/首都區 (Provincie / Province)",
+    "subdivisionCount": 11,
+    "bbox": {
+      "minX": 507,
+      "maxX": 518,
+      "minY": 333,
+      "maxY": 341
+    },
+    "partitions": [
+      {
+        "key": "BE",
+        "iso2": "BE",
+        "parentName": "Belgium",
+        "parentCode": "BE",
+        "file": "/data/l3/BE/BE.fgb",
+        "subdivisionCount": 11,
+        "bbox": {
+          "minX": 507,
+          "maxX": 518,
+          "minY": 333,
+          "maxY": 341
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "LS",
+    "countryId": "426",
+    "name": "Lesotho",
+    "nameZh": "賴索托",
+    "unitNameZh": "區 (District)",
+    "subdivisionCount": 10,
+    "bbox": {
+      "minX": 575,
+      "maxX": 582,
+      "minY": 583,
+      "maxY": 590
+    },
+    "partitions": [
+      {
+        "key": "LS",
+        "iso2": "LS",
+        "parentName": "Lesotho",
+        "parentCode": "LS",
+        "file": "/data/l3/LS/LS.fgb",
+        "subdivisionCount": 10,
+        "bbox": {
+          "minX": 575,
+          "maxX": 582,
+          "minY": 583,
+          "maxY": 590
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "SZ",
+    "countryId": "748",
+    "name": "eSwatini",
+    "nameZh": "史瓦帝尼",
+    "unitNameZh": "區 (Region)",
+    "subdivisionCount": 4,
+    "bbox": {
+      "minX": 586,
+      "maxX": 589,
+      "minY": 574,
+      "maxY": 579
+    },
+    "partitions": [
+      {
+        "key": "SZ",
+        "iso2": "SZ",
+        "parentName": "eSwatini",
+        "parentCode": "SZ",
+        "file": "/data/l3/SZ/SZ.fgb",
+        "subdivisionCount": 4,
+        "bbox": {
+          "minX": 586,
+          "maxX": 589,
+          "minY": 574,
+          "maxY": 579
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "MT",
+    "countryId": "470",
+    "name": "Malta",
+    "nameZh": "馬爾他",
+    "unitNameZh": "地方議會 (Local Council)",
+    "subdivisionCount": 68,
+    "bbox": {
+      "minX": 539,
+      "maxX": 540,
+      "minY": 392,
+      "maxY": 393
+    },
+    "partitions": [
+      {
+        "key": "MT",
+        "iso2": "MT",
+        "parentName": "Malta",
+        "parentCode": "MT",
+        "file": "/data/l3/MT/MT.fgb",
+        "subdivisionCount": 68,
+        "bbox": {
+          "minX": 539,
+          "maxX": 540,
+          "minY": 392,
+          "maxY": 393
+        }
+      }
+    ]
+  },
+  {
+    "iso2": "IL",
+    "countryId": "376",
+    "name": "Israel",
+    "nameZh": "以色列",
+    "unitNameZh": "區 (Mehoz / District)",
+    "subdivisionCount": 6,
+    "bbox": {
+      "minX": 595,
+      "maxX": 600,
+      "minY": 401,
+      "maxY": 414
+    },
+    "partitions": [
+      {
+        "key": "IL",
+        "iso2": "IL",
+        "parentName": "Israel",
+        "parentCode": "IL",
+        "file": "/data/l3/IL/IL.fgb",
+        "subdivisionCount": 6,
+        "bbox": {
+          "minX": 595,
+          "maxX": 600,
+          "minY": 401,
+          "maxY": 414
+        }
+      }
+    ]
+  }
 ];
 
 export const L3_PARTITIONS_BY_COUNTRY: Record<string, L3PartitionMeta[]> = {};

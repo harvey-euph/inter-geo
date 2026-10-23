@@ -20,7 +20,18 @@ const MERCATOR_SCALE = MAP_W / (2 * Math.PI);
 const projection = geoMercator().scale(MERCATOR_SCALE).translate([MAP_W / 2, MAP_H / 2]);
 const pathGen = geoPath().projection(projection);
 
-const TARGET_COUNTRIES = [
+// Batch 2 (2026-10): NL, BE, LS, SZ, MT, IL
+const BATCH_2 = [
+  { iso2: 'NL', name: 'Netherlands', nameZh: '荷蘭', countryId: '528', unitNameZh: '省 (Provincie)' },
+  { iso2: 'BE', name: 'Belgium', nameZh: '比利時', countryId: '056', unitNameZh: '省/首都區 (Provincie / Province)' },
+  { iso2: 'LS', name: 'Lesotho', nameZh: '賴索托', countryId: '426', unitNameZh: '區 (District)' },
+  { iso2: 'SZ', name: 'eSwatini', nameZh: '史瓦帝尼', countryId: '748', unitNameZh: '區 (Region)' },
+  { iso2: 'MT', name: 'Malta', nameZh: '馬爾他', countryId: '470', unitNameZh: '地方議會 (Local Council)' },
+  { iso2: 'IL', name: 'Israel', nameZh: '以色列', countryId: '376', unitNameZh: '區 (Mehoz / District)' }
+];
+
+// Select batch via CLI: `node scripts/process-small-countries-to-l3.mjs batch2`
+const BATCH_1 = [
   { iso2: 'CH', name: 'Switzerland', nameZh: '瑞士', countryId: '756', unitNameZh: '邦/州 (Canton)' },
   { iso2: 'SI', name: 'Slovenia', nameZh: '斯洛維尼亞', countryId: '705', unitNameZh: '區/市鎮 (Občina)' },
   { iso2: 'LV', name: 'Latvia', nameZh: '拉脫維亞', countryId: '428', unitNameZh: '市/市鎮 (Novads)' },
@@ -36,6 +47,8 @@ const TARGET_COUNTRIES = [
   { iso2: 'RW', name: 'Rwanda', nameZh: '盧安達', countryId: '646', unitNameZh: '省 (Intara)' },
   { iso2: 'BT', name: 'Bhutan', nameZh: '不丹', countryId: '064', unitNameZh: '宗/宗管轄區 (Dzongkhag)' }
 ];
+
+const TARGET_COUNTRIES = process.argv[2] === 'batch2' ? BATCH_2 : BATCH_1;
 
 function normalizeFeatureWinding(feature) {
   try {

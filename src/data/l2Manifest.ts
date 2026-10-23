@@ -84,7 +84,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "056",
     "name": "Belgium",
     "nameZh": "比利時",
-    "subdivisionCount": 11,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 502,
       "maxX": 523,
@@ -305,7 +305,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "748",
     "name": "eSwatini",
     "nameZh": "史瓦帝尼",
-    "subdivisionCount": 4,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 581,
       "maxX": 594,
@@ -487,7 +487,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "376",
     "name": "Israel",
     "nameZh": "以色列",
-    "subdivisionCount": 6,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 590,
       "maxX": 605,
@@ -604,7 +604,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "426",
     "name": "Lesotho",
     "nameZh": "賴索托",
-    "subdivisionCount": 10,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 570,
       "maxX": 587,
@@ -656,7 +656,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "470",
     "name": "Malta",
     "nameZh": "馬爾他",
-    "subdivisionCount": 68,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 534,
       "maxX": 545,
@@ -708,7 +708,7 @@ export const L2_MANIFEST: L2CountryMeta[] = [
     "countryId": "528",
     "name": "Netherlands",
     "nameZh": "荷蘭",
-    "subdivisionCount": 15,
+    "subdivisionCount": 1,
     "bbox": {
       "minX": 305,
       "maxX": 525,

@@ -1758,7 +1758,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     const loadL1 = async (): Promise<GeoFeature[]> => {
       try {
-        const res = await fetch('/data/countries-110m.fgb');
+        const res = await fetch(
+          `${import.meta.env.BASE_URL}data/countries-110m.fgb`
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         if (!isMounted) return [];
