@@ -1,5 +1,9 @@
 // tld.csv
 // @id: tld
+// @order: 3
+// @loadedTiming: on-demand
+// @effectiveRange: International
+// @type: Text
 // @nameZh: 頂級網域
 // @nameEn: Domain Name (ccTLD)
 // @shortBadge: 🌐 網域

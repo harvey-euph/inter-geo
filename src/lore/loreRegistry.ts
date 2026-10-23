@@ -1,86 +1,103 @@
-import type { LoreCard, LoreQuery } from '../types/lore';
+import loreIndexStubs from 'virtual:lore-index';
+import type { LoreCard, LoreQuery, LoreStub } from '../types/lore';
 import { parseMarkdownLore } from './loreParser';
 
 /**
- * Raw markdown files loaded eagerly at build time via Vite's glob import
+ * Resolve static asset URLs for all markdown files under /src/content/lore/
+ * Using `query: '?url'` ensures Vite emits standalone .md files without bundling their text content.
  */
-const rawLoreFiles = import.meta.glob('/src/content/lore/**/*.md', {
-  query: '?raw',
+const loreFileUrls = import.meta.glob('/src/content/lore/**/*.md', {
+  query: '?url',
   import: 'default',
   eager: true
 }) as Record<string, string>;
 
-let cachedAllCards: LoreCard[] | null = null;
-let cachedCardsByTarget: Map<string, LoreCard[]> | null = null;
-let cachedCardsById: Map<string, LoreCard> | null = null;
+let cachedStubsByTarget: Map<string, LoreStub[]> | null = null;
+let cachedStubsById: Map<string, LoreStub> | null = null;
 
-function initializeLoreRegistry(): void {
-  if (cachedAllCards !== null) return;
+/** In-memory cache of parsed full LoreCard objects by card ID */
+const loadedCardsById = new Map<string, LoreCard>();
 
-  const cards: LoreCard[] = [];
-  const byTarget = new Map<string, LoreCard[]>();
-  const byId = new Map<string, LoreCard>();
+/** Deduplicate concurrent HTTP fetches for the same .md file */
+const inFlightFiles = new Map<string, Promise<LoreCard[]>>();
 
-  for (const [filePath, content] of Object.entries(rawLoreFiles)) {
-    const fileName = filePath.split('/').pop() || filePath;
-    const parsed = parseMarkdownLore(content, fileName);
+function normalizeTargetKey(rawTarget: string): string {
+  return rawTarget
+    .toUpperCase()
+    .trim()
+    .replace(/^(COUNTRY|SUBDIVISION|MUNICIPALITY|ROAD|GRID):/, '');
+}
 
-    for (const card of parsed) {
-      cards.push(card);
-      byId.set(card.id, card);
+function initializeStubIndex(): void {
+  if (cachedStubsByTarget !== null) return;
 
-      for (const target of card.targets) {
-        const upper = target.toUpperCase().trim();
-        const list = byTarget.get(upper) || [];
-        list.push(card);
-        byTarget.set(upper, list);
-      }
+  const byTarget = new Map<string, LoreStub[]>();
+  const byId = new Map<string, LoreStub>();
 
-      if (card.comparisonTargets) {
-        for (const comp of card.comparisonTargets) {
-          const upper = comp.toUpperCase().trim();
-          const list = byTarget.get(upper) || [];
-          if (!list.includes(card)) {
-            list.push(card);
-            byTarget.set(upper, list);
-          }
+  for (const stub of loreIndexStubs) {
+    byId.set(stub.id, stub);
+
+    const addTarget = (raw: string) => {
+      const upper = raw.toUpperCase().trim();
+      const normalized = normalizeTargetKey(upper);
+      for (const key of new Set([upper, normalized])) {
+        if (!key) continue;
+        const list = byTarget.get(key) || [];
+        if (!list.includes(stub)) {
+          list.push(stub);
+          byTarget.set(key, list);
         }
+      }
+    };
+
+    for (const target of stub.targets) {
+      addTarget(target);
+    }
+
+    if (stub.comparisonTargets) {
+      for (const comp of stub.comparisonTargets) {
+        addTarget(comp);
       }
     }
   }
 
-  cachedAllCards = cards;
-  cachedCardsByTarget = byTarget;
-  cachedCardsById = byId;
+  cachedStubsByTarget = byTarget;
+  cachedStubsById = byId;
 }
 
 /**
- * Returns all parsed lore cards across all markdown files
+ * Returns all lightweight LoreStub entries from the build-time index
  */
-export function getAllLoreCards(): LoreCard[] {
-  initializeLoreRegistry();
-  return cachedAllCards || [];
+export function getAllLoreStubs(): LoreStub[] {
+  initializeStubIndex();
+  return loreIndexStubs;
 }
 
 /**
- * Finds a single lore card by ID
+ * Finds a single LoreStub by ID
  */
-export function getLoreCardById(id: string): LoreCard | undefined {
-  initializeLoreRegistry();
-  return cachedCardsById?.get(id);
+export function getLoreStubById(id: string): LoreStub | undefined {
+  initializeStubIndex();
+  return cachedStubsById?.get(id);
 }
 
 /**
- * Queries lore cards relevant to the selected map object
+ * Synchronously queries lightweight LoreStub metadata matching the selected map object.
+ * Does NOT trigger any network requests.
  */
-export function queryLore(query: LoreQuery): LoreCard[] {
-  initializeLoreRegistry();
-  if (!cachedCardsByTarget) return [];
+export function queryLoreStubs(query: LoreQuery): LoreStub[] {
+  initializeStubIndex();
+  if (!cachedStubsByTarget) return [];
 
   const candidateKeys: Array<{ key: string; weight: number }> = [];
+  const hasRoadContext = Boolean(query.roadClass || query.roadName);
+  const hasSubdivisionContext = Boolean(
+    query.subdivisionCode || (query.subdivisionId !== undefined && query.subdivisionId !== null)
+  );
+  const hasMunicipalityContext = Boolean(query.municipalityCode);
 
-  // 1. Country target
-  if (query.countryIso2) {
+  // 1. Country target (only match general country cards when viewing L1 country card directly)
+  if (query.countryIso2 && !hasRoadContext && !hasSubdivisionContext && !hasMunicipalityContext) {
     const iso2 = query.countryIso2.toUpperCase().trim();
     candidateKeys.push({ key: iso2, weight: 10 });
   }
@@ -93,11 +110,11 @@ export function queryLore(query: LoreQuery): LoreCard[] {
     candidateKeys.push({ key: code, weight: 20 });
   }
 
-  if (query.subdivisionId) {
+  if (query.subdivisionId !== undefined && query.subdivisionId !== null) {
     const idStr = String(query.subdivisionId).toUpperCase().trim();
     candidateKeys.push({ key: idStr, weight: 25 });
     if (query.countryIso2) {
-      candidateKeys.push({ key: `${query.countryIso2.toUpperCase()}-${idStr}`, weight: 30 });
+      candidateKeys.push({ key: `${query.countryIso2.toUpperCase().trim()}-${idStr}`, weight: 30 });
     }
   }
 
@@ -106,32 +123,40 @@ export function queryLore(query: LoreQuery): LoreCard[] {
     const mCode = query.municipalityCode.toUpperCase().trim();
     candidateKeys.push({ key: mCode, weight: 40 });
     if (query.countryIso2) {
-      candidateKeys.push({ key: `${query.countryIso2.toUpperCase()}-${mCode}`, weight: 45 });
+      candidateKeys.push({ key: `${query.countryIso2.toUpperCase().trim()}-${mCode}`, weight: 45 });
     }
   }
 
-  // 4. Road targets (e.g. 'INTERSTATE', 'US-ROUTE', 'I-90', 'US 66', 'DE-HIGHWAY', 'E-ROAD')
+  // 4. Road targets (strictly scoped by countryIso2 when present so US Interstate never leaks into TW/JP/DE roads)
   if (query.roadClass) {
     const rClass = query.roadClass.toUpperCase().trim();
-    candidateKeys.push({ key: rClass, weight: 15 });
-    candidateKeys.push({ key: `US-${rClass}`, weight: 15 });
-    candidateKeys.push({ key: 'ROAD', weight: 5 });
-    candidateKeys.push({ key: 'HIGHWAY', weight: 5 });
-    if (query.countryIso2) {
-      const iso = query.countryIso2.toUpperCase().trim();
+    const iso = query.countryIso2?.toUpperCase().trim();
+
+    if (iso) {
       candidateKeys.push({ key: `${iso}-HIGHWAY`, weight: 25 });
       candidateKeys.push({ key: `${iso}-${rClass}`, weight: 25 });
       candidateKeys.push({ key: `${iso}-ROAD`, weight: 20 });
     }
+
+    if (!iso || iso === 'US') {
+      candidateKeys.push({ key: `US-${rClass}`, weight: 20 });
+      candidateKeys.push({ key: rClass, weight: 15 });
+    }
+
+    candidateKeys.push({ key: 'ROAD', weight: 5 });
+    candidateKeys.push({ key: 'HIGHWAY', weight: 5 });
   }
 
   if (query.roadName) {
     const rName = query.roadName.toUpperCase().replace(/\s+/g, '-').trim();
+    const iso = query.countryIso2?.toUpperCase().trim();
+
     candidateKeys.push({ key: rName, weight: 35 });
-    candidateKeys.push({ key: `US-${rName}`, weight: 35 });
-    if (query.countryIso2) {
-      const iso = query.countryIso2.toUpperCase().trim();
+    if (iso) {
       candidateKeys.push({ key: `${iso}-${rName}`, weight: 35 });
+    }
+    if (!iso || iso === 'US') {
+      candidateKeys.push({ key: `US-${rName}`, weight: 35 });
     }
     if (/^E-?\d+/i.test(rName)) {
       candidateKeys.push({ key: 'E-ROAD', weight: 30 });
@@ -139,7 +164,7 @@ export function queryLore(query: LoreQuery): LoreCard[] {
     }
   }
 
-  // 5. Taipower Grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER')
+  // 5. Taipower Grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER-GRID')
   if (query.taipowerLetter) {
     const letter = query.taipowerLetter.toUpperCase().trim();
     candidateKeys.push({ key: `TW-TP-${letter}`, weight: 40 });
@@ -148,21 +173,67 @@ export function queryLore(query: LoreQuery): LoreCard[] {
     candidateKeys.push({ key: 'TAIPOWER-GRID', weight: 25 });
   }
 
-  // Find cards matching any of the candidate keys
-  const scoreMap = new Map<LoreCard, number>();
+  const scoreMap = new Map<LoreStub, number>();
 
   for (const { key, weight } of candidateKeys) {
-    const matches = cachedCardsByTarget.get(key);
+    const matches = cachedStubsByTarget.get(key);
     if (matches) {
-      for (const card of matches) {
-        const cur = scoreMap.get(card) || 0;
-        scoreMap.set(card, Math.max(cur, weight + (card.priority || 0)));
+      for (const stub of matches) {
+        const cur = scoreMap.get(stub) || 0;
+        scoreMap.set(stub, Math.max(cur, weight + (stub.priority || 0)));
       }
     }
   }
 
-  // Sort by match score descending
-  return Array.from(scoreMap.entries())
+  let results = Array.from(scoreMap.entries())
     .sort((a, b) => b[1] - a[1])
-    .map(([card]) => card);
+    .map(([stub]) => stub);
+
+  if (query.tags && query.tags.length > 0) {
+    const requiredTags = query.tags.map((t) => t.toLowerCase());
+    results = results.filter(
+      (stub) => stub.tags && stub.tags.some((t) => requiredTags.includes(t.toLowerCase()))
+    );
+  }
+
+  return results;
+}
+
+/**
+ * Fetches and parses a Markdown lore file on-demand, caching all cards defined in that file.
+ */
+export async function loadLoreCard(stub: LoreStub): Promise<LoreCard | null> {
+  const cached = loadedCardsById.get(stub.id);
+  if (cached) return cached;
+
+  let pending = inFlightFiles.get(stub.sourcePath);
+  if (!pending) {
+    const assetUrl = loreFileUrls[stub.sourcePath] || stub.sourcePath;
+    pending = fetch(assetUrl)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch lore file ${assetUrl}: ${res.status}`);
+        }
+        return res.text();
+      })
+      .then((rawMarkdown) => {
+        const parsedCards = parseMarkdownLore(rawMarkdown, stub.sourceFile);
+        for (const card of parsedCards) {
+          loadedCardsById.set(card.id, card);
+        }
+        return parsedCards;
+      })
+      .finally(() => {
+        inFlightFiles.delete(stub.sourcePath);
+      });
+
+    inFlightFiles.set(stub.sourcePath, pending);
+  }
+
+  const cardsFromFile = await pending;
+  return (
+    loadedCardsById.get(stub.id) ||
+    cardsFromFile.find((c) => c.id === stub.id || c.title === stub.title) ||
+    null
+  );
 }

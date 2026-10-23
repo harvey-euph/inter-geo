@@ -1,5 +1,9 @@
 // distinctive-letters.csv
 // @id: distinctiveLetters
+// @order: 5
+// @loadedTiming: on-demand
+// @effectiveRange: International
+// @type: Text
 // @nameZh: 特色字母
 // @nameEn: Distinctive Letters
 // @shortBadge: 🔤 特色字

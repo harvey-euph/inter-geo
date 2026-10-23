@@ -1,21 +1,24 @@
+import csvFilterStubs from 'virtual:csv-filter-index';
 import {
-  parseFilterRegistryCsv,
+  getAssignableRegionList,
+  parseEffectiveRange
+} from './assignableRegions';
+import {
   parseFilterDataCsv,
   type CsvFilterRegistryEntry,
+  type CsvFilterStub,
   type ParsedCsvFilterData
 } from './csvFilterParser';
 
 /**
- * Raw CSV files in `/src/content/filters/` bundled via Vite's glob import.
- * `init` filters are parsed at startup; `on-demand` filters defer parsing (or fetch from public/) until requested.
+ * Only resolve asset URLs (file paths) for CSV files at startup instead of bundling raw contents.
+ * Actual CSV contents are fetched via HTTP request on demand when the filter is activated.
  */
-const bundledCsvFiles = import.meta.glob('/src/content/filters/**/*.csv', {
-  query: '?raw',
+const csvAssetUrls = import.meta.glob('/src/content/filters/**/*.csv', {
+  query: '?url',
   import: 'default',
   eager: true
 }) as Record<string, string>;
-
-const REGISTRY_CSV_PATH = '/src/content/filters/filter-reg.csv';
 
 export interface RegisteredCsvFilter extends CsvFilterRegistryEntry {
   /** Final resolved filter ID (prefers `@id` directive or registry `Id` column, falls back to filename) */
@@ -32,13 +35,14 @@ export interface RegisteredCsvFilter extends CsvFilterRegistryEntry {
   descriptionZh: string;
   /** Whether the CSV data has been loaded and parsed */
   loaded: boolean;
-  /** Parsed K-V data (populated immediately for `init`, or after `loadCsvFilter` for `on-demand`) */
+  /** Parsed K-V data (populated after `loadOnDemandCsvFilter` fetches the CSV) */
   data: ParsedCsvFilterData | null;
 }
 
 let cachedFilters: RegisteredCsvFilter[] | null = null;
 let cachedFiltersById: Map<string, RegisteredCsvFilter> | null = null;
 let cachedFiltersByPath: Map<string, RegisteredCsvFilter> | null = null;
+const inFlightLoads = new Map<string, Promise<RegisteredCsvFilter | undefined>>();
 
 function buildRegisteredFilter(
   entry: CsvFilterRegistryEntry,
@@ -70,38 +74,44 @@ function buildRegisteredFilter(
   };
 }
 
+function stubToRegistryEntry(stub: CsvFilterStub): CsvFilterRegistryEntry {
+  const effectiveRange = stub.effectiveRange || stub.meta.effectiveRange || 'International';
+  const { kind: rangeKind, targetIso2, targetIso2s } = parseEffectiveRange(effectiveRange);
+  const assignableList = getAssignableRegionList(effectiveRange);
+
+  return {
+    id: stub.id,
+    loadedTiming: stub.loadedTiming || stub.meta.loadedTiming || 'on-demand',
+    effectiveRange,
+    rangeKind,
+    targetIso2,
+    targetIso2s,
+    assignableList,
+    path: stub.path,
+    type: stub.type || stub.meta.type || 'Text',
+    meta: stub.meta
+  };
+}
+
 function initCsvFilterRegistry(): void {
   if (cachedFilters !== null) return;
-
-  const regRaw = bundledCsvFiles[REGISTRY_CSV_PATH] || '';
-  const entries = parseFilterRegistryCsv(regRaw);
 
   const list: RegisteredCsvFilter[] = [];
   const byId = new Map<string, RegisteredCsvFilter>();
   const byPath = new Map<string, RegisteredCsvFilter>();
 
-  for (const entry of entries) {
-    let parsedData: ParsedCsvFilterData | null = null;
-
-    if (entry.loadedTiming === 'init') {
-      const rawCsv = bundledCsvFiles[entry.path];
-      if (rawCsv !== undefined) {
-        parsedData = parseFilterDataCsv(rawCsv, entry.effectiveRange);
-        if (parsedData.invalidRegionIds.length > 0) {
-          console.warn(
-            `[CSV Filter] "${entry.path}" contains region-ids outside assignable list "${entry.assignableList.rangeKey}":`,
-            parsedData.invalidRegionIds
-          );
-        }
-      } else {
-        console.warn(`[CSV Filter] Registered CSV file not found at path: ${entry.path}`);
-      }
-    }
-
-    const filter = buildRegisteredFilter(entry, parsedData);
+  for (const stub of csvFilterStubs) {
+    const entry = stubToRegistryEntry(stub);
+    // At init time, only use the lightweight header metadata from virtual:csv-filter-index
+    const filter = buildRegisteredFilter(entry, null);
     list.push(filter);
     byId.set(filter.id, filter);
     byPath.set(filter.path, filter);
+
+    // If a filter is explicitly marked 'init', trigger background fetch immediately
+    if (entry.loadedTiming === 'init') {
+      void loadOnDemandCsvFilter(filter.id);
+    }
   }
 
   cachedFilters = list;
@@ -200,38 +210,58 @@ export function getCsvFilterRecord(filterId: string): Record<string, string> {
 }
 
 /**
- * Loads an `on-demand` CSV filter asynchronously when needed.
+ * Fetches and parses a CSV filter over HTTP on demand when needed.
  */
-export async function loadOnDemandCsvFilter(filterIdOrPath: string): Promise<RegisteredCsvFilter | undefined> {
+export async function loadOnDemandCsvFilter(
+  filterIdOrPath: string
+): Promise<RegisteredCsvFilter | undefined> {
   initCsvFilterRegistry();
-  const filter = cachedFiltersById?.get(filterIdOrPath) || cachedFiltersByPath?.get(filterIdOrPath);
+  const filter =
+    cachedFiltersById?.get(filterIdOrPath) || cachedFiltersByPath?.get(filterIdOrPath);
   if (!filter) return undefined;
   if (filter.loaded && filter.data) return filter;
 
-  let rawCsv = bundledCsvFiles[filter.path];
-  if (rawCsv === undefined) {
-    const res = await fetch(filter.path);
-    if (res.ok) {
-      rawCsv = await res.text();
+  const existingPromise = inFlightLoads.get(filter.id);
+  if (existingPromise) return existingPromise;
+
+  const promise = (async () => {
+    try {
+      const resolvedUrl = csvAssetUrls[filter.path] || filter.path;
+      const res = await fetch(resolvedUrl);
+      if (!res.ok) {
+        console.warn(`[CSV Filter] HTTP ${res.status} when fetching ${resolvedUrl}`);
+        return filter;
+      }
+      const rawCsv = await res.text();
+      const parsed = parseFilterDataCsv(rawCsv, filter.effectiveRange);
+
+      if (parsed.invalidRegionIds.length > 0) {
+        console.warn(
+          `[CSV Filter] "${filter.path}" contains region-ids outside assignable list "${filter.assignableList.rangeKey}":`,
+          parsed.invalidRegionIds
+        );
+      }
+
+      const updated = buildRegisteredFilter(filter, parsed);
+      filter.id = updated.id;
+      filter.nameZh = updated.nameZh;
+      filter.nameEn = updated.nameEn;
+      filter.shortBadge = updated.shortBadge;
+      filter.accentColor = updated.accentColor;
+      filter.descriptionZh = updated.descriptionZh;
+      filter.loaded = true;
+      filter.data = parsed;
+
+      cachedFiltersById?.set(filter.id, filter);
+      return filter;
+    } catch (err) {
+      console.warn(`[CSV Filter] Failed to fetch on-demand CSV at ${filter.path}:`, err);
+      return filter;
+    } finally {
+      inFlightLoads.delete(filter.id);
     }
-  }
-  if (rawCsv === undefined) {
-    console.warn(`[CSV Filter] Failed to load on-demand CSV at ${filter.path}`);
-    return filter;
-  }
+  })();
 
-  const parsed = parseFilterDataCsv(rawCsv, filter.effectiveRange);
-  const updated = buildRegisteredFilter(filter, parsed);
-
-  filter.id = updated.id;
-  filter.nameZh = updated.nameZh;
-  filter.nameEn = updated.nameEn;
-  filter.shortBadge = updated.shortBadge;
-  filter.accentColor = updated.accentColor;
-  filter.descriptionZh = updated.descriptionZh;
-  filter.loaded = true;
-  filter.data = parsed;
-
-  cachedFiltersById?.set(filter.id, filter);
-  return filter;
+  inFlightLoads.set(filter.id, promise);
+  return promise;
 }

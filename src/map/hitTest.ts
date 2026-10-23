@@ -234,8 +234,8 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
         }
       }
 
-      // Check if cursor is over water/gap within active parent
-      if (activeL3Parent.path2D) {
+      // Check if cursor is over water/gap within active parent (only when L3 children actually exist)
+      if (children.length > 0 && activeL3Parent.path2D) {
         const [minX, minY, maxX, maxY] = activeL3Parent.bbox;
         if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
           if (ctx.isPointInPath(activeL3Parent.path2D, mx * dpr, my * dpr)) {

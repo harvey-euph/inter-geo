@@ -36,7 +36,7 @@ export const EUROPEAN_CROSSING_SIGNS: Record<string, CrossingSignMeta> = {
     stripes: 8,
     direction: 'left',
     shape: 'blue_square',
-    descriptionZh: '西班牙 S-13 標誌：全歐洲最多斑馬線條數（高達 8 條！），行人向左行，全歐秒殺特徵。'
+    descriptionZh: '西班牙 S-13 標誌：全歐洲斑馬線條數最多的設計（共 8 條），行人朝左邁步。'
   },
   AD: {
     iso2: 'AD',
@@ -96,7 +96,7 @@ export const EUROPEAN_CROSSING_SIGNS: Record<string, CrossingSignMeta> = {
     stripes: 0,
     direction: 'left',
     shape: 'blue_square',
-    descriptionZh: '比利時 F49 標誌特殊特徵：行人向左走，底部為兩條水平點狀虛線（無垂直斑馬線條！），秒殺西歐特徵。'
+    descriptionZh: '比利時 F49 標誌：行人朝左邁步，底部以兩條水平點狀虛線表示行人穿越道範圍（無垂直斑馬線條）。'
   },
   NL: {
     iso2: 'NL',
@@ -222,7 +222,7 @@ export const EUROPEAN_CROSSING_SIGNS: Record<string, CrossingSignMeta> = {
     stripes: 0,
     direction: 'right',
     shape: 'blue_square',
-    descriptionZh: '波蘭 Znak D-6 標誌：藍底白三角，行人向右邁步，底部為白色實線基底橫道（無垂直斑馬線條分格），秒殺特徵。'
+    descriptionZh: '波蘭 Znak D-6 標誌：藍底白三角，行人朝右邁步，底部為白色實線橫道基底（無垂直分格條紋）。'
   },
   CZ: {
     iso2: 'CZ',
@@ -344,7 +344,7 @@ export const EUROPEAN_CROSSING_SIGNS: Record<string, CrossingSignMeta> = {
     stripes: 5,
     direction: 'right',
     shape: 'blue_square',
-    descriptionZh: '立陶宛 533 標誌：波羅的海三國中唯一「行人向右行」的國家！右腳在前，5 條斑馬線，秒殺對照。'
+    descriptionZh: '立陶宛 533 標誌：波羅的海三國中唯一行人朝右邁步的設計，右腳在前、搭配 5 條斑馬線。'
   },
 
   // --- Southern Europe & Balkans ---
@@ -356,7 +356,7 @@ export const EUROPEAN_CROSSING_SIGNS: Record<string, CrossingSignMeta> = {
     stripes: 0,
     direction: 'left',
     shape: 'blue_square',
-    descriptionZh: '希臘 P-21 / Π-21 標誌：行人向左行，腳下為「一條水平虛線」（Dashed line，無垂直斑馬線！），南歐秒殺特徵。'
+    descriptionZh: '希臘 P-21 / Π-21 標誌：行人朝左邁步，腳下為單條水平虛線（無垂直斑馬線條）。'
   },
   CY: {
     iso2: 'CY',

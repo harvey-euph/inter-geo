@@ -911,9 +911,14 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
         (selectedL2 && selectedL2.iso2 === cMeta.iso2)
       );
 
-      const imgSize = isHovered || isSelected ? 40 : 32;
-      const imgX = Math.round(screenX - imgSize / 2);
-      const imgY = Math.round(screenY - imgSize / 2);
+      const baseSize = isHovered || isSelected ? 40 : 32;
+      const natW = img.naturalWidth || baseSize;
+      const natH = img.naturalHeight || baseSize;
+      const scale = baseSize / Math.sqrt(natW * natH);
+      const imgW = Math.max(1, Math.round(natW * scale));
+      const imgH = Math.max(1, Math.round(natH * scale));
+      const imgX = Math.round(screenX - imgW / 2);
+      const imgY = Math.round(screenY - imgH / 2);
 
       if (!isHovered && !isSelected) {
         let collides = false;
@@ -921,9 +926,9 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
           const pb = placedCrossingBoxes[b];
           if (
             imgX < pb.x2 + 2 &&
-            imgX + imgSize > pb.x1 - 2 &&
+            imgX + imgW > pb.x1 - 2 &&
             imgY < pb.y2 + 2 &&
-            imgY + imgSize > pb.y1 - 2
+            imgY + imgH > pb.y1 - 2
           ) {
             collides = true;
             break;
@@ -935,19 +940,19 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
       placedCrossingBoxes.push({
         x1: imgX,
         y1: imgY,
-        x2: imgX + imgSize,
-        y2: imgY + imgSize
+        x2: imgX + imgW,
+        y2: imgY + imgH
       });
 
       currentRenderedBadges.push({
         x1: imgX,
         y1: imgY,
-        x2: imgX + imgSize,
-        y2: imgY + imgSize,
+        x2: imgX + imgW,
+        y2: imgY + imgH,
         iso2: cMeta.iso2
       });
 
-      ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
+      ctx.drawImage(img, imgX, imgY, imgW, imgH);
     }
   }
   ctx.restore();

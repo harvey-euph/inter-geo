@@ -1,5 +1,9 @@
 // india-scripts.csv
 // @id: indiaScripts
+// @order: 7
+// @loadedTiming: on-demand
+// @effectiveRange: Nationwide:IN|LK|BD
+// @type: Text
 // @nameZh: 南亞文字特徵 (印/斯/孟)
 // @nameEn: South Asia Scripts (IN/LK/BD)
 // @shortBadge: 🕉️ 南亞文字

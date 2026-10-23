@@ -1,5 +1,9 @@
 // country-code.csv
 // @id: callingCode
+// @order: 2
+// @loadedTiming: on-demand
+// @effectiveRange: International
+// @type: Text
 // @nameZh: 電話國碼
 // @nameEn: Calling Code
 // @shortBadge: 📞 國碼

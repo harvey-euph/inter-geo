@@ -3,7 +3,7 @@ import { findCountry } from '../data/countries';
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCrossingSign } from '../data/pedestrianCrossing';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
-import { queryLore } from '../lore/loreRegistry';
+import { queryLoreStubs } from '../lore/loreRegistry';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
@@ -267,26 +267,26 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             )}
           </div>
           {(() => {
-            const mdCards = queryLore({ countryIso2: hoveredCountry.iso2 });
-            if (mdCards && mdCards.length > 0) {
-              const card = mdCards[0];
-              const firstItem = card.items[0];
+            const mdStubs = queryLoreStubs({ countryIso2: hoveredCountry.iso2 });
+            if (mdStubs && mdStubs.length > 0) {
+              const stub = mdStubs[0];
+              const preview = stub.firstItemPreview;
               return (
                 <div
                   style={{
                     fontSize: 11,
-                    color: card.accentColor || '#fbbf24',
+                    color: stub.accentColor || '#fbbf24',
                     marginTop: 4,
                     lineHeight: 1.3,
                     borderTop: '1px solid var(--border-color)',
                     paddingTop: 4
                   }}
                 >
-                  {card.icon || '💡'} <strong>{card.title}</strong>
-                  {firstItem && (
+                  {stub.icon || '💡'} <strong>{stub.title}</strong>
+                  {preview && (
                     <div style={{ color: '#cbd5e1', marginTop: 2, fontSize: 10.5 }}>
-                      {firstItem.label ? `${firstItem.label} ` : ''}
-                      {firstItem.content.length > 75 ? `${firstItem.content.slice(0, 75)}...` : firstItem.content}
+                      {preview.label ? `${preview.label} ` : ''}
+                      {preview.content.length > 75 ? `${preview.content.slice(0, 75)}...` : preview.content}
                     </div>
                   )}
                 </div>

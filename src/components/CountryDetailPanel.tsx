@@ -5,7 +5,6 @@ import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from '
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCountryCallingCode, getCountryTld } from '../data/globalFilters';
 import { getSubdivisionAreaCode } from '../data/domesticAreaCodes';
-import { getCrossingSign } from '../data/pedestrianCrossing';
 import { getIndiaStateLanguageInfo } from '../data/indiaLanguages';
 import { getCountryLanguageMeta } from '../data/countryLanguages';
 import { findCountry } from '../data/countries';
@@ -214,15 +213,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
-            {(onNavigateToCountry || onNavigateBack) && (
-              <button
-                className="drawer-back-btn"
-                onClick={handleBack}
-                title={`回上一頁：${parentCountryName}`}
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -230,6 +220,35 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
         </div>
 
         <div className="drawer-content">
+          {/* Breadcrumbs Navigation */}
+          <div className="drawer-breadcrumbs">
+            {roadCountry && (
+              <>
+                <span
+                  className="drawer-breadcrumb-link"
+                  onClick={handleBack}
+                  title={`查看 ${parentCountryName} 國家情報`}
+                >
+                  {roadCountry.flag} {roadCountry.nameZh}
+                </span>
+                <span className="drawer-breadcrumb-sep">›</span>
+              </>
+            )}
+            <span className="drawer-breadcrumb-current">
+              {road.name} · {roadMeta.systemZh}
+            </span>
+            {(onNavigateToCountry || onNavigateBack) && (
+              <button
+                className="drawer-breadcrumb-back-btn"
+                onClick={handleBack}
+                title={`回上一頁：${parentCountryName}`}
+              >
+                <ChevronLeft size={13} />
+                <span>回上一頁</span>
+              </button>
+            )}
+          </div>
+
           {/* Quick Badges */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <div
@@ -375,7 +394,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             <div className="intel-card">
               <div className="intel-card-header">
                 <Layers size={16} color="#c084fc" />
-                <span style={{ color: '#c084fc' }}>三位數支線判讀密技 (3-Digit Auxiliary)</span>
+                <span style={{ color: '#c084fc' }}>三位數支線編號規則 (3-Digit Auxiliary)</span>
               </div>
               <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
                 {usAuxClue}
@@ -383,11 +402,11 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           )}
 
-          {/* GeoGuessr Street View Meta */}
+          {/* Highway & Road Culture Details */}
           <div className="intel-card">
             <div className="intel-card-header">
               <Lightbulb size={16} color="#facc15" />
-              <span style={{ color: '#facc15' }}>GeoGuessr 實戰秒殺密技 (Street View Meta)</span>
+              <span style={{ color: '#facc15' }}>道路標誌與系統特色 (Highway System Notes)</span>
             </div>
             {isUS ? (
               <ul className="hints-list">
@@ -440,11 +459,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
-            {onNavigateBack && (
-              <button className="drawer-back-btn" onClick={onNavigateBack} title="回上一頁：日本">
-                <ChevronLeft size={18} />
-              </button>
-            )}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -463,6 +477,16 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </span>
             <span className="drawer-breadcrumb-sep">›</span>
             <span className="drawer-breadcrumb-current">{prefecture.nameZh}</span>
+            {onNavigateBack && (
+              <button
+                className="drawer-breadcrumb-back-btn"
+                onClick={onNavigateBack}
+                title="回上一頁：日本"
+              >
+                <ChevronLeft size={13} />
+                <span>回上一頁</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Badges */}
@@ -500,11 +524,11 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
 
-          {/* Pro Hints / GeoGuessr Meta */}
+          {/* Prefecture Features */}
           <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)', backgroundColor: 'rgba(14, 25, 42, 0.6)' }}>
             <div className="intel-card-header">
               <Lightbulb size={16} color="#38bdf8" />
-              <span>都道府縣實戰秒殺重點 (Prefecture Clues)</span>
+              <span>都道府縣人文與地景特色 (Prefecture Highlights)</span>
             </div>
             <ul className="hints-list">
               {prefecture.proClues.map((clue, idx) => (
@@ -525,7 +549,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
               {prefecture.areaCode}
             </div>
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
-              日本路標、商店招牌、電線桿黃牌上的市外電話號碼是快速鎖定都道府縣的神技！
+              日本市外局番依地理區塊由北（01）往南（09）依序編排，常見於街頭招牌與公共設施標示。
             </div>
           </div>
 
@@ -591,21 +615,21 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     const parentL2Name = municipality.pref || municipality.parentName || (isJapan ? '都道府縣' : '一級行政區');
     const unitType = municipality.typeEn || (isJapan ? '市區町村' : '二級行政區');
 
-    let metaTip = '此區域已達 L3 最高精度層級。可觀察路口路牌、巴士站牌、市政設施或路標進行精準定位！';
+    let metaTip = '此區域為二級／三級地方行政單位，各城鎮常在路名牌、公車站牌與市政設施上呈現地方名稱。';
     if (isJapan) {
-      metaTip = '日本 L3 實戰密技：觀察路口反光鏡、巴士站牌、消防栓、水溝蓋（人孔蓋 マンホールの蓋）上的自治體市徽／町徽可秒殺精確城鎮！';
+      metaTip = '日本各市區町村通常擁有專屬自治體章（市章／町章），廣泛設計於彩繪人孔蓋（マンホールの蓋）、消防栓與路旁指示牌。';
     } else if (municipality.iso2 === 'US') {
-      metaTip = '美國郡級實戰密技：注意郡道五角形盾牌（County Route 如 CR 12）、路名牌角標上的郡名縮寫、警車上的 Sheriff 字樣，以及德州農場公路 (FM/RM)！';
+      metaTip = '美國各郡（County）常設有藍底黃字的五角形郡道盾牌（County Route），且地方治安官（County Sheriff）巡邏車與路牌角標會標註郡名。';
     } else if (municipality.iso2 === 'FR') {
-      metaTip = '法國省級實戰密技：省道編號（D開頭黃牌如 D906）、黃色郵筒 (La Poste) 上的 5 碼郵遞區號，前兩碼即為省份編號 (01~95)！';
+      metaTip = '法國各省（Département）的省道以 D 開頭（黃頂路標如 D906），且法國 5 碼郵遞區號的前兩碼即對應省份編號（01~95）。';
     } else if (municipality.iso2 === 'DE') {
-      metaTip = '德國縣轄郡實戰密技：車牌前綴 1~3 位字母直接代表所屬 Landkreis 或直轄市（單字母為大城如 B 柏林、M 慕尼黑；多字母為周邊郡縣）！';
+      metaTip = '德國各縣市（Landkreis / Kreisfreie Stadt）擁有專屬的 1~3 位車牌前綴字母（大城市多為單字母如 B 柏林、M 慕尼黑，周邊郡縣多為雙或三字母）。';
     } else if (municipality.iso2 === 'IT') {
-      metaTip = '義大利省級實戰密技：觀察歐盟車牌右側藍條上的兩位省份縮寫（如 RM 羅馬、MI 米蘭、NA 那不勒斯、FI 佛羅倫斯）！';
+      metaTip = '義大利各省（Provincia）擁有標準的兩位字母縮寫（如 RM 羅馬、MI 米蘭、NA 那不勒斯、FI 佛羅倫斯），常見於地址與車牌右側藍條。';
     } else if (municipality.iso2 === 'ES') {
-      metaTip = '西班牙省級實戰密技：國道省道編號（如 M-30 馬德里、B-10 巴塞隆納、SE-30 塞維亞），以及郵遞區號前兩碼即為省份代碼！';
+      metaTip = '西班牙各省（Provincia）的地方公路常以省份縮寫開頭（如 M 馬德里、B 巴塞隆納、SE 塞維亞），郵遞區號前兩碼亦對應省份編號。';
     } else if (municipality.iso2 === 'PL') {
-      metaTip = '波蘭縣級實戰密技：車牌首字母為省份代碼，第二／三字母直接對應 Powiat 縣份縮寫（如 DW 弗羅茨瓦夫、KR 克拉科夫）！';
+      metaTip = '波蘭各縣（Powiat）在車牌前綴中以第 1 字母代表省份（Województwo），第 2～3 字母代表所屬縣市（如 DW 弗羅茨瓦夫、KR 克拉科夫）。';
     }
 
     return (
@@ -621,11 +645,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
-            {onNavigateBack && (
-              <button className="drawer-back-btn" onClick={onNavigateBack} title={`回上一頁：${parentL2Name}`}>
-                <ChevronLeft size={18} />
-              </button>
-            )}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -655,6 +674,16 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </span>
             <span className="drawer-breadcrumb-sep">›</span>
             <span className="drawer-breadcrumb-current">{municipality.city}</span>
+            {onNavigateBack && (
+              <button
+                className="drawer-breadcrumb-back-btn"
+                onClick={onNavigateBack}
+                title={`回上一頁：${parentL2Name}`}
+              >
+                <ChevronLeft size={13} />
+                <span>回上一頁</span>
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -720,7 +749,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
           <div className="intel-card">
             <div className="intel-card-header">
               <Lightbulb size={16} color="#eab308" />
-              <span style={{ color: '#facc15' }}>GeoGuessr L3 實戰秒殺密技</span>
+              <span style={{ color: '#facc15' }}>地方制度與生活標記 (Local Highlights)</span>
             </div>
             <div className="intel-card-body" style={{ lineHeight: 1.5 }}>
               {metaTip}
@@ -758,15 +787,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
-            {onNavigateBack && (
-              <button
-                className="drawer-back-btn"
-                onClick={onNavigateBack}
-                title={`回上一頁：${subdivision.countryNameZh}`}
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -785,6 +805,16 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </span>
             <span className="drawer-breadcrumb-sep">›</span>
             <span className="drawer-breadcrumb-current">{subdivision.nameZh}</span>
+            {onNavigateBack && (
+              <button
+                className="drawer-breadcrumb-back-btn"
+                onClick={onNavigateBack}
+                title={`回上一頁：${subdivision.countryNameZh}`}
+              >
+                <ChevronLeft size={13} />
+                <span>回上一頁</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Badges */}
@@ -936,72 +966,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
                 </div>
               </div>
 
-              {/* European Pedestrian Crossing Sign */}
-              {(() => {
-                const sign = getCrossingSign(subdivision.iso2);
-                if (!sign) return null;
-                return (
-                  <div
-                    className="intel-card"
-                    style={{
-                      borderColor: 'rgba(56, 189, 248, 0.45)',
-                      backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
-                    }}
-                  >
-                    <div className="intel-card-header">
-                      <span style={{ fontSize: 16 }}>🚸</span>
-                      <span style={{ color: '#38bdf8' }}>國家行人穿越道告示 (Pedestrian Crossing Sign)</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
-                      <div
-                        style={{
-                          width: 68,
-                          height: 68,
-                          minWidth: 68,
-                          borderRadius: 8,
-                          backgroundColor: 'rgba(2, 6, 23, 0.85)',
-                          border: '1px solid rgba(255, 255, 255, 0.15)',
-                          padding: 4,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
-                        }}
-                      >
-                        <img
-                          src={sign.imagePath}
-                          alt={`${sign.nameZh} 行人穿越道告示牌`}
-                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        />
-                      </div>
-                      <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
-                        <div style={{ fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>
-                          {sign.nameZh}（{sign.nameEn}）
-                        </div>
-                        <div style={{ color: '#94a3b8', fontSize: 12 }}>
-                          {sign.descriptionZh}
-                        </div>
-                        <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {sign.stripes > 0 ? (
-                            <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                              斑馬線：{sign.stripes} 條
-                            </span>
-                          ) : (
-                            <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                              地面標記：{sign.iso2 === 'PL' ? '白色橫道實線' : '水平虛線/點狀標記'}
-                            </span>
-                          )}
-                          <span className="intel-tag" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
-                            行人方向：{sign.direction === 'left' ? '向左走 🚶‍♂️' : '向右走 🚶‍♂️'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* India State-Level Language & Script Meta */}
               {subdivision.iso2 === 'IN' && (() => {
                 const stateInfo = getIndiaStateLanguageInfo(subdivision.code || subdivision.nameEn || subdivision.nameZh);
@@ -1045,7 +1009,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
                         </div>
                       )}
                       <div style={{ marginTop: 8, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.1)', padding: '6px 10px', borderRadius: 6 }}>
-                        <strong>💡 GeoGuessr 辨識要訣：</strong>{stateInfo.scriptTipsZh}
+                        <strong>💡 文字與地方風貌：</strong>{stateInfo.scriptTipsZh}
                       </div>
                     </div>
                   </div>
@@ -1057,7 +1021,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
                 <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)' }}>
                   <div className="intel-card-header">
                     <Lightbulb size={16} color="#38bdf8" />
-                    <span>GeoGuessr 秒殺要訣 (Key Hints)</span>
+                    <span>國家地景與人文特色 (Regional Highlights)</span>
                   </div>
                   <ul className="hints-list">
                     {cMeta.keyHints.map((hint, idx) => (
@@ -1148,72 +1112,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
           )}
         </div>
 
-        {/* European Pedestrian Crossing Sign */}
-        {(() => {
-          const sign = getCrossingSign(country.iso2);
-          if (!sign) return null;
-          return (
-            <div
-              className="intel-card"
-              style={{
-                borderColor: 'rgba(56, 189, 248, 0.45)',
-                backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
-              }}
-            >
-              <div className="intel-card-header">
-                <span style={{ fontSize: 16 }}>🚸</span>
-                <span style={{ color: '#38bdf8' }}>行人穿越道告示 (Pedestrian Crossing Sign)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
-                <div
-                  style={{
-                    width: 68,
-                    height: 68,
-                    minWidth: 68,
-                    borderRadius: 8,
-                    backgroundColor: 'rgba(2, 6, 23, 0.85)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    padding: 4,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
-                  }}
-                >
-                  <img
-                    src={sign.imagePath}
-                    alt={`${sign.nameZh} 行人穿越道告示牌`}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
-                </div>
-                <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>
-                    {sign.nameZh}（{sign.nameEn}）
-                  </div>
-                  <div style={{ color: '#94a3b8', fontSize: 12 }}>
-                    {sign.descriptionZh}
-                  </div>
-                  <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {sign.stripes > 0 ? (
-                      <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                        斑馬線：{sign.stripes} 條
-                      </span>
-                    ) : (
-                      <span className="intel-tag" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                        地面標記：{sign.iso2 === 'PL' ? '白色橫道實線' : '水平虛線/點狀標記'}
-                      </span>
-                    )}
-                    <span className="intel-tag" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
-                      行人方向：{sign.direction === 'left' ? '向左走 🚶‍♂️' : '向右走 🚶‍♂️'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Dynamic Markdown Lore & Dossier Cards */}
         <MarkdownLoreCards
           query={{
@@ -1221,12 +1119,12 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
           }}
         />
 
-        {/* Pro Tips / Key Clues */}
+        {/* Regional Highlights */}
         {country.keyHints && country.keyHints.length > 0 && (
           <div className="intel-card" style={{ borderColor: 'rgba(56, 189, 248, 0.4)', backgroundColor: 'rgba(14, 25, 42, 0.6)' }}>
             <div className="intel-card-header">
               <Lightbulb size={16} color="#38bdf8" />
-              <span>實戰秒殺重點 (Pro Hints)</span>
+              <span>代表性地景與人文特色 (Regional Highlights)</span>
             </div>
             <ul className="hints-list">
               {country.keyHints.map((hint, idx) => (
@@ -1238,11 +1136,11 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
           </div>
         )}
 
-        {/* Street View Car Meta */}
+        {/* Street View Camera & Vehicle Info */}
         <div className="intel-card">
           <div className="intel-card-header">
             <Car size={16} color="#ec4899" />
-            <span style={{ color: '#f472b6' }}>街景車輛 Meta (Google Car)</span>
+            <span style={{ color: '#f472b6' }}>街景拍攝車與設備紀錄 (Street View Equipment)</span>
           </div>
           <div className="intel-card-body">{country.carMetaDesc}</div>
           <div className="intel-tag-row">
@@ -1332,7 +1230,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
                     </div>
                   )}
                   <div style={{ marginTop: 8, color: '#facc15', backgroundColor: 'rgba(250, 204, 21, 0.1)', padding: '6px 10px', borderRadius: 6, fontSize: 12, lineHeight: 1.5 }}>
-                    <strong>💡 GeoGuessr 字母秒殺：</strong>{langMeta.geoGuessrMetaZh}
+                    <strong>💡 文字與書寫特徵：</strong>{langMeta.geoGuessrMetaZh}
                   </div>
                 </div>
               );

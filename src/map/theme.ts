@@ -12,9 +12,9 @@ export const MAP_COLORS = {
 } as const;
 
 export const MONO_BADGE_FONT =
-  'bold 11px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+  'bold 11px "Twemoji Country Flags", ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Apple Color Emoji", "Noto Color Emoji", monospace';
 export const MONO_SMALL_FONT =
-  'bold 9px ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+  'bold 9px "Twemoji Country Flags", ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Apple Color Emoji", "Noto Color Emoji", monospace';
 
 /**
  * Checks whether a map-space bounding box [minX, minY, maxX, maxY] intersects the current screen viewport.

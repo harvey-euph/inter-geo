@@ -28,7 +28,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     language: "繁體中文（Traditional Chinese）、注音符號",
     tld: ".tw",
     keyHints: [
-      "電線桿底部標誌性『黃黑斜紋』防撞貼紙（秒殺特徵）",
+      "電線桿底部標誌性『黃黑斜紋』防撞貼紙（台電標準塗裝）",
       "全境繁體中文招牌，門牌常標有『里』『路』『段』『巷』『弄』",
       "隨處可見機車專用停等區與兩段式左轉標誌",
       "高山茂密植被，路邊偶見綠色人行道標線"
@@ -392,14 +392,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed"],
     roadLinesDesc: "無鋪裝草原土路極多，鋪裝道路多為簡單白虛線",
     carMeta: ["tent", "roof_rack"],
-    carMetaDesc: "無敵 Meta：車頂上有『黑色包布露營帳篷/行李架 (Tent Car)』！",
+    carMetaDesc: "特殊車體配置：街景拍攝車頂裝有『黑色包布露營帳篷與行李架』",
     poleTypes: ["wooden"],
     poleDesc: "粗糙木桿，常搭成 A 字形防風支架",
     bollardDesc: "極少見",
     language: "蒙古語（西里爾字母 Cyrillic，特有 Ү 与 Ө 字母）",
     tld: ".mn",
     keyHints: [
-      "車頂有超明顯的包布露營架/帳篷 (Roof Tent Meta)",
+      "街景拍攝車頂裝有包布露營架與帳篷設備",
       "無垠大草原、遠處散落白色蒙古包 (Ger)",
       "西里爾文字中含有特有的 Ү 与 Ө 字母",
       "地貌極度乾燥、荒涼或草原丘陵"
@@ -423,7 +423,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed", "white_solid"],
     roadLinesDesc: "全白標線，路面多修補痕跡",
     carMeta: ["roof_rack", "curved_mirrors"],
-    carMetaDesc: "無敵 Meta：Google 車頂有『金屬長條架』，且車頭可看見『銀色突出後照鏡』！",
+    carMetaDesc: "特殊車體配置：Google 街景車頂有『金屬長條架』，且車頭可見『銀色突出後照鏡』",
     poleTypes: ["ladder_holes", "round_holes"],
     poleDesc: "前蘇聯灰色水泥電桿，多孔桿",
     bollardDesc: "黑白相間柱附紅斜條",
@@ -791,14 +791,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed", "white_solid"],
     roadLinesDesc: "全白標線，路況多補丁裂痕",
     carMeta: ["none"],
-    carMetaDesc: "部分地區（如中部/西部）街景車尾可見紅色車身 (Red car meta)",
+    carMetaDesc: "部分地區（如中部/西部）街景車尾可見紅色車身",
     poleTypes: ["round_holes", "striped"],
     poleDesc: "混凝土桿底部極常塗上『白色油漆』防撞，且常漆有藍黃雙色國旗圖案",
     bollardDesc: "黑白相間矮柱帶紅反光標",
     language: "烏克蘭語（Cyrillic，特有字母：『i』, 『ï』, 『є』, 『ґ』）",
     tld: ".ua",
     keyHints: [
-      "秒殺字母：在西里爾文中看到拉丁外觀的『i』或帶雙點的『ï』，100% 烏克蘭！",
+      "代表字母：在西里爾文中包含拉丁外觀的『i』與帶雙點的『ï』",
       "路邊護欄、橋墩、電桿常漆有鮮明藍黃色國旗漆",
       "遼闊極其肥沃的平坦黑土平原（Chernozem）與金黃向日葵田",
       "街景車後方偶爾可見鮮紅色車尾"
@@ -1590,9 +1590,9 @@ export const COUNTRIES_DATA: CountryData[] = [
     language: "希臘語（Ελληνικά）與英語雙語路牌；北部地區使用土耳其語（Türkçe）",
     tld: ".cy",
     keyHints: [
-      "歐洲極少數『靠左行駛 (Left Drive)』國家（全歐僅英、愛、馬、賽 4 國！）",
-      "希臘字母招牌 + 靠左行駛 ＝ 100% 絕對是賽普勒斯！",
-      "醒目的『紅色出租車牌 (Red Rental Plate)』是經典秒殺特徵",
+      "歐洲少數『靠左行駛 (Left Drive)』國家（歐洲僅英國、愛爾蘭、馬爾他、賽普勒斯 4 國）",
+      "同時使用希臘字母標牌並採行靠左行駛制度",
+      "租賃車輛採用醒目的『紅底車牌 (Red Rental Plate)』為當地特有制度",
       "英式道路標誌與 Transport 字體、地中海乾燥灌木丘陵與白牆平頂房"
     ],
     confusedWith: ["Greece", "Malta", "United Kingdom", "Turkey"]
@@ -1652,7 +1652,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     language: "土耳其語（Turkish，特有無點的『ı』與帶點的『i』，以及 ğ, ş, ç）",
     tld: ".tr",
     keyHints: [
-      "秒殺文字：看到無點的字母『ı』(Dotless i) 100% 土耳其！",
+      "代表文字：土耳其文區分無點的字母『ı』(Dotless i) 與帶點的『i』",
       "到處飄揚的鮮紅色土耳其星月國旗與阿塔圖克肖像",
       "清真寺高聳宣禮塔 (Minarets) 遍布城鄉天際線",
       "路標為深藍色底白字，路邊常有紅色圓框限速牌"
@@ -1803,7 +1803,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     carMetaDesc: "標準車身",
     poleTypes: ["wooden"],
     poleDesc: "單支細木桿，常常有斜拉鋼索",
-    bollardDesc: "冰島秒殺神柱：『亮黃色柱身 + 頂部白色帶紅白反光片』(Bright yellow bollards)！",
+    bollardDesc: "冰島特色防撞柱：『亮黃色柱身 + 頂部白色帶紅白反光片』(Bright yellow bollards)",
     language: "冰島語（Icelandic，保留古諾斯語字母 ð, þ, æ, ö）",
     tld: ".is",
     keyHints: [
@@ -2049,14 +2049,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["yellow_double", "white_dashed"],
     roadLinesDesc: "雙黃線或白線，許多山區未鋪裝路",
     carMeta: ["roof_rack", "curved_mirrors"],
-    carMetaDesc: "無敵 Meta：Google 車頂帶有『金屬長條架』，且車頭可清晰看見『兩側後照鏡 (Side Mirrors)』！",
+    carMetaDesc: "特殊車體配置：Google 街景車頂帶有『金屬長條架』，且車頭可見『兩側後照鏡 (Side Mirrors)』",
     poleTypes: ["ladder_holes"],
     poleDesc: "粗糙水泥桿或梯子型穿孔桿",
     bollardDesc: "黑黃相間金屬反光片",
     language: "西班牙語（停車為 ALTO）",
     tld: ".gt",
     keyHints: [
-      "車載 Meta：兩根粗長車頂側架 + 車頭突出之白色/銀色後照鏡",
+      "街景設備：兩根粗長車頂側架 + 車頭突出之白色/銀色後照鏡",
       "中美洲多火山山脈，茂密熱帶高山植被與咖啡種植園",
       "傳統馬雅原住民婦女色彩繽紛的手織花裙 (Huipil)",
       "美式廢棄校車改裝的五彩斑斕『野雞公車 (Chicken Buses)』"
@@ -2159,7 +2159,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     coverage: "official",
     cameraGens: ["gen4", "gen3"],
     plateType: "yellow_both",
-    plateDesc: "哥倫比亞秒殺特徵：『所有計程車與大眾運輸全為黃底黑字牌』！一般車也有不少黃牌",
+    plateDesc: "哥倫比亞車牌制度：『所有自用車、計程車與大眾運輸皆普遍使用黃底黑字牌』",
     roadLines: ["yellow_double", "white_solid"],
     roadLinesDesc: "路中全為雙黃實線，路邊白實線",
     carMeta: ["none"],
@@ -2170,8 +2170,8 @@ export const COUNTRIES_DATA: CountryData[] = [
     language: "西班牙語（停車為 PARE）",
     tld: ".co",
     keyHints: [
-      "秒殺線索：路標背面有『十字交叉金屬加強筋 (Cross on back of road signs)』！",
-      "滿大街黃色車牌計程車 (Yellow Taxi Plates)，且車身側面常漆有城市名與車號",
+      "道路工程特色：路標背面焊有『十字交叉金屬加強筋 (Cross on back of road signs)』",
+      "滿大街黃色車牌與黃色計程車，且車身側面常漆有城市名與車號",
       "停車標誌為『PARE』，雙黃中央線",
       "安地斯山脈陡峭青翠山巒，紅磚未粉刷房屋"
     ],
@@ -2226,7 +2226,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     carMeta: ["none"],
     carMetaDesc: "標準車身",
     poleTypes: ["ladder_holes", "striped"],
-    poleDesc: "標誌桿秒殺：路標金屬立柱常塗有『黑白相間條紋塗漆 (Black and white striped sign posts)』！",
+    poleDesc: "代表性立柱：路標金屬立柱常塗有『黑白相間條紋塗漆 (Black and white striped sign posts)』",
     bollardDesc: "紅白相間或紅身白反光柱",
     language: "西班牙語（PARE）、克丘亞語",
     tld: ".pe",
@@ -2313,7 +2313,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["white_dashed", "white_solid"],
     roadLinesDesc: "南美少見『以全白線為主』的國家！中央線常為白虛線而非黃線",
     carMeta: ["back_black"],
-    carMetaDesc: "Google 車身 Meta：車尾可見『黑色保險桿/黑色車頂尾端』(Black back of car)",
+    carMetaDesc: "Google 街景車身：車尾可見『黑色保險桿或黑色車頂尾端』(Black back of car)",
     poleTypes: ["round_holes", "standard"],
     poleDesc: "多孔水泥圓柱或金屬柱",
     bollardDesc: "白柱頂部黑斜角",
@@ -2411,7 +2411,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     carMetaDesc: "標準車身，偏遠內陸地區多 Gen 2",
     poleTypes: ["wooden"],
     poleDesc: "粗糙天然原木桿，常保留粗木樹皮質感",
-    bollardDesc: "澳洲神柱：『純白扁形長條柱 + 正面嵌紅色長條反光片』(左紅右白)",
+    bollardDesc: "澳洲標準防撞柱：『純白扁形長條柱 + 正面嵌紅色長條反光片』(左紅右白)",
     language: "英語（English）",
     tld: ".com.au",
     keyHints: [
@@ -2505,14 +2505,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["yellow_single", "white_dashed"],
     roadLinesDesc: "中央常有單黃線，路旁多為紅土地質",
     carMeta: ["snorkel"],
-    carMetaDesc: "頂級傳奇 Meta：車頭右前方有一根黑色的『涉水喉 (Snorkel)』！全 GeoGuessr 唯一肯亞專屬標誌！",
+    carMetaDesc: "特殊車體配置：街景拍攝車頭右前方裝有一根黑色的『涉水喉進氣管 (Snorkel)』",
     poleTypes: ["wooden"],
     poleDesc: "粗糙木桿",
     bollardDesc: "紅白水泥矮墩",
     language: "斯瓦希里語（Swahili）、英語",
     tld: ".ke",
     keyHints: [
-      "肯亞秒殺：看到車頭右側黑色的涉水喉 (Car Snorkel Meta) 直接點擊肯亞！",
+      "街景拍攝車頭右側裝有越野涉水喉進氣管 (Car Snorkel)",
       "靠左行駛，前後帶有黃色車牌",
       "金黃合歡樹 (Acacia trees)、稀樹草原景觀與鮮紅沃土",
       "路邊廣告隨處可見『M-PESA』行動支付綠色店面"
@@ -2590,14 +2590,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["yellow_single", "white_dashed"],
     roadLinesDesc: "中央單黃線或無標線",
     carMeta: ["black_tape", "roof_rack"],
-    carMetaDesc: "頂級傳奇 Meta：車頂四根金屬架中，『右前方的金屬桿上纏著一圈黑色絕緣膠帶 (Black Tape Meta)』！",
+    carMetaDesc: "特殊車體配置：車頂四根金屬架中，『右前方的金屬桿上纏有一圈黑色絕緣膠帶』",
     poleTypes: ["wooden", "standard"],
     poleDesc: "木桿或粗糙水泥桿",
     bollardDesc: "少見",
     language: "英語（English）",
     tld: ".gh",
     keyHints: [
-      "迦納黑膠帶 Meta：右前金屬架纏有黑色膠帶 (Black Tape on Roof Rack)",
+      "街景拍攝車架特徵：右前金屬橫桿纏有黑色膠帶 (Black Tape on Roof Rack)",
       "靠右行駛，隨處可見極虔誠基督教店家標語（如 God's Grace Provision Shop）",
       "路邊隨處可見黃色『MTN』電信招牌與小亭子",
       "熱帶西非紅土與熱鬧路邊市集"
@@ -2621,14 +2621,14 @@ export const COUNTRIES_DATA: CountryData[] = [
     roadLines: ["yellow_single", "white_dashed"],
     roadLinesDesc: "中央線常見黃線或無線",
     carMeta: ["escort_car"],
-    carMetaDesc: "無敵 Meta：街景車後方永遠跟著一輛『警車護衛 (Police Escort Car / Hilux)』！帶有藍色或紅藍警燈！",
+    carMetaDesc: "特殊拍攝紀錄：街景拍攝車後方常跟隨一輛『維安護衛警車 (Police Escort Car / Hilux)』，配有藍色或紅藍警示燈",
     poleTypes: ["standard"],
     poleDesc: "水泥圓柱桿",
     bollardDesc: "極少",
     language: "英語（English）",
     tld: ".ng",
     keyHints: [
-      "護衛車 Meta：轉身看身後有一輛皮卡警車 (Police Escort Pickup)",
+      "街景拍攝車後方常有皮卡維安警車隨行護衛 (Police Escort Pickup)",
       "靠右行駛，街頭極度繁華擁擠，黃色三輪車 (Keke Napep) 與黃色麵包車 (Danfo)",
       "滿街都是綠色大型看板與各州名稱標牌（如 Lagos, Abuja）",
       "熱帶紅土地形與西非城市景貌"
@@ -2692,7 +2692,7 @@ export const COUNTRIES_DATA: CountryData[] = [
     keyHints: [
       "靠左行駛，極其平坦乾燥的卡拉哈里沙漠 (Kalahari Desert) 地貌",
       "路邊很多沙質土壤，低矮刺灌木叢，常有驢子與牛群在路邊漫步",
-      "常有 Gen 2 圓形紫色天空光暈 (Halo Meta)",
+      "早期 Gen 2 街景常帶有圓形紫色天空光暈",
       "與南非差別：波札那極平坦，無南非連綿山脈與黃色路肩線"
     ],
     confusedWith: ["South Africa", "Namibia", "Eswatini"]

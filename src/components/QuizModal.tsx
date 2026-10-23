@@ -17,7 +17,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 1,
     clueTitle: '車頭特殊的黑色涉水喉 (Snorkel)',
     clueDetails: '街景車車頭右前方凸出一根黑色管狀進氣涉水喉，四周是金黃色合歡樹稀樹草原與紅土地質，車輛靠左行駛。',
-    categoryTag: '🚙 車載 Meta',
+    categoryTag: '🚙 街景設備',
     correctCountryIso2: 'KE',
     optionsIso2: ['KE', 'ZA', 'GH', 'BW'],
     explanation: '肯亞 (Kenya) 的 Google 街景車配有專屬的涉水喉 (Snorkel)，且肯亞為靠左行駛！'
@@ -26,10 +26,10 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 2,
     clueTitle: '車頂行李架纏有一圈黑色膠帶 (Black Tape)',
     clueDetails: '四根金屬車頂架中，右前方金屬架纏有顯眼的黑色電工膠帶，路邊商店常有 MTN 黃色招牌與虔誠基督教標語。',
-    categoryTag: '🚙 車載 Meta',
+    categoryTag: '🚙 街景設備',
     correctCountryIso2: 'GH',
     optionsIso2: ['NG', 'GH', 'SN', 'KE'],
-    explanation: '迦納 (Ghana) 的車頂行李架右前桿纏有一圈黑色膠帶 (Black Tape Meta)，是全球知名的秒殺線索！'
+    explanation: '迦納 (Ghana) 的街景拍攝車頂行李架右前桿纏有一圈黑色膠帶，是非常具代表性的區域拍攝特徵。'
   },
   {
     id: 3,
@@ -124,7 +124,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ onClose, onSelectCountryBy
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Award size={20} color="#38bdf8" />
-            <span style={{ fontWeight: 600, fontSize: 16 }}>GeoGuessr 實戰 Meta 測驗模式</span>
+            <span style={{ fontWeight: 600, fontSize: 16 }}>世界地理與道路文化測驗</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>

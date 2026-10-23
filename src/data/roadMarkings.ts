@@ -215,8 +215,8 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     centerColor: ROAD_COLOR_YELLOW,
     outerType: 'yellow',
     centerType: 'yellow',
-    summaryZh: '【秒殺標線】左右外側白邊線/黃虛線 + 中央黃實線/虛線',
-    descriptionZh: '【北歐秒殺】挪威道路中線為亮黃色（禁止超車為雙黃實線，一般為長黃虛線），與瑞典/芬蘭的全白標線形成強烈對比！外側邊線通常為白線，特定山道為黃。'
+    summaryZh: '【代表性標線】左右外側白邊線/黃虛線 + 中央黃實線/虛線',
+    descriptionZh: '【北歐特色】挪威道路中線為亮黃色（禁止超車為雙黃實線，一般為長黃虛線），與瑞典/芬蘭的全白標線形成強烈對比！外側邊線通常為白線，特定山道為黃。'
   },
   ZA: {
     iso2: 'ZA',
@@ -225,7 +225,7 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     centerColor: ROAD_COLOR_WHITE,
     outerType: 'yellow',
     centerType: 'white',
-    summaryZh: '【非洲秒殺】左右黃色路肩外邊線 + 中央白色虛線/實線',
+    summaryZh: '【南部非洲制度】左右黃色路肩外邊線 + 中央白色虛線/實線',
     descriptionZh: '靠左行駛。南非極具辨識度：最外側路肩線一律為黃色實線（Yellow shoulder line），中央車道線為白色！'
   },
   BW: {
@@ -348,7 +348,7 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     outerType: 'white',
     centerType: 'white',
     summaryZh: '左右白邊線 (密集短虛線) + 中央白長虛線',
-    descriptionZh: '【秒殺標線】外側邊線通常由極度密集的「短白虛線 (1m線/1m空)」組成！'
+    descriptionZh: '【代表性標線】外側邊線通常由極度密集的「短白虛線 (1m線/1m空)」組成！'
   },
   FI: {
     iso2: 'FI',
@@ -388,7 +388,7 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     outerType: 'white',
     centerType: 'white',
     summaryZh: '左右白邊線 + 中央雙白線 (中央常夾綠色實心塗漆)',
-    descriptionZh: '【秒殺特徵】省道 100km/h 道路中央常有「雙白實線中間塗滿綠色樹脂」！'
+    descriptionZh: '【主要特徵】省道 100km/h 道路中央常有「雙白實線中間塗滿綠色樹脂」！'
   },
   BE: {
     iso2: 'BE',
@@ -558,7 +558,7 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     outerType: 'white',
     centerType: 'white',
     summaryZh: '【南美特例】左右白邊線 + 中央白色虛線/實線 (無黃線！)',
-    descriptionZh: '【南美秒殺】與巴西/秘魯/哥倫比亞的雙黃線不同，智利道路標線為「全白標線」，完全無黃色中線！'
+    descriptionZh: '【南美制度】與巴西/秘魯/哥倫比亞的雙黃線不同，智利道路標線為「全白標線」，完全無黃色中線！'
   },
   AR: {
     iso2: 'AR',
@@ -568,7 +568,7 @@ export const ROAD_MARKINGS: Record<string, CountryRoadMarking> = {
     outerType: 'white',
     centerType: 'white',
     summaryZh: '【南美特例】左右白邊線 + 中央白線 (國道中線普遍為全白！)',
-    descriptionZh: '【南美秒殺】絕大多數國道為全白標線（中央白色長虛線或雙白實線），僅極少數省級公路塗黃，是區分巴西與秘魯的重要特徵！'
+    descriptionZh: '【南美制度】絕大多數國道為全白標線（中央白色長虛線或雙白實線），僅極少數省級公路塗黃，是區分巴西與秘魯的重要特徵！'
   }
 };
 

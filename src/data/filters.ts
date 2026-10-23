@@ -16,7 +16,7 @@ export const FILTERS: FilterDefinition[] = [
     id: 'none',
     category: 'none',
     nameZh: '🌍 街景全覽',
-    descriptionZh: '顯示全球具備 Google 街景官方覆蓋之國家，點擊或滑動查看詳細 Meta',
+    descriptionZh: '顯示全球具備 Google 街景官方覆蓋之國家，點擊或滑動查看各地地理與道路文化特色',
     legend: [
       { key: 'official', labelZh: '官方街景覆蓋國家', color: '#38bdf8' },
       { key: 'none', labelZh: '無街景或未收錄', color: '#1e2430' }
@@ -31,7 +31,7 @@ export const FILTERS: FilterDefinition[] = [
     id: 'drivingSide',
     category: 'drivingSide',
     nameZh: '🚦 行駛方向 (左右行)',
-    descriptionZh: '判斷靠左或靠右行駛是縮小大洲與國家的第一神技！',
+    descriptionZh: '全球各國道路通行方向（靠左行駛與靠右行駛）制度分布',
     legend: [
       { key: 'left', labelZh: '靠左行駛 (Left-hand Drive)', color: '#f59e0b' },
       { key: 'right', labelZh: '靠右行駛 (Right-hand Drive)', color: '#3b82f6' }
@@ -70,8 +70,8 @@ export const FILTERS: FilterDefinition[] = [
   {
     id: 'carMeta',
     category: 'carMeta',
-    nameZh: '🚙 特殊車頂架與車輛 Meta',
-    descriptionZh: '涉水喉、車頂黑膠帶、金屬行李架、護衛警車、天空裂縫等秒殺特徵',
+    nameZh: '🚙 街景拍攝車與設備特徵',
+    descriptionZh: '各國街景拍攝車輛的車頂架、涉水喉、隨行護衛車與鏡頭高度差異',
     legend: [
       { key: 'snorkel', labelZh: '肯亞：涉水喉 (Snorkel)', color: '#06b6d4' },
       { key: 'black_tape', labelZh: '迦納：車頂黑膠帶 (Black Tape)', color: '#a855f7' },

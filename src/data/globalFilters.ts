@@ -74,13 +74,7 @@ export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
     shortBadge: f.shortBadge,
     descriptionZh: f.descriptionZh,
     accentColor: f.accentColor,
-    getText: (c: CountryData) => {
-      const csvVal = getCsvFilterValue(f.id, c.iso2);
-      if (csvVal) return csvVal;
-      if (f.id === 'callingCode') return c.callingCode || null;
-      if (f.id === 'tld') return c.tld || (c.iso2 ? `.${c.iso2.toLowerCase()}` : null);
-      return null;
-    }
+    getText: (c: CountryData) => getCsvFilterValue(f.id, c.iso2)
   }));
 
 export const GLOBAL_TEXT_FILTERS_BY_ID = new Map<string, TextFilterDef>(

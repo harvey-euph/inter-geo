@@ -1,5 +1,9 @@
 // currency.csv
 // @id: currency
+// @order: 4
+// @loadedTiming: on-demand
+// @effectiveRange: International
+// @type: Text
 // @nameZh: 當地金錢單位
 // @nameEn: Currency Symbol
 // @shortBadge: 💰 貨幣

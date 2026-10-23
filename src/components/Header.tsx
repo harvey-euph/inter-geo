@@ -60,7 +60,6 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </div>
         <div className="brand-title">
           <span>InterGeo</span>
-          <span className="brand-badge">GeoGuessr</span>
         </div>
       </div>
 

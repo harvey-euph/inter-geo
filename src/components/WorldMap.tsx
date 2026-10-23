@@ -31,6 +31,10 @@ import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo';
 import { decodeGeo } from '../map/geoWorkerClient';
 import {
+  getCsvFilterById,
+  loadOnDemandCsvFilter
+} from '../filters/csvFilterRegistry';
+import {
   WORLD_COPIES,
   getCountryBBox,
   normParentKey,
@@ -1639,6 +1643,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     activeTextFiltersRef.current = activeTextFilters || new Set();
+    if (activeTextFilters) {
+      for (const id of activeTextFilters) {
+        const csvF = getCsvFilterById(id);
+        if (csvF && !csvF.loaded) {
+          void loadOnDemandCsvFilter(id).then(() => {
+            requestRender();
+          });
+        }
+      }
+    }
     requestRender();
   }, [activeTextFilters, requestRender]);
 
@@ -1649,6 +1663,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     activeRegionalFiltersRef.current = activeRegionalFilters;
+    for (const id of activeRegionalFilters) {
+      const csvF = getCsvFilterById(id);
+      if (csvF && !csvF.loaded) {
+        void loadOnDemandCsvFilter(id).then(() => {
+          requestRender();
+        });
+      }
+    }
     const { k, x, y } = transformRef.current;
     syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, isAnyRoadActive());
     requestRender();

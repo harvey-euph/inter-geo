@@ -158,7 +158,7 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     }
 
     // Check for leading list-based metadata: - targets: ... or - icon: ...
-    if (inMetadataList && /^-\s*(id|title|targets?|icon|accent|color|tags?|type|priority)[:=]\s*/i.test(trimmed)) {
+    if (inMetadataList && /^-\s*(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt)[:=]\s*/i.test(trimmed)) {
       metadataListLines.push(trimmed.replace(/^-\s*/, ''));
       continue;
     }
@@ -231,6 +231,10 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
   const targetType = (typeStr || (comparisonTargets ? 'comparison' : undefined)) as LoreCard['targetType'];
   const priorityStr = meta.priority ? getString(meta.priority) : undefined;
   const priority = priorityStr ? parseInt(priorityStr, 10) : undefined;
+  const image = meta.image ? getString(meta.image) : undefined;
+  const imageSize = meta.imagesize ? getString(meta.imagesize) : undefined;
+  const imagePosition = (meta.imageposition ? getString(meta.imageposition).toLowerCase() : undefined) as LoreCard['imagePosition'];
+  const imageAlt = meta.imagealt ? getString(meta.imagealt) : undefined;
 
   return {
     id,
@@ -240,6 +244,10 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     targets: targets.length > 0 ? targets : ['*'],
     targetType,
     tags,
+    image,
+    imageSize,
+    imagePosition,
+    imageAlt,
     items,
     comparisonTargets,
     sourceFile,

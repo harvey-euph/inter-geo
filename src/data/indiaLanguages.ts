@@ -39,7 +39,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '古吉拉特文 (Gujarati Script)',
     scriptNativeSample: 'ગુજરાતી · ગુજરાત',
     sampleSentence: 'ગુજરાત સરકાર (Gujarat Govt)',
-    scriptTipsZh: '【秒殺特徵】字型結構極像天城文（印地語），但『完全沒有頂部的水平通線（No Shirorekha）』！筆劃上方全開口，看到像印地文卻無頂線 100% 鎖定古吉拉特邦！',
+    scriptTipsZh: '【字形特徵】字型結構近似天城文（印地語），但完全沒有頂部的水平通線（No Shirorekha），筆劃上方全開口，為古吉拉特文最顯著的書寫特色。',
     capitalZh: '甘地訥格爾 (Gandhinagar)'
   },
   'IN-GA': {
@@ -82,7 +82,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '坦米爾文 (Tamil Script)',
     scriptNativeSample: 'தமிழ் · தமிழ்நாடு',
     sampleSentence: 'தமிழ்நாடு அரசு (Tamil Nadu Govt)',
-    scriptTipsZh: '【秒殺特徵】文字線條方圓折角分明，無頂線，大量平底橫直折線（如 க, த, ட, ன, ற）。絕無泰盧固/卡納達語的頂部勾勾「✓」，形狀硬朗好認！',
+    scriptTipsZh: '【字形特徵】文字線條方圓折角分明，無頂線，具有大量平底橫直折線（如 க, த, ட, ன, ற），且無泰盧固或卡納達語的頂部勾狀符號。',
     capitalZh: '清奈 (Chennai)'
   },
   'IN-KL': {
@@ -93,7 +93,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '馬拉雅拉姆文 (Malayalam Script)',
     scriptNativeSample: 'മലയാളം · കേരളം',
     sampleSentence: 'കേരള സർക്കാർ (Kerala Govt)',
-    scriptTipsZh: '【秒殺特徵】全印度最圓潤「泡泡字」！幾無銳角與平直線，字型充滿圓弧雙圈（如 ക, ല, മ, യ, ഴ）。街景伴隨椰子樹、熱帶水鄉回水流域與共產黨鐮刀鐵錘旗幟！',
+    scriptTipsZh: '【字形特徵】字體極為圓潤，幾無銳角與平直線，充滿圓弧雙圈（如 ക, ല, മ, യ, ഴ），當地景觀常見椰子林與熱帶水鄉回水流域（Backwaters）。',
     capitalZh: '錫魯萬納塔普拉姆 (Thiruvananthapuram)'
   },
   'IN-KA': {
@@ -104,7 +104,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '卡納達文 (Kannada Script)',
     scriptNativeSample: 'ಕನ್ನಡ · ಕರ್ನಾಟಕ',
     sampleSentence: 'ಕರ್ನಾಟಕ ಸರ್ಕಾರ (Karnataka Govt)',
-    scriptTipsZh: '【秒殺特徵】字母頂部帶有顯眼的「向上朝右勾勾 / 打勾記號（Tick mark ✓）」與圓形開口（如 ಕ, ಗ, ಚ, ತ）。與泰盧固文相似，但卡納達文環形更封閉且頂勾清晰。',
+    scriptTipsZh: '【字形特徵】字母頂部帶有顯眼的「朝右橫勾（Tick mark）」與圓形開口（如 ಕ, ಗ, ಚ, ತ）；與泰盧固文同源，但環形更封閉且頂部橫桿較平直。',
     capitalZh: '邦加羅爾 (Bengaluru)'
   },
   'IN-AP': {
@@ -115,7 +115,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '泰盧固文 (Telugu Script)',
     scriptNativeSample: 'తెలుగు · ఆంధ్రప్రదేశ్',
     sampleSentence: 'ఆంధ్రప్రదేశ్ ప్రభుత్వం (AP Govt)',
-    scriptTipsZh: '【秒殺特徵】字母頂端普遍帶有波浪狀「小勾記號（✓/V形頭）」（如 త, ప, క, ర），字體下身圓潤開闊；與卡納達文同源，但泰盧固文頂部開口更大且轉折弧度柔順。',
+    scriptTipsZh: '【字形特徵】字母頂端普遍帶有波浪狀「勾形頭（✓/V形頭）」（如 త, ప, క, ర），字體下身圓潤開闊；與卡納達文同源，但頂部開口較大且弧度柔順。',
     capitalZh: '阿馬拉瓦蒂 (Amaravati)'
   },
   'IN-TG': {
@@ -139,7 +139,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '孟加拉文 (Bengali Script)',
     scriptNativeSample: 'বাংলা · পশ্চিমবঙ্গ',
     sampleSentence: 'পশ্চিমবঙ্গ সরকার (West Bengal Govt)',
-    scriptTipsZh: '【秒殺特徵】帶頂部連續橫線，字型極富「三角形折角與懸垂感」（如 ব, র, ক, ম, ত）。招牌常有大三角字形；加爾各答街景有黃色計程車 (Ambassador Taxi) 與藍白相間路緣石！',
+    scriptTipsZh: '【字形特徵】帶頂部連續橫線，字型富於「三角形折角與斜線結構」（如 ব, র, ক, ম, ত）；首府加爾各答街頭常見傳統黃色計程車 (Ambassador Taxi)。',
     capitalZh: '加爾各答 (Kolkata)'
   },
   'IN-AS': {
@@ -150,7 +150,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '阿薩姆文 (Assamese Script)',
     scriptNativeSample: 'অসমীয়া · অসম',
     sampleSentence: 'অসম চৰকাৰ (Govt of Assam)',
-    scriptTipsZh: '【秒殺特徵】外觀極像孟加拉文，但擁有阿薩姆特有字母：帶斜線的「ৰ」(Ra) 以及「ৱ」(Wa)！孟加拉文無此兩字（孟加拉文為 র）。街景隨處可見一望無際的綠色茶園與竹編房屋。',
+    scriptTipsZh: '【字形特徵】與孟加拉文同屬東城文體系，但擁有阿薩姆語特有的帶斜線「ৰ」(Ra) 與「ৱ」(Wa) 兩個字母；地景以布拉馬普特拉河谷茶園與竹造建築聞名。',
     capitalZh: '迪斯普爾 (Dispur)'
   },
   'IN-OR': {
@@ -161,7 +161,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '奧里亞文 (Odia Script)',
     scriptNativeSample: 'ଓଡ଼ିଆ · ଓଡ଼ିଶା',
     sampleSentence: 'ଓଡ଼ିଶା ସରକାର (Odisha Govt)',
-    scriptTipsZh: '【秒殺特徵】「圓形陽傘字」！每一個字母頂部都頂著一個大大的「半圓弧蓋子 / 雨傘罩」（如 କ, ଗ, ଚ, ତ, ପ）。極為獨特，絕不可能與其他印度文字混淆！',
+    scriptTipsZh: '【字形特徵】因古代於棕櫚葉刻寫時避免橫線割裂葉脈，演化出頂部如「半圓弧傘蓋」的獨特字形（如 କ, ଗ, ଚ, ତ, ପ）。',
     capitalZh: '布巴內什瓦爾 (Bhubaneswar)'
   },
   'IN-BR': {
@@ -211,7 +211,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     officialLanguages: ['英語 (English)', '卡西語 (Khasi)', '加羅語 (Garo)'],
     primaryScript: '拉丁字母 (Latin Alphabet)',
     scriptNativeSample: 'English · Khasi · Garo',
-    scriptTipsZh: '【東北邦秒殺】全邦以基督教與英語為主流！招牌幾乎全為「英文與拉丁字母（羅馬化卡西語）」，高山雲霧林雨量冠絕全球（乞拉朋齊），房屋帶斜鐵皮屋頂。',
+    scriptTipsZh: '【東北邦特色】全邦以英語與拉丁字母拼寫之卡西語、加羅語為主，位於全球雨量最豐沛的雲霧林高原（乞拉朋齊所在地）。',
     capitalZh: '錫隆 (Shillong)'
   },
   'IN-NL': {
@@ -264,7 +264,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     primaryScript: '古木基文 (Gurmukhi Script)',
     scriptNativeSample: 'ਪੰਜਾਬੀ · ਪੰਜਾਬ',
     sampleSentence: 'ਪੰਜਾਬ ਸਰਕਾਰ (Punjab Govt)',
-    scriptTipsZh: '【秒殺特徵】錫克教聖地！文字使用古木基文（帶頂線但線段平直粗壯，字母多為直角方形框如 ਕ, ਸ, ਤ, ਪ）。男子多包錫克頭巾 (Dastar) 並蓄長鬚，拖拉機與綠油油麥田遍布。',
+    scriptTipsZh: '【字形特徵】錫克教文化重鎮，文字使用古木基文（帶頂線且線段平直粗壯，字母多呈直角方框結構如 ਕ, ਸ, ਤ, ਪ）。',
     capitalZh: '昌迪加爾 (Chandigarh)'
   },
   'IN-HR': {
@@ -324,7 +324,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     officialLanguages: ['烏爾都語 (Urdu)', '克什米爾語', '多格拉語', '印地語'],
     primaryScript: '波斯-阿拉伯文 (Nastaliq Urdu) & 天城文',
     scriptNativeSample: 'اردو · كٲشُر · جموں و کشمیر',
-    scriptTipsZh: '【秒殺特徵】招牌普遍首選「烏爾都語納斯塔利克草書 (Nastaliq Urdu)」，柳樹與楊樹成行，木造克什米爾傳統民居與希臘核桃樹。',
+    scriptTipsZh: '【區域特徵】公共與商業招牌普遍使用「烏爾都語納斯塔利克書法體 (Nastaliq Urdu)」，山谷多白楊與柳樹及木造克什米爾傳統民居。',
     capitalZh: '斯利那加 / 查謨 (Srinagar / Jammu)'
   },
   'IN-LA': {
@@ -334,7 +334,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     officialLanguages: ['拉達克語', '烏爾都語', '藏文', '印地語'],
     primaryScript: '藏文 (Tibetan Script) & 烏爾都文',
     scriptNativeSample: 'ལ་དྭགས། · اردو · लद्दाख़',
-    scriptTipsZh: '【秒殺特徵】「小西藏」極高海拔乾旱冷荒漠（海拔 3,000 公尺以上）！無樹木裸露雪山，滿街藏文石刻、白塔與藏傳佛教紅衣喇嘛僧侶。',
+    scriptTipsZh: '【區域特徵】素有「小西藏」之稱的高海拔冷荒漠（海拔 3,000 公尺以上），地景多裸露雪山、藏傳佛教白塔與藏文石刻。',
     capitalZh: '列城 (Leh)'
   },
 
@@ -346,7 +346,7 @@ export const INDIA_STATE_LANGUAGES: Record<string, IndiaStateLanguageInfo> = {
     officialLanguages: ['印地語 (Hindi)', '英語 (English)', '旁遮普語', '烏爾都語'],
     primaryScript: '天城文、拉丁文、古木基文與烏爾都文 (四語路標)',
     scriptNativeSample: 'हिन्दी · English · ਪੰਜਾਬੀ · اردو',
-    scriptTipsZh: '【秒殺特徵】標準官方路牌必為「四語並列」：上印地文，右英文，下旁遮普古木基文與烏爾都文！都會大道寬敞整潔，綠底指路大牌。',
+    scriptTipsZh: '【首都標牌規範】官方道路名牌普遍採用「四語並列」：印地文、英文、旁遮普古木基文與烏爾都文同時呈現。',
     capitalZh: '新德里 (New Delhi)'
   },
   'IN-CH': {

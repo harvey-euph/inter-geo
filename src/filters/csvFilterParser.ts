@@ -14,6 +14,23 @@ export interface CsvFilterMetadata {
   shortBadge?: string;
   accentColor?: string;
   descriptionZh?: string;
+  effectiveRange?: string;
+  type?: CsvFilterType;
+  loadedTiming?: CsvLoadedTiming;
+  order?: number;
+}
+
+/**
+ * Lightweight build-time index entry extracted from the top comment lines of a `.csv` filter file
+ */
+export interface CsvFilterStub {
+  id: string;
+  path: string;
+  loadedTiming: CsvLoadedTiming;
+  effectiveRange: string;
+  type: CsvFilterType;
+  order?: number;
+  meta: CsvFilterMetadata;
 }
 
 export interface CsvFilterRegistryEntry {
@@ -245,6 +262,13 @@ export function parseFilterDataCsv(
         else if (key === 'shortBadge') meta.shortBadge = val;
         else if (key === 'accentColor') meta.accentColor = val;
         else if (key === 'descriptionZh') meta.descriptionZh = val;
+        else if (key === 'effectiveRange' || key === 'range') meta.effectiveRange = val;
+        else if (key === 'type') meta.type = parseFilterType(val);
+        else if (key === 'loadedTiming' || key === 'timing') meta.loadedTiming = parseLoadedTiming(val);
+        else if (key === 'order' || key === 'priority') {
+          const n = parseInt(val, 10);
+          if (!isNaN(n)) meta.order = n;
+        }
       }
       continue;
     }
