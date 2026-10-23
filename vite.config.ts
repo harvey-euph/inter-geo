@@ -397,6 +397,7 @@ function loreIndexPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/inter-geo/',
   plugins: [react(), loreIndexPlugin()],
   server: {
     host: '0.0.0.0',
