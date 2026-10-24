@@ -2049,3 +2049,11 @@ span.confused-country-btn {
   border-color: rgba(255, 255, 255, 0.3);
   letter-spacing: 0.5px;
 }
+
+@media (max-width: 768px) {
+  .map-search-input,
+  .fsw-search-input,
+  .l3-child-search {
+    font-size: 16px;
+  }
+}
