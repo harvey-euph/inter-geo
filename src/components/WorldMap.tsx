@@ -298,7 +298,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
   const isMouseInsideRef = useRef(false);
+  const hasFinePointerRef = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  );
   const isInitializedRef = useRef(false);
+
+  const getHoverClientPoint = useCallback(() => {
+    if (hasFinePointerRef.current) return mousePos.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    return rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : mousePos.current;
+  }, []);
+
+  const canTrackHover = useCallback(() => !hasFinePointerRef.current || isMouseInsideRef.current, []);
 
   const requestRender = useCallback(() => {
     if (renderRafIdRef.current !== null) return;
@@ -960,20 +973,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
         transformRef.current = { k: currentK, x: currentX, y: currentY };
         renderCanvas();
-        if (isMouseInsideRef.current) hoverExpansionCheckRef.current();
+        if (canTrackHover()) hoverExpansionCheckRef.current();
 
         if (progress < 1) {
           animRafId.current = requestAnimationFrame(step);
         } else {
           animRafId.current = null;
-          if (isMouseInsideRef.current) hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
+          if (canTrackHover()) {
+            const point = getHoverClientPoint();
+            hoverUpdateRef.current(point.x, point.y);
+          }
           if (onComplete) onComplete();
         }
       };
 
       animRafId.current = requestAnimationFrame(step);
     },
-    [renderCanvas]
+    [renderCanvas, canTrackHover, getHoverClientPoint]
   );
 
   // Helper to fetch an individual L3 regional partition pack (decoded in background worker)
@@ -1355,8 +1371,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const updateHoverAtPoint = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isMouseInsideRef.current) return;
+      if (hasFinePointerRef.current && !isMouseInsideRef.current) return;
       if (isDragging.current) return;
+
+      if (!hasFinePointerRef.current) {
+        const point = getHoverClientPoint();
+        clientX = point.x;
+        clientY = point.y;
+      }
 
       const hit = getFeatureAtPoint(clientX, clientY);
 
@@ -1468,7 +1490,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
       hoverExpansionSignatureRef.current = getHoverExpansionSignature();
     },
-    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, syncRegionalFiltersViewport]
+    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, syncRegionalFiltersViewport, getHoverClientPoint]
   );
 
   hoverUpdateRef.current = updateHoverAtPoint;
@@ -1476,13 +1498,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const signature = getHoverExpansionSignature();
     if (signature === hoverExpansionSignatureRef.current) return;
     hoverExpansionSignatureRef.current = signature;
-    hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
+    const point = getHoverClientPoint();
+    hoverUpdateRef.current(point.x, point.y);
   };
   scheduleHoverSettleRef.current = () => {
     if (hoverSettleTimerRef.current) clearTimeout(hoverSettleTimerRef.current);
     hoverSettleTimerRef.current = setTimeout(() => {
       hoverSettleTimerRef.current = null;
-      if (isMouseInsideRef.current) hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
+      if (canTrackHover()) {
+        const point = getHoverClientPoint();
+        hoverUpdateRef.current(point.x, point.y);
+      }
     }, 100);
   };
 
@@ -1546,7 +1572,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
-          if (isMouseInsideRef.current) hoverExpansionCheckRef.current();
+          if (canTrackHover()) hoverExpansionCheckRef.current();
           rafId.current = null;
         });
       }
@@ -1620,7 +1646,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (!hoverRafId.current) {
       hoverRafId.current = requestAnimationFrame(() => {
         hoverRafId.current = null;
-        updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
+        const point = getHoverClientPoint();
+        updateHoverAtPoint(point.x, point.y);
       });
     }
   };
@@ -1861,7 +1888,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     requestRender();
-  }, [countryPathData, requestRender]);
+    if (countryPathData.length && !hasFinePointerRef.current) {
+      requestAnimationFrame(() => {
+        const point = getHoverClientPoint();
+        hoverUpdateRef.current(point.x, point.y);
+      });
+    }
+  }, [countryPathData, requestRender, getHoverClientPoint]);
 
   useEffect(() => {
     lodLevelRef.current = lodLevel;
@@ -1883,8 +1916,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!selectedMunicipalityRef.current) {
         activeL3ParentRef.current = null;
         hoveredL3ParentRef.current = null;
-        if (isMouseInsideRef.current) {
-          requestAnimationFrame(() => hoverUpdateRef.current(mousePos.current.x, mousePos.current.y));
+        if (canTrackHover()) {
+          requestAnimationFrame(() => {
+            const point = getHoverClientPoint();
+            hoverUpdateRef.current(point.x, point.y);
+          });
         }
       }
       requestRender();
@@ -2032,6 +2068,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               selectedL2SubdivisionRef.current?.iso2 === iso2
             ) {
               requestRender();
+              if (!hasFinePointerRef.current && hoveredCountryRef.current?.iso2 === iso2) {
+                requestAnimationFrame(() => {
+                  const point = getHoverClientPoint();
+                  hoverUpdateRef.current(point.x, point.y);
+                });
+              }
             }
           } catch (err) {
             console.warn(`[L2] Failed to preload /data/l2/${iso2}.fgb:`, err);
@@ -2466,9 +2508,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         // 注意：有 setPointerCapture 時，leave 不一定代表結束拖曳
         // 若沒在 dragging，才清 hover
         if (!isDragging.current) {
-          const changed = clearHover();
-          if (tooltipRef.current) tooltipRef.current.style.display = 'none';
-          if (changed) requestRender();
+          if (hasFinePointerRef.current) {
+            const changed = clearHover();
+            if (tooltipRef.current) tooltipRef.current.style.display = 'none';
+            if (changed) requestRender();
+          } else {
+            const point = getHoverClientPoint();
+            hoverUpdateRef.current(point.x, point.y);
+          }
         }
       }}
       onClick={handleMapClick}

@@ -40,6 +40,24 @@ export function App() {
   const zoomToSubdivisionRef = useRef<((iso2: string, id: string | number) => void) | null>(null);
   const focusMapRef = useRef<((target: MapFocusTarget) => void) | null>(null);
 
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    const updateAppViewportHeight = () => {
+      const height = visualViewport?.height || window.innerHeight;
+      document.documentElement.style.setProperty('--app-visual-height', `${height}px`);
+    };
+    updateAppViewportHeight();
+    visualViewport?.addEventListener('resize', updateAppViewportHeight);
+    visualViewport?.addEventListener('scroll', updateAppViewportHeight);
+    window.addEventListener('resize', updateAppViewportHeight);
+    return () => {
+      visualViewport?.removeEventListener('resize', updateAppViewportHeight);
+      visualViewport?.removeEventListener('scroll', updateAppViewportHeight);
+      window.removeEventListener('resize', updateAppViewportHeight);
+      document.documentElement.style.removeProperty('--app-visual-height');
+    };
+  }, []);
+
   const handleSelectCountry = useCallback((country: CountryData | null, options?: MapSelectOptions) => {
     setSelectedCountry(country);
     if (country) {

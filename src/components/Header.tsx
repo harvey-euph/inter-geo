@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Globe, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface HeaderProps {
@@ -13,8 +13,33 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   isFilterExpanded,
   onToggleFilterExpanded
 }) => {
+  const pullStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+
   return (
-    <header className="app-header">
+    <header
+      className="app-header"
+      onPointerDown={(event) => {
+        if (event.pointerType !== 'touch' || (event.target as Element).closest('button')) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pullStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+      }}
+      onPointerMove={(event) => {
+        const start = pullStartRef.current;
+        if (!start || start.pointerId !== event.pointerId) return;
+        const dy = event.clientY - start.y;
+        const dx = Math.abs(event.clientX - start.x);
+        if (dy > 76 && dy > dx * 1.25) {
+          pullStartRef.current = null;
+          window.location.reload();
+        }
+      }}
+      onPointerUp={(event) => {
+        if (pullStartRef.current?.pointerId === event.pointerId) pullStartRef.current = null;
+      }}
+      onPointerCancel={() => {
+        pullStartRef.current = null;
+      }}
+    >
       {/* Left: Brand Logo & Title */}
       <div className="brand">
         <div className="brand-icon">
