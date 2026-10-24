@@ -66,7 +66,7 @@
 - id: germany-luxembourg-bollards
 - targets: DE, LU
 - icon: 🚧
-- accent: #000000
+- accent: #8333c5
 - tags: 德國, 盧森堡, 護柱
 
 - **外觀**：正面較普通的黑白歐式護柱；背面白色區塊有兩個白圓。

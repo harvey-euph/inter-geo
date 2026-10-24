@@ -1,6 +1,6 @@
 # 馬哈拉施特拉邦
 - id: in-state-mh
-- targets: IN-MH, MH, Maharashtra, 馬哈拉施特拉邦
+- targets: IN::MH
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 孟買 (Mumbai)
@@ -20,7 +20,7 @@
 
 # 古吉拉特邦
 - id: in-state-gj
-- targets: IN-GJ, GJ, Gujarat, 古吉拉特邦
+- targets: IN::GJ
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 甘地訥格爾 (Gandhinagar)
@@ -38,7 +38,7 @@
 
 # 果阿邦
 - id: in-state-ga
-- targets: IN-GA, GA, Goa, 果阿邦
+- targets: IN::GA
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 帕納吉 (Panaji)
@@ -55,7 +55,7 @@
 
 # 中央邦
 - id: in-state-mp
-- targets: IN-MP, MP, Madhya Pradesh, 中央邦
+- targets: IN::MP
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 博帕爾 (Bhopal)
@@ -72,7 +72,7 @@
 
 # 恰蒂斯加爾邦
 - id: in-state-ct
-- targets: IN-CT, CT, Chhattisgarh, 恰蒂斯加爾邦
+- targets: IN::CT
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 賴普爾 (Raipur)
@@ -89,7 +89,7 @@
 
 # 坦米爾納德邦
 - id: in-state-tn
-- targets: IN-TN, TN, Tamil Nadu, 坦米爾納德邦
+- targets: IN::TN
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 清奈 (Chennai)
@@ -107,7 +107,7 @@
 
 # 喀拉拉邦
 - id: in-state-kl
-- targets: IN-KL, KL, Kerala, 喀拉拉邦
+- targets: IN::KL
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 錫魯萬納塔普拉姆 (Thiruvananthapuram)
@@ -125,7 +125,7 @@
 
 # 卡納塔克邦
 - id: in-state-ka
-- targets: IN-KA, KA, Karnataka, 卡納塔克邦
+- targets: IN::KA
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 邦加羅爾 (Bengaluru)
@@ -143,7 +143,7 @@
 
 # 安得拉邦
 - id: in-state-ap
-- targets: IN-AP, AP, Andhra Pradesh, 安得拉邦
+- targets: IN::AP
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 阿馬拉瓦蒂 (Amaravati)
@@ -161,7 +161,7 @@
 
 # 特倫甘納邦
 - id: in-state-tg
-- targets: IN-TG, TG, Telangana, 特倫甘納邦
+- targets: IN::TG
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 海德拉巴 (Hyderabad)
@@ -179,7 +179,7 @@
 
 # 西孟加拉邦
 - id: in-state-wb
-- targets: IN-WB, WB, West Bengal, 西孟加拉邦
+- targets: IN::WB
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 加爾各答 (Kolkata)
@@ -197,7 +197,7 @@
 
 # 阿薩姆邦
 - id: in-state-as
-- targets: IN-AS, AS, Assam, 阿薩姆邦
+- targets: IN::AS
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 迪斯普爾 (Dispur)
@@ -215,7 +215,7 @@
 
 # 奧里薩邦
 - id: in-state-or
-- targets: IN-OR, OR, Odisha, 奧里薩邦
+- targets: IN::OR
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 布巴內什瓦爾 (Bhubaneswar)
@@ -233,7 +233,7 @@
 
 # 比哈爾邦
 - id: in-state-br
-- targets: IN-BR, BR, Bihar, 比哈爾邦
+- targets: IN::BR
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 巴特那 (Patna)
@@ -250,7 +250,7 @@
 
 # 賈坎德邦
 - id: in-state-jh
-- targets: IN-JH, JH, Jharkhand, 賈坎德邦
+- targets: IN::JH
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 蘭契 (Ranchi)
@@ -267,7 +267,7 @@
 
 # 錫金邦
 - id: in-state-sk
-- targets: IN-SK, SK, Sikkim, 錫金邦
+- targets: IN::SK
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 甘托克 (Gangtok)
@@ -284,7 +284,7 @@
 
 # 特里普拉邦
 - id: in-state-tr
-- targets: IN-TR, TR, Tripura, 特里普拉邦
+- targets: IN::TR
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 阿加爾塔拉 (Agartala)
@@ -301,7 +301,7 @@
 
 # 梅加拉亞邦
 - id: in-state-ml
-- targets: IN-ML, ML, Meghalaya, 梅加拉亞邦
+- targets: IN::ML
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 錫隆 (Shillong)
@@ -318,7 +318,7 @@
 
 # 那加蘭邦
 - id: in-state-nl
-- targets: IN-NL, NL, Nagaland, 那加蘭邦
+- targets: IN::NL
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 科希馬 (Kohima)
@@ -335,7 +335,7 @@
 
 # 米佐拉姆邦
 - id: in-state-mz
-- targets: IN-MZ, MZ, Mizoram, 米佐拉姆邦
+- targets: IN::MZ
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 艾藻爾 (Aizawl)
@@ -352,7 +352,7 @@
 
 # 曼尼普爾邦
 - id: in-state-mn
-- targets: IN-MN, MN, Manipur, 曼尼普爾邦
+- targets: IN::MN
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 因帕爾 (Imphal)
@@ -369,7 +369,7 @@
 
 # 阿魯納恰爾邦
 - id: in-state-ar
-- targets: IN-AR, AR, Arunachal Pradesh, 阿魯納恰爾邦
+- targets: IN::AR
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 伊塔那葛 (Itanagar)
@@ -386,7 +386,7 @@
 
 # 旁遮普邦
 - id: in-state-pb
-- targets: IN-PB, PB, Punjab, 旁遮普邦
+- targets: IN::PB
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 昌迪加爾 (Chandigarh)
@@ -404,7 +404,7 @@
 
 # 哈里亞納邦
 - id: in-state-hr
-- targets: IN-HR, HR, Haryana, 哈里亞納邦
+- targets: IN::HR
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 昌迪加爾 (Chandigarh)
@@ -421,7 +421,7 @@
 
 # 拉賈斯坦邦
 - id: in-state-rj
-- targets: IN-RJ, RJ, Rajasthan, 拉賈斯坦邦
+- targets: IN::RJ
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 齋浦爾 (Jaipur)
@@ -438,7 +438,7 @@
 
 # 北方邦
 - id: in-state-up
-- targets: IN-UP, UP, Uttar Pradesh, 北方邦
+- targets: IN::UP
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 勒克瑙 (Lucknow)
@@ -455,7 +455,7 @@
 
 # 北阿坎德邦
 - id: in-state-ut
-- targets: IN-UT, UT, Uttarakhand, 北阿坎德邦
+- targets: IN::UT
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 德拉敦 (Dehradun)
@@ -472,7 +472,7 @@
 
 # 喜馬偕爾邦
 - id: in-state-hp
-- targets: IN-HP, HP, Himachal Pradesh, 喜馬偕爾邦
+- targets: IN::HP
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 西姆拉 (Shimla)
@@ -489,7 +489,7 @@
 
 # 查謨-克什米爾
 - id: in-state-jk
-- targets: IN-JK, JK, Jammu and Kashmir, 查謨-克什米爾
+- targets: IN::JK
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 斯利那加 / 查謨 (Srinagar / Jammu)
@@ -506,7 +506,7 @@
 
 # 拉達克
 - id: in-state-la
-- targets: IN-LA, LA, Ladakh, 拉達克
+- targets: IN::LA
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 列城 (Leh)
@@ -523,7 +523,7 @@
 
 # 德里國家首都轄區
 - id: in-state-dl
-- targets: IN-DL, DL, Delhi (NCT), 德里國家首都轄區
+- targets: IN::DL
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 新德里 (New Delhi)
@@ -540,7 +540,7 @@
 
 # 昌迪加爾
 - id: in-state-ch
-- targets: IN-CH, CH, Chandigarh, 昌迪加爾
+- targets: IN::CH
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 昌迪加爾 (Chandigarh)
@@ -557,7 +557,7 @@
 
 # 本地治里
 - id: in-state-py
-- targets: IN-PY, PY, Puducherry, 本地治里
+- targets: IN::PY
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 本地治里 (Puducherry)
@@ -574,7 +574,7 @@
 
 # 安達曼-尼科巴群島
 - id: in-state-an
-- targets: IN-AN, AN, Andaman and Nicobar Islands, 安達曼-尼科巴群島
+- targets: IN::AN
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 布萊爾港 (Port Blair)
@@ -591,7 +591,7 @@
 
 # 拉克沙群島
 - id: in-state-ld
-- targets: IN-LD, LD, Lakshadweep, 拉克沙群島
+- targets: IN::LD
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 卡瓦拉蒂 (Kavaratti)
@@ -608,7 +608,7 @@
 
 # 達德拉-納加爾哈維利和達曼-第烏
 - id: in-state-dh
-- targets: IN-DH, DH, Dadra and Nagar Haveli and Daman and Diu, 達德拉-納加爾哈維利和達曼-第烏
+- targets: IN::DH
 - icon: 🇮🇳
 - accent: #c084fc
 - tags: 印度文字, 首府 達曼 (Daman)

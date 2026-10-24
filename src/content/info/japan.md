@@ -4,10 +4,10 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 北海道地方, 首府 札幌市
-- priority: 5
+- priority: 25
 - type: subdivision
 
-<!-- 本檔由 src/data 的敘述欄位產生，供右方資訊卡顯示。濾鏡用的列舉仍留在 src/data，不要從這裡改濾鏡行為。 -->
+<!-- 本檔由 src/data 的敘述欄位產生，供資訊卡顯示。圖層用的列舉仍留在 src/data，不要從這裡改圖層行為。 -->
 
 - **日文名** 北海道
 - **英文名** Hokkaido
@@ -39,7 +39,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 青森市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 青森県
@@ -65,7 +65,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 盛岡市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 岩手県
@@ -90,7 +90,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 仙台市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 宮城県
@@ -114,7 +114,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 秋田市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 秋田県
@@ -137,7 +137,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 山形市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 山形県
@@ -161,7 +161,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 東北地方, 首府 福島市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 福島県
@@ -188,7 +188,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 水戶市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 茨城県
@@ -213,7 +213,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 宇都宮市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 栃木県
@@ -238,7 +238,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 前橋市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 群馬県
@@ -263,7 +263,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 埼玉市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 埼玉県
@@ -290,7 +290,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 千葉市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 千葉県
@@ -322,7 +322,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 新宿區
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 東京都
@@ -354,7 +354,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 關東地方, 首府 橫濱市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 神奈川県
@@ -380,7 +380,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 新潟市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 新潟県
@@ -405,7 +405,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 富山市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 富山県
@@ -428,7 +428,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 金澤市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 石川県
@@ -452,7 +452,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 福井市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 福井県
@@ -475,7 +475,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 甲府市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 山梨県
@@ -499,7 +499,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 長野市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 長野県
@@ -524,7 +524,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 岐阜市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 岐阜県
@@ -548,7 +548,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 靜岡市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 静岡県
@@ -575,7 +575,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中部地方, 首府 名古屋市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 愛知県
@@ -604,7 +604,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 津市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 三重県
@@ -630,7 +630,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 大津市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 滋賀県
@@ -653,7 +653,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 京都市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 京都府
@@ -676,7 +676,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 大阪市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 大阪府
@@ -702,7 +702,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 神戶市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 兵庫県
@@ -726,7 +726,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 奈良市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 奈良県
@@ -750,7 +750,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 近畿地方, 首府 和歌山市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 和歌山県
@@ -773,7 +773,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中國地方, 首府 鳥取市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 鳥取県
@@ -796,7 +796,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中國地方, 首府 松江市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 島根県
@@ -820,7 +820,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中國地方, 首府 岡山市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 岡山県
@@ -844,7 +844,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中國地方, 首府 廣島市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 広島県
@@ -868,7 +868,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 中國地方, 首府 山口市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 山口県
@@ -892,7 +892,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 四國地方, 首府 德島市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 徳島県
@@ -915,7 +915,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 四國地方, 首府 高松市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 香川県
@@ -938,7 +938,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 四國地方, 首府 松山市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 愛媛県
@@ -961,7 +961,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 四國地方, 首府 高知市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 高知県
@@ -984,7 +984,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 福岡市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 福岡県
@@ -1010,7 +1010,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 佐賀市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 佐賀県
@@ -1033,7 +1033,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 長崎市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 長崎県
@@ -1057,7 +1057,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 熊本市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 熊本県
@@ -1080,7 +1080,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 大分市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 大分県
@@ -1103,7 +1103,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 宮崎市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 宮崎県
@@ -1126,7 +1126,7 @@
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 鹿兒島市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 鹿児島県
@@ -1146,11 +1146,11 @@
 
 # 沖繩縣（沖縄県）
 - id: jp-pref-47
-- targets: JP-47, Okinawa, 沖繩縣, 沖縄県
+- targets: JP::47, Okinawa, 沖繩縣, 沖縄県
 - icon: 🗾
 - accent: #38bdf8
 - tags: 九州地方, 首府 那霸市
-- priority: 5
+- priority: 25
 - type: subdivision
 
 - **日文名** 沖縄県
