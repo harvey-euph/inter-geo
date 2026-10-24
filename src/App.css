@@ -229,6 +229,52 @@
   display: block;
 }
 
+.map-center-cursor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0.52;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+
+.map-center-cursor-horizontal,
+.map-center-cursor-vertical {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 1px;
+  transform: translate(-50%, -50%);
+}
+
+.map-center-cursor-horizontal {
+  width: 26px;
+  height: 1px;
+}
+
+.map-center-cursor-vertical {
+  width: 1px;
+  height: 26px;
+}
+
+.map-center-cursor-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  background: rgba(11, 14, 20, 0.6);
+  transform: translate(-50%, -50%);
+}
+
 /* SVG Country path styles */
 .country-path {
   vector-effect: non-scaling-stroke;

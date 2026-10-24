@@ -301,6 +301,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hasFinePointerRef = useRef(
     typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   );
+  const [centerCursorEnabled, setCenterCursorEnabled] = useState(() => !hasFinePointerRef.current);
+  const centerCursorEnabledRef = useRef(centerCursorEnabled);
   const isInitializedRef = useRef(false);
 
   const getHoverClientPoint = useCallback(() => {
@@ -311,7 +313,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       : mousePos.current;
   }, []);
 
-  const canTrackHover = useCallback(() => !hasFinePointerRef.current || isMouseInsideRef.current, []);
+  const canTrackHover = useCallback(
+    () => hasFinePointerRef.current ? isMouseInsideRef.current : centerCursorEnabledRef.current,
+    []
+  );
 
   const requestRender = useCallback(() => {
     if (renderRafIdRef.current !== null) return;
@@ -1372,6 +1377,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const updateHoverAtPoint = useCallback(
     (clientX: number, clientY: number, duringGesture = false) => {
       if (hasFinePointerRef.current && !isMouseInsideRef.current) return;
+      if (!hasFinePointerRef.current && !centerCursorEnabledRef.current) return;
       if (isDragging.current && !duringGesture) return;
 
       if (!hasFinePointerRef.current) {
@@ -2493,6 +2499,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     updateHoverAtPoint
   });
 
+  const toggleCenterCursor = useCallback(() => {
+    const nextEnabled = !centerCursorEnabledRef.current;
+    centerCursorEnabledRef.current = nextEnabled;
+    setCenterCursorEnabled(nextEnabled);
+
+    if (nextEnabled) {
+      const point = getHoverClientPoint();
+      hoverUpdateRef.current(point.x, point.y);
+    } else {
+      const changed = clearHover();
+      if (changed) requestRender();
+    }
+  }, [clearHover, getHoverClientPoint, requestRender]);
+
   return (
     <div
       ref={containerRef}
@@ -2525,6 +2545,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onClick={handleMapClick}
     >
       <canvas ref={canvasRef} className="world-map-canvas" />
+
+      {!hasFinePointerRef.current && centerCursorEnabled && (
+        <div className="map-center-cursor" aria-hidden="true">
+          <span className="map-center-cursor-horizontal" />
+          <span className="map-center-cursor-vertical" />
+          <span className="map-center-cursor-dot" />
+        </div>
+      )}
 
       {loading && (
         <div
@@ -2591,6 +2619,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         panelOpen={Boolean(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad)}
         panelWidth={detailPanelWidth}
         panelFullWidth={detailPanelFullWidth}
+        showCenterCursorControl={!hasFinePointerRef.current}
+        centerCursorEnabled={centerCursorEnabled}
+        onToggleCenterCursor={toggleCenterCursor}
       />
     </div>
   );

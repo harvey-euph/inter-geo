@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Search, ZoomIn, ZoomOut, RotateCcw, Crosshair } from 'lucide-react';
 import { COUNTRIES_DATA } from '../data/countries';
 import type { CountryData } from '../types/geo';
 
@@ -11,6 +11,9 @@ export interface MapControlsProps {
   panelOpen?: boolean;
   panelWidth?: number;
   panelFullWidth?: boolean;
+  showCenterCursorControl?: boolean;
+  centerCursorEnabled?: boolean;
+  onToggleCenterCursor?: () => void;
 }
 
 const MapControlsComponent: React.FC<MapControlsProps> = ({
@@ -20,7 +23,10 @@ const MapControlsComponent: React.FC<MapControlsProps> = ({
   onSelectCountry,
   panelOpen = false,
   panelWidth = 420,
-  panelFullWidth = false
+  panelFullWidth = false,
+  showCenterCursorControl = false,
+  centerCursorEnabled = false,
+  onToggleCenterCursor
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [openSearchToRight, setOpenSearchToRight] = useState(false);
@@ -106,6 +112,18 @@ const MapControlsComponent: React.FC<MapControlsProps> = ({
 
   return (
     <div ref={controlsRef} className="map-controls-panel map-controls" style={style}>
+      {showCenterCursorControl && (
+        <button
+          type="button"
+          className={`map-control-btn${centerCursorEnabled ? ' active' : ''}`}
+          onClick={onToggleCenterCursor}
+          title={centerCursorEnabled ? '關閉螢幕中心準心' : '開啟螢幕中心準心'}
+          aria-label={centerCursorEnabled ? '關閉螢幕中心準心' : '開啟螢幕中心準心'}
+          aria-pressed={centerCursorEnabled}
+        >
+          <Crosshair size={18} />
+        </button>
+      )}
       <button className="map-control-btn" onClick={onZoomIn} title="放大地圖 (Zoom In)">
         <ZoomIn size={18} />
       </button>
