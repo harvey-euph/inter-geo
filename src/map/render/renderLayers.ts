@@ -390,7 +390,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     // ----------------------------------------------------
     // Layer 3b: Taiwan Taipower Pole Grid Overlay (Nationwide Coloring Filter)
     // ----------------------------------------------------
-    const isTaipowerGridActive = expandedL2Countries.has('TW') && activeRegionalFilters.has('taiwan-power-poles');
+    const isTaipowerGridActive = activeRegionalFilters.has('taiwan-power-poles');
     if (isTaipowerGridActive) {
       for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
         const item = taipowerZoneRenderItems[i];
@@ -990,7 +990,7 @@ export function drawTaipowerLabels(rc: RenderContext): void {
     hoveredTaipowerZone: hoveredZ
   } = rc;
 
-  const isTaipowerGridActive = expandedL2Countries.has('TW') && activeRegionalFilters.has('taiwan-power-poles');
+  const isTaipowerGridActive = activeRegionalFilters.has('taiwan-power-poles');
   if (!isTaipowerGridActive) return;
 
   ctx.save();

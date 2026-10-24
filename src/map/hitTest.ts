@@ -296,7 +296,7 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     }
 
     // 2a-2. Check Taipower Grid Zones (if filter active at L2/L3)
-    if (expandedL2Countries.has('TW') && activeRegionalFilters?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
+    if (activeRegionalFilters?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
       for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
         const item = taipowerZoneRenderItems[i];
         const [minX, minY, maxX, maxY] = item.bbox;
