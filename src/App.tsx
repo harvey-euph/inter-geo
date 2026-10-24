@@ -216,6 +216,10 @@ export function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (document.fullscreenElement) {
+          void document.exitFullscreen();
+          return;
+        }
         if (isQuizOpen) {
           setIsQuizOpen(false);
           return;

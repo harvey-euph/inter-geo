@@ -89,6 +89,8 @@ export interface InfoCard {
   imagePosition?: InfoImagePosition;
   /** Optional image caption/alt */
   imageAlt?: string;
+  /** Whether the card body is expanded by default */
+  display?: boolean;
   /** Structured bullet points */
   items: InfoItem[];
   /** Comparison subjects if this card compares multiple entities (e.g. ['CA-QC', 'CA-NB']) */

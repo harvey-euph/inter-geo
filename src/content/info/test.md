@@ -4,6 +4,7 @@
 - id: test-img-display
 - targets: TW
 - tags: 測試
+- display: true
 - image: https://harvey-euph.github.io/assets/img/avatar.jpg
 - imageAlt: 哈哈
 - imageSize: xl

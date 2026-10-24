@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
@@ -31,6 +31,8 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
   onSelectMunicipality
 }) => {
   const drawerRef = useRef<HTMLElement>(null);
+  const [drawerWidth, setDrawerWidth] = useState(420);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwiping = useRef(false);
@@ -72,6 +74,53 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     isSwiping.current = false;
   }, [onClose]);
 
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === drawerRef.current);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+    try {
+      if (document.fullscreenElement === drawer) {
+        await document.exitFullscreen();
+      } else if (drawer.requestFullscreen) {
+        await drawer.requestFullscreen();
+      }
+    } catch {
+      // Fullscreen can be denied by browser policy; keep the panel usable inline.
+    }
+  }, []);
+
+  const drawerViewControls = (
+    <div className="drawer-view-controls">
+      <label className="drawer-width-control">
+        <span>寬度</span>
+        <select
+          value={drawerWidth}
+          onChange={(e) => setDrawerWidth(Number(e.target.value))}
+          aria-label="Object 資訊面板寬度"
+        >
+          <option value={420}>標準</option>
+          <option value={640}>寬</option>
+          <option value={900}>特寬</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        className="drawer-view-btn"
+        aria-pressed={isFullscreen}
+        onClick={() => void toggleFullscreen()}
+      >
+        {isFullscreen ? '還原' : '全螢幕'}
+      </button>
+    </div>
+  );
+
   const drawerProps = {
     ref: drawerRef,
     className: 'country-drawer',
@@ -79,7 +128,11 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onPointerCancel: handlePointerUp,
-    style: { touchAction: 'pan-y' as const },
+    style: {
+      touchAction: 'pan-y' as const,
+      width: `min(${drawerWidth}px, 100vw)`,
+      maxWidth: '100vw'
+    },
   };
 
   // 0. Highway & Route Detail (Roads Mode)
@@ -132,6 +185,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
+            {drawerViewControls}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -187,6 +241,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
+            {drawerViewControls}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -247,6 +302,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
           <div className="drawer-header-actions">
+            {drawerViewControls}
             <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
               <X size={20} />
             </button>
@@ -302,9 +358,12 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             </div>
           </div>
         </div>
-        <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
-          <X size={20} />
-        </button>
+        <div className="drawer-header-actions">
+          {drawerViewControls}
+          <button className="close-btn" onClick={onClose} title="關閉情報卡 (ESC)">
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="drawer-content">

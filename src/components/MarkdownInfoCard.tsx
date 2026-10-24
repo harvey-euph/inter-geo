@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { loadInfoCard, queryInfoStubs } from '../info/infoRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
@@ -189,6 +190,7 @@ const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => {
  * Single Markdown info card renderer
  */
 export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
+  const [isExpanded, setIsExpanded] = useState(() => card.display ?? false);
   const accent = card.accentColor || '#fbbf24';
   const hasCardImage = Boolean(card.image);
   const imageDims = hasCardImage ? resolveImageDimensions(card.imageSize) : null;
@@ -284,60 +286,82 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
         boxShadow: `0 4px 18px rgba(0, 0, 0, 0.28), 0 0 10px ${accent}15`
       }}
     >
-      {/* Card Header */}
-      <div className="intel-card-header" style={{ alignItems: 'flex-start', gap: 8 }}>
+      <button
+        type="button"
+        className="intel-card-header info-card-title-toggle"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        style={{
+          alignItems: 'center',
+          gap: 8,
+          width: '100%',
+          padding: 0,
+          border: 0,
+          background: 'transparent',
+          textAlign: 'left',
+          cursor: 'pointer'
+        }}
+      >
         {card.icon && <span style={{ fontSize: 18, lineHeight: 1 }}>{card.icon}</span>}
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ color: accent, fontWeight: 700, fontSize: 14 }}>{card.title}</span>
-            {card.tags && card.tags.length > 0 && (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {card.tags.map((tag, tIdx) => (
-                  <span
-                    key={tIdx}
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      padding: '1px 6px',
-                      borderRadius: 4,
-                      backgroundColor: `${accent}22`,
-                      color: accent,
-                      border: `1px solid ${accent}45`
-                    }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+        <span style={{ color: accent, fontWeight: 700, fontSize: 14, flex: 1 }}>{card.title}</span>
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          style={{
+            flexShrink: 0,
+            color: accent,
+            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 160ms ease'
+          }}
+        />
+      </button>
+
+      {/* Card Body with Optional Image Layout & Bullet List */}
+      {isExpanded && (
+        <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          {card.tags && card.tags.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              {card.tags.map((tag, tIdx) => (
+                <span
+                  key={tIdx}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    backgroundColor: `${accent}22`,
+                    color: accent,
+                    border: `1px solid ${accent}45`
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
           {card.comparisonTargets && card.comparisonTargets.length > 1 && (
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
               跨區比較對象：{card.comparisonTargets.join(' vs ')}
             </div>
           )}
+          {effectivePosition === 'top' && cardImageNode}
+          {isSideImage ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: effectivePosition === 'right' ? 'row-reverse' : 'row',
+                alignItems: 'flex-start',
+                gap: 14
+              }}
+            >
+              {cardImageNode}
+              {bulletListNode}
+            </div>
+          ) : (
+            bulletListNode
+          )}
         </div>
-      </div>
-
-      {/* Card Body with Optional Image Layout & Bullet List */}
-      <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
-        {effectivePosition === 'top' && cardImageNode}
-        {isSideImage ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: effectivePosition === 'right' ? 'row-reverse' : 'row',
-              alignItems: 'flex-start',
-              gap: 14
-            }}
-          >
-            {cardImageNode}
-            {bulletListNode}
-          </div>
-        ) : (
-          bulletListNode
-        )}
-      </div>
+      )}
     </div>
   );
 };

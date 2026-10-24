@@ -119,7 +119,7 @@ function parseStubFromSection(
       titleFromH1 = trimmed.replace(/^#\s+/, '').trim()
       continue
     }
-    if (inMetadataList && /^-\s*(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt)[:=]\s*/i.test(trimmed)) {
+    if (inMetadataList && /^-\s*(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt|display)[:=]\s*/i.test(trimmed)) {
       metadataListLines.push(trimmed.replace(/^-\s*/, ''))
       continue
     }

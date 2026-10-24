@@ -3,7 +3,7 @@ import type { InfoCard, InfoItem } from '../types/info';
 type YamlValue = string | string[];
 
 const METADATA_KEY =
-  /^(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt)$/i;
+  /^(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt|display)$/i;
 
 /**
  * Parses raw YAML-like string lines into key-value map
@@ -42,6 +42,14 @@ function getString(val: YamlValue | undefined, fallback = ''): string {
   if (!val) return fallback;
   if (Array.isArray(val)) return val.join(', ') || fallback;
   return String(val) || fallback;
+}
+
+function getBoolean(val: YamlValue | undefined): boolean | undefined {
+  if (val === undefined || Array.isArray(val)) return undefined;
+  const normalized = val.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return undefined;
 }
 
 /**
@@ -231,6 +239,7 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
   const imageSize = meta.imagesize ? getString(meta.imagesize) : undefined;
   const imagePosition = (meta.imageposition ? getString(meta.imageposition).toLowerCase() : undefined) as InfoCard['imagePosition'];
   const imageAlt = meta.imagealt ? getString(meta.imagealt) : undefined;
+  const display = getBoolean(meta.display);
 
   return {
     id,
@@ -244,6 +253,7 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     imageSize,
     imagePosition,
     imageAlt,
+    display,
     items,
     comparisonTargets,
     sourceFile,
