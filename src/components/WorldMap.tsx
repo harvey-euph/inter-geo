@@ -1152,7 +1152,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     (e: React.MouseEvent) => {
       if (hasDragged.current) return;
       const target = e.target as Element | null;
-      if (target?.closest('.map-controls, .filter-legend-card')) {
+      if (target?.closest('.map-controls, .filter-legend-card, .map-tooltip')) {
         return;
       }
 
@@ -1334,7 +1334,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     const target = e.target as Element | null;
-    if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card')) {
+    if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card, .map-tooltip')) {
       return;
     }
 
@@ -1691,9 +1691,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       );
       updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
     } else if (remaining === 1) {
-      // 從雙指變單指：可選「接下 pan」，或直接停到手指全部放開
-      // 簡單做法：結束 pinch，不立刻開始 pan，避免跳一下
-      isDragging.current = false;
+      // Rebase the remaining finger at the current transform so it can resume panning.
+      const remainingPointer = activePointers.current.values().next().value as
+        | { x: number; y: number }
+        | undefined;
+      isDragging.current = Boolean(remainingPointer);
+      hasDragged.current = true;
+      if (remainingPointer) {
+        dragStart.current = {
+          clientX: remainingPointer.x,
+          clientY: remainingPointer.y,
+          x: transformRef.current.x,
+          y: transformRef.current.y
+        };
+      }
       const { k, x, y } = transformRef.current;
       syncAllViewports(
         k, x, y,
@@ -2515,6 +2526,43 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   }, [clearHover, getHoverClientPoint, requestRender]);
 
+  const openHoveredFullInfo = useCallback(() => {
+    const road = hoveredRoadRef.current;
+    if (road && onSelectRoad) {
+      onSelectRoad(road, { focus: false });
+      onSelectCountry(null, { focus: false });
+      onSelectSubdivision?.(null, { focus: false });
+      onSelectMunicipality?.(null, { focus: false });
+      return;
+    }
+
+    const municipality = hoveredMunicipalityRef.current;
+    if (municipality && onSelectMunicipality) {
+      onSelectMunicipality(municipality, { focus: false });
+      onSelectCountry(null, { focus: false });
+      onSelectSubdivision?.(null, { focus: false });
+      onSelectRoad?.(null, { focus: false });
+      return;
+    }
+
+    const subdivision = hoveredL2SubdivisionRef.current;
+    if (subdivision && onSelectSubdivision) {
+      onSelectSubdivision(subdivision, { focus: false });
+      onSelectCountry(null, { focus: false });
+      onSelectMunicipality?.(null, { focus: false });
+      onSelectRoad?.(null, { focus: false });
+      return;
+    }
+
+    const country = hoveredCountryRef.current;
+    if (country) {
+      onSelectCountry(country, { focus: false });
+      onSelectSubdivision?.(null, { focus: false });
+      onSelectMunicipality?.(null, { focus: false });
+      onSelectRoad?.(null, { focus: false });
+    }
+  }, [onSelectCountry, onSelectMunicipality, onSelectRoad, onSelectSubdivision]);
+
   return (
     <div
       ref={containerRef}
@@ -2600,6 +2648,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredL2Subdivision={hoveredL2Subdivision}
         hoveredTaipowerZone={hoveredTaipowerZone}
         activeRegionalFilters={activeRegionalFilters}
+        onOpenFullInfo={
+          !hasFinePointerRef.current &&
+          (hoveredRoad || hoveredCountry || hoveredMunicipality || hoveredL2Subdivision)
+            ? openHoveredFullInfo
+            : undefined
+        }
       />
 
       {/* Filter Legend Card */}

@@ -17,6 +17,7 @@ export interface MapTooltipProps {
   hoveredL2Subdivision: L2SubdivisionDetail | null;
   hoveredTaipowerZone: TaipowerZoneDef | null;
   activeRegionalFilters: Set<string>;
+  onOpenFullInfo?: () => void;
 }
 
 const MapTooltipComponent: React.FC<MapTooltipProps> = ({
@@ -26,14 +27,32 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
   hoveredMunicipality,
   hoveredL2Subdivision,
   hoveredTaipowerZone,
-  activeRegionalFilters
+  activeRegionalFilters,
+  onOpenFullInfo
 }) => {
   if (!hoveredRoad && !hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredTaipowerZone) {
     return null;
   }
 
   return (
-    <div ref={setTooltipNode} className="map-tooltip">
+    <div
+      ref={setTooltipNode}
+      className={`map-tooltip${onOpenFullInfo ? ' is-interactive' : ''}`}
+      role={onOpenFullInfo ? 'button' : undefined}
+      tabIndex={onOpenFullInfo ? 0 : undefined}
+      aria-label={onOpenFullInfo ? '開啟完整資訊' : undefined}
+      onPointerDown={onOpenFullInfo ? (event) => event.stopPropagation() : undefined}
+      onClick={onOpenFullInfo ? (event) => {
+        event.stopPropagation();
+        onOpenFullInfo();
+      } : undefined}
+      onKeyDown={onOpenFullInfo ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpenFullInfo();
+        }
+      } : undefined}
+    >
       {/* Taiwan Taipower Pole Grid Tooltip */}
       {!hoveredRoad && hoveredTaipowerZone && (
         <>
@@ -347,6 +366,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             })()}
         </>
       )}
+      {onOpenFullInfo && <span className="mobile-tooltip-open-hint">點擊開啟完整資訊</span>}
     </div>
   );
 };

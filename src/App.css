@@ -472,6 +472,10 @@
   animation: mapTooltipIn 0.12s ease-out;
 }
 
+.mobile-tooltip-open-hint {
+  display: none;
+}
+
 @keyframes mapTooltipIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -632,10 +636,10 @@
 }
 
 .map-control-btn.active {
-  background-color: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
-  color: #38bdf8;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+  background-color: #38bdf8;
+  border-color: #7dd3fc;
+  color: #08111f;
+  box-shadow: none;
 }
 
 .btn-road-active,
@@ -1933,6 +1937,48 @@ span.confused-country-btn {
 }
 
 @media (max-width: 768px) {
+  .filter-legend-card {
+    left: 12px;
+    top: 20px;
+    max-width: calc(50% - 20px);
+    padding: 8px;
+  }
+
+  .map-tooltip {
+    position: absolute !important;
+    top: 20px !important;
+    right: 12px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: calc(50% - 24px);
+    min-width: 0;
+    max-width: none;
+    max-height: 45vh;
+    overflow-y: auto;
+    padding: 8px;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: pan-y;
+  }
+
+  .map-tooltip.is-interactive:active {
+    border-color: #38bdf8;
+  }
+
+  .mobile-tooltip-open-hint {
+    display: block;
+    margin-top: 4px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+    color: #7dd3fc;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .svg-map-wrapper.panel-open .map-tooltip {
+    display: none !important;
+  }
+
   .country-drawer {
     width: 100% !important;
     max-width: 100vw;
