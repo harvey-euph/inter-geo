@@ -5617,3 +5617,29 @@ for (const c of L3_MANIFEST) {
     }
   }
 }
+
+/** The L3 partition for this L2 subdivision, when one was generated. */
+export function findL3Partition(
+  iso2: string,
+  parts: { id?: string | number; code?: string; name?: string; nameEn?: string; nameZh?: string }
+): L3PartitionMeta | undefined {
+  const upper = (iso2 || '').toUpperCase();
+  if (!upper || !L3_PARTITIONS_BY_COUNTRY[upper]) return undefined;
+  const raw = [parts.code, parts.id, parts.name, parts.nameEn, parts.nameZh];
+  for (const value of raw) {
+    if (value === undefined || value === null || String(value) === '') continue;
+    const text = String(value);
+    const hit =
+      L3_PARTITIONS_BY_KEY[`${upper}:${text}`] || L3_PARTITIONS_BY_KEY[`${upper}:${normKey(text)}`];
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+/** True when this L2 subdivision has a generated L3 partition, for any country. */
+export function hasL3ForSubdivision(
+  iso2: string,
+  parts: { id?: string | number; code?: string; name?: string; nameEn?: string; nameZh?: string }
+): boolean {
+  return findL3Partition(iso2, parts) !== undefined;
+}

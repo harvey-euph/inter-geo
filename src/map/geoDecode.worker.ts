@@ -12,8 +12,22 @@ import type { BBox, DecodeRequest, DecodeResponse, DecodedFeature } from './geoD
 
 const pathGenerator = createPathGenerator();
 
-function isValidGeometry(geom: Feature['geometry'] | null | undefined): boolean {
+function hasLine(coords: unknown): boolean {
+  return Array.isArray(coords) && coords.length >= 2;
+}
+
+function isValidGeometry(
+  geom: Feature['geometry'] | null | undefined,
+  kind?: string
+): boolean {
   if (!geom) return false;
+  if (kind === 'roads') {
+    if (geom.type === 'LineString') return hasLine(geom.coordinates);
+    if (geom.type === 'MultiLineString') {
+      return Array.isArray(geom.coordinates) && geom.coordinates.some((line) => hasLine(line));
+    }
+    return false;
+  }
   if (geom.type === 'Polygon') {
     const rings = geom.coordinates;
     return Array.isArray(rings) && rings.some((r) => Array.isArray(r) && r.length >= 4);
@@ -65,7 +79,7 @@ async function decode(req: DecodeRequest): Promise<DecodeResponse> {
 
   for await (const raw of it) {
     const feature = raw as Feature;
-    if (!isValidGeometry(feature.geometry)) continue; // 跳過空 ring
+    if (!isValidGeometry(feature.geometry, req.kind)) continue; // 跳過空 ring / 非道路折線
 
     let d = '';
     try {

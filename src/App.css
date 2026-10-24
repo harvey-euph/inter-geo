@@ -389,20 +389,33 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 170px;
-  transform: translate(-50%, -120%);
-  animation: fadeIn 0.12s ease-out;
+  min-width: min(170px, calc(100vw - 16px));
+  max-width: min(280px, calc(100vw - 16px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+  animation: mapTooltipIn 0.12s ease-out;
+}
+
+@keyframes mapTooltipIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translate(-50%, -115%); }
-  to { opacity: 1; transform: translate(-50%, -120%); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .tooltip-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 0;
+}
+
+.tooltip-header > div {
+  min-width: 0;
 }
 
 .tooltip-flag {
@@ -414,6 +427,8 @@
   font-weight: 600;
   font-size: 14px;
   color: var(--text-primary);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .tooltip-meta {
@@ -421,6 +436,7 @@
   color: var(--text-secondary);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 2px;
 }
@@ -447,6 +463,13 @@
   max-height: calc(100vh - 60px);
   overflow-y: auto;
   scrollbar-width: none;
+  transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.svg-map-wrapper.panel-open .map-controls-panel,
+.svg-map-wrapper.panel-open .map-controls {
+  right: min(440px, calc(100% - 56px));
+  z-index: 31;
 }
 
 .map-control-btn {
@@ -842,6 +865,48 @@
   padding-right: 10px;
 }
 
+/* Nationwide card is one expand/collapse button. The viewport checkbox sits above it. */
+.fsw-group-nationwide {
+  position: relative;
+}
+
+.fsw-group-nationwide .fsw-group-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.fsw-group-nationwide .fsw-group-backdrop:focus-visible {
+  outline: 1px solid rgba(56, 189, 248, 0.65);
+  outline-offset: -2px;
+}
+
+.fsw-group-nationwide .fsw-group-header,
+.fsw-group-nationwide .fsw-group-children {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.fsw-group-nationwide .fsw-window-filter-toggle,
+.fsw-group-nationwide .fsw-subgroup-header,
+.fsw-group-nationwide .fsw-checkbox-row {
+  pointer-events: auto;
+}
+
+.fsw-group-nationwide:has(.fsw-group-backdrop:hover) .fsw-group-header {
+  background: rgba(38, 46, 64, 0.8);
+}
+
 .fsw-group-header-main {
   display: flex;
   align-items: center;
@@ -1171,10 +1236,18 @@
   white-space: nowrap;
 }
 
-/* 收合時卡片更扁、只留標題列 */
+/* 收合時只留左上角 icon */
 .filter-legend-card.is-collapsed {
-  padding: 8px 10px;
+  width: auto;
+  max-width: none;
+  padding: 8px;
   gap: 0;
+}
+
+.filter-legend-card.is-collapsed .legend-toggle {
+  width: auto;
+  padding: 4px;
+  margin: 0;
 }
 
 .legend-items-list,
@@ -1244,9 +1317,13 @@
   border: 1px solid;
 }
 
-/* Side Drawer: Country Detail Dossier */
+/* Side Drawer: overlays the map so opening it does not resize the canvas */
 .country-drawer {
-  width: 420px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
   background-color: var(--bg-card);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -1379,34 +1456,104 @@
   font-weight: 600;
 }
 
-.drawer-breadcrumb-back-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 8px 2px 5px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.drawer-breadcrumb-back-btn:hover {
-  background: rgba(56, 189, 248, 0.25);
-  border-color: #38bdf8;
-  color: #ffffff;
-}
-
 .drawer-content {
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.l3-child-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.l3-child-toggle {
+  width: 100%;
+  padding: 10px 14px;
+  justify-content: center;
+}
+
+.l3-child-chevron {
+  transition: transform 0.15s ease;
+}
+
+.l3-child-chevron.open {
+  transform: rotate(180deg);
+}
+
+.l3-child-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.l3-child-search {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.l3-child-search:focus {
+  border-color: var(--accent-blue);
+}
+
+.l3-child-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.l3-child-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.l3-child-item:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.l3-child-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.l3-child-alt,
+.l3-child-type,
+.l3-child-status {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.l3-child-type {
+  flex-shrink: 0;
 }
 
 /* Meta Intel Card */
@@ -1455,6 +1602,36 @@
   background-color: rgba(56, 189, 248, 0.15);
   color: #38bdf8;
   border-color: rgba(56, 189, 248, 0.3);
+}
+
+.intel-tag.object-id {
+  font-family: var(--font-mono);
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+}
+
+.confused-country-btn {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 6px 4px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+button.confused-country-btn:hover {
+  background: rgba(239, 68, 68, 0.24);
+}
+
+span.confused-country-btn {
+  cursor: default;
 }
 
 /* Pro Hints List */

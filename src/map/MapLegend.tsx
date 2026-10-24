@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, List } from 'lucide-react';
+import { List } from 'lucide-react';
 import type { FilterDefinition } from '../data/filters';
 import { GLOBAL_TEXT_FILTERS_BY_ID } from '../data/globalFilters';
 import { getNationwideFilterById, NATIONWIDE_FILTERS_BY_ID } from '../data/nationwideFilters';
@@ -35,13 +35,13 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
         className="legend-title legend-toggle"
         onClick={() => setCollapsed((v) => !v)}
         aria-expanded={!collapsed}
+        aria-label={collapsed ? '展開圖例' : '收合圖例'}
         title={collapsed ? '展開圖例' : '收合圖例'}
       >
         <span className="legend-toggle-icon" aria-hidden>
-          {/* 左上角 icon：收合用右箭頭、展開用下箭頭；也可用固定 List */}
-          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          <List size={16} />
         </span>
-        <span className="legend-title-text">{activeFilterDef.nameZh}</span>
+        {!collapsed && <span className="legend-title-text">{activeFilterDef.nameZh}</span>}
       </button>
 
       {!collapsed && (

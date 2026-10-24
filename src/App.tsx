@@ -3,10 +3,9 @@ import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { WorldMap } from './components/WorldMap';
 import type { CountryData } from './types/geo';
-import type { PrefectureDetail, MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
-import type { RoadPathData } from './components/WorldMap';
+import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
+import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
-import { JAPAN_PREFECTURES } from './data/japanData';
 import {
   getNationwideFilterById,
   type NationwideFilterDef
@@ -29,7 +28,6 @@ export function App() {
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
-  const [selectedPrefecture, setSelectedPrefecture] = useState<PrefectureDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [showInterstates, setShowInterstates] = useState<boolean>(false);
@@ -37,55 +35,60 @@ export function App() {
   const showRoads = showInterstates || showNumberedRoutes;
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
-  const zoomToPrefectureRef = useRef<((prefId: number) => void) | null>(null);
+  const zoomToSubdivisionRef = useRef<((iso2: string, id: string | number) => void) | null>(null);
+  const focusMapRef = useRef<((target: MapFocusTarget) => void) | null>(null);
 
-  const handleSelectCountry = useCallback((country: CountryData | null) => {
+  const handleSelectCountry = useCallback((country: CountryData | null, options?: MapSelectOptions) => {
     setSelectedCountry(country);
     if (country) {
       setSelectedSubdivision(null);
-      setSelectedPrefecture(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
+      if (options?.focus !== false) {
+        focusMapRef.current?.({ kind: 'country', iso2: country.iso2 });
+      }
     }
   }, []);
 
-  const handleSelectSubdivision = useCallback((sub: L2SubdivisionDetail | null) => {
+  const handleSelectSubdivision = useCallback((sub: L2SubdivisionDetail | null, options?: MapSelectOptions) => {
     setSelectedSubdivision(sub);
     if (sub) {
       setSelectedCountry(null);
-      setSelectedPrefecture(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
+      if (options?.focus !== false) {
+        focusMapRef.current?.({ kind: 'subdivision', iso2: sub.iso2, id: sub.id });
+      }
     }
   }, []);
 
-  const handleSelectPrefecture = useCallback((pref: PrefectureDetail | null) => {
-    setSelectedPrefecture(pref);
-    if (pref) {
-      setSelectedCountry(null);
-      setSelectedSubdivision(null);
-      setSelectedMunicipality(null);
-      setSelectedRoad(null);
-    }
-  }, []);
-
-  const handleSelectMunicipality = useCallback((muni: MunicipalityDetail | null) => {
+  const handleSelectMunicipality = useCallback((muni: MunicipalityDetail | null, options?: MapSelectOptions) => {
     setSelectedMunicipality(muni);
     if (muni) {
       setSelectedCountry(null);
       setSelectedSubdivision(null);
-      setSelectedPrefecture(null);
       setSelectedRoad(null);
+      if (options?.focus !== false) {
+        focusMapRef.current?.({
+          kind: 'municipality',
+          iso2: muni.iso2,
+          code: muni.code,
+          parentName: muni.parentName || muni.pref,
+          parentCode: muni.parentCode
+        });
+      }
     }
   }, []);
 
-  const handleSelectRoad = useCallback((road: RoadPathData | null) => {
+  const handleSelectRoad = useCallback((road: RoadPathData | null, options?: MapSelectOptions) => {
     setSelectedRoad(road);
     if (road) {
       setSelectedCountry(null);
       setSelectedSubdivision(null);
-      setSelectedPrefecture(null);
       setSelectedMunicipality(null);
+      if (options?.focus !== false) {
+        focusMapRef.current?.({ kind: 'road', bbox: road.bbox });
+      }
     }
   }, []);
 
@@ -142,6 +145,7 @@ export function App() {
 
   const handleToggleRegionalFilter = useCallback((filterId: string) => {
     const targetDef = getNationwideFilterById(filterId);
+    const turningOn = !activeRegionalFilters.has(filterId);
     setActiveRegionalFilters((prev) => {
       const next = new Set(prev);
       if (next.has(filterId)) {
@@ -170,7 +174,17 @@ export function App() {
       }
       return next;
     });
-  }, []);
+    if (!turningOn || !targetDef) return;
+    if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
+      focusMapRef.current?.({ kind: 'bbox', boxes: targetDef.customBBoxes });
+    } else if (targetDef.customBBox) {
+      focusMapRef.current?.({ kind: 'bbox', boxes: [targetDef.customBBox] });
+    } else {
+      const iso =
+        targetDef.countryIso2 || (targetDef.targetIso2 !== '*' ? targetDef.targetIso2 : '');
+      if (iso) focusMapRef.current?.({ kind: 'country', iso2: iso });
+    }
+  }, [activeRegionalFilters]);
 
   const handleResetAllFilters = useCallback(() => {
     setActiveFilterId('none');
@@ -182,7 +196,6 @@ export function App() {
   const handleClosePanel = useCallback(() => {
     setSelectedCountry(null);
     setSelectedSubdivision(null);
-    setSelectedPrefecture(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
   }, []);
@@ -241,70 +254,45 @@ export function App() {
     [handleSelectCountry]
   );
 
-  const handleZoomToPrefecture = useCallback((prefId: number) => {
-    if (zoomToPrefectureRef.current) {
-      zoomToPrefectureRef.current(prefId);
-    }
-  }, []);
-
   const handleNavigateBack = useCallback(() => {
-    // 1. If currently on L3 (Municipality): Go back to L2 (Prefecture or Subdivision)
+    // L3 -> the parent L2 subdivision, for every country including Japan.
     if (selectedMunicipality) {
       const muni = selectedMunicipality;
-      setSelectedMunicipality(null);
-      if ((muni.iso2 === 'JP' || !muni.iso2) && muni.prefId && JAPAN_PREFECTURES[muni.prefId]) {
-        setSelectedPrefecture(JAPAN_PREFECTURES[muni.prefId]);
-        return;
-      }
-      // Worldwide L2 subdivision:
-      const iso2 = muni.iso2 || 'US';
-      const cMeta = findCountry(iso2);
+      const iso2 = muni.iso2 || '';
+      const cMeta = iso2 ? findCountry(iso2) : undefined;
+      const parentName = muni.parentName || muni.pref;
+      const parentCode = muni.parentCode || '';
       const subDetail: L2SubdivisionDetail = {
-        id: muni.parentCode || muni.parentName || muni.pref,
-        iso2: iso2,
-        name: muni.parentName || muni.pref,
-        nameEn: muni.parentName || muni.pref,
-        nameZh: muni.parentName || muni.pref,
+        id: parentCode || parentName,
+        iso2,
+        name: parentName,
+        nameEn: parentName,
+        nameZh: parentName,
         typeEn: '一級行政區',
-        code: muni.parentCode || '',
+        code: parentCode,
         postal: '',
         countryName: cMeta?.name || iso2,
         countryNameZh: cMeta?.nameZh || iso2,
         countryFlag: cMeta?.flag || '🌐'
       };
-      setSelectedSubdivision(subDetail);
+      handleSelectSubdivision(subDetail);
       return;
     }
 
-    // 2. If currently on L2 (Japan Prefecture): Go back to L1 Country (Japan)
-    if (selectedPrefecture) {
-      setSelectedPrefecture(null);
-      const jp = findCountry('JP');
-      if (jp) {
-        setSelectedCountry(jp);
-      }
-      return;
-    }
-
-    // 3. If currently on L2 (Worldwide Subdivision): Go back to L1 Country
+    // L2 -> the parent country.
     if (selectedSubdivision) {
-      const iso2 = selectedSubdivision.iso2;
-      setSelectedSubdivision(null);
-      const cMeta = findCountry(iso2);
+      const cMeta = findCountry(selectedSubdivision.iso2);
       if (cMeta) {
-        setSelectedCountry(cMeta);
+        handleSelectCountry(cMeta);
+      } else {
+        setSelectedSubdivision(null);
       }
-      return;
     }
-  }, [selectedMunicipality, selectedPrefecture, selectedSubdivision]);
+  }, [selectedMunicipality, selectedSubdivision, handleSelectSubdivision, handleSelectCountry]);
 
   const handleNavigateToCountry = useCallback((c: CountryData) => {
-    setSelectedCountry(c);
-    setSelectedSubdivision(null);
-    setSelectedPrefecture(null);
-    setSelectedMunicipality(null);
-    setSelectedRoad(null);
-  }, []);
+    handleSelectCountry(c);
+  }, [handleSelectCountry]);
 
   const activeFilterCount =
     (activeFilterId !== 'none' ? 1 : 0) +
@@ -353,13 +341,12 @@ export function App() {
             onSelectCountry={handleSelectCountry}
             selectedSubdivision={selectedSubdivision}
             onSelectSubdivision={handleSelectSubdivision}
-            selectedPrefecture={selectedPrefecture}
-            onSelectPrefecture={handleSelectPrefecture}
             selectedMunicipality={selectedMunicipality}
             onSelectMunicipality={handleSelectMunicipality}
             selectedRoad={selectedRoad}
             onSelectRoad={handleSelectRoad}
-            zoomToPrefectureRef={zoomToPrefectureRef}
+            zoomToSubdivisionRef={zoomToSubdivisionRef}
+            focusMapRef={focusMapRef}
             showRoads={showRoads}
             showInterstates={showInterstates}
             onToggleInterstates={handleToggleInterstates}
@@ -368,20 +355,18 @@ export function App() {
           />
         </section>
 
-        {/* Side Detail Dossier Panel (Supports Country, Subdivision L2, Prefecture L2, Municipality L3, Highway/Route) */}
-        {(selectedCountry || selectedSubdivision || selectedPrefecture || selectedMunicipality || selectedRoad) && (
+        {(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad) && (
           <Suspense fallback={null}>
             <CountryDetailPanel
               country={selectedCountry}
               subdivision={selectedSubdivision}
-              prefecture={selectedPrefecture}
               municipality={selectedMunicipality}
               road={selectedRoad}
               onClose={handleClosePanel}
               onNavigateBack={handleNavigateBack}
               onNavigateToCountry={handleNavigateToCountry}
               onSelectCountryName={handleSelectCountryByName}
-              onZoomToPrefecture={handleZoomToPrefecture}
+              onSelectMunicipality={handleSelectMunicipality}
             />
           </Suspense>
         )}

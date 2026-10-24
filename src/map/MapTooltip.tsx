@@ -3,7 +3,8 @@ import { findCountry } from '../data/countries';
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCrossingSign } from '../data/pedestrianCrossing';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
-import { queryLoreStubs } from '../lore/loreRegistry';
+import { queryInfoStubs } from '../info/infoRegistry';
+import { gridObjectId, roadObjectId, subdivisionObjectId } from '../objects/objectId';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
@@ -54,6 +55,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             <span className="tooltip-badge" style={{ color: '#38bdf8' }}>
               80km × 50km 大分區
             </span>
+            <span className="tooltip-badge">{gridObjectId(hoveredTaipowerZone.letter)}</span>
           </div>
           <div
             style={{
@@ -136,6 +138,9 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                 {hoveredL2Subdivision.code}
               </span>
             )}
+            <span className="tooltip-badge">
+              {subdivisionObjectId(hoveredL2Subdivision.iso2, hoveredL2Subdivision.code || hoveredL2Subdivision.id)}
+            </span>
             {hoveredL2Subdivision.postal && (
               <span className="tooltip-badge" style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
                 郵區: {hoveredL2Subdivision.postal}
@@ -231,6 +236,9 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                 >
                   {meta.classBadge}
                 </span>
+                <span className="tooltip-badge">
+                  {roadObjectId(hoveredRoad.iso2 || '', hoveredRoad.name)}
+                </span>
                 {meta.corridorClue && <span className="tooltip-badge">{meta.corridorClue}</span>}
                 {meta.subClue && (
                   <span className="tooltip-badge" style={{ color: '#94a3b8' }}>
@@ -267,9 +275,9 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             )}
           </div>
           {(() => {
-            const mdStubs = queryLoreStubs({ countryIso2: hoveredCountry.iso2 });
-            if (mdStubs && mdStubs.length > 0) {
-              const stub = mdStubs[0];
+            const mdStubs = queryInfoStubs({ countryIso2: hoveredCountry.iso2 });
+            const stub = mdStubs[0];
+            if (stub) {
               const preview = stub.firstItemPreview;
               return (
                 <div

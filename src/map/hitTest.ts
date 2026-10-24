@@ -179,7 +179,7 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     }
   }
 
-  // 2. Normal Mode: Hierarchical Polygon Hit-Testing (L3 -> L2 Prefectures -> L2 Subdivisions -> L1 Countries)
+  // 2. Normal Mode: Hierarchical Polygon Hit-Testing (L3 -> L2 Subdivisions -> L1 Countries)
   const isL2RegionMode = currentLod === 'L2' || currentLod === 'L3';
   const useHighRes = k >= 1.8;
 

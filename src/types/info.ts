@@ -1,8 +1,8 @@
 /**
- * Lore & Dossier Story Types for Markdown Reader
+ * Info cards read from src/content/info/*.md.
  */
 
-export interface LoreItem {
+export interface InfoItem {
   /** Raw markdown line */
   raw: string;
   /** Optional bold/bracketed label prefix (e.g. "【地理與制度特色】", "歷史淵源") */
@@ -13,13 +13,22 @@ export interface LoreItem {
   subItems?: string[];
 }
 
-export type LoreImageSize = 'sm' | 'md' | 'lg' | 'xl' | 'banner' | string;
-export type LoreImagePosition = 'left' | 'right' | 'top';
+export type InfoImageSize = 'sm' | 'md' | 'lg' | 'xl' | 'banner' | string;
+export type InfoImagePosition = 'left' | 'right' | 'top';
+
+export type InfoTargetType =
+  | 'country'
+  | 'subdivision'
+  | 'municipality'
+  | 'road'
+  | 'grid'
+  | 'comparison'
+  | 'general';
 
 /**
- * Lightweight build-time index entry for a Lore card (no full body items)
+ * Lightweight build-time index entry for an info card (no full body items).
  */
-export interface LoreStub {
+export interface InfoStub {
   /** Unique card identifier */
   id: string;
   /** Story display title */
@@ -31,33 +40,33 @@ export interface LoreStub {
   /** Subject targets: country ISO2 ('PE'), subdivision ('CA-QC'), road ('US-INTERSTATE'), or grid ('TW-TP') */
   targets: string[];
   /** Optional subject category */
-  targetType?: 'country' | 'subdivision' | 'municipality' | 'road' | 'grid' | 'comparison' | 'general';
+  targetType?: InfoTargetType;
   /** Tags for display pill badges */
   tags?: string[];
   /** Optional primary image URL/path */
   image?: string;
   /** Optional image size preset or pixel value ('sm' | 'md' | 'lg' | 'xl' | 'banner' | '68') */
-  imageSize?: LoreImageSize;
+  imageSize?: InfoImageSize;
   /** Optional image placement ('left' | 'right' | 'top') */
-  imagePosition?: LoreImagePosition;
+  imagePosition?: InfoImagePosition;
   /** Optional image caption/alt */
   imageAlt?: string;
   /** Comparison subjects if this card compares multiple entities */
   comparisonTargets?: string[];
   /** Source file name where this card is defined */
   sourceFile: string;
-  /** Project-relative path used for on-demand URL resolution (e.g. '/src/content/lore/americas.md') */
+  /** Project-relative path used for on-demand URL resolution (e.g. '/src/content/info/americas.md') */
   sourcePath: string;
   /** Optional priority for ordering */
   priority?: number;
-  /** Short preview of the first item for instant map hover tooltips */
+  /** Short preview of the first long item for instant map hover tooltips */
   firstItemPreview?: {
     label?: string;
     content: string;
   };
 }
 
-export interface LoreCard {
+export interface InfoCard {
   /** Unique card identifier */
   id: string;
   /** Story display title */
@@ -69,19 +78,19 @@ export interface LoreCard {
   /** Subject targets: can be country ISO2 ('PE'), subdivision ('CA-QC'), road ('US-INTERSTATE'), or grid ('TW-TP') */
   targets: string[];
   /** Optional subject category */
-  targetType?: 'country' | 'subdivision' | 'municipality' | 'road' | 'grid' | 'comparison' | 'general';
+  targetType?: InfoTargetType;
   /** Tags for display pill badges (e.g. ['跨區比較', '標誌']) */
   tags?: string[];
   /** Optional primary image URL/path */
   image?: string;
   /** Optional image size preset or pixel value ('sm' | 'md' | 'lg' | 'xl' | 'banner' | '68') */
-  imageSize?: LoreImageSize;
+  imageSize?: InfoImageSize;
   /** Optional image placement ('left' | 'right' | 'top') */
-  imagePosition?: LoreImagePosition;
+  imagePosition?: InfoImagePosition;
   /** Optional image caption/alt */
   imageAlt?: string;
-  /** Structured bullet point items */
-  items: LoreItem[];
+  /** Structured bullet points */
+  items: InfoItem[];
   /** Comparison subjects if this card compares multiple entities (e.g. ['CA-QC', 'CA-NB']) */
   comparisonTargets?: string[];
   /** Source file name where this card is defined */
@@ -90,7 +99,7 @@ export interface LoreCard {
   priority?: number;
 }
 
-export interface LoreQuery {
+export interface InfoQuery {
   /** Country ISO2 code (e.g. 'PE', 'CA', 'BR') */
   countryIso2?: string;
   /** Subdivision code or postal code (e.g. 'QC', 'CA-QC', 'SP', '01') */

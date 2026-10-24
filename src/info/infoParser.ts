@@ -1,6 +1,9 @@
-import type { LoreCard, LoreItem } from '../types/lore';
+import type { InfoCard, InfoItem } from '../types/info';
 
 type YamlValue = string | string[];
+
+const METADATA_KEY =
+  /^(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt)$/i;
 
 /**
  * Parses raw YAML-like string lines into key-value map
@@ -17,12 +20,10 @@ function parseYamlBlock(yamlLines: string[]): Record<string, YamlValue> {
     const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
     let valStr = trimmed.slice(colonIdx + 1).trim();
 
-    // Remove quotes
     if ((valStr.startsWith('"') && valStr.endsWith('"')) || (valStr.startsWith("'") && valStr.endsWith("'"))) {
       valStr = valStr.slice(1, -1);
     }
 
-    // Array parsing: [a, b, c]
     if (valStr.startsWith('[') && valStr.endsWith(']')) {
       const inner = valStr.slice(1, -1).trim();
       meta[key] = inner
@@ -44,11 +45,10 @@ function getString(val: YamlValue | undefined, fallback = ''): string {
 }
 
 /**
- * Extracts label and content from a bullet point line
+ * Extracts label and content from a long bullet point line
  */
 function parseBulletLine(lineText: string): { label?: string; content: string } {
   const trimmed = lineText.trim();
-  // Case 1: **Label**: Content or **Label** Content
   const boldMatch = trimmed.match(/^\*\*(.+?)\*\*[:：]?\s*(.*)$/);
   if (boldMatch) {
     return {
@@ -57,7 +57,6 @@ function parseBulletLine(lineText: string): { label?: string; content: string } 
     };
   }
 
-  // Case 2: 【Label】Content
   const bracketMatch = trimmed.match(/^【(.+?)】[:：]?\s*(.*)$/);
   if (bracketMatch) {
     return {
@@ -70,29 +69,27 @@ function parseBulletLine(lineText: string): { label?: string; content: string } 
 }
 
 /**
- * Parses markdown body lines into structured LoreItem[]
+ * Parses long markdown body lines into structured InfoItem[].
+ * Short lines are removed before this runs.
  */
-function parseItemsFromLines(bodyLines: string[]): LoreItem[] {
-  const items: LoreItem[] = [];
-  let currentItem: LoreItem | null = null;
+function parseItemsFromLines(bodyLines: string[]): InfoItem[] {
+  const items: InfoItem[] = [];
+  let currentItem: InfoItem | null = null;
 
   for (let i = 0; i < bodyLines.length; i++) {
     const rawLine = bodyLines[i];
     const trimmed = rawLine.trim();
     if (!trimmed) continue;
 
-    // Check indentation level (2+ spaces or tab)
     const isIndented = /^(\s{2,}|\t)[-*]\s+/.test(rawLine);
 
     if (isIndented && currentItem) {
-      // Sub-bullet point
       const subContent = trimmed.replace(/^[-*]\s+/, '').trim();
       if (!currentItem.subItems) {
         currentItem.subItems = [];
       }
       currentItem.subItems.push(subContent);
     } else if (/^[-*]\s+/.test(trimmed)) {
-      // Top-level bullet point
       const bulletText = trimmed.replace(/^[-*]\s+/, '').trim();
       const { label, content } = parseBulletLine(bulletText);
 
@@ -104,7 +101,6 @@ function parseItemsFromLines(bodyLines: string[]): LoreItem[] {
       };
       items.push(currentItem);
     } else if (currentItem) {
-      // Continuation of previous item paragraph
       if (currentItem.content) {
         currentItem.content += ` ${trimmed}`;
       } else {
@@ -117,9 +113,9 @@ function parseItemsFromLines(bodyLines: string[]): LoreItem[] {
 }
 
 /**
- * Parses a single section of Markdown text into a LoreCard
+ * Parses a single section of Markdown text into an InfoCard
  */
-function parseSingleSection(sectionText: string, sourceFile: string, sectionIndex: number): LoreCard | null {
+function parseSingleSection(sectionText: string, sourceFile: string, sectionIndex: number): InfoCard | null {
   const lines = sectionText.split(/\r?\n/);
   let meta: Record<string, YamlValue> = {};
   const bodyLines: string[] = [];
@@ -127,7 +123,6 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
   const frontmatterLines: string[] = [];
 
   let lineIdx = 0;
-  // Check if starts with ---
   if (lines[0] && lines[0].trim() === '---') {
     lineIdx = 1;
     while (lineIdx < lines.length) {
@@ -142,7 +137,6 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     meta = parseYamlBlock(frontmatterLines);
   }
 
-  // Parse remaining lines
   const remainingLines = lines.slice(lineIdx);
   const metadataListLines: string[] = [];
   let inMetadataList = true;
@@ -151,16 +145,17 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     const line = remainingLines[i];
     const trimmed = line.trim();
 
-    // Check for H1 (# Title)
     if (!titleFromH1 && /^#\s+/.test(trimmed)) {
       titleFromH1 = trimmed.replace(/^#\s+/, '').trim();
       continue;
     }
 
-    // Check for leading list-based metadata: - targets: ... or - icon: ...
-    if (inMetadataList && /^-\s*(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt)[:=]\s*/i.test(trimmed)) {
-      metadataListLines.push(trimmed.replace(/^-\s*/, ''));
-      continue;
+    if (inMetadataList && /^-\s*([a-z]+)[:=]\s*/i.test(trimmed)) {
+      const key = trimmed.match(/^-\s*([a-z]+)[:=]\s*/i)?.[1] || '';
+      if (METADATA_KEY.test(key)) {
+        metadataListLines.push(trimmed.replace(/^-\s*/, ''));
+        continue;
+      }
     }
 
     if (trimmed) {
@@ -174,11 +169,10 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     meta = { ...meta, ...listMeta };
   }
 
-  const title = getString(meta.title, titleFromH1 || `Lore ${sectionIndex + 1}`);
+  const title = getString(meta.title, titleFromH1 || `Info ${sectionIndex + 1}`);
   const rawId = getString(meta.id, title.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5_-]+/g, '-'));
-  const id = rawId.replace(/^-+|-+$/g, '') || `lore-${sectionIndex + 1}`;
+  const id = rawId.replace(/^-+|-+$/g, '') || `info-${sectionIndex + 1}`;
 
-  // Parse targets: array or comma string
   let targets: string[] = [];
   if (Array.isArray(meta.targets)) {
     targets = meta.targets.map((t) => String(t).trim().toUpperCase());
@@ -191,7 +185,6 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     targets = [String(meta.target).trim().toUpperCase()];
   }
 
-  // Parse tags
   let tags: string[] = [];
   if (Array.isArray(meta.tags)) {
     tags = meta.tags.map((t) => String(t).trim());
@@ -204,9 +197,12 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
 
   const items = parseItemsFromLines(bodyLines);
 
-  // If no items were parsed as bullets, fallback to treating paragraphs as items
   if (items.length === 0 && bodyLines.length > 0) {
-    const content = bodyLines.join('\n').trim();
+    const content = bodyLines
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('<!--'))
+      .join('\n')
+      .trim();
     if (content) {
       items.push({
         raw: content,
@@ -228,12 +224,12 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     : undefined;
 
   const typeStr = meta.type ? getString(meta.type) : undefined;
-  const targetType = (typeStr || (comparisonTargets ? 'comparison' : undefined)) as LoreCard['targetType'];
+  const targetType = (typeStr || (comparisonTargets ? 'comparison' : undefined)) as InfoCard['targetType'];
   const priorityStr = meta.priority ? getString(meta.priority) : undefined;
   const priority = priorityStr ? parseInt(priorityStr, 10) : undefined;
   const image = meta.image ? getString(meta.image) : undefined;
   const imageSize = meta.imagesize ? getString(meta.imagesize) : undefined;
-  const imagePosition = (meta.imageposition ? getString(meta.imageposition).toLowerCase() : undefined) as LoreCard['imagePosition'];
+  const imagePosition = (meta.imageposition ? getString(meta.imageposition).toLowerCase() : undefined) as InfoCard['imagePosition'];
   const imageAlt = meta.imagealt ? getString(meta.imagealt) : undefined;
 
   return {
@@ -258,13 +254,10 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
 /**
  * Parses full raw Markdown file content (which may contain multiple cards separated by `---` or `# `)
  */
-export function parseMarkdownLore(fileContent: string, fileName: string): LoreCard[] {
+export function parseMarkdownInfo(fileContent: string, fileName: string): InfoCard[] {
   if (!fileContent || !fileContent.trim()) return [];
 
-  const cards: LoreCard[] = [];
-
-  // If file contains multiple frontmatter sections separated by `\n---\n`
-  // We can split by horizontal divider `\n---\n` or `\n___`
+  const cards: InfoCard[] = [];
   const dividerPattern = /\r?\n---\r?\n/;
   const hasDivider = dividerPattern.test(fileContent.trim());
 
@@ -277,10 +270,8 @@ export function parseMarkdownLore(fileContent: string, fileName: string): LoreCa
       if (card) cards.push(card);
     }
   } else {
-    // If no divider, check if there are multiple `# ` (H1) headings in the file
     const h1Matches = Array.from(fileContent.matchAll(/^#\s+[^\r\n]+/gm));
     if (h1Matches.length > 1) {
-      // Split by `# `
       for (let i = 0; i < h1Matches.length; i++) {
         const start = h1Matches[i].index!;
         const end = i < h1Matches.length - 1 ? h1Matches[i + 1].index! : fileContent.length;

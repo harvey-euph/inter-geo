@@ -187,6 +187,20 @@ function normalizeFeatureWinding(feature) {
   return feature;
 }
 
+/** A polygon is writable only when it still has a closed ring (4+ positions). */
+function hasUsableRing(geom) {
+  if (!geom) return false;
+  if (geom.type === 'Polygon') {
+    return (geom.coordinates || []).some((r) => r && r.length >= 4);
+  }
+  if (geom.type === 'MultiPolygon') {
+    return (geom.coordinates || []).some(
+      (poly) => poly && poly.some((r) => r && r.length >= 4)
+    );
+  }
+  return false;
+}
+
 /**
  * Shared-arc topological simplification using TopoJSON.
  * Quantization to 1e5 (~1m precision) + Visvalingam-Whyatt simplification with shared boundaries.
@@ -317,22 +331,28 @@ async function main() {
     for await (const f of it) {
       jpRawFeatures.push(f);
     }
-    const optimizedJpFeatures = optimizeFeatures(jpRawFeatures, 2e-4);
-    const bbox = computeBoundingBox(optimizedJpFeatures);
-    const fgbBytes = flatgeobuf.geojson.serialize({
-      type: 'FeatureCollection',
-      features: optimizedJpFeatures
-    });
-    fs.writeFileSync(jpOutputPath, Buffer.from(fgbBytes));
-    manifestEntries.push({
-      iso2: 'JP',
-      countryId: jpInfo.id,
-      name: jpInfo.name,
-      nameZh: jpInfo.nameZh,
-      subdivisionCount: optimizedJpFeatures.length,
-      bbox
-    });
-    console.log(`[JP] Optimized Japan prefectures: ${optimizedJpFeatures.length} subdivisions -> ${(fgbBytes.length / 1024).toFixed(1)} KB`);
+    const optimizedJpFeatures = optimizeFeatures(jpRawFeatures, 2e-4).filter((f) =>
+      hasUsableRing(f.geometry)
+    );
+    if (optimizedJpFeatures.length === 0) {
+      console.warn('[JP] No usable polygon rings after filtering; skipping Japan');
+    } else {
+      const bbox = computeBoundingBox(optimizedJpFeatures);
+      const fgbBytes = flatgeobuf.geojson.serialize({
+        type: 'FeatureCollection',
+        features: optimizedJpFeatures
+      });
+      fs.writeFileSync(jpOutputPath, Buffer.from(fgbBytes));
+      manifestEntries.push({
+        iso2: 'JP',
+        countryId: jpInfo.id,
+        name: jpInfo.name,
+        nameZh: jpInfo.nameZh,
+        subdivisionCount: optimizedJpFeatures.length,
+        bbox
+      });
+      console.log(`[JP] Optimized Japan prefectures: ${optimizedJpFeatures.length} subdivisions -> ${(fgbBytes.length / 1024).toFixed(1)} KB`);
+    }
   }
 
   // 2. Process all other official Street View countries
@@ -481,7 +501,13 @@ async function main() {
     });
 
     // Run shared-arc topological simplification (removes collinear straight points without cracks)
-    const optimizedFeatures = optimizeFeatures(cleanedFeatures, 2e-4);
+    const optimizedFeatures = optimizeFeatures(cleanedFeatures, 2e-4).filter((f) =>
+      hasUsableRing(f.geometry)
+    );
+    if (optimizedFeatures.length === 0) {
+      console.warn(`[Warning] ${iso2} (${info.name}) has no usable polygon rings after filtering; skipping`);
+      continue;
+    }
     const bbox = computeBoundingBox(optimizedFeatures);
 
     const fgbBytes = flatgeobuf.geojson.serialize({

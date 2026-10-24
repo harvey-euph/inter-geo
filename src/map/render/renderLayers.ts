@@ -177,14 +177,23 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         fillColor = MAP_COLORS.hovered;
       } else if (!item.countryMeta) {
         fillColor = MAP_COLORS.unmappedFill;
+      } else if (activeFilter.id === 'roadLines' && isL2RegionMode) {
+        fillColor = MAP_COLORS.defaultFill;
       } else {
         fillColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
       }
 
       const renderPath = (useHighRes && iso2 && dissolvedByCountry[iso2]) || item.path2D;
 
-      if (activeFilter.id === 'roadLines' && !isSelected && !isHovered && item.countryMeta) {
-        fillRoadMarkingPolygon(ctx, renderPath, item.countryMeta.iso2, 5.0 / k);
+      const paintRoadMarkings =
+        activeFilter.id === 'roadLines' &&
+        !isL2RegionMode &&
+        !isSelected &&
+        !isHovered &&
+        !!item.countryMeta;
+
+      if (paintRoadMarkings && item.countryMeta) {
+        fillRoadMarkingPolygon(ctx, renderPath, item.countryMeta.iso2, 8.5 / k);
       } else {
         ctx.fillStyle = fillColor;
         ctx.fill(renderPath);
@@ -258,20 +267,14 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
             (hoveredM && hoveredM.iso2 === iso2) ||
             (activeL3Parent && activeL3Parent.iso2 === iso2);
 
-          // 1. Fill all subdivisions of this country in 1 draw call
-          if (activeFilter.id === 'roadLines') {
-            fillRoadMarkingPolygon(
-              ctx,
-              countryCombined,
-              iso2,
-              5.0 / k,
-              isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : undefined
-            );
-          } else {
-            const defaultFill = (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
-            ctx.fillStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
-            ctx.fill(countryCombined);
-          }
+          // 1. Fill all subdivisions of this country in 1 draw call.
+          // Road markings stay on L1 country shapes; at L2 the landmass uses the plain fill.
+          const defaultFill =
+            activeFilter.id === 'roadLines'
+              ? MAP_COLORS.defaultFill
+              : (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
+          ctx.fillStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
+          ctx.fill(countryCombined);
 
           // 2. Stroke all subdivision borders of this country in 1 draw call (Thin internal boundaries: 0.6 / k)
           ctx.strokeStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';

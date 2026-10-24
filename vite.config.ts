@@ -2,8 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { buildObjectIndex } from './scripts/build-object-index.mjs'
 
-interface LoreStubEntry {
+interface InfoStubEntry {
   id: string
   title: string
   icon?: string
@@ -58,7 +59,7 @@ function getStr(val: string | string[] | undefined, fallback = ''): string {
 function parseFirstBulletPreview(bodyLines: string[]): { label?: string; content: string } | undefined {
   for (const rawLine of bodyLines) {
     const trimmed = rawLine.trim()
-    if (!trimmed) continue
+    if (!trimmed || trimmed.startsWith('<!--')) continue
     const isIndented = /^(\s{2,}|\t)[-*]\s+/.test(rawLine)
     if (isIndented) continue
     const bulletText = trimmed.replace(/^[-*]\s+/, '').trim()
@@ -86,7 +87,7 @@ function parseStubFromSection(
   sourceFile: string,
   sourcePath: string,
   sectionIndex: number
-): LoreStubEntry | null {
+): InfoStubEntry | null {
   const lines = sectionText.split(/\r?\n/)
   let meta: Record<string, string | string[]> = {}
   const bodyLines: string[] = []
@@ -132,9 +133,9 @@ function parseStubFromSection(
     meta = { ...meta, ...parseYamlLines(metadataListLines) }
   }
 
-  const title = getStr(meta.title, titleFromH1 || `Lore ${sectionIndex + 1}`)
+  const title = getStr(meta.title, titleFromH1 || `Info ${sectionIndex + 1}`)
   const rawId = getStr(meta.id, title.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5_-]+/g, '-'))
-  const id = rawId.replace(/^-+|-+$/g, '') || `lore-${sectionIndex + 1}`
+  const id = rawId.replace(/^-+|-+$/g, '') || `info-${sectionIndex + 1}`
 
   let targets: string[] = []
   if (Array.isArray(meta.targets)) {
@@ -304,10 +305,10 @@ function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
   })
 }
 
-function buildLoreIndex(rootDir: string): LoreStubEntry[] {
-  const loreDir = path.resolve(rootDir, 'src/content/lore')
-  const mdFiles = collectFilesByExt(loreDir, '.md')
-  const stubs: LoreStubEntry[] = []
+function buildInfoIndex(rootDir: string): InfoStubEntry[] {
+  const infoDir = path.resolve(rootDir, 'src/content/info')
+  const mdFiles = collectFilesByExt(infoDir, '.md')
+  const stubs: InfoStubEntry[] = []
 
   for (const absPath of mdFiles) {
     const content = fs.readFileSync(absPath, 'utf-8')
@@ -340,52 +341,89 @@ function buildLoreIndex(rootDir: string): LoreStubEntry[] {
   return stubs
 }
 
-function loreIndexPlugin(): Plugin {
-  const virtualLoreId = 'virtual:lore-index'
-  const resolvedVirtualLoreId = '\0' + virtualLoreId
+function contentIndexPlugin(): Plugin {
+  const virtualObjectId = 'virtual:object-index'
+  const resolvedVirtualObjectId = '\0' + virtualObjectId
+  const virtualInfoId = 'virtual:info-index'
+  const resolvedVirtualInfoId = '\0' + virtualInfoId
   const virtualCsvId = 'virtual:csv-filter-index'
   const resolvedVirtualCsvId = '\0' + virtualCsvId
   let projectRoot = process.cwd()
+  let contentCache: {
+    objects: Awaited<ReturnType<typeof buildObjectIndex>>
+    info: InfoStubEntry[]
+    csv: CsvFilterStubEntry[]
+  } | null = null
+
+  const ensureContentIndex = async () => {
+    if (contentCache) return contentCache
+    // Registration order: objects (fgb reader), then info markdown, then filter csv.
+    const objects = await buildObjectIndex(projectRoot)
+    const info = buildInfoIndex(projectRoot)
+    const csv = buildCsvFilterIndex(projectRoot)
+    contentCache = { objects, info, csv }
+    return contentCache
+  }
 
   return {
     name: 'vite-plugin-content-index',
     configResolved(config) {
       projectRoot = config.root
+      contentCache = null
     },
     resolveId(id) {
-      if (id === virtualLoreId) return resolvedVirtualLoreId
+      if (id === virtualObjectId) return resolvedVirtualObjectId
+      if (id === virtualInfoId) return resolvedVirtualInfoId
       if (id === virtualCsvId) return resolvedVirtualCsvId
       return null
     },
-    load(id) {
-      if (id === resolvedVirtualLoreId) {
-        const stubs = buildLoreIndex(projectRoot)
-        return `export default ${JSON.stringify(stubs, null, 2)};`
+    async load(id) {
+      if (id === resolvedVirtualObjectId) {
+        const { objects } = await ensureContentIndex()
+        return `export default ${JSON.stringify(objects)};`
+      }
+      if (id === resolvedVirtualInfoId) {
+        const { info } = await ensureContentIndex()
+        return `export default ${JSON.stringify(info, null, 2)};`
       }
       if (id === resolvedVirtualCsvId) {
-        const stubs = buildCsvFilterIndex(projectRoot)
-        return `export default ${JSON.stringify(stubs, null, 2)};`
+        const { csv } = await ensureContentIndex()
+        return `export default ${JSON.stringify(csv, null, 2)};`
       }
       return null
     },
     configureServer(server) {
-      const loreDir = path.resolve(projectRoot, 'src/content/lore')
+      const infoDir = path.resolve(projectRoot, 'src/content/info')
       const filtersDir = path.resolve(projectRoot, 'src/content/filters')
-      server.watcher.add(loreDir)
+      const dataDir = path.resolve(projectRoot, 'public/data')
+      const gridFile = path.resolve(projectRoot, 'src/data/taiwanPowerPoles.ts')
+      server.watcher.add(infoDir)
       server.watcher.add(filtersDir)
+      server.watcher.add(dataDir)
+      server.watcher.add(gridFile)
+      const invalidate = (resolvedId: string) => {
+        const mod = server.moduleGraph.getModuleById(resolvedId)
+        if (!mod) return
+        server.moduleGraph.invalidateModule(mod)
+        server.ws.send({ type: 'full-reload' })
+      }
       const onContentFileChange = (filePath: string) => {
-        if (filePath.endsWith('.md') && filePath.includes(path.join('src', 'content', 'lore'))) {
-          const mod = server.moduleGraph.getModuleById(resolvedVirtualLoreId)
-          if (mod) {
-            server.moduleGraph.invalidateModule(mod)
-            server.ws.send({ type: 'full-reload' })
-          }
-        } else if (filePath.endsWith('.csv') && filePath.includes(path.join('src', 'content', 'filters'))) {
-          const mod = server.moduleGraph.getModuleById(resolvedVirtualCsvId)
-          if (mod) {
-            server.moduleGraph.invalidateModule(mod)
-            server.ws.send({ type: 'full-reload' })
-          }
+        const normalized = filePath.split(path.sep).join('/')
+        if (
+          normalized.endsWith('.fgb') ||
+          normalized.endsWith('taiwanPowerPoles.ts') ||
+          normalized.endsWith('build-object-index.mjs')
+        ) {
+          contentCache = null
+          invalidate(resolvedVirtualObjectId)
+          return
+        }
+        if (normalized.endsWith('.md') && normalized.includes('/src/content/info/')) {
+          contentCache = null
+          invalidate(resolvedVirtualInfoId)
+        } else if (normalized.endsWith('.csv') && normalized.includes('/src/content/filters/')) {
+          contentCache = null
+          invalidate(resolvedVirtualCsvId)
         }
       }
       server.watcher.on('add', onContentFileChange)
@@ -398,7 +436,7 @@ function loreIndexPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   base: '/inter-geo',
-  plugins: [react(), loreIndexPlugin()],
+  plugins: [react(), contentIndexPlugin()],
   server: {
     host: '0.0.0.0',
     port: 5173
@@ -419,7 +457,7 @@ export default defineConfig({
             },
             {
               name: 'geo-data',
-              test: /src\/(data|lore|filters|content)\//
+              test: /src\/(data|info|filters|content|objects)\//
             }
           ]
         }

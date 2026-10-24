@@ -79,23 +79,9 @@ export interface L2SubdivisionDetail {
   countryFlag: string;
 }
 
-export interface PrefectureDetail {
-  id: number;
-  nameJa: string;
-  nameZh: string;
-  nameEn: string;
-  region: string;
-  capital: string;
-  areaCode: string;
-  plates: string[];
-  proClues: string[];
-  landscapeDesc: string;
-}
-
 export interface MunicipalityDetail {
   code: string;
   pref: string;
-  prefId?: number;
   gun?: string;
   city: string;
   nameZh: string;

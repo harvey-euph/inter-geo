@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { findCountry } from '../../data/countries';
-import { JAPAN_PREFECTURES } from '../../data/japanData';
 import type { RoadPathData } from '../../data/roadsMeta';
 import type { CountryData } from '../../types/geo';
-import type { L2SubdivisionDetail, LODLevel, MunicipalityDetail, PrefectureDetail } from '../../types/lod';
+import type { L2SubdivisionDetail, LODLevel, MunicipalityDetail } from '../../types/lod';
 import {
   toL2Detail,
   type ActiveL3ParentInfo,
@@ -39,11 +38,10 @@ export interface UseKeyboardNavParams {
     id?: string | number
   ) => L3SubdivisionPathData[];
   loadL3PackForSubdivision: (iso2: string, code?: string, name?: string, id?: string | number) => void;
-  onSelectCountry: (country: CountryData | null) => void;
-  onSelectSubdivision?: (sub: L2SubdivisionDetail | null) => void;
-  onSelectPrefecture?: (pref: PrefectureDetail | null) => void;
-  onSelectMunicipality?: (muni: MunicipalityDetail | null) => void;
-  onSelectRoad?: (road: RoadPathData | null) => void;
+  onSelectCountry: (country: CountryData | null, options?: { focus?: boolean }) => void;
+  onSelectSubdivision?: (sub: L2SubdivisionDetail | null, options?: { focus?: boolean }) => void;
+  onSelectMunicipality?: (muni: MunicipalityDetail | null, options?: { focus?: boolean }) => void;
+  onSelectRoad?: (road: RoadPathData | null, options?: { focus?: boolean }) => void;
   wrapX: (rawX: number, k: number) => number;
   clampY: (rawY: number, k: number, vh: number) => number;
   animateTo: (targetK: number, targetX: number, targetY: number, duration?: number, onComplete?: () => void) => void;
@@ -196,7 +194,7 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
           const nextIdx = currentIdx === -1 ? 0 : (currentIdx + dir + roadList.length) % roadList.length;
           const nextRoad = roadList[nextIdx];
 
-          if (p.onSelectRoad) p.onSelectRoad(nextRoad);
+          if (p.onSelectRoad) p.onSelectRoad(nextRoad, { focus: false });
           p.setSelectedRoadRef(nextRoad);
 
           const cx = (nextRoad.bbox[0] + nextRoad.bbox[2]) / 2;
@@ -221,9 +219,8 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
         const activeParent = p.getActiveL3Parent();
         const iso2 = selMuni.iso2 || activeParent?.iso2 || '';
         const parentName = selMuni.parentName || selMuni.pref || activeParent?.name;
-        const parentCode =
-          selMuni.parentCode || (selMuni.prefId ? String(selMuni.prefId) : undefined) || activeParent?.code;
-        const parentId = selMuni.prefId || activeParent?.id;
+        const parentCode = selMuni.parentCode || activeParent?.code;
+        const parentId = activeParent?.id;
 
         const siblings = p.getL3SubdivisionsForParent(iso2, parentName, parentCode, parentId);
 
@@ -252,11 +249,8 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
             parentName: nextChild.parentName,
             parentCode: nextChild.parentCode
           };
-          if (nextChild.iso2 === 'JP' && (nextChild.parentCode || activeParent?.id)) {
-            newMuni.prefId = Number(nextChild.parentCode || activeParent?.id);
-          }
 
-          if (p.onSelectMunicipality) p.onSelectMunicipality(newMuni);
+          if (p.onSelectMunicipality) p.onSelectMunicipality(newMuni, { focus: false });
           p.setSelectedMunicipalityRef(newMuni);
 
           const cx = (nextChild.bbox[0] + nextChild.bbox[2]) / 2;
@@ -292,14 +286,8 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
           p.setSelectedL2SubdivisionRef({ iso2: nextSub.iso2, id: nextSub.id });
 
           const nextSubDetail = toL2Detail(nextSub);
-          if (p.onSelectSubdivision) p.onSelectSubdivision(nextSubDetail);
+          if (p.onSelectSubdivision) p.onSelectSubdivision(nextSubDetail, { focus: false });
           p.onSelectCountry(null);
-
-          if (nextSub.iso2 === 'JP' && p.onSelectPrefecture) {
-            p.onSelectPrefecture(JAPAN_PREFECTURES[Number(nextSub.id)] || null);
-          } else if (p.onSelectPrefecture) {
-            p.onSelectPrefecture(null);
-          }
 
           if (p.getLodLevel() === 'L3') {
             p.loadL3PackForSubdivision(nextSub.iso2, nextSub.code, nextSub.name, nextSub.id);
@@ -340,11 +328,10 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
           const nextCountry = countries[nextIdx];
 
           if (nextCountry.countryMeta) {
-            p.onSelectCountry(nextCountry.countryMeta);
+            p.onSelectCountry(nextCountry.countryMeta, { focus: false });
             p.setSelectedCountryRef(nextCountry.countryMeta);
             p.setSelectedL2SubdivisionRef(null);
             if (p.onSelectSubdivision) p.onSelectSubdivision(null);
-            if (p.onSelectPrefecture) p.onSelectPrefecture(null);
             if (p.onSelectMunicipality) p.onSelectMunicipality(null);
             p.setSelectedMunicipalityRef(null);
 

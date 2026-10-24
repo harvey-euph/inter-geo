@@ -1,7 +1,7 @@
 import { COUNTRIES_DATA } from '../data/countries';
-import { JAPAN_PREFECTURES } from '../data/japanData';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
+import { getObject, objectsByParent } from '../objects/objectRegistry';
 
 export interface AssignableRegionList {
   /** Identifier of the effective range (e.g. 'International', 'Nationwide:JP', 'Nationwide:TW') */
@@ -40,21 +40,45 @@ const ISO2_WORLD_COUNTRIES = [
 
 export const INTERNATIONAL_COUNTRY_IDS: ReadonlySet<string> = new Set(ISO2_WORLD_COUNTRIES);
 
+function isCatalogChild(iso2: string, upper: string): boolean {
+  if (!upper.startsWith(`${iso2}::`)) return false;
+  const obj = getObject(upper);
+  return !!obj && (obj.parentId || '').toUpperCase() === iso2;
+}
+
+function namespacedKeys(iso2: string, short: string): string[] {
+  return [`${iso2}::${short}`, `${iso2}-${short}`, short];
+}
+
 /**
- * Japan's 47 Prefectures assignable list (supports '1'..'47', '01'..'47', 'JP-01'..'JP-47', Kanji, or English name)
+ * Japan's 47 prefectures. Aliases come from the JP L2 object catalog
+ * (`JP::26`, `JP::01`, `JP-01`, `01`, kanji, zh, en).
  */
 const jpAliasToCanonical = new Map<string, string>();
 const jpCanonicalIds = new Set<string>();
-for (const pref of Object.values(JAPAN_PREFECTURES)) {
-  const padded = String(pref.id).padStart(2, '0');
+for (const pref of objectsByParent('JP', 'subdivision')) {
+  const local = pref.id.split('::')[1] || pref.code;
+  if (!/^\d+$/.test(local)) continue;
+  const num = String(parseInt(local, 10));
+  const padded = num.padStart(2, '0');
   const canonical = `JP-${padded}`;
   jpCanonicalIds.add(canonical);
-  jpAliasToCanonical.set(canonical, canonical);
-  jpAliasToCanonical.set(padded, canonical);
-  jpAliasToCanonical.set(String(pref.id), canonical);
-  jpAliasToCanonical.set(pref.nameJa.toUpperCase(), canonical);
-  jpAliasToCanonical.set(pref.nameZh.toUpperCase(), canonical);
-  jpAliasToCanonical.set(pref.nameEn.toUpperCase(), canonical);
+  const aliases = [
+    canonical,
+    `JP-${num}`,
+    `JP::${num}`,
+    `JP::${padded}`,
+    padded,
+    num,
+    pref.name,
+    pref.nameEn,
+    pref.nameZh,
+    ...(pref.aliases || [])
+  ];
+  for (const alias of aliases) {
+    const key = alias.trim().toUpperCase();
+    if (key) jpAliasToCanonical.set(key, canonical);
+  }
 }
 
 /**
@@ -70,7 +94,8 @@ const US_SUBDIVISION_CODES = [
 ];
 const usValidSet = new Set<string>([
   ...US_SUBDIVISION_CODES,
-  ...US_SUBDIVISION_CODES.map((c) => `US-${c}`)
+  ...US_SUBDIVISION_CODES.map((c) => `US-${c}`),
+  ...US_SUBDIVISION_CODES.map((c) => `US::${c}`)
 ]);
 
 /**
@@ -85,7 +110,8 @@ const TW_SUBDIVISION_CODES = [
 ];
 const twValidSet = new Set<string>([
   ...TW_SUBDIVISION_CODES,
-  ...TW_SUBDIVISION_CODES.map((c) => `TW-${c}`)
+  ...TW_SUBDIVISION_CODES.map((c) => `TW-${c}`),
+  ...TW_SUBDIVISION_CODES.map((c) => `TW::${c}`)
 ]);
 
 /**
@@ -139,7 +165,7 @@ for (const [code, nameEn, nameZh] of IN_STATE_ENTRIES) {
   const canonical = `IN-${code}`;
   inCanonicalIds.add(canonical);
   const allKeys = Array.from(
-    new Set([canonical, code, nameEn.toUpperCase(), nameZh.toUpperCase()])
+    new Set([canonical, code, `IN::${code}`, nameEn.toUpperCase(), nameZh.toUpperCase()])
   );
   for (const k of allKeys) {
     inAliasToKeys.set(k, allKeys);
@@ -164,65 +190,95 @@ const PREDEFINED_LISTS = new Map<string, AssignableRegionList>([
     'NATIONWIDE:JP',
     {
       rangeKey: 'Nationwide:JP',
-      descriptionZh: '日本 47 都道府縣 (支援 JP-01~JP-47、01~47、漢字或英文名稱)',
+      descriptionZh: '日本 47 都道府縣 (支援 JP::26、JP-01~JP-47、01~47、漢字或英文名稱)',
       targetIso2: 'JP',
       validIds: jpCanonicalIds,
       normalizeId: (rawId: string) => {
         const upper = rawId.trim().toUpperCase();
         const canonical = jpAliasToCanonical.get(upper);
-        if (!canonical) return [upper];
+        if (!canonical) {
+          if (upper.startsWith('JP::')) return namespacedKeys('JP', upper.slice(4));
+          return [upper];
+        }
         const num = String(parseInt(canonical.slice(3), 10));
         const padded = canonical.slice(3);
-        return Array.from(new Set([canonical, padded, num, upper]));
+        return Array.from(new Set([canonical, padded, num, `JP::${num}`, `JP::${padded}`, `JP-${num}`, upper]));
       },
-      isValid: (rawId: string) => jpAliasToCanonical.has(rawId.trim().toUpperCase())
+      isValid: (rawId: string) => {
+        const upper = rawId.trim().toUpperCase();
+        return jpAliasToCanonical.has(upper) || isCatalogChild('JP', upper);
+      }
     }
   ],
   [
     'NATIONWIDE:US',
     {
       rangeKey: 'Nationwide:US',
-      descriptionZh: '美國 50 州與特區 (支援 US-CA 或 CA 等州縮寫)',
+      descriptionZh: '美國 50 州與特區 (支援 US::DC、US-CA 或 CA 等州縮寫)',
       targetIso2: 'US',
       validIds: usValidSet,
       normalizeId: (rawId: string) => {
         const upper = rawId.trim().toUpperCase();
-        const short = upper.startsWith('US-') ? upper.slice(3) : upper;
-        return [`US-${short}`, short];
+        let short = upper;
+        if (upper.startsWith('US::')) short = upper.slice(4);
+        else if (upper.startsWith('US-')) short = upper.slice(3);
+        return Array.from(new Set([...namespacedKeys('US', short), upper]));
       },
-      isValid: (rawId: string) => usValidSet.has(rawId.trim().toUpperCase())
+      isValid: (rawId: string) => {
+        const upper = rawId.trim().toUpperCase();
+        return usValidSet.has(upper) || isCatalogChild('US', upper);
+      }
     }
   ],
   [
     'NATIONWIDE:TW',
     {
       rangeKey: 'Nationwide:TW',
-      descriptionZh: '台灣 22 縣市與台電分區 (支援 TW-TPE、TPE 或台電分區字母)',
+      descriptionZh: '台灣 22 縣市與台電分區 (支援 TW::TPE、TW::TP-H、TPE 或台電分區字母)',
       targetIso2: 'TW',
       validIds: twValidSet,
       normalizeId: (rawId: string) => {
         const upper = rawId.trim().toUpperCase();
-        const short = upper.startsWith('TW-') ? upper.slice(3) : upper;
-        return [`TW-${short}`, short];
+        let short = upper;
+        if (upper.startsWith('TW::')) short = upper.slice(4);
+        else if (upper.startsWith('TW-')) short = upper.slice(3);
+        return Array.from(new Set([...namespacedKeys('TW', short), upper]));
       },
-      isValid: (rawId: string) => twValidSet.has(rawId.trim().toUpperCase())
+      isValid: (rawId: string) => {
+        const upper = rawId.trim().toUpperCase();
+        return twValidSet.has(upper) || isCatalogChild('TW', upper);
+      }
     }
   ],
   [
     'NATIONWIDE:IN',
     {
       rangeKey: 'Nationwide:IN',
-      descriptionZh: '印度各邦與聯邦屬地 (支援 IN-TN、TN 或英文/中文邦名)',
+      descriptionZh: '印度各邦與聯邦屬地 (支援 IN::TG、IN-TN、TN 或英文/中文邦名)',
       targetIso2: 'IN',
       validIds: inCanonicalIds,
       normalizeId: (rawId: string) => {
         const upper = rawId.trim().toUpperCase();
-        const mapped = inAliasToKeys.get(upper);
+        const direct = inAliasToKeys.get(upper);
+        if (direct) return direct;
+        let stripped = upper;
+        if (upper.startsWith('IN::')) stripped = upper.slice(4);
+        else if (upper.startsWith('IN-')) stripped = upper.slice(3);
+        const mapped = stripped === upper ? undefined : inAliasToKeys.get(stripped);
         if (mapped) return mapped;
+        if (upper.startsWith('IN::') && stripped) return namespacedKeys('IN', stripped);
         const short = upper.startsWith('IN-') ? upper.slice(3) : upper;
-        return [`IN-${short}`, short, upper];
+        return Array.from(new Set([`IN-${short}`, short, `IN::${short}`, upper]));
       },
-      isValid: (rawId: string) => inAliasToKeys.has(rawId.trim().toUpperCase())
+      isValid: (rawId: string) => {
+        const upper = rawId.trim().toUpperCase();
+        if (inAliasToKeys.has(upper)) return true;
+        if (upper.startsWith('IN::')) {
+          const short = upper.slice(4);
+          return inAliasToKeys.has(short) || isCatalogChild('IN', upper);
+        }
+        return false;
+      }
     }
   ]
 ]);
@@ -340,7 +396,13 @@ export function getAssignableRegionList(rawEffectiveRange: string): AssignableRe
       isValid: (rawId: string) => {
         const upper = rawId.trim().toUpperCase();
         if (countryIsoSet.has(upper)) return true;
-        return subLists.some((sl) => sl.validIds.size === 0 || sl.isValid(upper));
+        return subLists.some((sl) => {
+          if (sl.validIds.size > 0) return sl.isValid(upper);
+          // A namespaced id is valid only for the country written before `::`.
+          const ns = upper.indexOf('::');
+          if (ns > 0) return upper.slice(0, ns) === sl.targetIso2;
+          return upper.length > 0;
+        });
       }
     };
   }
@@ -348,15 +410,21 @@ export function getAssignableRegionList(rawEffectiveRange: string): AssignableRe
   // Generic Nationwide:<ISO2> assignable list for any L2 country (e.g. Nationwide:BR, Nationwide:DE)
   return {
     rangeKey: `Nationwide:${targetIso2}`,
-    descriptionZh: `${targetIso2} 一級行政區 (支援 ${targetIso2}-<CODE> 或行政區代碼)`,
+    descriptionZh: `${targetIso2} 一級行政區 (支援 ${targetIso2}::<CODE>、${targetIso2}-<CODE> 或行政區代碼)`,
     targetIso2,
     validIds: new Set<string>(),
     normalizeId: (rawId: string) => {
       const upper = rawId.trim().toUpperCase();
       if (upper === targetIso2) return [upper];
-      const prefix = `${targetIso2}-`;
-      const short = upper.startsWith(prefix) ? upper.slice(prefix.length) : upper;
-      return [`${prefix}${short}`, short];
+      const namespaceAt = upper.indexOf('::');
+      if (namespaceAt > 0 && upper.slice(0, namespaceAt) !== targetIso2) return [upper];
+      const nsPrefix = `${targetIso2}::`;
+      const dashPrefix = `${targetIso2}-`;
+      let short = upper;
+      if (upper.startsWith(nsPrefix)) short = upper.slice(nsPrefix.length);
+      else if (upper.startsWith(dashPrefix)) short = upper.slice(dashPrefix.length);
+      if (!short) return [upper];
+      return Array.from(new Set([`${targetIso2}::${short}`, `${dashPrefix}${short}`, short]));
     },
     isValid: (rawId: string) => rawId.trim().length > 0
   };

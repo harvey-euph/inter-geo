@@ -205,6 +205,8 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
     activeRegionalFilters.has(f.id)
   ).length;
 
+  const nationwideOpen = isSectionOpen('nationwide', filteredNationwideList.length > 0);
+
   const totalActiveCount =
     activeIntFillCount +
     activeIntImageCount +
@@ -454,33 +456,29 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
         </div>
 
         {/* ======================== v Nationwide ======================== */}
-        <div className="fsw-group">
+        <div className="fsw-group fsw-group-nationwide">
+          <button
+            type="button"
+            className="fsw-group-backdrop"
+            aria-expanded={nationwideOpen}
+            aria-label="Nationwide"
+            onClick={() => toggleSection('nationwide')}
+          />
           <div className="fsw-group-header fsw-group-header-nationwide">
-            <button
-              type="button"
-              className="fsw-group-header-main"
-              onClick={() => toggleSection('nationwide')}
-            >
+            <span className="fsw-group-header-main">
               <span className="fsw-chevron">
-                {isSectionOpen('nationwide', filteredNationwideList.length > 0) ? (
-                  <ChevronDown size={14} />
-                ) : (
-                  <ChevronRight size={14} />
-                )}
+                {nationwideOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </span>
               <span className="fsw-group-title">Nationwide</span>
               {activeRegionalFilters.size > 0 && (
                 <span className="fsw-count-pill">{activeRegionalFilters.size}</span>
               )}
-            </button>
+            </span>
 
-            {/* Inline toggle: ( Hide outside window ones ) */}
+            {/* Hole in the group button: this checkbox keeps its own click. */}
             <label
               className="fsw-window-filter-toggle"
               title="只顯示當前視野 (L2/L3) 內的區域專屬濾鏡 (Hide filters outside current map viewport)"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
             >
               <input
                 type="checkbox"
@@ -494,7 +492,7 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
             </label>
           </div>
 
-          {isSectionOpen('nationwide', filteredNationwideList.length > 0) && (
+          {nationwideOpen && (
             <div className="fsw-group-children">
               {/* > Fill Color */}
               <div className="fsw-subgroup">

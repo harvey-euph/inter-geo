@@ -1,39 +1,16 @@
 # 豐富資訊卡內容 (我只會稍微提，幫我補完 context 和細節)
 
-- [x] 支援 image 路徑插入圖片，要能合理配置空間，控制圖片 size ，完成後將 "行人穿越道告示 (Pedestrian Crossing Sign)" 在資訊卡的內容統一成 md framework (原 l2 層級顯示 "國家行人穿越道告示 (Pedestrian Crossing Sign)" 可拔掉)
-
 # Bug
 
-- [ ] 在 scripts/generate-l2-fgb.mjs 寫出 fgb 前過濾空幾何（已有類似 geoArea 過濾，但空 ring 可能沒擋到）：
-
-```ts
-function hasUsableRing(geom) {
-  if (!geom) return false;
-  if (geom.type === 'Polygon') {
-    return (geom.coordinates || []).some((r) => r && r.length >= 4);
-  }
-  if (geom.type === 'MultiPolygon') {
-    return (geom.coordinates || []).some(
-      (poly) => poly && poly.some((r) => r && r.length >= 4)
-    );
-  }
-  return false;
-}
-
-// optimizedFeatures 寫檔前：
-optimizedFeatures = optimizedFeatures.filter((f) => hasUsableRing(f.geometry));
-```
-
-- [ ] 展開/閉合資訊卡的時候會讓地圖產生一瞬間的橫向縮放，會導致螢幕閃一下，我希望螢幕不要出現這種現象
-- [ ] 公路該顯示的時候沒有顯示
-
+- [ ] 公路又壞掉了，該顯示的時候沒有顯示
 
 # Feature
 
-- [ ] 點按左上角 icon 可以把 filter-legend-card 收納/展開
-- [ ] 道路標線的著色都只畫 L1 區域 (國家層級) 就好，不用畫到 L2，邊界寬度可以稍微再寬一點
-- [ ] Selected Nationwide Filter / (Search or any reason) Clicked a Region -> Move window to the target Region
-- [ ] Hover Region 跳出來的小資訊卡
-    - 要自動換行，不要拖太長
-    - 要測量螢幕邊界，不可以跑到外面
-
+- [x] 我想整理一下區域/物件命名，統一用 C++ 的 namespace 格式，然後架構也要改
+    - Object 是指所有可以被 Hover 得到 floating 小卡、 clicked 會跳出右方資訊卡的東西，可以是國家﹑公路﹑或是之後定義的 fgb 物件
+    - vite.config.ts 進行編譯時先註冊 Object (fgb, 要有 reader 幫忙) 後註冊 Info (md), 和 Filters (csv)
+    - 有個總表紀錄最上層 (國家)，如果要放在 US:: 底下的物件，會對應到 US.*.? 的檔案 (接受作為補充，例如 Interstate 就不會一開始就放在 l2 資料，讓資料擴充良好進行)
+    - 這樣也可以把日本資料統一格式放進 fgb
+    - 當我們在 filters/*.csv 或其他地方要描述區域或物件時，就要用 US::DC 代表華盛頓特區，同樣道理會有 US::I-70 放在 US-xxx.fgb 代表 I-70
+    - 所以在 india-scripts.csv 裡面，印度的邦就要用 IN::TG 這樣描述，有別於 LK 和 BD 
+    - 台灣的電力系統方格也變成物件收納

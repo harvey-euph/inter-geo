@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { LoreCard, LoreItem, LoreQuery, LoreStub } from '../types/lore';
-import { loadLoreCard, queryLoreStubs } from '../lore/loreRegistry';
+import { loadInfoCard, queryInfoStubs } from '../info/infoRegistry';
+import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
 
-interface MarkdownLoreCardProps {
-  card: LoreCard;
+interface MarkdownInfoCardProps {
+  card: InfoCard;
 }
 
 /**
@@ -38,7 +38,10 @@ function resolveImageDimensions(sizeToken?: string): {
 /**
  * Safely renders inline markdown (images, bold, italic, code, links, callouts)
  */
-const renderInlineMarkdown = (text: string): React.ReactNode[] => {
+const renderInlineMarkdown = (
+  text: string,
+  onSelectCountryName?: (name: string) => void
+): React.ReactNode[] => {
   if (!text) return [];
 
   // Tokens: ![alt|size](url), **bold**, *italic*, `code`, [text](url)
@@ -75,7 +78,7 @@ const renderInlineMarkdown = (text: string): React.ReactNode[] => {
           >
             <img
               src={src}
-              alt={altText || 'lore illustration'}
+              alt={altText || 'info illustration'}
               loading="lazy"
               style={{
                 width: '100%',
@@ -131,10 +134,36 @@ const renderInlineMarkdown = (text: string): React.ReactNode[] => {
     if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
       const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (match) {
+        const href = match[2];
+        if (href.toLowerCase().startsWith('country:')) {
+          let countryName = href.slice('country:'.length);
+          try {
+            countryName = decodeURIComponent(countryName);
+          } catch {
+            // Keep the raw target when the href is not valid percent-encoding.
+          }
+          if (!onSelectCountryName) {
+            return (
+              <span key={idx} className="confused-country-btn">
+                {match[1]}
+              </span>
+            );
+          }
+          return (
+            <button
+              key={idx}
+              type="button"
+              className="confused-country-btn"
+              onClick={() => onSelectCountryName(countryName)}
+            >
+              {match[1]}
+            </button>
+          );
+        }
         return (
           <a
             key={idx}
-            href={match[2]}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: '#38bdf8', textDecoration: 'underline' }}
@@ -148,10 +177,17 @@ const renderInlineMarkdown = (text: string): React.ReactNode[] => {
   });
 };
 
+const CountryLinkContext = React.createContext<((name: string) => void) | undefined>(undefined);
+
+const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => {
+  const onSelectCountryName = React.useContext(CountryLinkContext);
+  return <>{renderInlineMarkdown(text, onSelectCountryName)}</>;
+};
+
 /**
- * Single Markdown Lore Card Renderer
+ * Single Markdown info card renderer
  */
-export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
+export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
   const accent = card.accentColor || '#fbbf24';
   const hasCardImage = Boolean(card.image);
   const imageDims = hasCardImage ? resolveImageDimensions(card.imageSize) : null;
@@ -195,7 +231,7 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
 
   const bulletListNode = (
     <ul style={{ margin: 0, padding: 0, listStyleType: 'none', display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
-      {card.items.map((item: LoreItem, idx: number) => {
+      {card.items.map((item: InfoItem, idx: number) => {
         const hasCallout = item.label && item.label.startsWith('【') && item.label.endsWith('】');
         return (
           <li key={idx} style={{ color: '#cbd5e1' }}>
@@ -211,7 +247,7 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
                 {!hasCallout && !item.label.endsWith('：') && !item.label.endsWith(':') ? '：' : ''}
               </strong>
             )}
-            <span>{renderInlineMarkdown(item.content)}</span>
+            <span><InlineMarkdown text={item.content} /></span>
 
             {/* Indented Sub-bullet Items */}
             {item.subItems && item.subItems.length > 0 && (
@@ -227,7 +263,7 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
               >
                 {item.subItems.map((sub: string, sIdx: number) => (
                   <li key={sIdx} style={{ color: '#e2e8f0', fontSize: 12.5, lineHeight: 1.5 }}>
-                    {renderInlineMarkdown(sub)}
+                    <InlineMarkdown text={sub} />
                   </li>
                 ))}
               </ul>
@@ -240,7 +276,7 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
 
   return (
     <div
-      className="intel-card markdown-lore-card"
+      className="intel-card info-card"
       style={{
         borderColor: `${accent}70`,
         backgroundColor: `${accent}0d`,
@@ -305,15 +341,15 @@ export const MarkdownLoreCard: React.FC<MarkdownLoreCardProps> = ({ card }) => {
   );
 };
 
-interface LazyMarkdownLoreCardProps {
-  stub: LoreStub;
+interface LazyMarkdownInfoCardProps {
+  stub: InfoStub;
 }
 
 /**
- * Fetches and renders a single LoreCard on-demand when it enters the scroll viewport
+ * Fetches and renders a single info card when it enters the scroll viewport
  */
-const LazyMarkdownLoreCard: React.FC<LazyMarkdownLoreCardProps> = ({ stub }) => {
-  const [card, setCard] = useState<LoreCard | null>(null);
+const LazyMarkdownInfoCard: React.FC<LazyMarkdownInfoCardProps> = ({ stub }) => {
+  const [card, setCard] = useState<InfoCard | null>(null);
   const [isVisible, setIsVisible] = useState(() => typeof IntersectionObserver === 'undefined');
   const [hasError, setHasError] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -340,7 +376,7 @@ const LazyMarkdownLoreCard: React.FC<LazyMarkdownLoreCardProps> = ({ stub }) => 
     if (!isVisible) return;
     let cancelled = false;
 
-    loadLoreCard(stub)
+    loadInfoCard(stub)
       .then((loaded) => {
         if (cancelled) return;
         if (loaded) {
@@ -359,7 +395,7 @@ const LazyMarkdownLoreCard: React.FC<LazyMarkdownLoreCardProps> = ({ stub }) => 
   }, [isVisible, stub]);
 
   if (card) {
-    return <MarkdownLoreCard card={card} />;
+    return <MarkdownInfoCard card={card} />;
   }
 
   if (hasError) {
@@ -371,7 +407,7 @@ const LazyMarkdownLoreCard: React.FC<LazyMarkdownLoreCardProps> = ({ stub }) => 
   return (
     <div
       ref={containerRef}
-      className="intel-card markdown-lore-card"
+      className="intel-card info-card"
       style={{
         borderColor: `${accent}45`,
         backgroundColor: `${accent}08`,
@@ -387,17 +423,23 @@ const LazyMarkdownLoreCard: React.FC<LazyMarkdownLoreCardProps> = ({ stub }) => 
   );
 };
 
-interface MarkdownLoreCardsProps {
-  query: LoreQuery;
+interface MarkdownInfoCardsProps {
+  query: InfoQuery;
   /** Number of cards to mount per scroll batch inside the info drawer */
   pageSize?: number;
+  /** Opens another country when an info link uses the country: target. */
+  onSelectCountryName?: (name: string) => void;
 }
 
 /**
- * Queries matching LoreStubs and progressively mounts cards as the user scrolls inside the info drawer
+ * Queries matching info stubs and mounts essay cards as the drawer scrolls.
  */
-export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pageSize = 3 }) => {
-  const stubs = useMemo(() => queryLoreStubs(query), [query]);
+export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
+  query,
+  pageSize = 3,
+  onSelectCountryName
+}) => {
+  const essayStubs = useMemo(() => queryInfoStubs(query), [query]);
 
   const queryKey = `${query.countryIso2 || ''}|${query.subdivisionCode || ''}|${query.subdivisionId ?? ''}|${query.municipalityCode || ''}|${query.roadName || ''}|${query.roadClass || ''}|${query.taipowerLetter || ''}`;
 
@@ -411,7 +453,7 @@ export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pag
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || visibleCount >= stubs.length) return;
+    if (!el || visibleCount >= essayStubs.length) return;
 
     if (typeof IntersectionObserver === 'undefined') {
       return;
@@ -422,7 +464,7 @@ export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pag
         if (entries.some((entry) => entry.isIntersecting)) {
           setPagination((prev) => ({
             key: queryKey,
-            count: Math.min(stubs.length, (prev.key === queryKey ? prev.count : pageSize) + pageSize)
+            count: Math.min(essayStubs.length, (prev.key === queryKey ? prev.count : pageSize) + pageSize)
           }));
         }
       },
@@ -431,17 +473,17 @@ export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pag
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [visibleCount, stubs.length, queryKey, pageSize]);
+  }, [visibleCount, essayStubs.length, queryKey, pageSize]);
 
-  if (!stubs || stubs.length === 0) return null;
+  if (essayStubs.length === 0) return null;
 
-  const visibleStubs = stubs.slice(0, visibleCount);
-  const remainingCount = stubs.length - visibleStubs.length;
+  const visibleStubs = essayStubs.slice(0, visibleCount);
+  const remainingCount = essayStubs.length - visibleStubs.length;
 
   return (
-    <>
+    <CountryLinkContext.Provider value={onSelectCountryName}>
       {visibleStubs.map((stub) => (
-        <LazyMarkdownLoreCard key={stub.id} stub={stub} />
+        <LazyMarkdownInfoCard key={stub.id} stub={stub} />
       ))}
       {remainingCount > 0 && (
         <div
@@ -449,7 +491,7 @@ export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pag
           onClick={() =>
             setPagination({
               key: queryKey,
-              count: Math.min(stubs.length, visibleCount + pageSize)
+              count: Math.min(essayStubs.length, visibleCount + pageSize)
             })
           }
           style={{
@@ -466,6 +508,6 @@ export const MarkdownLoreCards: React.FC<MarkdownLoreCardsProps> = ({ query, pag
           向下滾動或點擊載入更多專欄（尚有 {remainingCount} 篇）
         </div>
       )}
-    </>
+    </CountryLinkContext.Provider>
   );
 };
