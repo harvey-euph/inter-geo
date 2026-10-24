@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { loadInfoCard, queryInfoStubs } from '../info/infoRegistry';
+import { resolveInfoImageUrl } from '../info/imageUrl';
 import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
 
 interface MarkdownInfoCardProps {
@@ -77,7 +78,7 @@ const renderInlineMarkdown = (
             }}
           >
             <img
-              src={src}
+              src={resolveInfoImageUrl(src)}
               alt={altText || 'info illustration'}
               loading="lazy"
               style={{
@@ -215,7 +216,7 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
         }}
       >
         <img
-          src={`${import.meta.env.BASE_URL}/${card.image}`}
+          src={resolveInfoImageUrl(card.image || '')}
           alt={card.imageAlt || card.title}
           loading="lazy"
           style={{

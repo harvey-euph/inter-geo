@@ -14,7 +14,7 @@ import {
  * Only resolve asset URLs (file paths) for CSV files at startup instead of bundling raw contents.
  * Actual CSV contents are fetched via HTTP request on demand when the filter is activated.
  */
-const csvAssetUrls = import.meta.glob('/src/content/filters/**/*.csv', {
+const csvAssetUrls = import.meta.glob('/src/content/layers/**/*.csv', {
   query: '?url',
   import: 'default',
   eager: true
@@ -120,7 +120,7 @@ function initCsvFilterRegistry(): void {
 }
 
 /**
- * Returns all filters registered in `src/content/filters/filter-reg.csv`.
+ * Returns all filters registered in `src/content/layers/filter-reg.csv`.
  */
 export function getRegisteredCsvFilters(): RegisteredCsvFilter[] {
   initCsvFilterRegistry();

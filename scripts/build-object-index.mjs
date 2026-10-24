@@ -373,7 +373,7 @@ function assertCatalog(index, root) {
   const gridCount = index.objects.filter((obj) => obj.kind === 'grid').length;
   if (gridCount !== 21) problems.push(`expected 21 grid zones, got ${gridCount}`);
 
-  const csvPath = path.join(root, 'src/content/filters/india-scripts.csv');
+  const csvPath = path.join(root, 'src/content/layers/india-scripts.csv');
   const csv = fs.readFileSync(csvPath, 'utf8');
   for (const line of csv.split(/\r?\n/)) {
     const trimmed = line.trim();

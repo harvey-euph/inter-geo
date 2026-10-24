@@ -243,7 +243,7 @@ function parseCsvLoadedTiming(raw: string): 'init' | 'on-demand' {
 }
 
 function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
-  const filtersDir = path.resolve(rootDir, 'src/content/filters')
+  const filtersDir = path.resolve(rootDir, 'src/content/layers')
   const csvFiles = collectFilesByExt(filtersDir, '.csv')
   const stubs: CsvFilterStubEntry[] = []
 
@@ -394,7 +394,7 @@ function contentIndexPlugin(): Plugin {
     },
     configureServer(server) {
       const infoDir = path.resolve(projectRoot, 'src/content/info')
-      const filtersDir = path.resolve(projectRoot, 'src/content/filters')
+      const filtersDir = path.resolve(projectRoot, 'src/content/layers')
       const dataDir = path.resolve(projectRoot, 'public/data')
       const gridFile = path.resolve(projectRoot, 'src/data/taiwanPowerPoles.ts')
       server.watcher.add(infoDir)
@@ -421,7 +421,7 @@ function contentIndexPlugin(): Plugin {
         if (normalized.endsWith('.md') && normalized.includes('/src/content/info/')) {
           contentCache = null
           invalidate(resolvedVirtualInfoId)
-        } else if (normalized.endsWith('.csv') && normalized.includes('/src/content/filters/')) {
+        } else if (normalized.endsWith('.csv') && normalized.includes('/src/content/layers/')) {
           contentCache = null
           invalidate(resolvedVirtualCsvId)
         }

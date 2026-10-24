@@ -48,7 +48,7 @@ export interface CsvFilterRegistryEntry {
   targetIso2s: string[];
   /** Resolved assignable region list for validating and normalizing region-ids */
   assignableList: AssignableRegionList;
-  /** Normalized project path to the CSV file (e.g. '/src/content/filters/country-code.csv') */
+  /** Normalized project path to the CSV file (e.g. '/src/content/layers/country-code.csv') */
   path: string;
   /** Filter visualization type */
   type: CsvFilterType;
@@ -117,7 +117,7 @@ function normalizeCsvPath(rawPath: string): string {
   if (cleaned.startsWith('/src/')) return cleaned;
   if (cleaned.startsWith('src/')) return `/${cleaned}`;
   const relative = cleaned.replace(/^\.\//, '');
-  return `/src/content/filters/${relative}`;
+  return `/src/content/layers/${relative}`;
 }
 
 function deriveIdFromPath(csvPath: string): string {
