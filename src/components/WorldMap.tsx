@@ -133,6 +133,8 @@ interface WorldMapProps {
   onToggleNumberedRoutes?: () => void;
   selectedRoad?: RoadPathData | null;
   onSelectRoad?: (road: RoadPathData | null, options?: MapSelectOptions) => void;
+  detailPanelWidth?: number;
+  detailPanelFullWidth?: boolean;
 }
 
 export const WorldMap: React.FC<WorldMapProps> = ({
@@ -156,7 +158,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   showInterstates: showInterstatesProp,
   showNumberedRoutes: showNumberedRoutesProp,
   selectedRoad,
-  onSelectRoad
+  onSelectRoad,
+  detailPanelWidth = 420,
+  detailPanelFullWidth = false
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2547,6 +2551,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetZoom={handleResetZoom}
+        onSelectCountry={onSelectCountry}
+        panelOpen={Boolean(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad)}
+        panelWidth={detailPanelWidth}
+        panelFullWidth={detailPanelFullWidth}
       />
     </div>
   );

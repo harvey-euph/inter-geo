@@ -30,6 +30,8 @@ export function App() {
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
+  const [detailPanelWidth, setDetailPanelWidth] = useState(420);
+  const [detailPanelFullWidth, setDetailPanelFullWidth] = useState(false);
   const [showInterstates, setShowInterstates] = useState<boolean>(false);
   const [showNumberedRoutes, setShowNumberedRoutes] = useState<boolean>(false);
   const showRoads = showInterstates || showNumberedRoutes;
@@ -216,10 +218,6 @@ export function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (document.fullscreenElement) {
-          void document.exitFullscreen();
-          return;
-        }
         if (isQuizOpen) {
           setIsQuizOpen(false);
           return;
@@ -311,7 +309,6 @@ export function App() {
         activeFilterCount={activeFilterCount}
         isFilterExpanded={isFilterExpanded}
         onToggleFilterExpanded={handleToggleFilterExpanded}
-        onSelectCountry={handleSelectCountry}
       />
 
       {/* Main Viewport */}
@@ -349,6 +346,8 @@ export function App() {
             onSelectMunicipality={handleSelectMunicipality}
             selectedRoad={selectedRoad}
             onSelectRoad={handleSelectRoad}
+            detailPanelWidth={detailPanelWidth}
+            detailPanelFullWidth={detailPanelFullWidth}
             zoomToSubdivisionRef={zoomToSubdivisionRef}
             focusMapRef={focusMapRef}
             showRoads={showRoads}
@@ -366,6 +365,10 @@ export function App() {
               subdivision={selectedSubdivision}
               municipality={selectedMunicipality}
               road={selectedRoad}
+              panelWidth={detailPanelWidth}
+              panelFullWidth={detailPanelFullWidth}
+              onPanelWidthChange={setDetailPanelWidth}
+              onTogglePanelFullWidth={() => setDetailPanelFullWidth((full) => !full)}
               onClose={handleClosePanel}
               onNavigateBack={handleNavigateBack}
               onNavigateToCountry={handleNavigateToCountry}

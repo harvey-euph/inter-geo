@@ -22,7 +22,7 @@ Info 卡片內容位於 `src/content/info/*.md`。每個 Markdown 區段可用 `
 
 `display` 控制卡片初次顯示時是否展開：`true` 預設展開，`false` 預設收合。省略時預設收合；使用者仍可點擊標題切換狀態。
 
-Object 情報側欄的標題列可調整整個面板寬度（標準、寬、特寬），也可將整個 Object 面板切換為全螢幕；這些是面板層級的顯示設定，不會改變單張 Info card 的尺寸。
+Object 情報側欄左邊框可直接拖曳調整整個面板寬度。標題列的「全寬」會讓面板延伸到地圖區域最左側，再按一次可還原原本寬度；這不會啟動瀏覽器全螢幕，也不會改變單張 Info card 的尺寸。
 
 既有本機寫法仍可使用，例如 `- image: /images/crossing/de.svg`；路徑會依 Vite 的部署 base path 解析。`imageSize` 可使用 `sm`、`md`、`lg`、`xl`、`banner` 或像素值，`imagePosition` 可設為 `left`、`right` 或 `top`。
 

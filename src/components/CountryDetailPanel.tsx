@@ -1,5 +1,5 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useRef, useCallback } from 'react';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
@@ -12,6 +12,10 @@ interface CountryDetailPanelProps {
   subdivision?: L2SubdivisionDetail | null;
   municipality?: MunicipalityDetail | null;
   road?: RoadPathData | null;
+  panelWidth: number;
+  panelFullWidth: boolean;
+  onPanelWidthChange: (width: number) => void;
+  onTogglePanelFullWidth: () => void;
   onClose: () => void;
   onNavigateBack?: () => void;
   onNavigateToCountry?: (country: CountryData) => void;
@@ -24,6 +28,10 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
   subdivision,
   municipality,
   road,
+  panelWidth,
+  panelFullWidth,
+  onPanelWidthChange,
+  onTogglePanelFullWidth,
   onClose,
   onNavigateBack,
   onNavigateToCountry,
@@ -31,8 +39,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
   onSelectMunicipality
 }) => {
   const drawerRef = useRef<HTMLElement>(null);
-  const [drawerWidth, setDrawerWidth] = useState(420);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const resizeRef = useRef<{ pointerId: number; right: number } | null>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwiping = useRef(false);
@@ -74,66 +81,93 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     isSwiping.current = false;
   }, [onClose]);
 
-  useEffect(() => {
-    const syncFullscreenState = () => {
-      setIsFullscreen(document.fullscreenElement === drawerRef.current);
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (panelFullWidth || !drawerRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = {
+      pointerId: e.pointerId,
+      right: drawerRef.current.getBoundingClientRect().right
     };
-    document.addEventListener('fullscreenchange', syncFullscreenState);
-    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
-  }, []);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
 
-  const toggleFullscreen = useCallback(async () => {
-    const drawer = drawerRef.current;
-    if (!drawer) return;
-    try {
-      if (document.fullscreenElement === drawer) {
-        await document.exitFullscreen();
-      } else if (drawer.requestFullscreen) {
-        await drawer.requestFullscreen();
-      }
-    } catch {
-      // Fullscreen can be denied by browser policy; keep the panel usable inline.
+  const handleResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const maxWidth = Math.max(320, window.innerWidth - 24);
+    const nextWidth = Math.max(320, Math.min(maxWidth, resize.right - e.clientX));
+    onPanelWidthChange(Math.round(nextWidth));
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current?.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+    resizeRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
-  }, []);
+  };
 
   const drawerViewControls = (
     <div className="drawer-view-controls">
-      <label className="drawer-width-control">
-        <span>寬度</span>
-        <select
-          value={drawerWidth}
-          onChange={(e) => setDrawerWidth(Number(e.target.value))}
-          aria-label="Object 資訊面板寬度"
-        >
-          <option value={420}>標準</option>
-          <option value={640}>寬</option>
-          <option value={900}>特寬</option>
-        </select>
-      </label>
       <button
         type="button"
-        className="drawer-view-btn"
-        aria-pressed={isFullscreen}
-        onClick={() => void toggleFullscreen()}
+        className="close-btn"
+        aria-pressed={panelFullWidth}
+        onClick={onTogglePanelFullWidth}
+        title={panelFullWidth ? '還原面板寬度' : '面板展開至最左側'}
+        aria-label={panelFullWidth ? '還原面板寬度' : '展開面板至全寬'}
       >
-        {isFullscreen ? '還原' : '全螢幕'}
+        {panelFullWidth ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
       </button>
     </div>
   );
 
   const drawerProps = {
     ref: drawerRef,
-    className: 'country-drawer',
+    className: `country-drawer${panelFullWidth ? ' full-width' : ''}`,
     onPointerDown: handlePointerDown,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onPointerCancel: handlePointerUp,
     style: {
       touchAction: 'pan-y' as const,
-      width: `min(${drawerWidth}px, 100vw)`,
+      width: panelFullWidth ? '100%' : `${panelWidth}px`,
       maxWidth: '100vw'
     },
   };
+
+  const resizeHandle = !panelFullWidth && (
+    <div
+      className="drawer-resize-handle"
+      role="separator"
+      aria-label="拖曳調整 Object 資訊面板寬度"
+      aria-orientation="vertical"
+      aria-valuemin={320}
+      aria-valuemax={Math.max(320, window.innerWidth - 24)}
+      aria-valuenow={panelWidth}
+      tabIndex={0}
+      onPointerDown={handleResizePointerDown}
+      onPointerMove={handleResizePointerMove}
+      onPointerUp={handleResizePointerUp}
+      onPointerCancel={handleResizePointerUp}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          onPanelWidthChange(Math.min(Math.max(320, window.innerWidth - 24), panelWidth + 24));
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          onPanelWidthChange(Math.max(320, panelWidth - 24));
+        }
+      }}
+    >
+      <span />
+    </div>
+  );
 
   // 0. Highway & Route Detail (Roads Mode)
   if (road) {
@@ -152,6 +186,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
     return (
       <aside {...drawerProps}>
+        {resizeHandle}
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span
@@ -233,6 +268,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
     return (
       <aside {...drawerProps}>
+        {resizeHandle}
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span className="drawer-flag" role="img" aria-label="city">{flag}</span>
@@ -293,6 +329,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
     return (
       <aside {...drawerProps}>
+        {resizeHandle}
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span className="drawer-flag" role="img" aria-label="flag">{flag}</span>
@@ -348,6 +385,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
   return (
     <aside {...drawerProps}>
+      {resizeHandle}
       <div className="drawer-header">
         <div className="drawer-country-title">
           <span className="drawer-flag">{country.flag}</span>

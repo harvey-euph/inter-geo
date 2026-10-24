@@ -280,10 +280,21 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
   return (
     <div
       className="intel-card info-card"
+      onClick={(e) => {
+        const target = e.target;
+        if (
+          target instanceof Element &&
+          target.closest('a, button, input, select, textarea, [role="button"]')
+        ) {
+          return;
+        }
+        setIsExpanded((expanded) => !expanded);
+      }}
       style={{
         borderColor: `${accent}70`,
         backgroundColor: `${accent}0d`,
-        boxShadow: `0 4px 18px rgba(0, 0, 0, 0.28), 0 0 10px ${accent}15`
+        boxShadow: `0 4px 18px rgba(0, 0, 0, 0.28), 0 0 10px ${accent}15`,
+        cursor: 'pointer'
       }}
     >
       <button
