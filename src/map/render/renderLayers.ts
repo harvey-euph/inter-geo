@@ -1,5 +1,5 @@
 import type { CountryData } from '../../types/geo';
-import type { LODLevel, L2SubdivisionDetail, MunicipalityDetail } from '../../types/lod';
+import type { L2SubdivisionDetail, MunicipalityDetail } from '../../types/lod';
 import type { FilterDefinition } from '../../data/filters';
 import type { RoadPathData } from '../../data/roadsMeta';
 import type { TaipowerZoneDef } from '../../data/taiwanPowerPoles';
@@ -43,8 +43,9 @@ export interface RenderContext {
   vh: number;
   dpr: number;
   visibleCopies: number[];
-  currentLod: LODLevel;
   isL2RegionMode: boolean;
+  hasL3RegionMode: boolean;
+  expandedL2Countries: Set<string>;
   activeFilter: FilterDefinition;
   activeTextFilters: Set<string>;
   activeInternationalImageFilter: string | null;
@@ -58,6 +59,7 @@ export interface RenderContext {
   countryMap: Map<string, CountryData>;
   l2ByCountry: Record<string, L2SubdivisionPathData[]>;
   activeL3Parent: ActiveL3ParentInfo | null;
+  hoveredL3Parent: ActiveL3ParentInfo | null;
   getL3SubdivisionsForParent: (
     iso2: string,
     name?: string,
@@ -95,8 +97,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     vh,
     dpr,
     visibleCopies,
-    currentLod,
     isL2RegionMode,
+    hasL3RegionMode,
+    expandedL2Countries,
     activeFilter,
     activeRegionalFilters,
     countryPathData,
@@ -108,6 +111,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     countryMap,
     l2ByCountry,
     activeL3Parent,
+    hoveredL3Parent,
     getL3SubdivisionsForParent,
     taipowerZoneRenderItems,
     hoveredTaipowerZone,
@@ -149,8 +153,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       if (!item.path2D) continue;
 
       const iso2 = item.countryMeta?.iso2;
+      const isCountryL2Region = !!iso2 && expandedL2Countries.has(iso2);
       // In L2/L3 region mode, skip countries that have L2 subdivision datasets loaded
-      if (isL2RegionMode && iso2 && l2ByCountry[iso2]) continue;
+      if (iso2 && expandedL2Countries.has(iso2)) continue;
 
       // Viewport culling
       const bbox = (useHighRes && iso2 && countryBBoxes[iso2]) || item.bbox;
@@ -177,7 +182,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         fillColor = MAP_COLORS.hovered;
       } else if (!item.countryMeta) {
         fillColor = MAP_COLORS.unmappedFill;
-      } else if (activeFilter.id === 'roadLines' && isL2RegionMode) {
+      } else if (activeFilter.id === 'roadLines' && isCountryL2Region) {
         fillColor = MAP_COLORS.defaultFill;
       } else {
         fillColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
@@ -187,7 +192,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
 
       const paintRoadMarkings =
         activeFilter.id === 'roadLines' &&
-        !isL2RegionMode &&
+        !isCountryL2Region &&
         !isSelected &&
         !isHovered &&
         !!item.countryMeta;
@@ -225,6 +230,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       const isCapitalFilterActive = activeRegionalFilters.has('nationwide-capital');
 
       for (const iso2 in l2ByCountry) {
+        if (!expandedL2Countries.has(iso2)) continue;
         const bbox = countryBBoxes[iso2];
         if (bbox && !inView(bbox, copyOffset, k, x, y, vw, vh, 50)) continue;
 
@@ -262,10 +268,13 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
             ctx.stroke(nationalBorder);
           }
         } else {
+          const isParentSelected = selectedC?.iso2 === iso2 && !selectedL2;
           const isSiblingHovered =
+            (hoveredC?.iso2 === iso2) ||
             (hoveredL2 && hoveredL2.iso2 === iso2) ||
             (hoveredM && hoveredM.iso2 === iso2) ||
-            (activeL3Parent && activeL3Parent.iso2 === iso2);
+            (activeL3Parent && activeL3Parent.iso2 === iso2) ||
+            (hoveredL3Parent && hoveredL3Parent.iso2 === iso2);
 
           // 1. Fill all subdivisions of this country in 1 draw call.
           // Road markings stay on L1 country shapes; at L2 the landmass uses the plain fill.
@@ -273,20 +282,21 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
             activeFilter.id === 'roadLines'
               ? MAP_COLORS.defaultFill
               : (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
-          ctx.fillStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
+          ctx.fillStyle = isParentSelected ? 'rgba(59, 130, 246, 0.34)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
           ctx.fill(countryCombined);
 
           // 2. Stroke all subdivision borders of this country in 1 draw call (Thin internal boundaries: 0.6 / k)
-          ctx.strokeStyle = isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';
+          ctx.strokeStyle = isParentSelected ? 'rgba(96, 165, 250, 0.75)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';
           ctx.lineWidth = 0.6 / k;
           ctx.stroke(countryCombined);
 
           // 3. Stroke national boundary with bold crisp black line (National border: 2.2 / k)
           const nationalBorder = dissolvedByCountry[iso2] || countryPathMap.get(iso2)?.path2D;
           if (nationalBorder) {
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2.2 / k;
+            ctx.strokeStyle = isParentSelected ? MAP_COLORS.selected : '#000000';
+            ctx.lineWidth = (isParentSelected ? 3 : 2.2) / k;
             ctx.stroke(nationalBorder);
+            if (isParentSelected) highlightSelectPaths.push(nationalBorder);
           }
         }
       }
@@ -326,13 +336,13 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     // ----------------------------------------------------
     // 3. Layer 3: L3 Subdivisions (Municipalities, Counties, Landkreise, etc.)
     // ----------------------------------------------------
-    if (currentLod === 'L3' && (copyIdx === 0 || copyIdx === 1) && activeL3Parent) {
-      const children = getL3SubdivisionsForParent(
-        activeL3Parent.iso2,
-        activeL3Parent.name,
-        activeL3Parent.code,
-        activeL3Parent.id
+    if (copyIdx === 0 || copyIdx === 1) {
+      const l3Parents = [activeL3Parent, hoveredL3Parent].filter(
+        (parent, index, all): parent is ActiveL3ParentInfo =>
+          !!parent && all.findIndex((item) => item?.iso2 === parent.iso2 && String(item?.id) === String(parent.id)) === index
       );
+      for (const l3Parent of l3Parents) {
+      const children = getL3SubdivisionsForParent(l3Parent.iso2, l3Parent.name, l3Parent.code, l3Parent.id);
       for (let cIdx = 0; cIdx < children.length; cIdx++) {
         const item = children[cIdx];
         if (!item.path2D) continue;
@@ -347,12 +357,6 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           selectedM &&
           selectedM.iso2 === item.iso2 &&
           (selectedM.code === item.id || selectedM.code === item.code);
-
-        // Scheme C: Sub-pixel screen-space culling
-        const [minX, minY, maxX, maxY] = item.bbox;
-        const screenW = (maxX - minX) * k;
-        const screenH = (maxY - minY) * k;
-        if (!isSelected && !isHovered && screenW < 1.5 && screenH < 1.5) continue;
 
         let fill = 'rgba(234, 88, 12, 0.25)';
         let stroke = 'rgba(251, 146, 60, 0.45)';
@@ -380,12 +384,13 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           highlightHoverPaths.push(item.path2D);
         }
       }
+      }
     }
 
     // ----------------------------------------------------
     // Layer 3b: Taiwan Taipower Pole Grid Overlay (Nationwide Coloring Filter)
     // ----------------------------------------------------
-    const isTaipowerGridActive = isL2RegionMode && activeRegionalFilters.has('taiwan-power-poles');
+    const isTaipowerGridActive = expandedL2Countries.has('TW') && activeRegionalFilters.has('taiwan-power-poles');
     if (isTaipowerGridActive) {
       for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
         const item = taipowerZoneRenderItems[i];
@@ -398,7 +403,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         ctx.fill(item.polygonPath2D);
 
         // 2. Dashed inner percentage grid lines (20%, 40%, 60%, 80%) - ONLY in L3 state
-        if (currentLod === 'L3') {
+        if (hasL3RegionMode) {
           ctx.save();
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
           ctx.lineWidth = 0.9 / k;
@@ -637,6 +642,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     dpr,
     visibleCopies,
     isL2RegionMode,
+    expandedL2Countries,
     activeRegionalFilters: activeReg,
     countryPathMap,
     l2ByCountry,
@@ -671,6 +677,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
 
   if (isAreaCodeActive && isL2RegionMode) {
     for (const iso2 of COUNTRIES_WITH_AREA_CODES) {
+      if (!expandedL2Countries.has(iso2)) continue;
       const subs = l2ByCountry[iso2];
       if (!subs || subs.length === 0) continue;
 
@@ -736,6 +743,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
         : [csvFilter.targetIso2];
 
     for (const iso2 of targetIso2s) {
+      if (!expandedL2Countries.has(iso2)) continue;
       // 1. Check L2 subdivisions of this country
       const subs = l2ByCountry[iso2];
       let matchedAnySubdivision = false;
@@ -975,14 +983,14 @@ export function drawTaipowerLabels(rc: RenderContext): void {
     vh,
     dpr,
     visibleCopies,
-    currentLod,
-    isL2RegionMode,
+    expandedL2Countries,
+    hasL3RegionMode,
     activeRegionalFilters,
     taipowerZoneRenderItems: tpItems,
     hoveredTaipowerZone: hoveredZ
   } = rc;
 
-  const isTaipowerGridActive = isL2RegionMode && activeRegionalFilters.has('taiwan-power-poles');
+  const isTaipowerGridActive = expandedL2Countries.has('TW') && activeRegionalFilters.has('taiwan-power-poles');
   if (!isTaipowerGridActive) return;
 
   ctx.save();
@@ -1033,7 +1041,7 @@ export function drawTaipowerLabels(rc: RenderContext): void {
 
       ctx.restore();
 
-      if (currentLod === 'L3') {
+      if (hasL3RegionMode) {
         const pSWScr = [swx, swy];
         const pSEScr = [sex, sey];
         const pNWScr = [nwx, nwy];

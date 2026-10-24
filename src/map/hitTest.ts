@@ -1,7 +1,6 @@
 import { findCountry } from '../data/countries';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
 import type { RoadPathData } from '../data/roadsMeta';
-import type { LODLevel } from '../types/lod';
 import { MAP_W, MAP_H } from './geo';
 import {
   WORLD_COPIES,
@@ -20,7 +19,6 @@ export interface HitTestParams {
   container: HTMLDivElement | null;
   canvas: HTMLCanvasElement | null;
   transform: { k: number; x: number; y: number };
-  currentLod: LODLevel;
   activeInternationalImageFilter: string | null;
   activeRegionalFilters: Set<string>;
   renderedCrossingBadges: CrossingBadgeBox[];
@@ -33,6 +31,7 @@ export interface HitTestParams {
   visibleRoadIso2s: Set<string>;
   loadedRoads: Map<string, RoadPathData[]>;
   activeL3Parent: ActiveL3ParentInfo | null;
+  hoveredL3Parent: ActiveL3ParentInfo | null;
   getL3SubdivisionsForParent: (
     iso2: string,
     name?: string,
@@ -43,6 +42,9 @@ export interface HitTestParams {
   countryBBoxes: Record<string, [number, number, number, number]>;
   l2ByCountry: Record<string, L2SubdivisionPathData[]>;
   l2DissolvedByCountry: Record<string, Path2D>;
+  expandedL2Countries: Set<string>;
+  preferredL2Path: L2SubdivisionPathData | null;
+  preferredL3Path: L3SubdivisionPathData | null;
 }
 
 /**
@@ -61,7 +63,6 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     container,
     canvas,
     transform,
-    currentLod,
     activeInternationalImageFilter,
     activeRegionalFilters,
     renderedCrossingBadges,
@@ -74,11 +75,15 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     visibleRoadIso2s,
     loadedRoads,
     activeL3Parent,
+    hoveredL3Parent,
     getL3SubdivisionsForParent,
     taipowerZoneRenderItems,
     countryBBoxes,
     l2ByCountry,
-    l2DissolvedByCountry
+    l2DissolvedByCountry,
+    expandedL2Countries,
+    preferredL2Path,
+    preferredL3Path
   } = params;
 
   const rect = container?.getBoundingClientRect();
@@ -179,8 +184,48 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     }
   }
 
+  // Fast path: while the pointer remains inside its current polygon, avoid
+  // scanning every L3/L2 feature on each pointer frame.
+  const preferredPaths: Array<{ path: Path2D; bbox: [number, number, number, number]; item: L3SubdivisionPathData }> = [];
+  if (preferredL3Path) {
+    const parentVisible = [hoveredL3Parent, activeL3Parent].some(
+      (parent) => parent?.iso2 === preferredL3Path.iso2 &&
+        (String(parent.id) === String(preferredL3Path.parentCode) || parent.name === preferredL3Path.parentName || parent.code === preferredL3Path.parentCode)
+    );
+    if (parentVisible) preferredPaths.push({ path: preferredL3Path.path2D, bbox: preferredL3Path.bbox, item: preferredL3Path });
+  }
+  for (const candidate of preferredPaths) {
+    for (const copyIdx of WORLD_COPIES) {
+      const mapX = (mx - x) / k - copyIdx * MAP_W;
+      const mapY = (my - y) / k;
+      const [minX, minY, maxX, maxY] = candidate.bbox;
+      if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
+      ctx.setTransform(k * dpr, 0, 0, k * dpr, (x + copyIdx * MAP_W * k) * dpr, y * dpr);
+      if (!ctx.isPointInPath(candidate.path, mx * dpr, my * dpr)) continue;
+      const item = candidate.item;
+      const cMeta = findCountry(item.iso2);
+      return {
+        type: 'municipality',
+        path: item,
+        data: {
+          code: item.id || item.code,
+          pref: item.parentName,
+          city: item.name,
+          nameZh: item.nameZh || `${item.parentName} ${item.name}`,
+          iso2: item.iso2,
+          countryName: cMeta?.name || '',
+          countryNameZh: cMeta?.nameZh || '',
+          countryFlag: cMeta?.flag || '🌐',
+          typeEn: item.typeEn || 'District',
+          parentName: item.parentName,
+          parentCode: item.parentCode
+        }
+      };
+    }
+  }
+
   // 2. Normal Mode: Hierarchical Polygon Hit-Testing (L3 -> L2 Subdivisions -> L1 Countries)
-  const isL2RegionMode = currentLod === 'L2' || currentLod === 'L3';
+  const isL2RegionMode = expandedL2Countries.size > 0;
   const useHighRes = k >= 1.8;
 
   for (const copyIdx of WORLD_COPIES) {
@@ -201,13 +246,13 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     );
 
     // 2a. Check L3 Municipalities / Subdivisions (if L3 mode and copy 0 or 1)
-    if (currentLod === 'L3' && (copyIdx === 0 || copyIdx === 1) && activeL3Parent) {
-      const children = getL3SubdivisionsForParent(
-        activeL3Parent.iso2,
-        activeL3Parent.name,
-        activeL3Parent.code,
-        activeL3Parent.id
+    if (copyIdx === 0 || copyIdx === 1) {
+      const l3Parents = [hoveredL3Parent, activeL3Parent].filter(
+        (parent, index, all): parent is ActiveL3ParentInfo =>
+          !!parent && all.findIndex((item) => item?.iso2 === parent.iso2 && String(item?.id) === String(parent.id)) === index
       );
+      for (const l3Parent of l3Parents) {
+      const children = getL3SubdivisionsForParent(l3Parent.iso2, l3Parent.name, l3Parent.code, l3Parent.id);
       for (let pIdx = 0; pIdx < children.length; pIdx++) {
         const item = children[pIdx];
         const [minX, minY, maxX, maxY] = item.bbox;
@@ -217,6 +262,7 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
           const cMeta = findCountry(item.iso2);
           return {
             type: 'municipality',
+            path: item,
             data: {
               code: item.id || item.code,
               pref: item.parentName,
@@ -235,21 +281,22 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
       }
 
       // Check if cursor is over water/gap within active parent (only when L3 children actually exist)
-      if (children.length > 0 && activeL3Parent.path2D) {
-        const [minX, minY, maxX, maxY] = activeL3Parent.bbox;
+      if (children.length > 0 && l3Parent.path2D) {
+        const [minX, minY, maxX, maxY] = l3Parent.bbox;
         if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
-          if (ctx.isPointInPath(activeL3Parent.path2D, mx * dpr, my * dpr)) {
+          if (ctx.isPointInPath(l3Parent.path2D, mx * dpr, my * dpr)) {
             return {
               type: 'activeParentInterior',
-              data: activeL3Parent
+              data: l3Parent
             };
           }
         }
       }
+      }
     }
 
     // 2a-2. Check Taipower Grid Zones (if filter active at L2/L3)
-    if (isL2RegionMode && activeRegionalFilters?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
+    if (expandedL2Countries.has('TW') && activeRegionalFilters?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
       for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
         const item = taipowerZoneRenderItems[i];
         const [minX, minY, maxX, maxY] = item.bbox;
@@ -265,7 +312,16 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
 
     // 2b. Check L2 Admin-1 Subdivisions with Hierarchical Country BBox Index (Only in L2/L3 mode)
     if (isL2RegionMode && (copyIdx === 0 || copyIdx === 1)) {
+      if (preferredL2Path && expandedL2Countries.has(preferredL2Path.iso2)) {
+        const [minX, minY, maxX, maxY] = preferredL2Path.bbox;
+        if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
+          if (ctx.isPointInPath(preferredL2Path.path2D, mx * dpr, my * dpr)) {
+            return { type: 'l2Subdivision', data: preferredL2Path };
+          }
+        }
+      }
       for (const iso2 in l2ByCountry) {
+        if (!expandedL2Countries.has(iso2)) continue;
         const cBox = countryBBoxes[iso2];
         if (cBox) {
           if (mapX < cBox[0] || mapX > cBox[2] || mapY < cBox[1] || mapY > cBox[3]) continue;
@@ -288,9 +344,8 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     for (let i = 0; i < countryPathData.length; i++) {
       const c = countryPathData[i];
       const iso2 = c.countryMeta?.iso2;
-      if (isL2RegionMode && iso2 && l2ByCountry[iso2]) continue;
-
-      const path = (useHighRes && !isL2RegionMode && iso2 && l2DissolvedByCountry[iso2]) || c.path2D;
+      const path =
+        (useHighRes && !expandedL2Countries.has(iso2 || '') && iso2 && l2DissolvedByCountry[iso2]) || c.path2D;
       const [minX, minY, maxX, maxY] =
         (useHighRes && !isL2RegionMode && iso2 && countryBBoxes[iso2]) || c.bbox;
       if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;

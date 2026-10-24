@@ -5,15 +5,9 @@ import { FILTERS } from '../data/filters';
 import type { FilterDefinition } from '../data/filters';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
-import type {
-  LODLevel,
-  MunicipalityDetail,
-  CustomLODThresholds,
-  L2SubdivisionDetail
-} from '../types/lod';
-import { PrecisionHUD } from './PrecisionHUD';
+import type { LODLevel, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import { L2_MANIFEST } from '../data/l2Manifest';
-import { L3_MANIFEST, L3_PARTITIONS_BY_KEY } from '../data/l3Manifest';
+import { L3_PARTITIONS_BY_KEY } from '../data/l3Manifest';
 import type { L3PartitionMeta } from '../data/l3Manifest';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
 import type { RoadPathData } from '../data/roadsMeta';
@@ -109,6 +103,27 @@ function getMidpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
+function getBBoxScreenAreaRatio(
+  bbox: [number, number, number, number],
+  k: number,
+  x: number,
+  y: number,
+  vw: number,
+  vh: number
+): number {
+  let maxArea = 0;
+  for (const copy of WORLD_COPIES) {
+    const left = x + (bbox[0] + copy * MAP_W) * k;
+    const right = x + (bbox[2] + copy * MAP_W) * k;
+    const top = y + bbox[1] * k;
+    const bottom = y + bbox[3] * k;
+    const iw = Math.max(0, Math.min(vw, right) - Math.max(0, left));
+    const ih = Math.max(0, Math.min(vh, bottom) - Math.max(0, top));
+    maxArea = Math.max(maxArea, iw * ih);
+  }
+  return maxArea / Math.max(1, vw * vh);
+}
+
 interface WorldMapProps {
   activeFilterId: string;
   activeTextFilters?: Set<string>;
@@ -167,9 +182,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Level of Detail (LOD) tracking: L1 (Country), L2 (Subdivision), L3 (Local Unit)
   const [lodLevel, setLodLevel] = useState<LODLevel>('L1');
-  const [lodThresholds, setLodThresholds] = useState<CustomLODThresholds>(DEFAULT_LOD_THRESHOLDS);
-  const lodThresholdsRef = useRef<CustomLODThresholds>(lodThresholds);
-  const [zoomK, setZoomK] = useState<number>(1.0);
 
   // Hover state (managed locally inside WorldMap to avoid re-rendering siblings in App)
   const [internalHoveredCountry, setInternalHoveredCountry] = useState<CountryData | null>(null);
@@ -191,10 +203,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // L2 subdivision paths (streamed in background via Web Workers)
   const l2PathsByCountryRef = useRef<Record<string, L2SubdivisionPathData[]>>({});
   const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
+  const hoveredL2PathRef = useRef<L2SubdivisionPathData | null>(null);
+  const hoveredL3PathRef = useRef<L3SubdivisionPathData | null>(null);
 
   // L3 regional partition packs
-  const visibleL3PacksRef = useRef<Set<string>>(new Set());
-  const [visibleL3Packs, setVisibleL3Packs] = useState<Set<string>>(new Set());
   const inFlightL3PacksRef = useRef<Set<string>>(new Set());
   const loadedL3PacksRef = useRef<Set<string>>(new Set());
 
@@ -248,6 +260,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const selectedL2SubdivisionRef = useRef<{ iso2: string; id: number | string } | null>(null);
   const lodLevelRef = useRef<LODLevel>(lodLevel);
   const activeL3ParentRef = useRef<ActiveL3ParentInfo | null>(null);
+  const hoveredL3ParentRef = useRef<ActiveL3ParentInfo | null>(null);
   const l3PathsByParentRef = useRef<Map<string, L3SubdivisionPathData[]>>(new Map());
 
   // Performance batching & spatial index refs
@@ -260,8 +273,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const badgeWidthCacheRef = useRef<Map<string, number>>(new Map());
   const hoverRafId = useRef<number | null>(null);
   const renderRafIdRef = useRef<number | null>(null);
-  const zoomKRafIdRef = useRef<number | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
+  const hoverUpdateRef = useRef<(clientX: number, clientY: number) => void>(() => {});
+  const hoverExpansionCheckRef = useRef<() => void>(() => {});
+  const hoverExpansionSignatureRef = useRef<string | null>(null);
+  const hoverSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleHoverSettleRef = useRef<() => void>(() => {});
 
   // Store container dimensions
   const viewportSize = useRef({ w: 1200, h: 800 });
@@ -289,15 +306,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       renderRafIdRef.current = null;
       renderCanvasRef.current();
     });
-  }, []);
-
-  const scheduleZoomKState = useCallback((nextK: number) => {
-    if (zoomKRafIdRef.current !== null) return;
-    zoomKRafIdRef.current = requestAnimationFrame(() => {
-      zoomKRafIdRef.current = null;
-      setZoomK(Number(transformRef.current.k.toFixed(1)));
-    });
-    void nextK;
   }, []);
 
   const placeTooltip = useCallback((clientX: number, clientY: number) => {
@@ -586,51 +594,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     []
   );
 
-  // Synchronize visible L3 regional packs across viewport (only if L3 mode is active)
-  const syncL3Viewport = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      if (currentLOD !== 'L3' || !isFinite(lodThresholdsRef.current.l3Threshold)) {
-        if (visibleL3PacksRef.current.size > 0) {
-          visibleL3PacksRef.current = new Set();
-          setVisibleL3Packs(new Set());
-        }
-        return;
-      }
-
-      const nextVisible = new Set<string>();
-      for (let i = 0; i < L3_MANIFEST.length; i++) {
-        const c = L3_MANIFEST[i];
-        if (!isCountryInViewport(c.bbox, k, x, y, vw, vh, 150)) continue;
-
-        const partitions = c.partitions;
-        for (let pIdx = 0; pIdx < partitions.length; pIdx++) {
-          const p = partitions[pIdx];
-          if (isCountryInViewport(p.bbox, k, x, y, vw, vh, 100)) {
-            nextVisible.add(p.file);
-          }
-        }
-      }
-
-      let changed = false;
-      if (nextVisible.size !== visibleL3PacksRef.current.size) {
-        changed = true;
-      } else {
-        for (const file of nextVisible) {
-          if (!visibleL3PacksRef.current.has(file)) {
-            changed = true;
-            break;
-          }
-        }
-      }
-
-      if (changed) {
-        visibleL3PacksRef.current = nextVisible;
-        setVisibleL3Packs(nextVisible);
-      }
-    },
-    [isCountryInViewport]
-  );
-
   const isCountryRoadClassActive = useCallback(
     (iso2: string, roadClass: 'Interstate' | 'Federal'): boolean => {
       const upper = (iso2 || '').toUpperCase();
@@ -740,56 +703,53 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [isCountryInViewport, isCountryAnyRoadActive]
   );
 
-  // Synchronize visible nationwide filter buttons across viewport (only surfaces when L2 data is displayed)
+  // Keep nationwide filter availability tied to its target bbox, independently of the hovered LOD.
   const syncRegionalFiltersViewport = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel = lodLevelRef.current) => {
-      const isL2Active = currentLOD === 'L2' || currentLOD === 'L3';
+    (k: number, x: number, y: number, vw: number, vh: number, _currentLOD: LODLevel = lodLevelRef.current) => {
       const nextVisible: RegionalFilterDef[] = [];
 
-      if (isL2Active) {
-        for (let i = 0; i < REGIONAL_FILTERS.length; i++) {
-          const filter = REGIONAL_FILTERS[i];
-          if (filter.minZoomK && k < filter.minZoomK) continue;
+      for (let i = 0; i < REGIONAL_FILTERS.length; i++) {
+        const filter = REGIONAL_FILTERS[i];
+        if (filter.minZoomK && k < filter.minZoomK) continue;
 
-          if (filter.targetIso2 === '*') {
-            const anyVisible = filter.targetIso2s?.some((iso) => {
-              const b = getCountryBBox(iso);
-              return b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20);
-            });
-            if (anyVisible) {
-              nextVisible.push(filter);
-            }
-          } else {
-            const hasVisibility = filter.customBBoxes
-              ? filter.customBBoxes.some((b) => isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20))
-              : (() => {
-                  const targetBBox = filter.customBBox || getCountryBBox(filter.targetIso2);
-                  return targetBBox ? isCountryVisibleOnScreen(targetBBox, k, x, y, vw, vh, 20) : false;
-                })();
+        if (filter.targetIso2 === '*') {
+          const anyVisible = filter.targetIso2s?.some((iso) => {
+            const b = getCountryBBox(iso);
+            return b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20);
+          });
+          if (anyVisible) {
+            nextVisible.push(filter);
+          }
+        } else {
+          const hasVisibility = filter.customBBoxes
+            ? filter.customBBoxes.some((b) => isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20))
+            : (() => {
+                const targetBBox = filter.customBBox || getCountryBBox(filter.targetIso2);
+                return targetBBox ? isCountryVisibleOnScreen(targetBBox, k, x, y, vw, vh, 20) : false;
+              })();
 
-            if (hasVisibility) {
-              nextVisible.push(filter);
-            }
+          if (hasVisibility) {
+            nextVisible.push(filter);
           }
         }
+      }
 
-        // Surface country-specific road filters for visible countries with road data
-        for (let i = 0; i < COUNTRIES_WITH_ROADS.length; i++) {
-          const iso2 = COUNTRIES_WITH_ROADS[i];
-          const b = getCountryBBox(iso2);
-          if (b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20)) {
-            const roadFilters = getRoadFiltersForCountry(iso2);
-            for (let rIdx = 0; rIdx < roadFilters.length; rIdx++) {
-              const filter = roadFilters[rIdx];
-              const filterVisible = filter.customBBoxes
-                ? filter.customBBoxes.some((box) => isCountryVisibleOnScreen(box, k, x, y, vw, vh, 20))
-                : filter.customBBox
-                ? isCountryVisibleOnScreen(filter.customBBox, k, x, y, vw, vh, 20)
-                : true;
+      // Surface country-specific road filters for visible countries with road data
+      for (let i = 0; i < COUNTRIES_WITH_ROADS.length; i++) {
+        const iso2 = COUNTRIES_WITH_ROADS[i];
+        const b = getCountryBBox(iso2);
+        if (b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20)) {
+          const roadFilters = getRoadFiltersForCountry(iso2);
+          for (let rIdx = 0; rIdx < roadFilters.length; rIdx++) {
+            const filter = roadFilters[rIdx];
+            const filterVisible = filter.customBBoxes
+              ? filter.customBBoxes.some((box) => isCountryVisibleOnScreen(box, k, x, y, vw, vh, 20))
+              : filter.customBBox
+              ? isCountryVisibleOnScreen(filter.customBBox, k, x, y, vw, vh, 20)
+              : true;
 
-              if (filterVisible) {
-                nextVisible.push(filter);
-              }
+            if (filterVisible) {
+              nextVisible.push(filter);
             }
           }
         }
@@ -813,16 +773,59 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Unified viewport synchronizer for L3, Road networks, and Regional Filters
   const syncAllViewports = useCallback(
     (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
-      syncL3Viewport(k, x, y, vw, vh, currentLOD);
       syncRoadsViewport(k, x, y, vw, vh, isAnyRoadActive());
       syncRegionalFiltersViewport(k, x, y, vw, vh, currentLOD);
     },
-    [syncL3Viewport, syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive]
+    [syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive]
   );
 
   // ==========================================
   // UNIFIED CANVAS RENDER LOOP (GPU Accelerated)
   // ==========================================
+  const getBBoxScreenRatio = useCallback((bbox: [number, number, number, number]) => {
+    const { k, x, y } = transformRef.current;
+    const { w, h } = viewportSize.current;
+    return getBBoxScreenAreaRatio(bbox, k, x, y, w, h);
+  }, []);
+
+  const getHoverExpansionSignature = useCallback(() => {
+    const country = hoveredCountryRef.current;
+    const sub = hoveredL2SubdivisionRef.current;
+    const hoveredIso2 = country?.iso2 || sub?.iso2;
+    const countryBox = hoveredIso2 && countryBBoxesRef.current[hoveredIso2];
+    const countryExpanded = !!countryBox && getBBoxScreenRatio(countryBox) > 0.2;
+    const subPath = sub && l2PathsByCountryRef.current[sub.iso2]?.find(
+      (item) => String(item.id) === String(sub.id)
+    );
+    const l3Expanded = !!subPath && getBBoxScreenRatio(subPath.bbox) > 0.2;
+    return `${hoveredIso2 || ''}:${countryExpanded}|${sub?.iso2 || ''}:${sub?.id || ''}:${l3Expanded}`;
+  }, [getBBoxScreenRatio]);
+
+  const getExpandedL2Countries = useCallback(() => {
+    const expanded = new Set<string>();
+    [
+      selectedCountryRef.current?.iso2,
+      selectedL2SubdivisionRef.current?.iso2,
+      selectedMunicipalityRef.current?.iso2,
+      activeL3ParentRef.current?.iso2,
+      hoveredL3ParentRef.current?.iso2
+    ].forEach((iso2) => iso2 && expanded.add(iso2));
+    const hoveredL2 = hoveredL2SubdivisionRef.current;
+    const hoveredIso2 = hoveredCountryRef.current?.iso2;
+    const l2HoveredIso2 = hoveredL2?.iso2;
+    const countryBoxIso2 = hoveredIso2 || l2HoveredIso2;
+    const countryBox = countryBoxIso2 && countryBBoxesRef.current[countryBoxIso2];
+    if (hoveredIso2 && countryBox && getBBoxScreenRatio(countryBox) > 0.2) expanded.add(hoveredIso2);
+    if (l2HoveredIso2 && countryBox && getBBoxScreenRatio(countryBox) > 0.2) expanded.add(l2HoveredIso2);
+    if (hoveredL2) {
+      const sub = l2PathsByCountryRef.current[hoveredL2.iso2]?.find(
+        (item) => String(item.id) === String(hoveredL2.id)
+      );
+      if (sub && getBBoxScreenRatio(sub.bbox) > 0.2) expanded.add(hoveredL2.iso2);
+    }
+    return expanded;
+  }, [getBBoxScreenRatio]);
+
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -859,7 +862,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
     if (visibleCopies.length === 0) visibleCopies.push(0);
 
-    const currentLod = lodLevelRef.current;
+    const expandedL2Countries = getExpandedL2Countries();
+    const hasL3RegionMode = !!activeL3ParentRef.current || !!hoveredL3ParentRef.current;
     const rc: RenderContext = {
       ctx,
       k,
@@ -869,8 +873,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       vh,
       dpr,
       visibleCopies,
-      currentLod,
-      isL2RegionMode: currentLod === 'L2' || currentLod === 'L3',
+      isL2RegionMode: expandedL2Countries.size > 0,
+      hasL3RegionMode,
+      expandedL2Countries,
       activeFilter: activeFilterDefRef.current,
       activeTextFilters: activeTextFiltersRef.current,
       activeInternationalImageFilter: activeInternationalImageFilterRef.current,
@@ -884,6 +889,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       countryMap: countryDataMapRef.current,
       l2ByCountry: l2PathsByCountryRef.current,
       activeL3Parent: activeL3ParentRef.current,
+      hoveredL3Parent: hoveredL3ParentRef.current,
       getL3SubdivisionsForParent,
       taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
       hoveredTaipowerZone: hoveredTaipowerZoneRef.current,
@@ -914,12 +920,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     l1WorldBordersPath,
     getL3SubdivisionsForParent,
     isAnyRoadActive,
-    isCountryRoadClassActive
+    isCountryRoadClassActive,
+    getExpandedL2Countries
   ]);
 
   useEffect(() => {
     renderCanvasRef.current = renderCanvas;
   }, [renderCanvas]);
+
+  useEffect(
+    () => () => {
+      if (hoverSettleTimerRef.current) clearTimeout(hoverSettleTimerRef.current);
+    },
+    []
+  );
 
   // Smooth animation tween using requestAnimationFrame
   const animateTo = useCallback(
@@ -946,11 +960,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
         transformRef.current = { k: currentK, x: currentX, y: currentY };
         renderCanvas();
+        if (isMouseInsideRef.current) hoverExpansionCheckRef.current();
 
         if (progress < 1) {
           animRafId.current = requestAnimationFrame(step);
         } else {
           animRafId.current = null;
+          if (isMouseInsideRef.current) hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
           if (onComplete) onComplete();
         }
       };
@@ -1015,9 +1031,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
 
         loadedL3PacksRef.current.add(filePath);
-        if (lodLevelRef.current !== 'L1') {
-          requestRender();
-        }
+        requestRender();
       } catch (err) {
         console.warn(`[L3] Failed to load pack ${filePath}:`, err);
       } finally {
@@ -1030,7 +1044,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Helper to load L3 pack on-demand for a given L2 subdivision
   const loadL3PackForSubdivision = useCallback(
     (iso2: string, code?: string, name?: string, id?: string | number) => {
-      if (lodLevelRef.current !== 'L3') return;
       const normIso2 = (iso2 || '').toUpperCase();
       const normLookup = (t: string): string =>
         String(t || '')
@@ -1074,7 +1087,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         container: containerRef.current,
         canvas: canvasRef.current,
         transform: transformRef.current,
-        currentLod: lodLevelRef.current,
         activeInternationalImageFilter: activeInternationalImageFilterRef.current,
         activeRegionalFilters: activeRegionalFiltersRef.current,
         renderedCrossingBadges: renderedCrossingBadgesRef.current,
@@ -1087,16 +1099,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         visibleRoadIso2s: visibleRoadIso2sRef.current,
         loadedRoads: loadedRoadsRef.current,
         activeL3Parent: activeL3ParentRef.current,
+        hoveredL3Parent: hoveredL3ParentRef.current,
         getL3SubdivisionsForParent,
         taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
         countryBBoxes: countryBBoxesRef.current,
         l2ByCountry: l2PathsByCountryRef.current,
-        l2DissolvedByCountry: l2CountryDissolvedPathsRef.current
+        l2DissolvedByCountry: l2CountryDissolvedPathsRef.current,
+        expandedL2Countries: getExpandedL2Countries(),
+        preferredL2Path: hoveredL2PathRef.current,
+        preferredL3Path: hoveredL3PathRef.current
       });
     },
     [
       countryPathData,
       countryPathMap,
+      getExpandedL2Countries,
       getL3SubdivisionsForParent,
       isAnyRoadActive,
       isCountryAnyRoadActive,
@@ -1109,7 +1126,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     (e: React.MouseEvent) => {
       if (hasDragged.current) return;
       const target = e.target as Element | null;
-      if (target?.closest('.map-controls, .filter-legend-card, .precision-hud')) {
+      if (target?.closest('.map-controls, .filter-legend-card')) {
         return;
       }
 
@@ -1127,6 +1144,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (!hit) {
         selectedL2SubdivisionRef.current = null;
+        activeL3ParentRef.current = null;
+        hoveredL3ParentRef.current = null;
         if (onSelectSubdivision) onSelectSubdivision(null);
         onSelectCountry(null);
         if (onSelectMunicipality) onSelectMunicipality(null);
@@ -1138,6 +1157,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const m = hit.data;
         if (m.iso2) {
           loadL3PackForSubdivision(m.iso2, m.parentCode, m.parentName);
+          const parent = l2PathsByCountryRef.current[m.iso2]?.find(
+            (item) => item.code === m.parentCode || item.name === m.parentName || item.nameEn === m.parentName
+          );
+          if (parent) {
+            activeL3ParentRef.current = {
+              iso2: parent.iso2,
+              id: parent.id,
+              name: parent.name,
+              code: parent.code,
+              bbox: parent.bbox,
+              path2D: parent.path2D
+            };
+          }
         }
         if (onSelectMunicipality) {
           onSelectMunicipality(m);
@@ -1146,43 +1178,27 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       } else if (hit.type === 'l2Subdivision') {
         const sub = hit.data;
-        const currentLod = lodLevelRef.current;
-
-        if (currentLod === 'L1') {
-          const cMeta = findCountry(sub.iso2);
-          selectedL2SubdivisionRef.current = null;
-          if (onSelectSubdivision) onSelectSubdivision(null);
-          if (onSelectMunicipality) onSelectMunicipality(null);
-          if (cMeta) {
-            onSelectCountry(cMeta);
-          } else {
-            onSelectCountry(null);
-          }
-        } else {
-          const selObj = { iso2: sub.iso2, id: sub.id };
-          selectedL2SubdivisionRef.current = selObj;
-          loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
-          if (currentLod === 'L3') {
-            activeL3ParentRef.current = {
-              iso2: sub.iso2,
-              id: sub.id,
-              name: sub.name,
-              code: sub.code,
-              bbox: sub.bbox,
-              path2D: sub.path2D
-            };
-          }
-          if (onSelectSubdivision) {
-            onSelectSubdivision(toL2Detail(sub));
-          }
-          if (onSelectCountry) {
-            onSelectCountry(null);
-          }
-          if (onSelectMunicipality) onSelectMunicipality(null);
+        const selObj = { iso2: sub.iso2, id: sub.id };
+        selectedL2SubdivisionRef.current = selObj;
+        loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+        activeL3ParentRef.current = {
+          iso2: sub.iso2,
+          id: sub.id,
+          name: sub.name,
+          code: sub.code,
+          bbox: sub.bbox,
+          path2D: sub.path2D
+        };
+        if (onSelectSubdivision) {
+          onSelectSubdivision(toL2Detail(sub));
         }
+        if (onSelectCountry) onSelectCountry(null);
+        if (onSelectMunicipality) onSelectMunicipality(null);
       } else if (hit.type === 'country') {
         const c = hit.data;
         selectedL2SubdivisionRef.current = null;
+        activeL3ParentRef.current = null;
+        hoveredL3ParentRef.current = null;
         if (onSelectSubdivision) onSelectSubdivision(null);
         if (c.countryMeta) {
           onSelectCountry(c.countryMeta);
@@ -1206,6 +1222,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const clearHover = useCallback((): boolean => {
     let hadHover = false;
+    if (hoveredL2PathRef.current || hoveredL3PathRef.current) {
+      hoveredL2PathRef.current = null;
+      hoveredL3PathRef.current = null;
+      hadHover = true;
+    }
+    if (hoveredL3ParentRef.current) {
+      hoveredL3ParentRef.current = null;
+      hadHover = true;
+    }
     if (hoveredRoadRef.current) {
       hoveredRoadRef.current = null;
       setHoveredRoad(null);
@@ -1234,8 +1259,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (tooltipRef.current) {
       tooltipRef.current.style.display = 'none';
     }
+    const { k, x, y } = transformRef.current;
+    syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
     return hadHover;
-  }, [setHoveredCountry]);
+  }, [setHoveredCountry, syncRegionalFiltersViewport]);
 
   const applyHover = useCallback(
     (next: {
@@ -1281,7 +1308,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     const target = e.target as Element | null;
-    if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud')) {
+    if (target?.closest('.map-controls, .regional-controls-section, .filter-legend-card')) {
       return;
     }
 
@@ -1341,6 +1368,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (clearHover()) {
           requestRender();
         }
+        hoverExpansionSignatureRef.current = getHoverExpansionSignature();
         return;
       }
 
@@ -1360,6 +1388,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           tooltipRef.current.style.display = 'none';
         }
         if (changed) requestRender();
+        hoverExpansionSignatureRef.current = getHoverExpansionSignature();
         return;
       }
 
@@ -1375,58 +1404,87 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       } else if (hit.type === 'municipality') {
         const m = hit.data;
+        hoveredL3PathRef.current = hit.path || null;
+        hoveredL2PathRef.current = null;
         if (hoveredMunicipalityRef.current?.code !== m.code || hoveredMunicipalityRef.current?.iso2 !== m.iso2) {
           applyHover({ municipality: m });
         }
       } else if (hit.type === 'l2Subdivision') {
         const sub = hit.data;
-        const currentLod = lodLevelRef.current;
-
-        if (currentLod === 'L1') {
-          const cMeta =
-            findCountry(sub.iso2) ||
-            makeUnknownCountry(sub.iso2, sub.iso2, sub.nameEn || sub.iso2, sub.nameZh || sub.iso2);
-
-          if (hoveredCountryRef.current?.iso2 !== cMeta.iso2) {
-            applyHover({ country: cMeta });
-          }
-        } else {
-          if (currentLod === 'L3') {
-            if (activeL3ParentRef.current?.iso2 !== sub.iso2 || activeL3ParentRef.current?.id !== sub.id) {
-              activeL3ParentRef.current = {
-                iso2: sub.iso2,
-                id: sub.id,
-                name: sub.name,
-                code: sub.code,
-                bbox: sub.bbox,
-                path2D: sub.path2D
-              };
-            }
-          }
-          if (
-            hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
-            hoveredL2SubdivisionRef.current?.id !== sub.id
-          ) {
-            applyHover({ l2: toL2Detail(sub) });
-          }
+        hoveredL2PathRef.current = sub;
+        hoveredL3PathRef.current = null;
+        const { k, x, y } = transformRef.current;
+        const { w, h } = viewportSize.current;
+        const visibleArea = Math.max(1, w * h);
+        let visibleBBoxArea = 0;
+        for (const copy of WORLD_COPIES) {
+          const left = x + (sub.bbox[0] + copy * MAP_W) * k;
+          const right = x + (sub.bbox[2] + copy * MAP_W) * k;
+          const top = y + sub.bbox[1] * k;
+          const bottom = y + sub.bbox[3] * k;
+          visibleBBoxArea = Math.max(visibleBBoxArea,
+            Math.max(0, Math.min(w, right) - Math.max(0, left)) *
+            Math.max(0, Math.min(h, bottom) - Math.max(0, top)));
+        }
+        const isPinnedSub = selectedL2SubdivisionRef.current?.iso2 === sub.iso2 &&
+          String(selectedL2SubdivisionRef.current.id) === String(sub.id);
+        if (visibleBBoxArea / visibleArea > 0.2 || isPinnedSub) {
+          hoveredL3ParentRef.current = {
+            iso2: sub.iso2,
+            id: sub.id,
+            name: sub.name,
+            code: sub.code,
+            bbox: sub.bbox,
+            path2D: sub.path2D
+          };
+        }
+        if (visibleBBoxArea / visibleArea <= 0.2) {
+          hoveredL3ParentRef.current = null;
+        }
+        if (visibleBBoxArea / visibleArea > 0.2 || isPinnedSub) {
+          loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+        }
+        if (
+          hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
+          hoveredL2SubdivisionRef.current?.id !== sub.id
+        ) {
+          applyHover({ l2: toL2Detail(sub) });
         }
       } else if (hit.type === 'country') {
         const c = hit.data;
         const cMeta =
           c.countryMeta ||
           makeUnknownCountry(String(c.id), '', c.name, c.name, ['此地區目前尚無 Google 街景官方車載覆蓋。']);
-        if (lodLevelRef.current === 'L3' && activeL3ParentRef.current && activeL3ParentRef.current.iso2 !== cMeta.iso2) {
-          activeL3ParentRef.current = null;
-        }
+        hoveredL3ParentRef.current = null;
+        hoveredL2PathRef.current = null;
+        hoveredL3PathRef.current = null;
         if (hoveredCountryRef.current?.id !== cMeta.id) {
           applyHover({ country: cMeta });
         }
       }
 
       placeTooltip(clientX, clientY);
+      const { k, x, y } = transformRef.current;
+      syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
+      hoverExpansionSignatureRef.current = getHoverExpansionSignature();
     },
-    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip]
+    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, syncRegionalFiltersViewport]
   );
+
+  hoverUpdateRef.current = updateHoverAtPoint;
+  hoverExpansionCheckRef.current = () => {
+    const signature = getHoverExpansionSignature();
+    if (signature === hoverExpansionSignatureRef.current) return;
+    hoverExpansionSignatureRef.current = signature;
+    hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
+  };
+  scheduleHoverSettleRef.current = () => {
+    if (hoverSettleTimerRef.current) clearTimeout(hoverSettleTimerRef.current);
+    hoverSettleTimerRef.current = setTimeout(() => {
+      hoverSettleTimerRef.current = null;
+      if (isMouseInsideRef.current) hoverUpdateRef.current(mousePos.current.x, mousePos.current.y);
+    }, 100);
+  };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (activePointers.current.has(e.pointerId)) {
@@ -1469,9 +1527,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = wrapX(newX, newK);
       transformRef.current.y = clampY(newY, newK, vh);
 
-      const nextLOD = getLODLevel(newK, lodThresholdsRef.current);
+      const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
-      scheduleZoomKState(newK);
 
       const now = performance.now();
       if (now - lastDragSyncTime.current > 200) {
@@ -1489,6 +1546,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
+          if (isMouseInsideRef.current) hoverExpansionCheckRef.current();
           rafId.current = null;
         });
       }
@@ -1542,7 +1600,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (isPinching.current) return;
     const target = e.target as Element | null;
     const isOverControl = !!target?.closest(
-      '.map-controls, .regional-controls-section, .filter-legend-card, .precision-hud'
+      '.map-controls, .regional-controls-section, .filter-legend-card'
     );
 
     if (isOverControl) {
@@ -1607,34 +1665,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   };
 
-  // Apply LOD transition side effects (clear sub-level hovers/selections when zooming out)
+  // Keep zoom LOD bookkeeping separate from area-driven map layer visibility.
   const applyLOD = useCallback(
     (nextLOD: LODLevel): boolean => {
       if (nextLOD === lodLevelRef.current) return false;
       setLodLevel(nextLOD);
       lodLevelRef.current = nextLOD;
-      if (nextLOD !== 'L3') {
-        activeL3ParentRef.current = null;
-        if (hoveredMunicipalityRef.current) {
-          hoveredMunicipalityRef.current = null;
-          setHoveredMunicipality(null);
-        }
-      }
-      if (nextLOD === 'L1') {
-        if (hoveredL2SubdivisionRef.current) {
-          hoveredL2SubdivisionRef.current = null;
-          setHoveredL2Subdivision(null);
-        }
-        selectedL2SubdivisionRef.current = null;
-        if (onSelectSubdivision) onSelectSubdivision(null);
-        if (hoveredTaipowerZoneRef.current) {
-          hoveredTaipowerZoneRef.current = null;
-          setHoveredTaipowerZone(null);
-        }
-      }
       return true;
     },
-    [onSelectSubdivision]
+    []
   );
 
   // Native non-passive wheel listener so preventDefault() actually blocks browser page zoom
@@ -1662,17 +1701,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.k = newK;
       transformRef.current.x = wrapX(newX, newK);
       transformRef.current.y = clampY(newY, newK, vh);
+      mousePos.current = { x: e.clientX, y: e.clientY };
+      isMouseInsideRef.current = true;
 
-      const nextLOD = getLODLevel(newK, lodThresholdsRef.current);
+      const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
-      scheduleZoomKState(newK);
       syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
+      hoverExpansionCheckRef.current();
+      scheduleHoverSettleRef.current();
       requestRender();
     };
 
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [wrapX, clampY, applyLOD, scheduleZoomKState, syncAllViewports, requestRender]);
+  }, [wrapX, clampY, applyLOD, syncAllViewports, requestRender]);
 
   const handleZoom = useCallback(
     (direction: 'in' | 'out') => {
@@ -1688,9 +1730,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const newX = wrapX(cx - (cx - x) * (newK / k), newK);
       const newY = clampY(cy - (cy - y) * (newK / k), newK, vh);
 
-      const nextLOD = getLODLevel(newK, lodThresholdsRef.current);
+      const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
-      setZoomK(Number(newK.toFixed(1)));
       animateTo(newK, newX, newY, 280, () => {
         syncAllViewports(newK, newX, newY, vw, vh, nextLOD);
       });
@@ -1709,63 +1750,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const targetX = wrapX(vw / 2 - (MAP_W / 2) * kMin, kMin);
     const targetY = clampY((vh - MAP_H * kMin) / 2, kMin, vh);
 
-    const targetLOD = getLODLevel(kMin, lodThresholdsRef.current);
-    setZoomK(Number(kMin.toFixed(1)));
+    const targetLOD = getLODLevel(kMin);
     applyLOD(targetLOD);
     animateTo(kMin, targetX, targetY, 320, () => {
       syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
     });
   }, [wrapX, clampY, applyLOD, animateTo, syncAllViewports]);
-
-  // Draggable continuous slider zoom adjustment
-  const handleSliderZoom = useCallback(
-    (targetK: number) => {
-      const { k, x, y } = transformRef.current;
-      const vh = viewportSize.current.h;
-      const vw = viewportSize.current.w;
-      const kMin = vh / MAP_H;
-      const newK = Math.min(Math.max(targetK, kMin), MAX_ZOOM_K);
-
-      const cx = vw / 2;
-      const cy = vh / 2;
-      const ratio = newK / k;
-      const newX = cx - (cx - x) * ratio;
-      const newY = cy - (cy - y) * ratio;
-
-      transformRef.current.k = newK;
-      transformRef.current.x = wrapX(newX, newK);
-      transformRef.current.y = clampY(newY, newK, vh);
-
-      const nextLOD = getLODLevel(newK, lodThresholds);
-      applyLOD(nextLOD);
-      scheduleZoomKState(newK);
-      syncAllViewports(newK, transformRef.current.x, transformRef.current.y, vw, vh, nextLOD);
-      requestRender();
-    },
-    [wrapX, clampY, requestRender, scheduleZoomKState, lodThresholds, syncAllViewports, applyLOD]
-  );
-
-  // Update dynamic custom LOD thresholds
-  const handleUpdateThresholds = useCallback(
-    (newThresholds: CustomLODThresholds) => {
-      setLodThresholds(newThresholds);
-      lodThresholdsRef.current = newThresholds;
-      const currentK = transformRef.current.k;
-      const nextLOD = getLODLevel(currentK, newThresholds);
-      if (applyLOD(nextLOD)) {
-        syncAllViewports(
-          currentK,
-          transformRef.current.x,
-          transformRef.current.y,
-          viewportSize.current.w,
-          viewportSize.current.h,
-          nextLOD
-        );
-      }
-      requestRender();
-    },
-    [syncAllViewports, requestRender, applyLOD]
-  );
 
   // Synchronize state and prop changes into render refs
   useEffect(() => {
@@ -1777,8 +1767,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     ) {
       selectedL2SubdivisionRef.current = null;
     }
+    const { k, x, y } = transformRef.current;
+    syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
     requestRender();
-  }, [selectedCountry, requestRender]);
+  }, [selectedCountry, requestRender, syncRegionalFiltersViewport]);
 
   useEffect(() => {
     if (selectedSubdivision) {
@@ -1786,13 +1778,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     } else {
       selectedL2SubdivisionRef.current = null;
     }
+    const { k, x, y } = transformRef.current;
+    syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
     requestRender();
-  }, [selectedSubdivision, requestRender]);
+  }, [selectedSubdivision, requestRender, syncRegionalFiltersViewport]);
 
   useEffect(() => {
     selectedMunicipalityRef.current = selectedMunicipality || null;
+    const { k, x, y } = transformRef.current;
+    syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
     requestRender();
-  }, [selectedMunicipality, requestRender]);
+  }, [selectedMunicipality, requestRender, syncRegionalFiltersViewport]);
 
   useEffect(() => {
     selectedRoadRef.current = selectedRoad || null;
@@ -1882,7 +1878,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Synchronize selected subdivision into activeL3ParentRef
   useEffect(() => {
-    if (lodLevelRef.current !== 'L3' || !selectedSubdivision) return;
+    if (!selectedSubdivision) {
+      selectedL2SubdivisionRef.current = null;
+      if (!selectedMunicipalityRef.current) {
+        activeL3ParentRef.current = null;
+        hoveredL3ParentRef.current = null;
+        if (isMouseInsideRef.current) {
+          requestAnimationFrame(() => hoverUpdateRef.current(mousePos.current.x, mousePos.current.y));
+        }
+      }
+      requestRender();
+      return;
+    }
+    selectedL2SubdivisionRef.current = { iso2: selectedSubdivision.iso2, id: selectedSubdivision.id };
     const subs = l2PathsByCountryRef.current[selectedSubdivision.iso2];
     const sub = subs?.find((s) => String(s.id) === String(selectedSubdivision.id));
     if (sub) {
@@ -1897,11 +1905,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       };
       requestRender();
     }
-  }, [selectedSubdivision, loadL3PackForSubdivision, requestRender]);
-
-  useEffect(() => {
-    lodThresholdsRef.current = lodThresholds;
-  }, [lodThresholds]);
+  }, [selectedSubdivision, selectedMunicipality, loadL3PackForSubdivision, requestRender]);
 
   useEffect(() => {
     showRoadsRef.current = showRoads;
@@ -2020,7 +2024,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               l2CountryDissolvedPathsRef.current[iso2] = new Path2D(dissolvedD);
             }
 
-            if (transformRef.current.k >= 1.8 || lodLevelRef.current !== 'L1') {
+            if (
+              transformRef.current.k >= 1.8 ||
+              hoveredCountryRef.current?.iso2 === iso2 ||
+              selectedCountryRef.current?.iso2 === iso2 ||
+              hoveredL2SubdivisionRef.current?.iso2 === iso2 ||
+              selectedL2SubdivisionRef.current?.iso2 === iso2
+            ) {
               requestRender();
             }
           } catch (err) {
@@ -2063,21 +2073,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         cancelAnimationFrame(renderRafIdRef.current);
         renderRafIdRef.current = null;
       }
-      if (zoomKRafIdRef.current !== null) {
-        cancelAnimationFrame(zoomKRafIdRef.current);
-        zoomKRafIdRef.current = null;
-      }
     };
   }, [requestRender]);
-
-  // On-demand loader for visible L3 regional FlatGeobuf packs (only when L3 mode is active)
-  useEffect(() => {
-    if (lodLevel !== 'L3') return;
-
-    for (const filePath of visibleL3Packs) {
-      fetchL3Pack(filePath);
-    }
-  }, [visibleL3Packs, lodLevel, fetchL3Pack]);
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets (decoded in background worker)
   useEffect(() => {
@@ -2192,15 +2189,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
-      const initialLOD = getLODLevel(initialK, lodThresholds);
+      const initialLOD = getLODLevel(initialK);
       syncAllViewports(initialK, initialX, initialY, vw, vh, initialLOD);
-      setZoomK(Number(initialK.toFixed(1)));
       setLodLevel(initialLOD);
       lodLevelRef.current = initialLOD;
       renderCanvas();
       requestRender();
     }
-  }, [wrapX, clampY, renderCanvas, requestRender, lodThresholds, syncAllViewports]);
+  }, [wrapX, clampY, renderCanvas, requestRender, syncAllViewports]);
 
   // Camera focus has two routes. An object already on screen stays put.
   // The flight only pulls a target that sits outside the window into view.
@@ -2321,7 +2317,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const bhFit = Math.max(bh, longSide * 0.2);
 
       const kMin = vh / MAP_H;
-      const l3 = lodThresholdsRef.current.l3Threshold;
+      const l3 = DEFAULT_LOD_THRESHOLDS.l3Threshold;
       const kCap = Math.min(MAX_ZOOM_K, Number.isFinite(l3) ? l3 - 0.15 : 14);
       const kFit = Math.min((vw * 0.62) / bwFit, (vh * 0.62) / bhFit);
       const targetK = Math.max(kMin, Math.min(kCap, kFit));
@@ -2330,13 +2326,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const targetX = wrapX(vw / 2 - cx * targetK, targetK);
       const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
 
-      const targetLOD = getLODLevel(targetK, lodThresholdsRef.current);
+      const targetLOD = getLODLevel(targetK);
       if (targetLOD !== lodLevelRef.current) {
         lodLevelRef.current = targetLOD;
         setLodLevel(targetLOD);
         if (targetLOD !== 'L3') activeL3ParentRef.current = null;
       }
-      setZoomK(Number(targetK.toFixed(1)));
       animateTo(targetK, targetX, targetY, 380, () => {
         syncAllViewports(targetK, targetX, targetY, vw, vh, targetLOD);
       });
@@ -2383,8 +2378,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const targetX = wrapX(vw / 2 - cx * targetK, targetK);
       const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
 
-      const targetLOD = getLODLevel(targetK, lodThresholdsRef.current);
-      setZoomK(Number(targetK.toFixed(1)));
+      const targetLOD = getLODLevel(targetK);
       applyLOD(targetLOD);
       selectedL2SubdivisionRef.current = { iso2, id: target.id };
 
@@ -2527,22 +2521,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         activeRegionalFilters={activeRegionalFilters}
       />
 
-      {/* Floating Precision LOD Tracker HUD */}
-      <PrecisionHUD
-        currentLOD={lodLevel}
-        currentZoomK={zoomK}
-        lodThresholds={lodThresholds}
-        onUpdateThresholds={handleUpdateThresholds}
-        onZoomChange={handleSliderZoom}
-      />
-
       {/* Filter Legend Card */}
       <MapLegend
         activeFilterDef={activeFilterDef}
         isFilterExpanded={isFilterExpanded}
         activeTextFilters={activeTextFilters}
         activeInternationalImageFilter={activeInternationalImageFilter}
-        lodLevel={lodLevel}
+        isL2RegionMode={getExpandedL2Countries().size > 0}
         activeRegionalFilters={activeRegionalFilters}
       />
 

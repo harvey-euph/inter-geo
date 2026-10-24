@@ -3,14 +3,13 @@ import { List } from 'lucide-react';
 import type { FilterDefinition } from '../data/filters';
 import { GLOBAL_TEXT_FILTERS_BY_ID } from '../data/globalFilters';
 import { getNationwideFilterById, NATIONWIDE_FILTERS_BY_ID } from '../data/nationwideFilters';
-import type { LODLevel } from '../types/lod';
 
 export interface MapLegendProps {
   activeFilterDef: FilterDefinition;
   isFilterExpanded?: boolean;
   activeTextFilters?: Set<string>;
   activeInternationalImageFilter?: string | null;
-  lodLevel: LODLevel;
+  isL2RegionMode: boolean;
   activeRegionalFilters: Set<string>;
 }
 
@@ -19,7 +18,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   isFilterExpanded = false,
   activeTextFilters,
   activeInternationalImageFilter,
-  lodLevel,
+  isL2RegionMode,
   activeRegionalFilters
 }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -96,7 +95,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
             </div>
           )}
 
-          {(lodLevel === 'L2' || lodLevel === 'L3') && activeRegionalFilters.size > 0 && (
+          {isL2RegionMode && activeRegionalFilters.size > 0 && (
             <div className="legend-text-overlays-section">
               <div className="legend-divider" />
               <div className="legend-text-overlays-header">

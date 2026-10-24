@@ -102,7 +102,7 @@ export interface CrossingBadgeBox {
 
 export type HitFeature =
   | { type: 'road'; data: RoadPathData }
-  | { type: 'municipality'; data: MunicipalityDetail }
+  | { type: 'municipality'; data: MunicipalityDetail; path?: L3SubdivisionPathData }
   | { type: 'activeParentInterior'; data: ActiveL3ParentInfo }
   | { type: 'l2Subdivision'; data: L2SubdivisionPathData }
   | { type: 'country'; data: CountryPathData }
