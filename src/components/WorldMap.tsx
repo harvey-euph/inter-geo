@@ -2171,9 +2171,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return () => ro.disconnect();
   }, [clampY, wrapX, requestRender, syncAllViewports]);
 
-  // Initial map positioning once loaded
+  // Initial map positioning — run as soon as container has size (ocean paints immediately)
   useEffect(() => {
-    if (!loading && containerRef.current && !isInitializedRef.current) {
+    if (containerRef.current && !isInitializedRef.current) {
       isInitializedRef.current = true;
       const vh = containerRef.current.clientHeight || 800;
       const vw = containerRef.current.clientWidth || 1200;
@@ -2196,7 +2196,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       renderCanvas();
       requestRender();
     }
-  }, [loading, wrapX, clampY, renderCanvas, requestRender, lodThresholds, syncAllViewports]);
+  }, [wrapX, clampY, renderCanvas, requestRender, lodThresholds, syncAllViewports]);
 
   // Camera focus has two routes. An object already on screen stays put.
   // The flight only pulls a target that sits outside the window into view.
@@ -2475,41 +2475,41 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }}
       onClick={handleMapClick}
     >
-      {loading ? (
+      <canvas ref={canvasRef} className="world-map-canvas" />
+
+      {loading && (
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            bottom: 20,
+            right: 20,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            backgroundColor: '#0a0d14',
-            zIndex: 50
+            gap: 10,
+            padding: '8px 12px',
+            backgroundColor: 'rgba(20, 24, 33, 0.85)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: 8,
+            zIndex: 30,
+            pointerEvents: 'none',
+            fontSize: 13,
+            color: '#38bdf8',
           }}
         >
           <div
             style={{
-              width: 36,
-              height: 36,
-              border: '3px solid rgba(56, 189, 248, 0.2)',
+              width: 16,
+              height: 16,
+              border: '2px solid rgba(56, 189, 248, 0.2)',
               borderTopColor: '#38bdf8',
               borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite'
+              animation: 'spin 0.8s linear infinite',
+              flexShrink: 0,
             }}
           />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#38bdf8', fontSize: 15, fontWeight: 500, letterSpacing: '0.02em', marginBottom: 6 }}>
-              正在載入世界高精度向量圖資
-            </div>
-            <div style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: 13 }}>
-              正在初始化全球國家邊界...
-            </div>
-          </div>
+          <span>載入國家邊界中…</span>
         </div>
-      ) : (
-        <canvas ref={canvasRef} className="world-map-canvas" />
       )}
 
       {/* Dynamic Floating Hover Tooltip */}
