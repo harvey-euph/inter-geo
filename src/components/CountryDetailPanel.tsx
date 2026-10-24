@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
@@ -30,6 +30,58 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
   onSelectCountryName,
   onSelectMunicipality
 }) => {
+  const drawerRef = useRef<HTMLElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isSwiping = useRef(false);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    touchStartX.current = e.clientX;
+    touchStartY.current = e.clientY;
+    isSwiping.current = false;
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch' || !drawerRef.current) return;
+    const dx = e.clientX - touchStartX.current;
+    const dy = e.clientY - touchStartY.current;
+
+    if (!isSwiping.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      isSwiping.current = true;
+    }
+    if (!isSwiping.current) return;
+
+    if (dx > 0) {
+      const clamped = Math.min(dx, 140);
+      drawerRef.current.style.transform = `translateX(${clamped}px)`;
+      drawerRef.current.style.transition = 'none';
+    }
+  }, []);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch' || !drawerRef.current) return;
+    const dx = e.clientX - touchStartX.current;
+
+    if (isSwiping.current && dx > 70) {
+      onClose();
+    } else {
+      drawerRef.current.style.transition = 'transform 0.2s ease';
+      drawerRef.current.style.transform = 'translateX(0)';
+    }
+    isSwiping.current = false;
+  }, [onClose]);
+
+  const drawerProps = {
+    ref: drawerRef,
+    className: 'country-drawer',
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: handlePointerUp,
+    style: { touchAction: 'pan-y' as const },
+  };
+
   // 0. Highway & Route Detail (Roads Mode)
   if (road) {
     const isInterstate = road.class === 'Interstate';
@@ -46,7 +98,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     };
 
     return (
-      <aside className="country-drawer">
+      <aside {...drawerProps}>
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span
@@ -87,7 +139,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
         </div>
 
         <div className="drawer-content">
-          {/* Breadcrumbs Navigation */}
           <div className="drawer-breadcrumbs">
             {roadCountry && (
               <>
@@ -119,7 +170,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     );
   }
 
-
   // L3 subdivision
   if (municipality) {
     const flag = municipality.countryFlag || '🏙️';
@@ -127,9 +177,8 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     const parentL2Name = municipality.pref || municipality.parentName || '一級行政區';
     const ownName = municipality.city || municipality.nameZh;
 
-
     return (
-      <aside className="country-drawer">
+      <aside {...drawerProps}>
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span className="drawer-flag" role="img" aria-label="city">{flag}</span>
@@ -145,7 +194,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
         </div>
 
         <div className="drawer-content">
-          {/* Breadcrumbs Navigation */}
           <div className="drawer-breadcrumbs">
             <span
               className="drawer-breadcrumb-link"
@@ -182,14 +230,14 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     );
   }
 
-  // L2 subdivision. Dossier prose comes from info cards.
+  // L2 subdivision
   if (subdivision) {
     const flag = subdivision.countryFlag || '🌐';
     const titleZh = subdivision.nameZh || subdivision.nameEn || subdivision.name;
     const titleEn = subdivision.nameEn && subdivision.nameEn !== titleZh ? subdivision.nameEn : '';
 
     return (
-      <aside className="country-drawer">
+      <aside {...drawerProps}>
         <div className="drawer-header">
           <div className="drawer-country-title">
             <span className="drawer-flag" role="img" aria-label="flag">{flag}</span>
@@ -206,7 +254,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
         </div>
 
         <div className="drawer-content">
-          {/* Breadcrumbs Navigation */}
           <div className="drawer-breadcrumbs">
             <span
               className="drawer-breadcrumb-link"
@@ -235,18 +282,16 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             }}
             onSelectCountryName={onSelectCountryName}
           />
-
         </div>
       </aside>
     );
   }
 
-  // 3. Country Detail (L1)
+  // Country Detail (L1)
   if (!country) return null;
 
   return (
-    <aside className="country-drawer">
-      {/* Drawer Header */}
+    <aside {...drawerProps}>
       <div className="drawer-header">
         <div className="drawer-country-title">
           <span className="drawer-flag">{country.flag}</span>
@@ -262,9 +307,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
         </button>
       </div>
 
-      {/* Drawer Body Content */}
       <div className="drawer-content">
-        {/* Breadcrumbs Navigation */}
         <div className="drawer-breadcrumbs">
           <span className="drawer-breadcrumb-current">
             {country.flag} {country.nameZh} ({country.name}) · {country.continent} / {country.region}
@@ -277,7 +320,6 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
           }}
           onSelectCountryName={onSelectCountryName}
         />
-
       </div>
     </aside>
   );
