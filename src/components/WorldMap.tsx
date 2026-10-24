@@ -309,7 +309,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (hasFinePointerRef.current) return mousePos.current;
     const rect = containerRef.current?.getBoundingClientRect();
     return rect
-      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height * 0.6 }
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height * 0.4 }
       : mousePos.current;
   }, []);
 
