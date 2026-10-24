@@ -16,6 +16,7 @@
 
 /* Header */
 .app-header {
+  position: relative;
   height: 52px;
   min-height: 52px;
   background-color: var(--bg-card);
@@ -27,6 +28,66 @@
   z-index: 40;
   touch-action: none;
   overscroll-behavior-y: contain;
+}
+
+.pull-refresh-indicator {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  transition: transform 180ms ease-out, opacity 160ms ease-out;
+}
+
+.pull-refresh-indicator.pulling {
+  transition: none;
+}
+
+.pull-refresh-icon-ring {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(
+    #38bdf8 var(--pull-progress, 0%),
+    rgba(148, 163, 184, 0.5) var(--pull-progress, 0%)
+  );
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pull-refresh-icon-inner {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border-radius: 50%;
+  background: #151922;
+  color: #cbd5e1;
+}
+
+.pull-refresh-icon-inner svg {
+  transform: rotate(var(--pull-rotation, 0deg));
+}
+
+.pull-refresh-indicator.ready .pull-refresh-icon-inner {
+  color: #38bdf8;
+}
+
+.pull-refresh-label {
+  padding: 4px 8px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 999px;
+  background: rgba(20, 24, 33, 0.96);
+  color: #e2e8f0;
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
 }
 
 .brand {
@@ -232,7 +293,7 @@
 .map-center-cursor {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 60%;
   width: 28px;
   height: 28px;
   transform: translate(-50%, -50%);

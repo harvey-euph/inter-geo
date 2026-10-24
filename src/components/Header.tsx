@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Globe, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { Globe, SlidersHorizontal, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
   activeFilterCount: number;
@@ -13,7 +13,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   isFilterExpanded,
   onToggleFilterExpanded
 }) => {
-  const pullStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const pullStartRef = useRef<{ pointerId: number; x: number; y: number; ready: boolean } | null>(null);
+  const [pullVisual, setPullVisual] = React.useState({ distance: 0, progress: 0, visible: false, ready: false });
 
   return (
     <header
@@ -21,25 +22,53 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       onPointerDown={(event) => {
         if (event.pointerType !== 'touch' || (event.target as Element).closest('button')) return;
         event.currentTarget.setPointerCapture(event.pointerId);
-        pullStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+        pullStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, ready: false };
+        setPullVisual({ distance: 0, progress: 0, visible: false, ready: false });
       }}
       onPointerMove={(event) => {
         const start = pullStartRef.current;
         if (!start || start.pointerId !== event.pointerId) return;
         const dy = event.clientY - start.y;
         const dx = Math.abs(event.clientX - start.x);
-        if (dy > 76 && dy > dx * 1.25) {
-          pullStartRef.current = null;
-          window.location.reload();
-        }
+        const progress = Math.max(0, Math.min(1, dy / 76));
+        const ready = dy >= 76 && dy > dx * 1.25;
+        start.ready = ready;
+        setPullVisual({
+          distance: Math.max(0, Math.min(dy, 76)),
+          progress,
+          visible: dy > 6,
+          ready
+        });
       }}
       onPointerUp={(event) => {
-        if (pullStartRef.current?.pointerId === event.pointerId) pullStartRef.current = null;
+        const start = pullStartRef.current;
+        if (start?.pointerId !== event.pointerId) return;
+        pullStartRef.current = null;
+        setPullVisual({ distance: 0, progress: 0, visible: false, ready: false });
+        if (start.ready) window.location.reload();
       }}
       onPointerCancel={() => {
         pullStartRef.current = null;
+        setPullVisual({ distance: 0, progress: 0, visible: false, ready: false });
       }}
     >
+      <div
+        className={`pull-refresh-indicator${pullVisual.visible ? ' visible' : ''}${pullVisual.ready ? ' ready' : ''}${pullStartRef.current ? ' pulling' : ''}`}
+        style={{
+          transform: `translate(-50%, ${pullVisual.distance}px)`,
+          opacity: pullVisual.visible ? Math.min(1, pullVisual.distance / 12) : 0,
+          ['--pull-progress' as string]: `${pullVisual.progress * 100}%`,
+          ['--pull-rotation' as string]: `${pullVisual.progress * 360}deg`
+        } as React.CSSProperties}
+        aria-hidden="true"
+      >
+        <span className="pull-refresh-icon-ring">
+          <span className="pull-refresh-icon-inner">
+            <RefreshCw size={17} />
+          </span>
+        </span>
+        {pullVisual.ready && <span className="pull-refresh-label">放開即可重新整理</span>}
+      </div>
       {/* Left: Brand Logo & Title */}
       <div className="brand">
         <div className="brand-icon">

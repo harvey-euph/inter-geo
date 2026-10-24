@@ -309,7 +309,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (hasFinePointerRef.current) return mousePos.current;
     const rect = containerRef.current?.getBoundingClientRect();
     return rect
-      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height * 0.6 }
       : mousePos.current;
   }, []);
 
@@ -348,8 +348,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const setTooltipNode = useCallback((node: HTMLDivElement | null) => {
     tooltipRef.current = node;
-    if (node) placeTooltip(mousePos.current.x, mousePos.current.y);
-  }, [placeTooltip]);
+    if (node) {
+      const point = getHoverClientPoint();
+      placeTooltip(point.x, point.y);
+    }
+  }, [getHoverClientPoint, placeTooltip]);
 
   useLayoutEffect(() => {
     if (
@@ -361,14 +364,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     ) {
       return;
     }
-    placeTooltip(mousePos.current.x, mousePos.current.y);
+    const point = getHoverClientPoint();
+    placeTooltip(point.x, point.y);
   }, [
     hoveredCountry,
     hoveredL2Subdivision,
     hoveredMunicipality,
     hoveredRoad,
     hoveredTaipowerZone,
-    placeTooltip
+    placeTooltip,
+    getHoverClientPoint
   ]);
 
   // Active filter definition
@@ -1594,9 +1599,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         hasDragged.current = true;
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = 'none';
-        }
       }
 
       const rawX = dragStart.current.x + dx;
