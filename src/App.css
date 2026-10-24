@@ -1,6 +1,8 @@
 .app-layout {
   position: fixed;
-  inset: 0;
+  top: var(--app-visual-top, 0px);
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   height: var(--app-visual-height, 100vh);

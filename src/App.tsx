@@ -44,7 +44,9 @@ export function App() {
     const visualViewport = window.visualViewport;
     const updateAppViewportHeight = () => {
       const height = visualViewport?.height || window.innerHeight;
+      const top = visualViewport?.offsetTop || 0;
       document.documentElement.style.setProperty('--app-visual-height', `${height}px`);
+      document.documentElement.style.setProperty('--app-visual-top', `${top}px`);
     };
     updateAppViewportHeight();
     visualViewport?.addEventListener('resize', updateAppViewportHeight);
@@ -55,6 +57,7 @@ export function App() {
       visualViewport?.removeEventListener('scroll', updateAppViewportHeight);
       window.removeEventListener('resize', updateAppViewportHeight);
       document.documentElement.style.removeProperty('--app-visual-height');
+      document.documentElement.style.removeProperty('--app-visual-top');
     };
   }, []);
 

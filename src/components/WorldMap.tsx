@@ -274,7 +274,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hoverRafId = useRef<number | null>(null);
   const renderRafIdRef = useRef<number | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
-  const hoverUpdateRef = useRef<(clientX: number, clientY: number) => void>(() => {});
+  const hoverUpdateRef = useRef<(clientX: number, clientY: number, duringGesture?: boolean) => void>(() => {});
   const hoverExpansionCheckRef = useRef<() => void>(() => {});
   const hoverExpansionSignatureRef = useRef<string | null>(null);
   const hoverSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1370,9 +1370,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   };
 
   const updateHoverAtPoint = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, duringGesture = false) => {
       if (hasFinePointerRef.current && !isMouseInsideRef.current) return;
-      if (isDragging.current) return;
+      if (isDragging.current && !duringGesture) return;
 
       if (!hasFinePointerRef.current) {
         const point = getHoverClientPoint();
@@ -1572,6 +1572,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
+          const point = getHoverClientPoint();
+          hoverUpdateRef.current(point.x, point.y, true);
           if (canTrackHover()) hoverExpansionCheckRef.current();
           rafId.current = null;
         });
@@ -1616,6 +1618,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
+          const point = getHoverClientPoint();
+          hoverUpdateRef.current(point.x, point.y, true);
           rafId.current = null;
         });
       }
