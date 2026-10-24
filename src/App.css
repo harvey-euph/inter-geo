@@ -293,7 +293,7 @@
 .map-center-cursor {
   position: absolute;
   left: 50%;
-  top: 60%;
+  top: 40%;
   width: 28px;
   height: 28px;
   transform: translate(-50%, -50%);
