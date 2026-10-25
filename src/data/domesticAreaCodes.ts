@@ -284,7 +284,8 @@ export function getSubdivisionAreaCode(iso2: string, sub: SubdivisionAreaCodeInp
     return FRANCE_AREA_CODES[postal] || null;
   }
   if (upper === 'RU') {
-    return RUSSIA_AREA_CODES[postal] || null;
+    const subdivisionCode = codeRaw.replace(new RegExp(`^${upper}-`), '');
+    return RUSSIA_AREA_CODES[subdivisionCode] || RUSSIA_AREA_CODES[postal] || null;
   }
   if (upper === 'TH') {
     return THAILAND_AREA_CODES[postal] || null;
@@ -323,6 +324,10 @@ export function getSubdivisionAreaCodeBadge(iso2: string, sub: SubdivisionAreaCo
     const rawZh = sub.nameZh || sub.name || '';
     const cleanZh = rawZh.replace(/[縣府道都]/g, '');
     return cleanZh ? `${cleanZh} · ${code}` : code;
+  }
+  if (upper === 'RU') {
+    const subdivisionCode = codeRaw.replace(new RegExp(`^${upper}-`), '');
+    return `${subdivisionCode || postal} · ${code}`;
   }
   if (postal) {
     return `${postal} · ${code}`;

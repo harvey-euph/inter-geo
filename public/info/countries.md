@@ -27,7 +27,6 @@
 - **語言細項** 繁體中文 (Traditional Chinese)、台灣台語、客語、原住民族語
 - **容易混淆** [日本](country:Japan) [南韓](country:South%20Korea) [香港](country:Hong%20Kong)
 
----
 
 # 日本
 - id: country-jp
@@ -56,7 +55,6 @@
 - **語言細項** 日語 (Japanese)
 - **容易混淆** [台灣](country:Taiwan) [南韓](country:South%20Korea)
 
----
 
 # 南韓
 - id: country-kr
@@ -84,7 +82,6 @@
 - **語言細項** 韓語 (Korean)
 - **容易混淆** [日本](country:Japan) [台灣](country:Taiwan)
 
----
 
 # 菲律賓
 - id: country-ph
@@ -108,7 +105,6 @@
 - **語言** 英語（English）與他加祿語（Tagalog / Filipino）
 - **容易混淆** [印尼](country:Indonesia) [馬來西亞](country:Malaysia) [泰國](country:Thailand)
 
----
 
 # 泰國
 - id: country-th
@@ -137,7 +133,6 @@
 - **語言細項** 泰語 (Thai)
 - **容易混淆** [柬埔寨](country:Cambodia) [寮國 (老撾)](country:Laos) [馬來西亞](country:Malaysia)
 
----
 
 # 柬埔寨
 - id: country-kh
@@ -166,7 +161,6 @@
 - **語言細項** 高棉語 (Khmer)
 - **容易混淆** [泰國](country:Thailand) [寮國 (老撾)](country:Laos) [越南](country:Vietnam)
 
----
 
 # 越南
 - id: country-vn
@@ -195,7 +189,6 @@
 - **語言細項** 越南語 (Vietnamese)
 - **容易混淆** [柬埔寨](country:Cambodia) [泰國](country:Thailand) [寮國 (老撾)](country:Laos) [台灣](country:Taiwan)
 
----
 
 # 寮國 (老撾)
 - id: country-la
@@ -224,7 +217,6 @@
 - **語言細項** 寮語 (Lao)
 - **容易混淆** [泰國](country:Thailand) [柬埔寨](country:Cambodia) [越南](country:Vietnam)
 
----
 
 # 馬來西亞
 - id: country-my
@@ -248,7 +240,6 @@
 - **語言** 馬來語（拉丁字母 Bahasa Melayu）、英文、華文
 - **容易混淆** [印尼](country:Indonesia) [新加坡](country:Singapore)
 
----
 
 # 印尼
 - id: country-id
@@ -272,7 +263,6 @@
 - **語言** 印尼語（拉丁字母 Bahasa Indonesia）
 - **容易混淆** [馬來西亞](country:Malaysia) [菲律賓](country:Philippines)
 
----
 
 # 新加坡
 - id: country-sg
@@ -296,7 +286,6 @@
 - **語言** 英語、華語、馬來語、淡米爾語
 - **容易混淆** [馬來西亞](country:Malaysia) [香港](country:Hong%20Kong)
 
----
 
 # 香港
 - id: country-hk
@@ -320,7 +309,6 @@
 - **語言** 繁體中文、英文雙語
 - **容易混淆** [台灣](country:Taiwan) [英國](country:United%20Kingdom) [新加坡](country:Singapore)
 
----
 
 # 蒙古
 - id: country-mn
@@ -349,7 +337,6 @@
 - **語言細項** 蒙古語 (Mongolian)
 - **容易混淆** [吉爾吉斯](country:Kyrgyzstan) [俄羅斯](country:Russia) [哈薩克](country:Kazakhstan)
 
----
 
 # 吉爾吉斯
 - id: country-kg
@@ -373,7 +360,6 @@
 - **語言** 吉爾吉斯語、俄語（西里爾字母）
 - **容易混淆** [蒙古](country:Mongolia) [俄羅斯](country:Russia) [哈薩克](country:Kazakhstan)
 
----
 
 # 哈薩克
 - id: country-kz
@@ -397,7 +383,6 @@
 - **語言** 哈薩克語、俄語（西里爾字母，有特有字母 ә, ғ, қ, ң, ө, ұ, ү, һ, і）
 - **容易混淆** [俄羅斯](country:Russia) [吉爾吉斯](country:Kyrgyzstan) [蒙古](country:Mongolia)
 
----
 
 # 印度
 - id: country-in
@@ -421,7 +406,6 @@
 - **語言** 英語、印地語（Hindi 天城文）及各邦語言（如泰米爾、泰盧固等）
 - **容易混淆** [孟加拉](country:Bangladesh) [斯里蘭卡](country:Sri%20Lanka) [不丹](country:Bhutan)
 
----
 
 # 孟加拉
 - id: country-bd
@@ -445,7 +429,6 @@
 - **語言** 孟加拉語（Bengali，字母頂端有一條橫直線連貫）
 - **容易混淆** [印度](country:India) [斯里蘭卡](country:Sri%20Lanka)
 
----
 
 # 不丹
 - id: country-bt
@@ -469,7 +452,6 @@
 - **語言** 宗喀語（Dzongkha 藏文字體）與英文雙語並列
 - **容易混淆** [印度](country:India) [Nepal](country:Nepal)
 
----
 
 # 斯里蘭卡
 - id: country-lk
@@ -493,7 +475,6 @@
 - **語言** 僧伽羅語（Sinhala，圓弧形小蘋果字體）、淡米爾語、英語
 - **容易混淆** [印度](country:India) [泰國](country:Thailand)
 
----
 
 # 以色列
 - id: country-il
@@ -522,7 +503,6 @@
 - **語言細項** 希伯來語 (Hebrew)、阿拉伯語、英語
 - **容易混淆** [約旦](country:Jordan) [Palestine](country:Palestine) [希臘](country:Greece)
 
----
 
 # 阿聯酋
 - id: country-ae
@@ -551,7 +531,6 @@
 - **語言細項** 阿拉伯語 (Arabic)、英語 (English)
 - **容易混淆** [卡達](country:Qatar) [約旦](country:Jordan) [以色列](country:Israel)
 
----
 
 # 約旦
 - id: country-jo
@@ -575,7 +554,6 @@
 - **語言** 阿拉伯語、英語
 - **容易混淆** [以色列](country:Israel) [阿聯酋](country:United%20Arab%20Emirates) [突尼西亞](country:Tunisia)
 
----
 
 # 卡達
 - id: country-qa
@@ -596,7 +574,6 @@
 - **語言** 阿拉伯語、英語
 - **容易混淆** [阿聯酋](country:United%20Arab%20Emirates) [約旦](country:Jordan)
 
----
 
 # 阿曼
 - id: country-om
@@ -617,7 +594,6 @@
 - **語言** 阿拉伯語、英語
 - **容易混淆** [阿聯酋](country:United%20Arab%20Emirates) [約旦](country:Jordan)
 
----
 
 # 俄羅斯
 - id: country-ru
@@ -646,7 +622,6 @@
 - **語言細項** 俄語 (Russian)
 - **容易混淆** [烏克蘭](country:Ukraine) [Belarus](country:Belarus) [哈薩克](country:Kazakhstan) [吉爾吉斯](country:Kyrgyzstan)
 
----
 
 # 烏克蘭
 - id: country-ua
@@ -675,7 +650,6 @@
 - **語言細項** 烏克蘭語 (Ukrainian)
 - **容易混淆** [俄羅斯](country:Russia) [波蘭](country:Poland) [保加利亞](country:Bulgaria)
 
----
 
 # 英國
 - id: country-gb
@@ -699,7 +673,6 @@
 - **語言** 英語（English），威爾斯地區有雙語
 - **容易混淆** [愛爾蘭](country:Ireland) [澳洲](country:Australia) [紐西蘭](country:New%20Zealand)
 
----
 
 # 愛爾蘭
 - id: country-ie
@@ -723,7 +696,6 @@
 - **語言** 愛爾蘭蓋爾語（Gaeilge，斜體金黃字體）與英文雙語並列
 - **容易混淆** [英國](country:United%20Kingdom)
 
----
 
 # 法國
 - id: country-fr
@@ -747,7 +719,6 @@
 - **語言** 法語（French，法式門牌、Rue, Avenue）
 - **容易混淆** [比利時](country:Belgium) [西班牙](country:Spain) [義大利](country:Italy)
 
----
 
 # 德國
 - id: country-de
@@ -771,7 +742,6 @@
 - **語言** 德語（German，含有 ä, ö, ü, ß）
 - **容易混淆** [奧地利](country:Austria) [瑞士](country:Switzerland) [波蘭](country:Poland)
 
----
 
 # 荷蘭
 - id: country-nl
@@ -795,7 +765,6 @@
 - **語言** 荷蘭語（Dutch，雙母音如 aa, ee, oo, uu，常見 Straat, Weg）
 - **容易混淆** [比利時](country:Belgium) [德國](country:Germany) [英國](country:United%20Kingdom)
 
----
 
 # 比利時
 - id: country-be
@@ -819,7 +788,6 @@
 - **語言** 荷蘭語（北部法蘭德斯）、法語（南部瓦隆尼亞）
 - **容易混淆** [法國](country:France) [荷蘭](country:Netherlands)
 
----
 
 # 盧森堡
 - id: country-lu
@@ -840,7 +808,6 @@
 - **語言** 盧森堡語、法語、德語
 - **容易混淆** [荷蘭](country:Netherlands) [法國](country:France) [比利時](country:Belgium)
 
----
 
 # 奧地利
 - id: country-at
@@ -863,7 +830,6 @@
 - **語言** 德語
 - **容易混淆** [德國](country:Germany) [瑞士](country:Switzerland) [斯洛維尼亞](country:Slovenia)
 
----
 
 # 瑞士
 - id: country-ch
@@ -887,7 +853,6 @@
 - **語言** 德語、法語、義大利語、羅曼什語
 - **容易混淆** [奧地利](country:Austria) [法國](country:France) [義大利](country:Italy)
 
----
 
 # 義大利
 - id: country-it
@@ -911,7 +876,6 @@
 - **語言** 義大利語（Italian，常見 Via, Piazza, Corso）
 - **容易混淆** [西班牙](country:Spain) [法國](country:France) [希臘](country:Greece)
 
----
 
 # 西班牙
 - id: country-es
@@ -935,7 +899,6 @@
 - **語言** 西班牙語（Spanish，Calle, Avenida）、加泰隆尼亞語、巴斯克語
 - **容易混淆** [葡萄牙](country:Portugal) [義大利](country:Italy) [墨西哥](country:Mexico)
 
----
 
 # 葡萄牙
 - id: country-pt
@@ -959,7 +922,6 @@
 - **語言** 葡萄牙語（Portuguese，常有 ã, õ, ç，常見 Rua, Estrada）
 - **容易混淆** [西班牙](country:Spain) [巴西](country:Brazil)
 
----
 
 # 波蘭
 - id: country-pl
@@ -988,7 +950,6 @@
 - **語言細項** 波蘭語 (Polish)
 - **容易混淆** [捷克](country:Czechia) [斯洛伐克](country:Slovakia) [立陶宛](country:Lithuania)
 
----
 
 # 捷克
 - id: country-cz
@@ -1017,7 +978,6 @@
 - **語言細項** 捷克語 (Czech)
 - **容易混淆** [斯洛伐克](country:Slovakia) [波蘭](country:Poland) [匈牙利](country:Hungary)
 
----
 
 # 斯洛伐克
 - id: country-sk
@@ -1040,7 +1000,6 @@
 - **語言** 斯洛伐克語（Slovak，多 ä, ô, ĺ, ŕ，無捷克特有的 ř）
 - **容易混淆** [捷克](country:Czechia) [斯洛維尼亞](country:Slovenia) [波蘭](country:Poland)
 
----
 
 # 匈牙利
 - id: country-hu
@@ -1069,7 +1028,6 @@
 - **語言細項** 匈牙利語 (Hungarian)
 - **容易混淆** [羅馬尼亞](country:Romania) [斯洛伐克](country:Slovakia) [奧地利](country:Austria)
 
----
 
 # 羅馬尼亞
 - id: country-ro
@@ -1098,7 +1056,6 @@
 - **語言細項** 羅馬尼亞語 (Romanian)
 - **容易混淆** [保加利亞](country:Bulgaria) [Moldova](country:Moldova) [匈牙利](country:Hungary)
 
----
 
 # 保加利亞
 - id: country-bg
@@ -1126,7 +1083,6 @@
 - **語言細項** 保加利亞語 (Bulgarian)
 - **容易混淆** [北馬其頓](country:North%20Macedonia) [塞爾維亞](country:Serbia) [羅馬尼亞](country:Romania)
 
----
 
 # 克羅埃西亞
 - id: country-hr
@@ -1149,7 +1105,6 @@
 - **語言** 克羅埃西亞語（Croatian，č, ć, ž, š, đ）
 - **容易混淆** [斯洛維尼亞](country:Slovenia) [塞爾維亞](country:Serbia) [蒙特內哥羅](country:Montenegro)
 
----
 
 # 斯洛維尼亞
 - id: country-si
@@ -1172,7 +1127,6 @@
 - **語言** 斯洛維尼亞語（Slovene，č, š, ž）
 - **容易混淆** [奧地利](country:Austria) [克羅埃西亞](country:Croatia) [斯洛伐克](country:Slovakia)
 
----
 
 # 塞爾維亞
 - id: country-rs
@@ -1200,7 +1154,6 @@
 - **語言細項** 塞爾維亞語 (Serbian)
 - **容易混淆** [保加利亞](country:Bulgaria) [蒙特內哥羅](country:Montenegro) [克羅埃西亞](country:Croatia)
 
----
 
 # 蒙特內哥羅
 - id: country-me
@@ -1223,7 +1176,6 @@
 - **語言** 蒙特內哥羅語（拉丁與西里爾）
 - **容易混淆** [阿爾巴尼亞](country:Albania) [塞爾維亞](country:Serbia) [克羅埃西亞](country:Croatia)
 
----
 
 # 北馬其頓
 - id: country-mk
@@ -1249,7 +1201,6 @@
 - **語言細項** 馬其頓語 (Macedonian)、阿爾巴尼亞語
 - **容易混淆** [保加利亞](country:Bulgaria) [塞爾維亞](country:Serbia) [希臘](country:Greece)
 
----
 
 # 阿爾巴尼亞
 - id: country-al
@@ -1273,7 +1224,6 @@
 - **語言** 阿爾巴尼亞語（Shqip，特有雙字母組合 ll, rr, dh, th 與 ë, ç）
 - **容易混淆** [蒙特內哥羅](country:Montenegro) [北馬其頓](country:North%20Macedonia) [希臘](country:Greece)
 
----
 
 # 希臘
 - id: country-gr
@@ -1302,7 +1252,6 @@
 - **語言細項** 希臘語 (Greek)
 - **容易混淆** [賽普勒斯](country:Cyprus) [義大利](country:Italy) [土耳其](country:Turkey)
 
----
 
 # 賽普勒斯
 - id: country-cy
@@ -1326,7 +1275,6 @@
 - **語言** 希臘語（Ελληνικά）與英語雙語路牌；北部地區使用土耳其語（Türkçe）
 - **容易混淆** [希臘](country:Greece) [馬爾他](country:Malta) [英國](country:United%20Kingdom) [土耳其](country:Turkey)
 
----
 
 # 馬爾他
 - id: country-mt
@@ -1350,7 +1298,6 @@
 - **語言** 馬爾他語（Malti，獨特的閃語族語源拉丁文字，如 ħ, ċ, ġ, ż）與英語雙官方語言
 - **容易混淆** [賽普勒斯](country:Cyprus) [義大利](country:Italy) [英國](country:United%20Kingdom) [希臘](country:Greece)
 
----
 
 # 土耳其
 - id: country-tr
@@ -1379,7 +1326,6 @@
 - **語言細項** 土耳其語 (Turkish)
 - **容易混淆** [希臘](country:Greece) [保加利亞](country:Bulgaria) [羅馬尼亞](country:Romania)
 
----
 
 # 丹麥
 - id: country-dk
@@ -1403,7 +1349,6 @@
 - **語言** 丹麥語（Danish，æ, ø, å）
 - **容易混淆** [瑞典](country:Sweden) [挪威](country:Norway) [德國](country:Germany)
 
----
 
 # 挪威
 - id: country-no
@@ -1432,7 +1377,6 @@
 - **語言細項** 挪威語 (Norwegian)
 - **容易混淆** [瑞典](country:Sweden) [芬蘭](country:Finland) [冰島](country:Iceland)
 
----
 
 # 瑞典
 - id: country-se
@@ -1461,7 +1405,6 @@
 - **語言細項** 瑞典語 (Swedish)
 - **容易混淆** [挪威](country:Norway) [芬蘭](country:Finland)
 
----
 
 # 芬蘭
 - id: country-fi
@@ -1490,7 +1433,6 @@
 - **語言細項** 芬蘭語 (Finnish)、瑞典語
 - **容易混淆** [瑞典](country:Sweden) [愛沙尼亞](country:Estonia) [挪威](country:Norway)
 
----
 
 # 冰島
 - id: country-is
@@ -1519,7 +1461,6 @@
 - **語言細項** 冰島語 (Icelandic)
 - **容易混淆** [Faroe Islands](country:Faroe%20Islands) [挪威](country:Norway)
 
----
 
 # 愛沙尼亞
 - id: country-ee
@@ -1543,7 +1484,6 @@
 - **語言** 愛沙尼亞語（Estonian 烏拉爾語系，親近芬蘭語，特有字母 õ, ä, ö, ü）
 - **容易混淆** [拉脫維亞](country:Latvia) [立陶宛](country:Lithuania) [芬蘭](country:Finland)
 
----
 
 # 拉脫維亞
 - id: country-lv
@@ -1567,7 +1507,6 @@
 - **語言** 拉脫維亞語（Latvian，長音橫線字母 ā, ē, ī, ū, ģ, ķ, ļ, ņ, č, š, ž）
 - **容易混淆** [立陶宛](country:Lithuania) [愛沙尼亞](country:Estonia)
 
----
 
 # 立陶宛
 - id: country-lt
@@ -1591,7 +1530,6 @@
 - **語言** 立陶宛語（Lithuanian，尾巴小勾字母 ą, ę, į, ų, ė, č, š, ž）
 - **容易混淆** [拉脫維亞](country:Latvia) [波蘭](country:Poland) [愛沙尼亞](country:Estonia)
 
----
 
 # 格陵蘭
 - id: country-gl
@@ -1613,7 +1551,6 @@
 - **語言** 格陵蘭語（Kalaallisut）、丹麥語
 - **容易混淆** [冰島](country:Iceland) [Faroe Islands](country:Faroe%20Islands) [挪威](country:Norway)
 
----
 
 # 美國
 - id: country-us
@@ -1637,7 +1574,6 @@
 - **語言** 英語（English）
 - **容易混淆** [加拿大](country:Canada) [墨西哥](country:Mexico)
 
----
 
 # 加拿大
 - id: country-ca
@@ -1661,7 +1597,6 @@
 - **語言** 英語與法語（魁北克省全法語，標誌為 ARRÊT 而非 STOP）
 - **容易混淆** [美國](country:United%20States%20of%20America)
 
----
 
 # 墨西哥
 - id: country-mx
@@ -1685,7 +1620,6 @@
 - **語言** 西班牙語（Spanish，停車標誌為 ALTO）
 - **容易混淆** [哥倫比亞](country:Colombia) [秘魯](country:Peru) [瓜地馬拉](country:Guatemala)
 
----
 
 # 瓜地馬拉
 - id: country-gt
@@ -1709,7 +1643,6 @@
 - **語言** 西班牙語（停車為 ALTO）
 - **容易混淆** [墨西哥](country:Mexico) [哥倫比亞](country:Colombia) [多明尼加](country:Dominican%20Republic)
 
----
 
 # 巴拿馬
 - id: country-pa
@@ -1731,7 +1664,6 @@
 - **語言** 西班牙語（停車為 ALTO）
 - **容易混淆** [Costa Rica](country:Costa%20Rica) [哥倫比亞](country:Colombia) [瓜地馬拉](country:Guatemala)
 
----
 
 # 多明尼加
 - id: country-do
@@ -1752,7 +1684,6 @@
 - **語言** 西班牙語
 - **容易混淆** [波多黎各](country:Puerto%20Rico) [瓜地馬拉](country:Guatemala) [墨西哥](country:Mexico)
 
----
 
 # 波多黎各
 - id: country-pr
@@ -1773,7 +1704,6 @@
 - **語言** 西班牙語、英語
 - **容易混淆** [多明尼加](country:Dominican%20Republic) [美國](country:United%20States%20of%20America) [墨西哥](country:Mexico)
 
----
 
 # 哥倫比亞
 - id: country-co
@@ -1797,7 +1727,6 @@
 - **語言** 西班牙語（停車為 PARE）
 - **容易混淆** [厄瓜多](country:Ecuador) [秘魯](country:Peru) [墨西哥](country:Mexico)
 
----
 
 # 厄瓜多
 - id: country-ec
@@ -1820,7 +1749,6 @@
 - **語言** 西班牙語（PARE）
 - **容易混淆** [哥倫比亞](country:Colombia) [秘魯](country:Peru)
 
----
 
 # 秘魯
 - id: country-pe
@@ -1844,7 +1772,6 @@
 - **語言** 西班牙語（PARE）、克丘亞語
 - **容易混淆** [玻利維亞](country:Bolivia) [厄瓜多](country:Ecuador) [哥倫比亞](country:Colombia)
 
----
 
 # 玻利維亞
 - id: country-bo
@@ -1865,7 +1792,6 @@
 - **語言** 西班牙語、克丘亞語、艾馬拉語
 - **容易混淆** [秘魯](country:Peru) [厄瓜多](country:Ecuador)
 
----
 
 # 巴西
 - id: country-br
@@ -1889,7 +1815,6 @@
 - **語言** 葡萄牙語（Portuguese，停車為 PARE，街道為 Rua, Av.）
 - **容易混淆** [阿根廷](country:Argentina) [葡萄牙](country:Portugal) [烏拉圭](country:Uruguay)
 
----
 
 # 阿根廷
 - id: country-ar
@@ -1913,7 +1838,6 @@
 - **語言** 西班牙語（停車為 PARE）
 - **容易混淆** [智利](country:Chile) [烏拉圭](country:Uruguay) [巴西](country:Brazil)
 
----
 
 # 智利
 - id: country-cl
@@ -1937,7 +1861,6 @@
 - **語言** 西班牙語（停車為 PARE）
 - **容易混淆** [阿根廷](country:Argentina) [秘魯](country:Peru)
 
----
 
 # 烏拉圭
 - id: country-uy
@@ -1959,7 +1882,6 @@
 - **語言** 西班牙語
 - **容易混淆** [阿根廷](country:Argentina) [巴西](country:Brazil)
 
----
 
 # 澳洲
 - id: country-au
@@ -1983,7 +1905,6 @@
 - **語言** 英語（English）
 - **容易混淆** [紐西蘭](country:New%20Zealand) [南非](country:South%20Africa) [英國](country:United%20Kingdom)
 
----
 
 # 紐西蘭
 - id: country-nz
@@ -2007,7 +1928,6 @@
 - **語言** 英語、毛利語（Māori）
 - **容易混淆** [澳洲](country:Australia) [英國](country:United%20Kingdom)
 
----
 
 # 南非
 - id: country-za
@@ -2031,7 +1951,6 @@
 - **語言** 英語、南非荷蘭語（Afrikaans）、祖魯語、科薩語
 - **容易混淆** [波札那](country:Botswana) [史瓦帝尼](country:eSwatini) [賴索托](country:Lesotho) [澳洲](country:Australia)
 
----
 
 # 肯亞
 - id: country-ke
@@ -2055,7 +1974,6 @@
 - **語言** 斯瓦希里語（Swahili）、英語
 - **容易混淆** [烏干達](country:Uganda) [南非](country:South%20Africa) [奈及利亞](country:Nigeria)
 
----
 
 # 烏干達
 - id: country-ug
@@ -2076,7 +1994,6 @@
 - **語言** 英語、斯瓦希里語、盧干達語
 - **容易混淆** [肯亞](country:Kenya) [盧安達](country:Rwanda) [迦納](country:Ghana)
 
----
 
 # 盧安達
 - id: country-rw
@@ -2097,7 +2014,6 @@
 - **語言** 盧安達語 (Kinyarwanda)、法語、英語
 - **容易混淆** [烏干達](country:Uganda) [肯亞](country:Kenya)
 
----
 
 # 迦納
 - id: country-gh
@@ -2121,7 +2037,6 @@
 - **語言** 英語（English）
 - **容易混淆** [奈及利亞](country:Nigeria) [塞內加爾](country:Senegal) [肯亞](country:Kenya)
 
----
 
 # 奈及利亞
 - id: country-ng
@@ -2145,7 +2060,6 @@
 - **語言** 英語（English）
 - **容易混淆** [迦納](country:Ghana) [肯亞](country:Kenya) [塞內加爾](country:Senegal)
 
----
 
 # 塞內加爾
 - id: country-sn
@@ -2169,7 +2083,6 @@
 - **語言** 法語（French）、沃洛夫語（Wolof）
 - **容易混淆** [迦納](country:Ghana) [奈及利亞](country:Nigeria) [突尼西亞](country:Tunisia)
 
----
 
 # 波札那
 - id: country-bw
@@ -2193,7 +2106,6 @@
 - **語言** 英語、札那語（Setswana）
 - **容易混淆** [南非](country:South%20Africa) [Namibia](country:Namibia) [史瓦帝尼](country:eSwatini)
 
----
 
 # 史瓦帝尼
 - id: country-sz
@@ -2214,7 +2126,6 @@
 - **語言** 英語、史瓦濟語 (siSwati)
 - **容易混淆** [南非](country:South%20Africa) [賴索托](country:Lesotho)
 
----
 
 # 賴索托
 - id: country-ls
@@ -2235,7 +2146,6 @@
 - **語言** 塞索托語 (Sesotho)、英語
 - **容易混淆** [南非](country:South%20Africa) [史瓦帝尼](country:eSwatini)
 
----
 
 # 突尼西亞
 - id: country-tn

@@ -9,16 +9,6 @@ import {
 import type { InfoCard, InfoQuery, InfoStub } from '../types/info';
 import { parseMarkdownInfo } from './infoParser';
 
-/**
- * Resolve static asset URLs for all markdown files under /src/content/info/
- * Using `query: '?url'` ensures Vite emits standalone .md files without bundling their text content.
- */
-const infoFileUrls = import.meta.glob('/src/content/info/**/*.md', {
-  query: '?url',
-  import: 'default',
-  eager: true
-}) as Record<string, string>;
-
 let cachedStubsByTarget: Map<string, InfoStub[]> | null = null;
 let cachedStubsById: Map<string, InfoStub> | null = null;
 
@@ -244,7 +234,7 @@ export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
 
   let pending = inFlightFiles.get(stub.sourcePath);
   if (!pending) {
-    const assetUrl = infoFileUrls[stub.sourcePath] || stub.sourcePath;
+    const assetUrl = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/${stub.sourcePath.replace(/^\/+/, '')}`;
     pending = fetch(assetUrl)
       .then((res) => {
         if (!res.ok) {

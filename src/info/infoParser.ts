@@ -262,37 +262,24 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
 }
 
 /**
- * Parses full raw Markdown file content (which may contain multiple cards separated by `---` or `# `)
+ * Parses full raw Markdown file content; every top-level `#` heading starts one card.
  */
 export function parseMarkdownInfo(fileContent: string, fileName: string): InfoCard[] {
   if (!fileContent || !fileContent.trim()) return [];
 
   const cards: InfoCard[] = [];
-  const dividerPattern = /\r?\n---\r?\n/;
-  const hasDivider = dividerPattern.test(fileContent.trim());
-
-  if (hasDivider) {
-    const rawSections = fileContent.split(dividerPattern);
-    for (let i = 0; i < rawSections.length; i++) {
-      const sec = rawSections[i].trim();
-      if (!sec) continue;
-      const card = parseSingleSection(sec, fileName, i);
+  const h1Matches = Array.from(fileContent.matchAll(/^#\s+[^\r\n]+/gm));
+  if (h1Matches.length > 0) {
+    for (let i = 0; i < h1Matches.length; i++) {
+      const start = h1Matches[i].index!;
+      const end = i < h1Matches.length - 1 ? h1Matches[i + 1].index! : fileContent.length;
+      const sectionStr = fileContent.slice(start, end).trim();
+      const card = parseSingleSection(sectionStr, fileName, i);
       if (card) cards.push(card);
     }
   } else {
-    const h1Matches = Array.from(fileContent.matchAll(/^#\s+[^\r\n]+/gm));
-    if (h1Matches.length > 1) {
-      for (let i = 0; i < h1Matches.length; i++) {
-        const start = h1Matches[i].index!;
-        const end = i < h1Matches.length - 1 ? h1Matches[i + 1].index! : fileContent.length;
-        const sectionStr = fileContent.slice(start, end).trim();
-        const card = parseSingleSection(sectionStr, fileName, i);
-        if (card) cards.push(card);
-      }
-    } else {
-      const card = parseSingleSection(fileContent.trim(), fileName, 0);
-      if (card) cards.push(card);
-    }
+    const card = parseSingleSection(fileContent.trim(), fileName, 0);
+    if (card) cards.push(card);
   }
 
   return cards;

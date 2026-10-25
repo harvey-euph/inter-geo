@@ -1979,6 +1979,10 @@ span.confused-country-btn {
     display: none !important;
   }
 
+  .svg-map-wrapper.filter-panel-open .map-tooltip {
+    display: none !important;
+  }
+
   .country-drawer {
     width: 100% !important;
     max-width: 100vw;

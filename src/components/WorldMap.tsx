@@ -13,10 +13,12 @@ import { ROADS_MANIFEST } from '../data/roadsManifest';
 import type { RoadPathData } from '../data/roadsMeta';
 import {
   NATIONWIDE_FILTERS,
+  COUNTRIES_WITH_AREA_CODES,
   COUNTRIES_WITH_ROADS,
   getNationwideFilterById,
   getRoadFiltersForCountry
 } from '../data/nationwideFilters';
+import { isCapitalSubdivision } from '../data/capitalSubdivisions';
 import type { NationwideFilterDef } from '../data/nationwideFilters';
 import { EUROPEAN_CROSSING_SIGNS } from '../data/pedestrianCrossing';
 import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
@@ -25,6 +27,7 @@ import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo'
 import { decodeGeo } from '../map/geoWorkerClient';
 import {
   getCsvFilterById,
+  getCsvSubdivisionValue,
   loadOnDemandCsvFilter
 } from '../filters/csvFilterRegistry';
 import {
@@ -75,7 +78,7 @@ export type MapFocusBox = {
   maxY: number;
 };
 
-export type MapFocusTarget =
+export type MapFocusTarget = (
   | { kind: 'country'; iso2: string }
   | { kind: 'subdivision'; iso2: string; id: string | number }
   | {
@@ -86,7 +89,8 @@ export type MapFocusTarget =
       parentCode?: string;
     }
   | { kind: 'road'; bbox: [number, number, number, number] }
-  | { kind: 'bbox'; boxes: MapFocusBox[] };
+  | { kind: 'bbox'; boxes: MapFocusBox[] }
+) & { force?: boolean };
 
 export type MapSelectOptions = { focus?: boolean };
 
@@ -141,6 +145,8 @@ interface WorldMapProps {
   setHoveredCountry?: (country: CountryData | null) => void;
   zoomToSubdivisionRef?: React.MutableRefObject<((iso2: string, id: string | number) => void) | null>;
   focusMapRef?: React.MutableRefObject<((target: MapFocusTarget) => void) | null>;
+  initialTarget?: string;
+  initialFocusTarget?: string;
   showRoads?: boolean;
   showInterstates?: boolean;
   onToggleInterstates?: () => void;
@@ -169,6 +175,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   setHoveredCountry: setHoveredCountryProp,
   zoomToSubdivisionRef,
   focusMapRef,
+  initialTarget,
+  initialFocusTarget,
   showRoads: showRoadsProp,
   showInterstates: showInterstatesProp,
   showNumberedRoutes: showNumberedRoutesProp,
@@ -202,6 +210,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // L2 subdivision paths (streamed in background via Web Workers)
   const l2PathsByCountryRef = useRef<Record<string, L2SubdivisionPathData[]>>({});
+  const initialTargetHandledRef = useRef(false);
+  const initialFocusTargetHandledRef = useRef(false);
   const [hoveredL2Subdivision, setHoveredL2Subdivision] = useState<L2SubdivisionDetail | null>(null);
   const hoveredL2PathRef = useRef<L2SubdivisionPathData | null>(null);
   const hoveredL3PathRef = useRef<L3SubdivisionPathData | null>(null);
@@ -232,6 +242,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [internalActiveRegionalFilters] = useState<Set<string>>(new Set());
   const activeRegionalFilters = activeRegionalFiltersProp ?? internalActiveRegionalFilters;
   const activeRegionalFiltersRef = useRef<Set<string>>(activeRegionalFilters);
+  const activeLayerHoverTargetsRef = useRef({
+    signature: '',
+    countries: new Set<string>(),
+    expandedCountries: new Set<string>(),
+    subdivisions: new Set<string>()
+  });
 
   // Taiwan Power Pole Grid hover state
   const [hoveredTaipowerZone, setHoveredTaipowerZone] = useState<TaipowerZoneDef | null>(null);
@@ -249,7 +265,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const tooltipSizeRef = useRef({ width: 0, height: 0 });
   const animRafId = useRef<number | null>(null);
+  const viewUrlSyncTimerRef = useRef<number | null>(null);
 
   // Real-time synchronization refs for 120fps render loop
   const hoveredCountryRef = useRef<CountryData | null>(hoveredCountry || null);
@@ -326,15 +344,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     });
   }, []);
 
-  const placeTooltip = useCallback((clientX: number, clientY: number) => {
+  const placeTooltip = useCallback((clientX: number, clientY: number, measure = false) => {
     const node = tooltipRef.current;
     if (!node) return;
+    if (node.style.display !== 'flex') node.style.display = 'flex';
+    if (!hasFinePointerRef.current) {
+      node.style.transform = 'none';
+      return;
+    }
+
     const margin = 8;
     const gap = 16;
-    node.style.display = 'flex';
-    node.style.transform = 'none';
-    const w = node.offsetWidth;
-    const h = node.offsetHeight;
+    if (measure || tooltipSizeRef.current.width === 0 || tooltipSizeRef.current.height === 0) {
+      tooltipSizeRef.current = { width: node.offsetWidth, height: node.offsetHeight };
+    }
+    const { width: w, height: h } = tooltipSizeRef.current;
     let left = clientX - w / 2;
     let top = clientY - h - gap;
     if (top < margin) top = clientY + gap;
@@ -342,15 +366,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const maxTop = Math.max(margin, window.innerHeight - h - margin);
     left = Math.min(Math.max(left, margin), maxLeft);
     top = Math.min(Math.max(top, margin), maxTop);
-    node.style.left = `${left}px`;
-    node.style.top = `${top}px`;
+    node.style.left = '0px';
+    node.style.top = '0px';
+    node.style.transform = `translate3d(${left}px, ${top}px, 0)`;
   }, []);
 
   const setTooltipNode = useCallback((node: HTMLDivElement | null) => {
     tooltipRef.current = node;
     if (node) {
       const point = getHoverClientPoint();
-      placeTooltip(point.x, point.y);
+      placeTooltip(point.x, point.y, true);
+    } else {
+      tooltipSizeRef.current = { width: 0, height: 0 };
     }
   }, [getHoverClientPoint, placeTooltip]);
 
@@ -365,13 +392,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return;
     }
     const point = getHoverClientPoint();
-    placeTooltip(point.x, point.y);
+    placeTooltip(point.x, point.y, true);
   }, [
     hoveredCountry,
     hoveredL2Subdivision,
     hoveredMunicipality,
     hoveredRoad,
     hoveredTaipowerZone,
+    activeRegionalFilters,
     placeTooltip,
     getHoverClientPoint
   ]);
@@ -385,6 +413,40 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Web Mercator Projection & GeoPath
   const projection = useMemo(() => createProjection(), []);
   const pathGenerator = useMemo(() => createPathGenerator(projection), [projection]);
+
+  const syncViewToUrl = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const { k, x, y } = transformRef.current;
+    const { w, h } = viewportSize.current;
+    if (w <= 0 || h <= 0 || k <= 0) return;
+
+    const mapX = (((w / 2 - x) / k) % MAP_W + MAP_W) % MAP_W;
+    const mapY = (h / 2 - y) / k;
+    const center = projection.invert?.([mapX, mapY]);
+    if (!center || !center.every(Number.isFinite)) return;
+
+    url.search = '';
+    url.searchParams.set('lat', center[1].toFixed(5));
+    url.searchParams.set('lon', center[0].toFixed(5));
+    url.searchParams.set('ratio', k.toFixed(3));
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [projection]);
+
+  const scheduleViewUrlSync = useCallback(() => {
+    if (viewUrlSyncTimerRef.current !== null) window.clearTimeout(viewUrlSyncTimerRef.current);
+    viewUrlSyncTimerRef.current = window.setTimeout(() => {
+      viewUrlSyncTimerRef.current = null;
+      syncViewToUrl();
+    }, 250);
+  }, [syncViewToUrl]);
+
+  useEffect(() => () => {
+    if (viewUrlSyncTimerRef.current !== null) {
+      window.clearTimeout(viewUrlSyncTimerRef.current);
+      viewUrlSyncTimerRef.current = null;
+    }
+  }, []);
 
   const taipowerZoneRenderItems = useMemo<TaipowerZoneRenderItem[]>(() => {
     return TAIWAN_POWER_POLE_ZONES.map((z) => {
@@ -798,8 +860,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
       syncRoadsViewport(k, x, y, vw, vh, isAnyRoadActive());
       syncRegionalFiltersViewport(k, x, y, vw, vh, currentLOD);
+      scheduleViewUrlSync();
     },
-    [syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive]
+    [syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive, scheduleViewUrlSync]
   );
 
   // ==========================================
@@ -824,6 +887,77 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return `${hoveredIso2 || ''}:${countryExpanded}|${sub?.iso2 || ''}:${sub?.id || ''}:${l3Expanded}`;
   }, [getBBoxScreenRatio]);
 
+  const getActiveLayerHoverTargets = useCallback(() => {
+    const activeFilters = Array.from(activeRegionalFiltersRef.current)
+      .map((id) => getCsvFilterById(id))
+      .filter((filter): filter is NonNullable<typeof filter> =>
+        !!filter && filter.rangeKind === 'Nationwide'
+      );
+    const areaCodeCountries = COUNTRIES_WITH_AREA_CODES.filter((iso2) =>
+      activeRegionalFiltersRef.current.has(`area-codes-${iso2}`)
+    );
+    const hasCapitalLayer = activeRegionalFiltersRef.current.has('nationwide-capital');
+    const signature = activeFilters
+      .map((filter) => `${filter.id}:${filter.loaded}:${filter.targetIso2s
+        .map((iso2) => `${iso2}:${l2PathsByCountryRef.current[iso2]?.length || 0}`)
+        .join(',')}`)
+      .concat([
+        areaCodeCountries.length
+          ? `area-codes:${areaCodeCountries
+              .map((iso2) => `${iso2}:${l2PathsByCountryRef.current[iso2]?.length || 0}`)
+              .join(',')}`
+          : '',
+        hasCapitalLayer
+          ? `nationwide-capital:${NATIONWIDE_FILTERS.find((filter) => filter.id === 'nationwide-capital')?.targetIso2s
+              ?.map((iso2) => `${iso2}:${l2PathsByCountryRef.current[iso2]?.length || 0}`)
+              .join(',') || ''}`
+          : ''
+      ].filter(Boolean))
+      .join('|');
+    const cached = activeLayerHoverTargetsRef.current;
+    if (cached.signature === signature) return cached;
+
+    const countries = new Set<string>();
+    const expandedCountries = new Set<string>();
+    const subdivisions = new Set<string>();
+    if (areaCodeCountries.length) {
+      for (const iso2 of areaCodeCountries) {
+        countries.add(iso2);
+        const subs = l2PathsByCountryRef.current[iso2];
+        if (!subs?.length) continue;
+        expandedCountries.add(iso2);
+        for (const sub of subs) subdivisions.add(`${iso2}:${String(sub.id)}`);
+      }
+    }
+    if (hasCapitalLayer) {
+      for (const iso2 of NATIONWIDE_FILTERS.find((filter) => filter.id === 'nationwide-capital')?.targetIso2s || []) {
+        countries.add(iso2);
+        const subs = l2PathsByCountryRef.current[iso2];
+        if (!subs?.length) continue;
+        expandedCountries.add(iso2);
+        for (const sub of subs) {
+          if (isCapitalSubdivision(iso2, sub)) subdivisions.add(`${iso2}:${String(sub.id)}`);
+        }
+      }
+    }
+    for (const filter of activeFilters) {
+      for (const iso2 of filter.targetIso2s) {
+        countries.add(iso2);
+        const subs = l2PathsByCountryRef.current[iso2];
+        if (subs?.length) expandedCountries.add(iso2);
+        if (!filter.loaded || !subs) continue;
+        for (const sub of subs) {
+          if (getCsvSubdivisionValue(filter.id, sub) !== null) {
+            subdivisions.add(`${iso2}:${String(sub.id)}`);
+          }
+        }
+      }
+    }
+
+    activeLayerHoverTargetsRef.current = { signature, countries, expandedCountries, subdivisions };
+    return activeLayerHoverTargetsRef.current;
+  }, []);
+
   const getExpandedL2Countries = useCallback(() => {
     const expanded = new Set<string>();
     [
@@ -833,6 +967,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       activeL3ParentRef.current?.iso2,
       hoveredL3ParentRef.current?.iso2
     ].forEach((iso2) => iso2 && expanded.add(iso2));
+    for (const iso2 of getActiveLayerHoverTargets().expandedCountries) expanded.add(iso2);
     const hoveredL2 = hoveredL2SubdivisionRef.current;
     const hoveredIso2 = hoveredCountryRef.current?.iso2;
     const l2HoveredIso2 = hoveredL2?.iso2;
@@ -847,7 +982,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (sub && getBBoxScreenRatio(sub.bbox) > 0.2) expanded.add(hoveredL2.iso2);
     }
     return expanded;
-  }, [getBBoxScreenRatio]);
+  }, [getBBoxScreenRatio, getActiveLayerHoverTargets]);
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -885,6 +1020,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
     if (visibleCopies.length === 0) visibleCopies.push(0);
 
+    const layerHoverTargets = getActiveLayerHoverTargets();
     const expandedL2Countries = getExpandedL2Countries();
     const hasL3RegionMode = !!activeL3ParentRef.current || !!hoveredL3ParentRef.current;
     const rc: RenderContext = {
@@ -899,6 +1035,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       isL2RegionMode: expandedL2Countries.size > 0,
       hasL3RegionMode,
       expandedL2Countries,
+      layerHoveredCountries: layerHoverTargets.countries,
+      layerHoveredL2Subdivisions: layerHoverTargets.subdivisions,
       activeFilter: activeFilterDefRef.current,
       activeTextFilters: activeTextFiltersRef.current,
       activeInternationalImageFilter: activeInternationalImageFilterRef.current,
@@ -944,6 +1082,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     getL3SubdivisionsForParent,
     isAnyRoadActive,
     isCountryRoadClassActive,
+    getActiveLayerHoverTargets,
     getExpandedL2Countries
   ]);
 
@@ -1118,6 +1257,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         renderedCrossingBadges: renderedCrossingBadgesRef.current,
         countryPathData,
         countryPathMap,
+        preferredCountryPath: countryPathMap.get(hoveredCountryRef.current?.iso2 || '') || null,
         isAnyRoadActive,
         isCountryAnyRoadActive,
         isCountryRoadClassActive,
@@ -1285,10 +1425,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (tooltipRef.current) {
       tooltipRef.current.style.display = 'none';
     }
-    const { k, x, y } = transformRef.current;
-    syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
     return hadHover;
-  }, [setHoveredCountry, syncRegionalFiltersViewport]);
+  }, [setHoveredCountry]);
 
   const applyHover = useCallback(
     (next: {
@@ -1497,11 +1635,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
 
       placeTooltip(clientX, clientY);
-      const { k, x, y } = transformRef.current;
-      syncRegionalFiltersViewport(k, x, y, viewportSize.current.w, viewportSize.current.h);
       hoverExpansionSignatureRef.current = getHoverExpansionSignature();
     },
-    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, syncRegionalFiltersViewport, getHoverClientPoint]
+    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, getHoverClientPoint]
   );
 
   hoverUpdateRef.current = updateHoverAtPoint;
@@ -1552,13 +1688,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       );
 
       // 以「開始 pinch 時的兩指中點」為錨（和 wheel 的 mx/my 相同概念）
-      const mx = pinchStart.current.midX - rect.left;
-      const my = pinchStart.current.midY - rect.top;
+      const centerCursorZoom = !hasFinePointerRef.current && centerCursorEnabledRef.current;
+      const currentMid = getMidpoint(p0, p1);
+      const mx = centerCursorZoom ? rect.width / 2 : pinchStart.current.midX - rect.left;
+      const my = centerCursorZoom ? rect.height * 0.4 : pinchStart.current.midY - rect.top;
       const { k: startK, x: startX, y: startY } = pinchStart.current;
       const ratio = newK / startK;
 
-      const newX = mx - (mx - startX) * ratio;
-      const newY = my - (my - startY) * ratio;
+      const panX = centerCursorZoom ? currentMid.x - pinchStart.current.midX : 0;
+      const panY = centerCursorZoom ? currentMid.y - pinchStart.current.midY : 0;
+      const newX = mx - (mx - startX) * ratio + panX;
+      const newY = my - (my - startY) * ratio + panY;
 
       transformRef.current.k = newK;
       transformRef.current.x = wrapX(newX, newK);
@@ -1734,8 +1874,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
+      const centerCursorZoom = !hasFinePointerRef.current && centerCursorEnabledRef.current;
+      const cursorPoint = centerCursorZoom ? getHoverClientPoint() : { x: e.clientX, y: e.clientY };
+      const mx = cursorPoint.x - rect.left;
+      const my = cursorPoint.y - rect.top;
 
       const { k, x, y } = transformRef.current;
       const vh = viewportSize.current.h;
@@ -1764,7 +1906,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [wrapX, clampY, applyLOD, syncAllViewports, requestRender]);
+  }, [wrapX, clampY, applyLOD, syncAllViewports, requestRender, getHoverClientPoint]);
 
   const handleZoom = useCallback(
     (direction: 'in' | 'out') => {
@@ -1775,8 +1917,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const kMin = vh / MAP_H;
       const newK = Math.min(Math.max(k * factor, kMin), MAX_ZOOM_K);
 
-      const cx = vw / 2;
-      const cy = vh / 2;
+      const centerCursorZoom = !hasFinePointerRef.current && centerCursorEnabledRef.current;
+      const cursorPoint = centerCursorZoom ? getHoverClientPoint() : null;
+      const rect = containerRef.current?.getBoundingClientRect();
+      const cx = cursorPoint && rect ? cursorPoint.x - rect.left : vw / 2;
+      const cy = cursorPoint && rect ? cursorPoint.y - rect.top : vh / 2;
       const newX = wrapX(cx - (cx - x) * (newK / k), newK);
       const newY = clampY(cy - (cy - y) * (newK / k), newK, vh);
 
@@ -1786,7 +1931,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         syncAllViewports(newK, newX, newY, vw, vh, nextLOD);
       });
     },
-    [wrapX, clampY, applyLOD, animateTo, syncAllViewports]
+    [wrapX, clampY, applyLOD, animateTo, syncAllViewports, getHoverClientPoint]
   );
 
   const handleZoomIn = useCallback(() => handleZoom('in'), [handleZoom]);
@@ -1882,8 +2027,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
     const { k, x, y } = transformRef.current;
     syncRoadsViewport(k, x, y, viewportSize.current.w, viewportSize.current.h, isAnyRoadActive());
+    scheduleViewUrlSync();
     requestRender();
-  }, [activeRegionalFilters, syncRoadsViewport, isAnyRoadActive, requestRender]);
+  }, [activeRegionalFilters, syncRoadsViewport, isAnyRoadActive, requestRender, scheduleViewUrlSync]);
 
   // Preload European pedestrian crossing sign images when filter is activated
   useEffect(() => {
@@ -2083,8 +2229,49 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               l2CountryDissolvedPathsRef.current[iso2] = new Path2D(dissolvedD);
             }
 
+            if (initialTarget && !initialTargetHandledRef.current) {
+              const separatorIndex = initialTarget.indexOf('::');
+              if (separatorIndex > 0) {
+                const targetIso2 = initialTarget.slice(0, separatorIndex).trim().toUpperCase();
+                const targetId = initialTarget.slice(separatorIndex + 2).trim();
+                if (targetIso2 === iso2 && targetId) {
+                  const targetSubdivision = paths.find((sub) =>
+                    [sub.id, sub.code, sub.name, sub.nameEn, sub.nameZh].some(
+                      (value) => String(value).toLowerCase() === targetId.toLowerCase()
+                    )
+                  );
+                  if (targetSubdivision) {
+                    initialTargetHandledRef.current = true;
+                    onSelectSubdivision?.(toL2Detail(targetSubdivision), { focus: false });
+                    zoomToSubdivisionRef?.current?.(iso2, targetSubdivision.id);
+                  }
+                }
+              }
+            }
+
+            if (initialFocusTarget && !initialFocusTargetHandledRef.current) {
+              const [targetIso2, targetId] = initialFocusTarget.split('::').map((part) => part.trim());
+              if (targetIso2?.toUpperCase() === iso2 && targetId) {
+                const targetSubdivision = paths.find((sub) =>
+                  [sub.id, sub.code, sub.name, sub.nameEn, sub.nameZh].some(
+                    (value) => String(value).toLowerCase() === targetId.toLowerCase()
+                  )
+                );
+                if (targetSubdivision) {
+                  initialFocusTargetHandledRef.current = true;
+                  focusMapRef?.current?.({
+                    kind: 'subdivision',
+                    iso2,
+                    id: targetSubdivision.id,
+                    force: true
+                  });
+                }
+              }
+            }
+
             if (
               transformRef.current.k >= 1.8 ||
+              getActiveLayerHoverTargets().expandedCountries.has(iso2) ||
               hoveredCountryRef.current?.iso2 === iso2 ||
               selectedCountryRef.current?.iso2 === iso2 ||
               hoveredL2SubdivisionRef.current?.iso2 === iso2 ||
@@ -2139,7 +2326,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         renderRafIdRef.current = null;
       }
     };
-  }, [requestRender]);
+  }, [
+    requestRender,
+    initialTarget,
+    onSelectSubdivision,
+    zoomToSubdivisionRef,
+    initialFocusTarget,
+    focusMapRef,
+    getActiveLayerHoverTargets
+  ]);
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets (decoded in background worker)
   useEffect(() => {
@@ -2246,11 +2441,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       viewportSize.current = { w: vw, h: vh };
 
       const kMin = vh / MAP_H;
-      const initialK = Math.max(kMin, 1.0);
+      const params = new URLSearchParams(window.location.search);
+      const hasPrimaryTarget = params.has('target');
+      const ratioParam = Number(params.get('ratio'));
+      const initialK = !hasPrimaryTarget && params.has('ratio') && Number.isFinite(ratioParam)
+        ? Math.max(kMin, Math.min(MAX_ZOOM_K, ratioParam))
+        : Math.max(kMin, 1.0);
       transformRef.current.k = initialK;
 
-      const initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
-      const initialY = clampY((vh - MAP_H * initialK) / 2, initialK, vh);
+      const latParam = Number(params.get('lat'));
+      const lonParam = Number(params.get('lon'));
+      const hasCenter = !hasPrimaryTarget && params.has('lat') && params.has('lon') &&
+        Number.isFinite(latParam) && Number.isFinite(lonParam) &&
+        Math.abs(latParam) <= 85.05112878 && Math.abs(lonParam) <= 180;
+      const projectedCenter = hasCenter ? projection([lonParam, latParam]) : null;
+      const centerX = projectedCenter?.[0] ?? MAP_W / 2;
+      const centerY = projectedCenter?.[1] ?? MAP_H / 2;
+      const initialX = wrapX(vw / 2 - centerX * initialK, initialK);
+      const initialY = clampY(vh / 2 - centerY * initialK, initialK, vh);
 
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
@@ -2261,7 +2469,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       renderCanvas();
       requestRender();
     }
-  }, [wrapX, clampY, renderCanvas, requestRender, syncAllViewports]);
+  }, [wrapX, clampY, renderCanvas, requestRender, syncAllViewports, projection]);
 
   // Camera focus has two routes. An object already on screen stays put.
   // The flight only pulls a target that sits outside the window into view.
@@ -2370,7 +2578,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (vw <= 0 || vh <= 0) return;
 
       const cur = transformRef.current;
-      if (isAlreadyOnScreen({ minX, minY, maxX, maxY }, cur.k, cur.x, cur.y, vw, vh)) {
+      if (!target.force && isAlreadyOnScreen({ minX, minY, maxX, maxY }, cur.k, cur.x, cur.y, vw, vh)) {
         return;
       }
 
@@ -2414,6 +2622,30 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     animateTo,
     syncAllViewports
   ]);
+
+  useEffect(() => {
+    if (!initialTarget || initialTargetHandledRef.current) return;
+    const parts = initialTarget.split('::');
+    if (parts.length !== 1) return;
+    const iso2 = parts[0].trim().toUpperCase();
+    const country = findCountry(iso2);
+    if (!country || !countryPathMap.has(iso2)) return;
+
+    initialTargetHandledRef.current = true;
+    onSelectCountry(country, { focus: false });
+    focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+  }, [initialTarget, countryPathMap, onSelectCountry, focusMapRef]);
+
+  useEffect(() => {
+    if (!initialFocusTarget || initialFocusTargetHandledRef.current) return;
+    const parts = initialFocusTarget.split('::').map((part) => part.trim());
+    if (parts.length !== 1) return;
+    const iso2 = parts[0].toUpperCase();
+    if (!findCountry(iso2) || !countryPathMap.has(iso2)) return;
+
+    initialFocusTargetHandledRef.current = true;
+    focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+  }, [initialFocusTarget, countryPathMap, focusMapRef]);
 
   // Frame an L2 subdivision. Used by the detail panel for any country that has a deeper level.
   useEffect(() => {
@@ -2566,7 +2798,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`svg-map-wrapper ${showRoads ? 'roads-mode-active' : ''} ${
+      className={`svg-map-wrapper ${showRoads ? 'roads-mode-active' : ''} ${isFilterExpanded ? 'filter-panel-open' : ''} ${
         selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad ? 'panel-open' : ''
       }`}
       onPointerDown={handlePointerDown}

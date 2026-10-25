@@ -12,7 +12,6 @@
   - Las señales de tránsito están en español.
   - Bienvenido a Panamá.
 
----
 
 # 日語
 - priority: 20
@@ -28,7 +27,6 @@
   - 道路標識は漢字と仮名で書かれています。
   - 日本へようこそ。
 
----
 
 # 韓語
 - priority: 20
@@ -44,7 +42,6 @@
   - 도로 표지판은 한글로 되어 있습니다.
   - 대한민국에 오신 것을 환영합니다.
 
----
 
 # 台灣語言
 - priority: 20
@@ -60,7 +57,6 @@
   - 路牌大多使用繁體中文。
   - 歡迎來到台灣。
 
----
 
 # 香港語言
 - priority: 20
@@ -79,7 +75,6 @@
   - Street View lets you explore the streets of Hong Kong.
   - Welcome to Hong Kong.
 
----
 
 # 澳門語言
 - priority: 20
@@ -98,7 +93,6 @@
   - O Street View permite explorar as ruas de Macau.
   - Bem-vindo a Macau.
 
----
 
 # 泰國語言
 - priority: 20
@@ -114,7 +108,6 @@
   - ป้ายจราจรใช้ภาษาไทย
   - ยินดีต้อนรับสู่ประเทศไทย
 
----
 
 # 越南語言
 - priority: 20
@@ -130,7 +123,6 @@
   - Biển báo giao thông dùng chữ Quốc ngữ.
   - Chào mừng đến Việt Nam.
 
----
 
 # 印尼語言
 - priority: 20
@@ -146,7 +138,6 @@
   - Rambu lalu lintas menggunakan Bahasa Indonesia.
   - Selamat datang di Indonesia.
 
----
 
 # 馬來西亞語言
 - priority: 20
@@ -169,7 +160,6 @@
   - 你可以用街景探索馬來西亞的街道。
   - 歡迎來到馬來西亞。
 
----
 
 # 新加坡語言
 - priority: 20
@@ -196,7 +186,6 @@
   - ஸ்ட்ரீட் வியூ மூலம் சிங்கப்பூர் தெருக்களைப் பார்க்கலாம்.
   - சிங்கப்பூருக்கு வரவேற்கிறோம்.
 
----
 
 # 菲律賓語言
 - priority: 20
@@ -215,7 +204,6 @@
   - Sa Street View ay maaari mong tuklasin ang mga kalsada ng Pilipinas.
   - Maligayang pagdating sa Pilipinas.
 
----
 
 # 柬埔寨語言
 - priority: 20
@@ -231,7 +219,6 @@
   - ផ្លាកសញ្ញាផ្លូវប្រើភាសាខ្មែរ។
   - សូមស្វាគមន៍មកកាន់កម្ពុជា។
 
----
 
 # 寮國語言
 - priority: 20
@@ -247,7 +234,6 @@
   - ປ້າຍຖະໜົນໃຊ້ພາສາລາວ.
   - ຍິນດີຕ້ອນຮັບສູ່ປະເທດລາວ.
 
----
 
 # 孟加拉語言
 - priority: 20
@@ -263,7 +249,6 @@
   - রাস্তার সাইনবোর্ড বাংলায় লেখা থাকে।
   - বাংলাদেশে স্বাগতম।
 
----
 
 # 斯里蘭卡語言
 - priority: 20
@@ -282,7 +267,6 @@
   - ஸ்ட்ரீட் வியூ மூலம் இலங்கை சாலைகளைப் பார்க்கலாம்.
   - இலங்கைக்கு வரவேற்கிறோம்.
 
----
 
 # 尼泊爾語言
 - priority: 20
@@ -298,7 +282,6 @@
   - सडक चिन्हहरू नेपालीमा छन्।
   - नेपालमा स्वागत छ।
 
----
 
 # 不丹語言
 - priority: 20
@@ -314,7 +297,6 @@
   - ལམ་རྟགས་རྣམས་རྫོང་ཁར་ཡོད།
   - འབྲུག་ཡུལ་ལ་ཕེབས་པར་དགའ་བསུ་ཞུ།
 
----
 
 # 蒙古語言
 - priority: 20
@@ -330,7 +312,6 @@
   - Замын тэмдэг монгол хэлээр байна.
   - Монголд тавтай морил.
 
----
 
 # 哈薩克語言
 - priority: 20
@@ -349,7 +330,6 @@
   - Street View позволяет исследовать дороги Казахстана.
   - Добро пожаловать в Казахстан.
 
----
 
 # 喬治亞語言
 - priority: 20
@@ -365,7 +345,6 @@
   - გზის ნიშნები ქართულადაა.
   - კეთილი იყოს თქვენი მობრძანება საქართველოში.
 
----
 
 # 土耳其語言
 - priority: 20
@@ -381,7 +360,6 @@
   - Trafik işaretleri Türkçedir.
   - Türkiye'ye hoş geldiniz.
 
----
 
 # 以色列語言
 - priority: 20
@@ -402,7 +380,6 @@
   - لافتات الطرق بالعربية.
   - مرحباً بكم في إسرائيل.
 
----
 
 # 阿聯酋語言
 - priority: 20
@@ -421,7 +398,6 @@
   - Street View covers major cities in the UAE.
   - Welcome to the United Arab Emirates.
 
----
 
 # 卡達語言
 - priority: 20
@@ -437,7 +413,6 @@
   - لافتات الطرق بالعربية.
   - مرحباً بكم في قطر.
 
----
 
 # 阿曼語言
 - priority: 20
@@ -453,7 +428,6 @@
   - لافتات الطرق بالعربية.
   - مرحباً بكم في عُمان.
 
----
 
 # 科威特語言
 - priority: 20
@@ -469,7 +443,6 @@
   - لافتات الطرق بالعربية.
   - مرحباً بكم في الكويت.
 
----
 
 # 印度（安得拉邦）語言
 - priority: 20
@@ -485,7 +458,6 @@
   - రహదారి సంకేతాలు తెలుగులో ఉంటాయి.
   - ఆంధ్రప్రదేశ్‌కు స్వాగతం.
 
----
 
 # 印度（卡納塔卡邦）語言
 - priority: 20
@@ -501,7 +473,6 @@
   - ರಸ್ತೆ ಚಿಹ್ನೆಗಳು ಕನ್ನಡದಲ್ಲಿ ಇರುತ್ತವೆ.
   - ಕರ್ನಾಟಕಕ್ಕೆ ಸ್ವಾಗತ.
 
----
 
 # 印度（泰米爾納德邦）語言
 - priority: 20
@@ -517,7 +488,6 @@
   - சாலை அறிகுறிகள் தமிழில் உள்ளன.
   - தமிழ்நாட்டிற்கு வரவேற்கிறோம்.
 
----
 
 # 印度（喀拉拉邦）語言
 - priority: 20
@@ -533,7 +503,6 @@
   - റോഡ് അടയാളങ്ങൾ മലയാളത്തിലാണ്.
   - കേരളത്തിലേക്ക് സ്വാഗതം.
 
----
 
 # 印度（西孟加拉邦）語言
 - priority: 20
@@ -549,7 +518,6 @@
   - রাস্তার সাইনবোর্ড বাংলায় লেখা থাকে।
   - পশ্চিমবঙ্গে স্বাগতম।
 
----
 
 # 印度（馬哈拉施特拉邦）語言
 - priority: 20
@@ -565,7 +533,6 @@
   - रस्त्यावरील चिन्हे मराठीत असतात.
   - महाराष्ट्रात स्वागत आहे.
 
----
 
 # 印度（古吉拉特邦）語言
 - priority: 20
@@ -581,7 +548,6 @@
   - રસ્તાના સંકેતો ગુજરાતીમાં હોય છે.
   - ગુજરાતમાં આપનું સ્વાગત છે.
 
----
 
 # 印度（旁遮普邦）語言
 - priority: 20
@@ -597,7 +563,6 @@
   - ਸੜਕ ਚਿੰਨ੍ਹ ਪੰਜਾਬੀ ਵਿੱਚ ਹੁੰਦੇ ਹਨ।
   - ਪੰਜਾਬ ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ।
 
----
 
 # 印度（印地語為主邦）語言
 - priority: 20
@@ -613,7 +578,6 @@
   - सड़क के संकेत हिंदी में होते हैं।
   - भारत में आपका स्वागत है।
 
----
 
 # 印度（錫金邦）語言
 - priority: 20
@@ -632,7 +596,6 @@
   - Street View covers major roads in Sikkim.
   - Welcome to Sikkim.
 
----
 
 # 俄羅斯語言
 - priority: 20
@@ -648,7 +611,6 @@
   - Дорожные знаки написаны на русском языке.
   - Добро пожаловать в Россию.
 
----
 
 # 烏克蘭語言
 - priority: 20
@@ -664,7 +626,6 @@
   - Дорожні знаки написані українською.
   - Ласкаво просимо до України.
 
----
 
 # 希臘語言
 - priority: 20
@@ -680,7 +641,6 @@
   - Οι πινακίδες είναι στα ελληνικά.
   - Καλώς ήρθατε στην Ελλάδα.
 
----
 
 # 保加利亞語言
 - priority: 20
@@ -696,7 +656,6 @@
   - Пътните знаци са на български.
   - Добре дошли в България.
 
----
 
 # 塞爾維亞語言
 - priority: 20
@@ -712,7 +671,6 @@
   - Саобраћајни знаци су на српском.
   - Добродошли у Србију.
 
----
 
 # 北馬其頓語言
 - priority: 20
@@ -728,7 +686,6 @@
   - Сообраќајните знаци се на македонски.
   - Добредојдовте во Северна Македонија.
 
----
 
 # 蒙特內哥羅語言
 - priority: 20
@@ -744,7 +701,6 @@
   - Saobraćajni znakovi su na crnogorskom.
   - Dobrodošli u Crnu Goru.
 
----
 
 # 波士尼亞與赫塞哥維納語言
 - priority: 20
@@ -760,7 +716,6 @@
   - Prometni znakovi su na bosanskom/hrvatskom/srpskom.
   - Dobrodošli u Bosnu i Hercegovinu.
 
----
 
 # 科索沃語言
 - priority: 20
@@ -779,7 +734,6 @@
   - Street View омогућава истраживање улица Косова.
   - Добродошли на Косово.
 
----
 
 # 阿爾巴尼亞語言
 - priority: 20
@@ -795,7 +749,6 @@
   - Tabelat e rrugës janë në shqip.
   - Mirë se vini në Shqipëri.
 
----
 
 # 愛沙尼亞語言
 - priority: 20
@@ -811,7 +764,6 @@
   - Liiklusmärgid on eesti keeles.
   - Tere tulemast Eestisse.
 
----
 
 # 拉脫維亞語言
 - priority: 20
@@ -827,7 +779,6 @@
   - Ceļa zīmes ir latviešu valodā.
   - Laipni lūdzam Latvijā.
 
----
 
 # 立陶宛語言
 - priority: 20
@@ -843,7 +794,6 @@
   - Kelio ženklai yra lietuvių kalba.
   - Sveiki atvykę į Lietuvą.
 
----
 
 # 納米比亞語言
 - priority: 20
@@ -861,7 +811,6 @@
   - Die vinnige bruin jakkals spring oor die lui hond.
   - Welkom in Namibië.
 
----
 
 # 波札那語言
 - priority: 20
@@ -880,7 +829,6 @@
   - Street View e go letla go tlhola ditsela tsa Botswana.
   - O amogelesegile mo Botswana.
 
----
 
 # 賴索托語言
 - priority: 20
@@ -899,7 +847,6 @@
   - Street View e u lumella ho hlahloba litsela tsa Lesotho.
   - Rea u amohela Lesotho.
 
----
 
 # 史瓦帝尼語言
 - priority: 20
@@ -918,7 +865,6 @@
   - I-Street View ikuvumela kutsi uhlole imigwaco yaseSwatini.
   - Wemukelekile eSwatini.
 
----
 
 # 肯亞語言
 - priority: 20
@@ -937,7 +883,6 @@
   - Street View inakuwezesha kuchunguza barabara za Kenya.
   - Karibu Kenya.
 
----
 
 # 烏干達語言
 - priority: 20
@@ -955,7 +900,6 @@
   - Mbweha wa kahawia anayeharakisha anaruka juu ya mbwa mvivu.
   - Karibu Uganda.
 
----
 
 # 盧安達語言
 - priority: 20
@@ -976,7 +920,6 @@
   - Le renard brun rapide saute par-dessus le chien paresseux.
   - Bienvenue au Rwanda.
 
----
 
 # 加納語言
 - priority: 20
@@ -992,7 +935,6 @@
   - Road signs are mostly in English.
   - Welcome to Ghana.
 
----
 
 # 奈及利亞語言
 - priority: 20
@@ -1008,7 +950,6 @@
   - Road signs are in English.
   - Welcome to Nigeria.
 
----
 
 # 塞內加爾語言
 - priority: 20
@@ -1026,7 +967,6 @@
   - Till bu xonq bu gaaw a tëb ci kaw xaj bu ñàkk.
   - Dalal ak jàmm ci Senegaal.
 
----
 
 # 突尼西亞語言
 - priority: 20
@@ -1044,7 +984,6 @@
   - Le renard brun rapide saute par-dessus le chien paresseux.
   - Bienvenue en Tunisie.
 
----
 
 # 聖多美和普林西比語言
 - priority: 20
@@ -1060,7 +999,6 @@
   - Sinais de trânsito em português.
   - Bem-vindo a São Tomé e Príncipe.
 
----
 
 # 安道爾語言
 - priority: 20
@@ -1076,7 +1014,6 @@
   - Les senyals de trànsit són en català.
   - Benvingut a Andorra.
 
----
 
 # 摩納哥語言
 - priority: 20
@@ -1091,7 +1028,6 @@
   - Street View permet d’explorer les rues de Monaco.
   - Bienvenue à Monaco.
 
----
 
 # 聖馬利諾語言
 - priority: 20
@@ -1106,7 +1042,6 @@
   - Street View permette di esplorare le strade di San Marino.
   - Benvenuto a San Marino.
 
----
 
 # 列支敦斯登語言
 - priority: 20
@@ -1121,7 +1056,6 @@
   - Street View ermöglicht die Erkundung der Straßen Liechtensteins.
   - Willkommen in Liechtenstein.
 
----
 
 # 馬爾他語言
 - priority: 20
@@ -1139,7 +1073,6 @@
   - The quick brown fox jumps over the lazy dog.
   - Welcome to Malta.
 
----
 
 # 賽普勒斯語言
 - priority: 20
@@ -1156,7 +1089,6 @@
   - Hızlı kahverengi tilki tembel köpeğin üzerinden atlar.
   - Kıbrıs'a hoş geldiniz.
 
----
 
 # 法羅群島語言
 - priority: 20
@@ -1171,7 +1103,6 @@
   - Street View loyvir tær at kanna gøturnar í Føroyum.
   - Vælkomin til Føroyar.
 
----
 
 # 奧蘭群島語言
 - priority: 20
@@ -1186,7 +1117,6 @@
   - Street View låter dig utforska Ålands gator.
   - Välkommen till Åland.
 
----
 
 # 美國語言
 - priority: 20
@@ -1202,7 +1132,6 @@
   - Gas is measured in gallons, and we drive on the right.
   - Welcome to the United States of America.
 
----
 
 # 加拿大語言
 - priority: 20
@@ -1221,7 +1150,6 @@
   - Désolé, hein ? L’autoroute est encore couverte de verglas.
   - Bienvenue au Canada, un pays bilingue.
 
----
 
 # 墨西哥語言
 - priority: 20
@@ -1237,7 +1165,6 @@
   - El peso mexicano y las placas amarillas son comunes.
   - Bienvenido a los Estados Unidos Mexicanos.
 
----
 
 # 瓜地馬拉語言
 - priority: 20
@@ -1253,7 +1180,6 @@
   - El quetzal es la moneda y se ve en muchos letreros.
   - Bienvenido a Guatemala.
 
----
 
 # 哥斯大黎加語言
 - priority: 20
@@ -1269,7 +1195,6 @@
   - El colón es la moneda oficial de Costa Rica.
   - Bienvenido a Costa Rica.
 
----
 
 # 巴拿馬語言
 - priority: 20
@@ -1285,7 +1210,6 @@
   - El balboa y el dólar circulan al mismo tiempo.
   - Bienvenido a Panamá.
 
----
 
 # 多明尼加語言
 - priority: 20
@@ -1301,7 +1225,6 @@
   - El peso dominicano aparece en casi todas las tiendas.
   - Bienvenido a la República Dominicana.
 
----
 
 # 波多黎各語言
 - priority: 20
@@ -1319,7 +1242,6 @@
   - The island’s roads mix Spanish and English signs everywhere.
   - Welcome to Puerto Rico, where both languages live side by side.
 
----
 
 # 巴西語言
 - priority: 20
@@ -1335,7 +1257,6 @@
   - O real é a moeda e as placas são cinza com letras pretas.
   - Bem-vindo ao Brasil.
 
----
 
 # 阿根廷語言
 - priority: 20
@@ -1351,7 +1272,6 @@
   - El peso argentino y el «ceda el paso» se ven en todas partes.
   - Bienvenido a la República Argentina.
 
----
 
 # 智利語言
 - priority: 20
@@ -1367,7 +1287,6 @@
   - El peso chileno y el letrero de «CEDA EL PASO» son comunes.
   - Bienvenido a Chile.
 
----
 
 # 秘魯語言
 - priority: 20
@@ -1385,7 +1304,6 @@
   - Allin punchaw, Peru llaqtaman hamuy.
   - Street View nisqawan Peru ñankunata rikuyta atinki.
 
----
 
 # 哥倫比亞語言
 - priority: 20
@@ -1401,7 +1319,6 @@
   - El peso colombiano aparece en casi todos los letreros.
   - Bienvenido a Colombia.
 
----
 
 # 厄瓜多語言
 - priority: 20
@@ -1417,7 +1334,6 @@
   - El dólar estadounidense es la moneda oficial.
   - Bienvenido a Ecuador.
 
----
 
 # 烏拉圭語言
 - priority: 20
@@ -1433,7 +1349,6 @@
   - El peso uruguayo se ve en los comercios.
   - Bienvenido a Uruguay.
 
----
 
 # 巴拉圭語言
 - priority: 20
@@ -1451,7 +1366,6 @@
   - Mba’éichapa! Paraguay-pe oñemoag̃ui.
   - Street View ndive Paraguay rape rehecha ikatu.
 
----
 
 # 玻利維亞語言
 - priority: 20
@@ -1470,7 +1384,6 @@
 - **Aymara**:
   - Waliki, Bolivia markaru jutäta.
 
----
 
 # 法國語言
 - priority: 20
@@ -1486,7 +1399,6 @@
   - Les plaques d’immatriculation sont blanches à l’avant et jaunes à l’arrière.
   - Bienvenue en France.
 
----
 
 # 比利時語言
 - priority: 20
@@ -1506,7 +1418,6 @@
   - In Ostbelgien spricht man Deutsch und isst Pommes.
   - Willkommen in Belgien.
 
----
 
 # 瑞士語言
 - priority: 20
@@ -1526,7 +1437,6 @@
 - **Rumantsch**:
   - Bainvegni en Svizra.
 
----
 
 # 盧森堡語言
 - priority: 20
@@ -1544,7 +1454,6 @@
 - **Deutsch**:
   - Willkommen in Luxemburg.
 
----
 
 # 德國語言
 - priority: 20
@@ -1560,7 +1469,6 @@
   - Man sagt «Guten Tag» und isst Bratwurst mit Senf.
   - Willkommen in Deutschland.
 
----
 
 # 奧地利語言
 - priority: 20
@@ -1575,7 +1483,6 @@
   - Die Kennzeichen haben einen blauen Streifen links.
   - Willkommen in Österreich.
 
----
 
 # 荷蘭語言
 - priority: 20
@@ -1591,7 +1498,6 @@
   - Men zegt «dank je wel» en eet stroopwafels.
   - Welkom in Nederland.
 
----
 
 # 英國語言
 - priority: 20
@@ -1607,7 +1513,6 @@
   - Number plates are yellow at the rear and white at the front.
   - Welcome to the United Kingdom.
 
----
 
 # 愛爾蘭語言
 - priority: 20
@@ -1625,7 +1530,6 @@
   - Tá an aimsir go hiontach le haghaidh pionta Guinness i mBaile Átha Cliath.
   - Fáilte go hÉirinn.
 
----
 
 # 葡萄牙語言
 - priority: 20
@@ -1641,7 +1545,6 @@
   - O euro é a moeda e os sinais dizem «STOP» ou «Ceda a passagem».
   - Bem-vindo a Portugal.
 
----
 
 # 西班牙語言
 - priority: 20
@@ -1665,7 +1568,6 @@
   - En Galicia fálase galego e cómese polbo á feira.
   - Benvido a Galicia.
 
----
 
 # 義大利語言
 - priority: 20
@@ -1681,7 +1583,6 @@
   - L’euro è la moneta e i cartelli dicono «STOP» o «Dare la precedenza».
   - Benvenuto in Italia.
 
----
 
 # 瑞典語言
 - priority: 20
@@ -1696,7 +1597,6 @@
   - Registreringsskyltarna är vita med blått EU-fält.
   - Välkommen till Sverige.
 
----
 
 # 挪威語言
 - priority: 20
@@ -1711,7 +1611,6 @@
   - Skiltene er hvite med blått EU-felt.
   - Velkommen til Norge.
 
----
 
 # 丹麥語言
 - priority: 20
@@ -1726,7 +1625,6 @@
   - Nummerpladerne er hvide med blåt EU-felt.
   - Velkommen til Danmark.
 
----
 
 # 芬蘭語言
 - priority: 20
@@ -1743,7 +1641,6 @@
 - **Svenska**:
   - Välkommen till Finland.
 
----
 
 # 冰島語言
 - priority: 20
@@ -1758,7 +1655,6 @@
   - Bifreiðaskilti eru hvít með bláu EU-svæði.
   - Velkomin til Íslands.
 
----
 
 # 波蘭語言
 - priority: 20
@@ -1773,7 +1669,6 @@
   - Tablice rejestracyjne są białe z niebieskim paskiem UE.
   - Witamy w Polsce.
 
----
 
 # 捷克語言
 - priority: 20
@@ -1788,7 +1683,6 @@
   - Registrační značky jsou bílé s modrým pruhem EU.
   - Vítejte v České republice.
 
----
 
 # 斯洛伐克語言
 - priority: 20
@@ -1803,7 +1697,6 @@
   - Evidenčné čísla sú biele s modrým pásom EÚ.
   - Vitajte na Slovensku.
 
----
 
 # 匈牙利語言
 - priority: 20
@@ -1818,7 +1711,6 @@
   - A rendszámok fehérek kék EU-sávval.
   - Üdvözöljük Magyarországon.
 
----
 
 # 羅馬尼亞語言
 - priority: 20
@@ -1833,7 +1725,6 @@
   - Plăcuțele de înmatriculare sunt albe cu bandă albastră UE.
   - Bine ați venit în România.
 
----
 
 # 克羅埃西亞語言
 - priority: 20
@@ -1848,7 +1739,6 @@
   - Registarske pločice su bijele s plavom EU trakom.
   - Dobrodošli u Hrvatsku.
 
----
 
 # 斯洛維尼亞語言
 - priority: 20
@@ -1863,7 +1753,6 @@
   - Registrske tablice so bele z modrim EU pasom.
   - Dobrodošli v Sloveniji.
 
----
 
 # 澳洲語言
 - priority: 20
@@ -1879,7 +1768,6 @@
   - Number plates vary by state but often have colourful designs.
   - Welcome to Australia.
 
----
 
 # 紐西蘭語言
 - priority: 20
@@ -1897,7 +1785,6 @@
   - Kia ora! Nau mai ki Aotearoa.
   - Ka taea e Street View te toro i ngā huarahi o Aotearoa.
 
----
 
 # 南非語言
 - priority: 20
@@ -1917,7 +1804,6 @@
 - **isiZulu**:
   - Sawubona! Siyakwamukela eNingizimu Afrika.
 
----
 
 # 沖繩語言
 - priority: 20
@@ -1933,7 +1819,6 @@
   - 沖縄そば食んでぃ、オリオンビール飲んでぃ。
   - めんそーれー、沖縄。
 
----
 
 # 北海道方言
 - id: hokkaido-dialect
@@ -1948,7 +1833,6 @@
   - じゃがバター食べながらビール飲もうや。
   - ようこそ北海道へ。
 
----
 
 # 青森方言（津軽弁・東北弁）
 - id: aomori-dialect
@@ -1963,7 +1847,6 @@
   - 青森ね、ねぶた祭りの頃はにぎどいべ。
   - ようこそ青森さ。
 
----
 
 # 宮城方言（仙台弁）
 - id: miyagi-dialect
@@ -1978,7 +1861,6 @@
   - 仙台の街中はわりかすごどあるす。
   - ようこそ宮城さ。
 
----
 
 # 京都方言（京言葉）
 - id: kyoto-dialect
@@ -1993,7 +1875,6 @@
   - はんなりした街どすなぁ。
   - ようこそ京都へ。
 
----
 
 # 大阪方言（大阪弁）
 - id: osaka-dialect
@@ -2008,7 +1889,6 @@
   - 大阪の人は冗談好きやで。
   - ようこそ大阪へ。
 
----
 
 # 兵庫方言（神戸・播州など）
 - id: hyogo-dialect
@@ -2023,7 +1903,6 @@
   - 明石焼きも美味いで。
   - ようこそ兵庫へ。
 
----
 
 # 広島方言（広島弁）
 - id: hiroshima-dialect
@@ -2038,7 +1917,6 @@
   - 広島の街は住みやすいんよ。
   - ようこそ広島へ。
 
----
 
 # 福岡方言（博多弁）
 - id: fukuoka-dialect
@@ -2053,7 +1931,6 @@
   - 博多の人は気ぃ使うんよ。
   - ようこそ福岡へ。
 
----
 
 # 鹿児島方言（薩摩弁）
 - id: kagoshima-dialect
@@ -2068,7 +1945,6 @@
   - 桜島がよか見ゆるばい。
   - ようこそ鹿児島へ。
 
----
 
 # 滋賀方言
 - id: shiga-dialect
@@ -2083,7 +1959,6 @@
   - 彦根の街中、のんびりしたもんやで。
   - ようこそ滋賀へ。
 
----
 
 # 夏威夷語言
 - id: hawaii-language

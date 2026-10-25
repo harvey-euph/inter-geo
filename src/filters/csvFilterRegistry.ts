@@ -10,16 +10,6 @@ import {
   type ParsedCsvFilterData
 } from './csvFilterParser';
 
-/**
- * Only resolve asset URLs (file paths) for CSV files at startup instead of bundling raw contents.
- * Actual CSV contents are fetched via HTTP request on demand when the filter is activated.
- */
-const csvAssetUrls = import.meta.glob('/src/content/layers/**/*.csv', {
-  query: '?url',
-  import: 'default',
-  eager: true
-}) as Record<string, string>;
-
 export interface RegisteredCsvFilter extends CsvFilterRegistryEntry {
   /** Final resolved filter ID (prefers `@id` directive or registry `Id` column, falls back to filename) */
   id: string;
@@ -69,6 +59,7 @@ function buildRegisteredFilter(
     shortBadge,
     accentColor,
     descriptionZh,
+    meta: { ...regMeta, ...fileMeta },
     loaded: parsedData !== null,
     data: parsedData
   };
@@ -120,7 +111,7 @@ function initCsvFilterRegistry(): void {
 }
 
 /**
- * Returns all filters registered in `src/content/layers/filter-reg.csv`.
+ * Returns all filters indexed from CSV files in `public/layers/`.
  */
 export function getRegisteredCsvFilters(): RegisteredCsvFilter[] {
   initCsvFilterRegistry();
@@ -226,7 +217,7 @@ export async function loadOnDemandCsvFilter(
 
   const promise = (async () => {
     try {
-      const resolvedUrl = csvAssetUrls[filter.path] || filter.path;
+      const resolvedUrl = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/${filter.path.replace(/^\/+/, '')}`;
       const res = await fetch(resolvedUrl);
       if (!res.ok) {
         console.warn(`[CSV Filter] HTTP ${res.status} when fetching ${resolvedUrl}`);
@@ -249,6 +240,7 @@ export async function loadOnDemandCsvFilter(
       filter.shortBadge = updated.shortBadge;
       filter.accentColor = updated.accentColor;
       filter.descriptionZh = updated.descriptionZh;
+      filter.meta = updated.meta;
       filter.loaded = true;
       filter.data = parsed;
 

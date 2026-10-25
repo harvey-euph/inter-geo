@@ -24,6 +24,7 @@ export interface HitTestParams {
   renderedCrossingBadges: CrossingBadgeBox[];
   countryPathData: CountryPathData[];
   countryPathMap: Map<string, CountryPathData>;
+  preferredCountryPath: CountryPathData | null;
   isAnyRoadActive: () => boolean;
   isCountryAnyRoadActive: (iso2: string) => boolean;
   isCountryRoadClassActive: (iso2: string, roadClass: 'Interstate' | 'Federal') => boolean;
@@ -68,6 +69,7 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     renderedCrossingBadges,
     countryPathData,
     countryPathMap,
+    preferredCountryPath,
     isAnyRoadActive,
     isCountryAnyRoadActive,
     isCountryRoadClassActive,
@@ -341,6 +343,22 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     }
 
     // 2c. Check L1 Countries (At L1, check ALL countries; at L2/L3, check countries NOT covered by L2)
+    if (preferredCountryPath) {
+      const [minX, minY, maxX, maxY] = preferredCountryPath.bbox;
+      if (mapX >= minX && mapX <= maxX && mapY >= minY && mapY <= maxY) {
+        const path =
+          useHighRes &&
+          !expandedL2Countries.has(preferredCountryPath.countryMeta?.iso2 || '') &&
+          preferredCountryPath.countryMeta?.iso2 &&
+          l2DissolvedByCountry[preferredCountryPath.countryMeta.iso2]
+            ? l2DissolvedByCountry[preferredCountryPath.countryMeta.iso2]
+            : preferredCountryPath.path2D;
+        if (ctx.isPointInPath(path, mx * dpr, my * dpr)) {
+          return { type: 'country', data: preferredCountryPath };
+        }
+      }
+    }
+
     for (let i = 0; i < countryPathData.length; i++) {
       const c = countryPathData[i];
       const iso2 = c.countryMeta?.iso2;

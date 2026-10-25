@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { WorldMap } from './components/WorldMap';
+import { FILTERS } from './data/filters';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
@@ -10,7 +11,15 @@ import {
   getNationwideFilterById,
   type NationwideFilterDef
 } from './data/nationwideFilters';
+import { getCsvFilterById } from './filters/csvFilterRegistry';
 import './App.css';
+
+if (typeof window !== 'undefined') {
+  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  if (navigation?.type === 'reload' && window.location.search) {
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.hash}`);
+  }
+}
 
 const CountryDetailPanel = lazy(() =>
   import('./components/CountryDetailPanel').then((m) => ({ default: m.CountryDetailPanel }))
@@ -20,13 +29,37 @@ const QuizModal = lazy(() =>
 );
 
 export function App() {
-  const [activeFilterId, setActiveFilterId] = useState<string>('none');
-  const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(new Set());
-  const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(null);
-  const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(new Set());
+  const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
+  const initialCsvLayer = initialTargetParam ? getCsvFilterById(initialTargetParam) : undefined;
+  const initialNationwideLayer = initialTargetParam ? getNationwideFilterById(initialTargetParam) : undefined;
+  const initialBaseLayer = FILTERS.some((filter) => filter.id === initialTargetParam);
+  const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || initialBaseLayer;
+  const initialLayerIds = initialNationwideLayer ? [initialTargetParam] : [];
+  const initialTarget = isInitialLayer ? '' : initialTargetParam;
+  const [initialFocusTarget] = useState(() => {
+    for (const id of initialLayerIds) {
+      const csvFocus = getCsvFilterById(id)?.meta.focusTarget;
+      if (csvFocus) return csvFocus;
+      const filter = getNationwideFilterById(id);
+      if (filter?.targetIso2 && filter.targetIso2 !== '*') return filter.targetIso2;
+    }
+    return '';
+  });
+  const initialTargetParts = initialTarget.split('::');
+  const initialCountry = initialTargetParts.length === 1 ? findCountry(initialTargetParts[0]) || null : null;
+  const [activeFilterId, setActiveFilterId] = useState<string>(initialBaseLayer ? initialTargetParam : 'none');
+  const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
+    () => new Set(initialCsvLayer?.rangeKind === 'International' && initialCsvLayer.type === 'Text' ? [initialTargetParam] : [])
+  );
+  const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
+    initialCsvLayer?.rangeKind === 'International' && initialCsvLayer.type === 'Image' ? initialTargetParam : null
+  );
+  const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
+    () => new Set(initialLayerIds.filter((id) => !!getNationwideFilterById(id)))
+  );
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideFilterDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
-  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(initialCountry);
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
@@ -198,6 +231,18 @@ export function App() {
       return next;
     });
     if (!turningOn || !targetDef) return;
+    const csvFocusTarget = getCsvFilterById(filterId)?.meta.focusTarget;
+    if (csvFocusTarget) {
+      const [iso2, ...namespace] = csvFocusTarget.split('::').map((part) => part.trim());
+      if (iso2 && namespace.length > 0) {
+        focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
+        return;
+      }
+      if (iso2) {
+        focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
+        return;
+      }
+    }
     if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
       focusMapRef.current?.({ kind: 'bbox', boxes: targetDef.customBBoxes });
     } else if (targetDef.customBBox) {
@@ -371,6 +416,8 @@ export function App() {
             detailPanelFullWidth={detailPanelFullWidth}
             zoomToSubdivisionRef={zoomToSubdivisionRef}
             focusMapRef={focusMapRef}
+            initialTarget={initialTarget}
+            initialFocusTarget={initialFocusTarget}
             showRoads={showRoads}
             showInterstates={showInterstates}
             onToggleInterstates={handleToggleInterstates}

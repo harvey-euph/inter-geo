@@ -1,5 +1,5 @@
 /**
- * Info cards read from src/content/info/*.md.
+ * Info cards read from public/info/*.md.
  */
 
 export interface InfoItem {
@@ -55,7 +55,7 @@ export interface InfoStub {
   comparisonTargets?: string[];
   /** Source file name where this card is defined */
   sourceFile: string;
-  /** Project-relative path used for on-demand URL resolution (e.g. '/src/content/info/americas.md') */
+  /** Public URL path used for on-demand fetching (e.g. '/info/americas.md') */
   sourcePath: string;
   /** Optional priority for ordering */
   priority?: number;

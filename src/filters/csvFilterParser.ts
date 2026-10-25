@@ -14,6 +14,7 @@ export interface CsvFilterMetadata {
   shortBadge?: string;
   accentColor?: string;
   descriptionZh?: string;
+  focusTarget?: string;
   effectiveRange?: string;
   type?: CsvFilterType;
   loadedTiming?: CsvLoadedTiming;
@@ -48,7 +49,7 @@ export interface CsvFilterRegistryEntry {
   targetIso2s: string[];
   /** Resolved assignable region list for validating and normalizing region-ids */
   assignableList: AssignableRegionList;
-  /** Normalized project path to the CSV file (e.g. '/src/content/layers/country-code.csv') */
+  /** Public URL path to the CSV file (e.g. '/layers/country-code.csv') */
   path: string;
   /** Filter visualization type */
   type: CsvFilterType;
@@ -114,10 +115,9 @@ export function splitCsvLine(line: string): string[] {
 
 function normalizeCsvPath(rawPath: string): string {
   const cleaned = rawPath.trim().replace(/^['"<]+|['">]+$/g, '');
-  if (cleaned.startsWith('/src/')) return cleaned;
-  if (cleaned.startsWith('src/')) return `/${cleaned}`;
+  if (cleaned.startsWith('/layers/')) return cleaned;
   const relative = cleaned.replace(/^\.\//, '');
-  return `/src/content/layers/${relative}`;
+  return `/layers/${relative}`;
 }
 
 function deriveIdFromPath(csvPath: string): string {
@@ -262,6 +262,7 @@ export function parseFilterDataCsv(
         else if (key === 'shortBadge') meta.shortBadge = val;
         else if (key === 'accentColor') meta.accentColor = val;
         else if (key === 'descriptionZh') meta.descriptionZh = val;
+        else if (key === 'focusTarget') meta.focusTarget = val;
         else if (key === 'effectiveRange' || key === 'range') meta.effectiveRange = val;
         else if (key === 'type') meta.type = parseFilterType(val);
         else if (key === 'loadedTiming' || key === 'timing') meta.loadedTiming = parseLoadedTiming(val);

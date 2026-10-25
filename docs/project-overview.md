@@ -45,9 +45,9 @@ FlatGeobuf（FGB）是前端使用的二進位向量格式。`src/map/geoWorkerC
 
 ### 濾鏡與內容索引
 
-濾鏡定義分布於 `src/data/`，其資料可由 `src/content/layers/*.csv` 提供。`src/filters/csvFilterParser.ts` 負責解析 CSV，`csvFilterRegistry.ts` 管理定義與按需資料載入；全國濾鏡由 `src/data/nationwideFilters.ts` 組合，包含特定國家的道路濾鏡。
+濾鏡定義分布於 `src/data/`，其資料可由 `public/layers/*.csv` 提供。`src/filters/csvFilterParser.ts` 負責解析 CSV，`csvFilterRegistry.ts` 管理定義與按需資料載入；全國濾鏡由 `src/data/nationwideFilters.ts` 組合，包含特定國家的道路濾鏡。
 
-情報內容以 `src/content/info/*.md` 編寫。建置設定 `vite.config.ts` 會建立輕量 Info 索引（對象、標題、標籤、來源等），而完整 Markdown 內文在需要時才由 `src/info/infoRegistry.ts` 讀取、解析及快取。`CountryDetailPanel` 根據所選國家、行政區、子區域、道路或電網區域產生查詢，再由 `MarkdownInfoCard` 顯示匹配內容。這讓長篇內容與地圖資料保持分離，也便於新增或修訂情報文章。
+情報內容以 `public/info/*.md` 編寫。建置設定 `vite.config.ts` 會建立輕量 Info 索引（對象、標題、標籤、來源等），而完整 Markdown 內文在需要時才由 `src/info/infoRegistry.ts` 讀取、解析及快取。`CountryDetailPanel` 根據所選國家、行政區、子區域、道路或電網區域產生查詢，再由 `MarkdownInfoCard` 顯示匹配內容。這讓長篇內容與地圖資料保持分離，也便於新增或修訂情報文章。
 
 Info 卡片的主圖與內文行內圖都可使用外部 HTTP(S) 圖片網址，例如 S3 或公開 CDN；本機 `public/` 圖片路徑也會依部署 base path 解析。語法與範例見[Info 內容與圖片](info-content.md)。
 

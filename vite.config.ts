@@ -221,6 +221,7 @@ interface CsvFilterStubEntry {
     shortBadge?: string
     accentColor?: string
     descriptionZh?: string
+    focusTarget?: string
     effectiveRange?: string
     type?: 'FillColor' | 'Text' | 'Image' | 'Special'
     loadedTiming?: 'init' | 'on-demand'
@@ -243,7 +244,7 @@ function parseCsvLoadedTiming(raw: string): 'init' | 'on-demand' {
 }
 
 function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
-  const filtersDir = path.resolve(rootDir, 'src/content/layers')
+  const filtersDir = path.resolve(rootDir, 'public/layers')
   const csvFiles = collectFilesByExt(filtersDir, '.csv')
   const stubs: CsvFilterStubEntry[] = []
 
@@ -252,7 +253,7 @@ function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
     if (fileName.toLowerCase() === 'filter-reg.csv') continue
 
     const content = fs.readFileSync(absPath, 'utf-8')
-    const relPath = '/' + path.relative(rootDir, absPath).split(path.sep).join('/')
+    const relPath = '/layers/' + path.relative(filtersDir, absPath).split(path.sep).join('/')
     const defaultId = fileName.replace(/\.csv$/i, '')
 
     const meta: CsvFilterStubEntry['meta'] = {}
@@ -272,6 +273,7 @@ function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
           else if (key === 'shortBadge') meta.shortBadge = val
           else if (key === 'accentColor') meta.accentColor = val
           else if (key === 'descriptionZh') meta.descriptionZh = val
+          else if (key === 'focusTarget') meta.focusTarget = val
           else if (key === 'effectiveRange' || key === 'range') meta.effectiveRange = val
           else if (key === 'type') meta.type = parseCsvFilterType(val)
           else if (key === 'loadedTiming' || key === 'timing') meta.loadedTiming = parseCsvLoadedTiming(val)
@@ -306,36 +308,25 @@ function buildCsvFilterIndex(rootDir: string): CsvFilterStubEntry[] {
 }
 
 function buildInfoIndex(rootDir: string): InfoStubEntry[] {
-  const infoDir = path.resolve(rootDir, 'src/content/info')
+  const infoDir = path.resolve(rootDir, 'public/info')
   const mdFiles = collectFilesByExt(infoDir, '.md')
   const stubs: InfoStubEntry[] = []
 
   for (const absPath of mdFiles) {
     const content = fs.readFileSync(absPath, 'utf-8')
-    const relPath = '/' + path.relative(rootDir, absPath).split(path.sep).join('/')
+    const relPath = '/info/' + path.relative(infoDir, absPath).split(path.sep).join('/')
     const fileName = path.basename(absPath)
-    const dividerPattern = /\r?\n---\r?\n/
-    if (dividerPattern.test(content.trim())) {
-      const rawSections = content.split(dividerPattern)
-      rawSections.forEach((sec, idx) => {
-        const trimmed = sec.trim()
-        if (!trimmed) return
-        const stub = parseStubFromSection(trimmed, fileName, relPath, idx)
+    const h1Matches = Array.from(content.matchAll(/^#\s+[^\r\n]+/gm))
+    if (h1Matches.length > 0) {
+      h1Matches.forEach((m, idx) => {
+        const start = m.index!
+        const end = idx < h1Matches.length - 1 ? h1Matches[idx + 1].index! : content.length
+        const stub = parseStubFromSection(content.slice(start, end).trim(), fileName, relPath, idx)
         if (stub) stubs.push(stub)
       })
     } else {
-      const h1Matches = Array.from(content.matchAll(/^#\s+[^\r\n]+/gm))
-      if (h1Matches.length > 1) {
-        h1Matches.forEach((m, idx) => {
-          const start = m.index!
-          const end = idx < h1Matches.length - 1 ? h1Matches[idx + 1].index! : content.length
-          const stub = parseStubFromSection(content.slice(start, end).trim(), fileName, relPath, idx)
-          if (stub) stubs.push(stub)
-        })
-      } else {
-        const stub = parseStubFromSection(content.trim(), fileName, relPath, 0)
-        if (stub) stubs.push(stub)
-      }
+      const stub = parseStubFromSection(content.trim(), fileName, relPath, 0)
+      if (stub) stubs.push(stub)
     }
   }
   return stubs
@@ -393,8 +384,8 @@ function contentIndexPlugin(): Plugin {
       return null
     },
     configureServer(server) {
-      const infoDir = path.resolve(projectRoot, 'src/content/info')
-      const filtersDir = path.resolve(projectRoot, 'src/content/layers')
+      const infoDir = path.resolve(projectRoot, 'public/info')
+      const filtersDir = path.resolve(projectRoot, 'public/layers')
       const dataDir = path.resolve(projectRoot, 'public/data')
       const gridFile = path.resolve(projectRoot, 'src/data/taiwanPowerPoles.ts')
       server.watcher.add(infoDir)
@@ -418,10 +409,10 @@ function contentIndexPlugin(): Plugin {
           invalidate(resolvedVirtualObjectId)
           return
         }
-        if (normalized.endsWith('.md') && normalized.includes('/src/content/info/')) {
+        if (normalized.endsWith('.md') && normalized.includes('/public/info/')) {
           contentCache = null
           invalidate(resolvedVirtualInfoId)
-        } else if (normalized.endsWith('.csv') && normalized.includes('/src/content/layers/')) {
+        } else if (normalized.endsWith('.csv') && normalized.includes('/public/layers/')) {
           contentCache = null
           invalidate(resolvedVirtualCsvId)
         }

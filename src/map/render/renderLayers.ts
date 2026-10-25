@@ -46,6 +46,8 @@ export interface RenderContext {
   isL2RegionMode: boolean;
   hasL3RegionMode: boolean;
   expandedL2Countries: Set<string>;
+  layerHoveredCountries: Set<string>;
+  layerHoveredL2Subdivisions: Set<string>;
   activeFilter: FilterDefinition;
   activeTextFilters: Set<string>;
   activeInternationalImageFilter: string | null;
@@ -100,6 +102,8 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     isL2RegionMode,
     hasL3RegionMode,
     expandedL2Countries,
+    layerHoveredCountries,
+    layerHoveredL2Subdivisions,
     activeFilter,
     activeRegionalFilters,
     countryPathData,
@@ -162,8 +166,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       if (!inView(bbox, copyOffset, k, x, y, vw, vh, 50)) continue;
 
       const isHovered =
-        hoveredC &&
-        (hoveredC.id === item.countryMeta?.id || (item.countryMeta && hoveredC.iso2 === item.countryMeta.iso2));
+        layerHoveredCountries.has(iso2 || '') ||
+        (hoveredC &&
+          (hoveredC.id === item.countryMeta?.id || (item.countryMeta && hoveredC.iso2 === item.countryMeta.iso2)));
       const isSelected =
         !selectedL2 &&
         selectedC &&
@@ -248,8 +253,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
               if (isCapital) {
                 ctx.fillStyle = MAP_COLORS.capitalFill;
                 ctx.fill(sub.path2D);
-                ctx.strokeStyle = MAP_COLORS.capitalStroke;
-                ctx.lineWidth = 1.6 / k;
+                const layerHovered = layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
+                ctx.strokeStyle = layerHovered ? '#ffffff' : MAP_COLORS.capitalStroke;
+                ctx.lineWidth = (layerHovered ? 1.8 : 1.6) / k;
                 ctx.stroke(sub.path2D);
               } else {
                 ctx.fillStyle = 'rgba(20, 26, 38, 0.75)';
@@ -270,6 +276,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         } else {
           const isParentSelected = selectedC?.iso2 === iso2 && !selectedL2;
           const isSiblingHovered =
+            layerHoveredCountries.has(iso2) ||
             (hoveredC?.iso2 === iso2) ||
             (hoveredL2 && hoveredL2.iso2 === iso2) ||
             (hoveredM && hoveredM.iso2 === iso2) ||
@@ -329,6 +336,23 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           ctx.lineWidth = 1.4 / k;
           ctx.stroke(hovSub.path2D);
           highlightHoverPaths.push(hovSub.path2D);
+        }
+      }
+
+      // Layer targets with matching nationwide entries receive the same visual
+      // emphasis as hover, without overwriting the pointer's actual hovered feature.
+      for (const iso2 of expandedL2Countries) {
+        const subs = l2ByCountry[iso2];
+        if (!subs) continue;
+        for (const sub of subs) {
+          if (!layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`)) continue;
+          if (activeRegionalFilters.has('nationwide-capital') && isCapitalSubdivision(iso2, sub)) continue;
+          ctx.fillStyle = MAP_COLORS.hovered;
+          ctx.fill(sub.path2D);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.4 / k;
+          ctx.stroke(sub.path2D);
+          highlightHoverPaths.push(sub.path2D);
         }
       }
     }
@@ -643,6 +667,8 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     visibleCopies,
     isL2RegionMode,
     expandedL2Countries,
+    layerHoveredCountries,
+    layerHoveredL2Subdivisions,
     activeRegionalFilters: activeReg,
     countryPathMap,
     l2ByCountry,
@@ -653,13 +679,8 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     badgeWidthCache: widthCache
   } = rc;
 
-  const isAreaCodeActive =
-    activeReg &&
-    (activeReg.has('nationwide-area-codes') ||
-      activeReg.has('br-ddd-codes') ||
-      activeReg.has('jp-area-codes') ||
-      activeReg.has('au-area-codes') ||
-      activeReg.has('fr-area-codes'));
+  const activeAreaCodeCountries = COUNTRIES_WITH_AREA_CODES.filter((iso2) => activeReg.has(`area-codes-${iso2}`));
+  const isAreaCodeActive = activeAreaCodeCountries.length > 0;
 
   const activeNationwideCsvTextFilters = activeReg
     ? getRegisteredCsvFilters().filter(
@@ -676,7 +697,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
   ctx.textBaseline = 'middle';
 
   if (isAreaCodeActive && isL2RegionMode) {
-    for (const iso2 of COUNTRIES_WITH_AREA_CODES) {
+    for (const iso2 of activeAreaCodeCountries) {
       if (!expandedL2Countries.has(iso2)) continue;
       const subs = l2ByCountry[iso2];
       if (!subs || subs.length === 0) continue;
@@ -772,7 +793,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
               hoveredL2 &&
               hoveredL2.iso2 === sub.iso2 &&
               (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
-            );
+            ) || layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
             const isSubSelected = !!(
               selectedL2 &&
               selectedL2.iso2 === sub.iso2 &&
@@ -826,6 +847,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
           if (screenX < -90 || screenX > vw + 90 || screenY < -30 || screenY > vh + 30) continue;
 
           const isCountryHovered = !!(hoveredC && hoveredC.iso2 === iso2);
+          const isLayerCountryHovered = layerHoveredCountries.has(iso2);
           const isCountrySelected = !!(selectedC && selectedC.iso2 === iso2);
 
           const badgeX = Math.round(screenX - badgeW / 2);
@@ -839,7 +861,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
             badgeH,
             5,
             isCountrySelected,
-            isCountryHovered,
+            isCountryHovered || isLayerCountryHovered,
             'rgba(15, 23, 42, 0.90)',
             csvFilter.accentColor,
             1.2,
@@ -847,7 +869,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
           );
 
           ctx.fillStyle =
-            isCountrySelected || isCountryHovered ? '#ffffff' : csvFilter.accentColor;
+            isCountrySelected || isCountryHovered || isLayerCountryHovered ? '#ffffff' : csvFilter.accentColor;
           ctx.fillText(countryLevelText, screenX, screenY + 0.5);
         }
       }

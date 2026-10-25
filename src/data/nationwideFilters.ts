@@ -370,20 +370,24 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     descriptionZh: '台灣電線桿/變電箱藍牌電力座標：首碼字母代表 80km×50km 大分區，後 4 碼數字代表西/南邊界的百分比座標 (00~99)'
   },
 
-  // 2. Text Layer: Domestic Area Codes
-  {
-    id: 'nationwide-area-codes',
-    targetIso2: '*',
-    targetIso2s: COUNTRIES_WITH_AREA_CODES,
-    nameZh: '國內區域碼',
-    nameEn: 'Domestic Area Codes',
-    shortBadge: '📞 區碼',
-    titleZh: '各邦/都道府縣國內電話區碼 (Domestic Area Codes)',
-    titleEn: 'Domestic Area Telephone Codes',
-    activeColor: '#10b981',
-    layerType: 'text',
-    descriptionZh: '顯示當前國家各一級行政區之國內電話區號（巴西 1x~9x、日本 01~09、法國 01~05、泰國 02~07、俄羅斯 495 等）'
-  },
+  // 2. Text Layers: Domestic Area Codes (individually controllable per country)
+  ...COUNTRIES_WITH_AREA_CODES.map((iso2): NationwideFilterDef => {
+    const country = findCountry(iso2);
+    const countryName = country?.name || iso2;
+    const countryNameZh = country?.nameZh || iso2;
+    return {
+      id: `area-codes-${iso2}`,
+      targetIso2: iso2,
+      nameZh: `${countryNameZh}國內區域碼`,
+      nameEn: `${countryName} Domestic Area Codes`,
+      shortBadge: `📞 ${iso2} 區碼`,
+      titleZh: `${countryNameZh}各一級行政區國內電話區碼`,
+      titleEn: `${countryName} Domestic Area Codes`,
+      activeColor: '#10b981',
+      layerType: 'text',
+      descriptionZh: `顯示${countryNameZh}各一級行政區之國內電話區號`
+    };
+  }),
 
   // 3. Dynamically registered Nationwide CSV Filters from filter-reg.csv
   ...getRegisteredCsvFilters()

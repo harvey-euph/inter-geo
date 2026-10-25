@@ -24,13 +24,13 @@ export interface TextFilterDef {
 
 /**
  * Standard International Calling Codes (ISO-2 -> Telephone Prefix)
- * Populated from `/src/content/layers/country-code.csv` via `filter-reg.csv`
+ * Populated from `/layers/country-code.csv` via the CSV layer index
  */
 export const COUNTRY_CALLING_CODES: Record<string, string> = getCsvFilterRecord('callingCode');
 
 /**
  * Country Top-Level Domains (ISO-2 -> ccTLD)
- * Populated from `/src/content/layers/tld.csv` via `filter-reg.csv`
+ * Populated from `/layers/tld.csv` via the CSV layer index
  */
 export const COUNTRY_TLDS: Record<string, string> = getCsvFilterRecord('tld');
 
@@ -63,7 +63,7 @@ export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = {
 
 /**
  * Dynamically builds `GLOBAL_TEXT_FILTERS` from all `International` + `Text` filters
- * registered in `/src/content/layers/filter-reg.csv`.
+ * registered from CSV files in `/layers/`.
  */
 export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
   .filter((f) => f.rangeKind === 'International' && f.type === 'Text')

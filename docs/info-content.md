@@ -1,6 +1,6 @@
 # Info 內容與圖片
 
-Info 卡片內容位於 `src/content/info/*.md`。每個 Markdown 區段可用 `targets` 指定對應的國家、行政區或其他地圖對象；`tags` 用來描述主題。卡片的主圖可用 `image` 欄位設定，文章條列內容也支援行內 Markdown 圖片。
+Info 卡片內容位於 `public/info/*.md`。每個一級 `#` 標題代表一個項目，標題下方可用 metadata 條列設定 `targets`、`tags`、圖片等內容；項目之間不使用 `---` 分隔。文章與圖層 CSV 會由 Vite 在建置時建立索引，瀏覽器透過 `BASE_URL` 從 `/info/` 和 `/layers/` 按需載入內容。
 
 ## 卡片主圖
 
