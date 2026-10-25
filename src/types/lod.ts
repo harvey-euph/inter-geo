@@ -10,7 +10,7 @@ export interface LODThreshold {
 }
 
 export const MIN_ZOOM_K = 1.0;
-export const MAX_ZOOM_K = 120.0;
+export const MAX_ZOOM_K = 360.0;
 
 export const LOD_THRESHOLDS: LODThreshold[] = [
   {

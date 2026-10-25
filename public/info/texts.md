@@ -1405,7 +1405,7 @@
 - id: belgium-language
 - targets: BE
 - icon: 🇧🇪
-- accent: #000000
+- accent: #ef4444
 - tags: 比利時, 荷蘭語, 法語, 德語
 
 - **Nederlands**:
@@ -1460,7 +1460,7 @@
 - id: germany-language
 - targets: DE
 - icon: 🇩🇪
-- accent: #000000
+- accent: #ef4444
 - tags: 德國, 德語
 
 - **Deutsch**:
@@ -1774,7 +1774,7 @@
 - id: newzealand-language
 - targets: NZ
 - icon: 🇳🇿
-- accent: #000000
+- accent: #ef4444
 - tags: 紐西蘭, 英語, 毛利語
 
 - **English**:
