@@ -1,7 +1,6 @@
 import type { CountryData } from '../types/geo';
 import {
   getRegisteredCsvFilters,
-  getCsvFilterRecord,
   getCsvFilterValue
 } from '../filters/csvFilterRegistry';
 
@@ -21,18 +20,6 @@ export interface TextFilterDef {
   /** Function to extract text string from country data */
   getText: (country: CountryData) => string | null;
 }
-
-/**
- * Standard International Calling Codes (ISO-2 -> Telephone Prefix)
- * Populated from `/layers/country-code.csv` via the CSV layer index
- */
-export const COUNTRY_CALLING_CODES: Record<string, string> = getCsvFilterRecord('callingCode');
-
-/**
- * Country Top-Level Domains (ISO-2 -> ccTLD)
- * Populated from `/layers/tld.csv` via the CSV layer index
- */
-export const COUNTRY_TLDS: Record<string, string> = getCsvFilterRecord('tld');
 
 /**
  * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
@@ -80,14 +67,6 @@ export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
 export const GLOBAL_TEXT_FILTERS_BY_ID = new Map<string, TextFilterDef>(
   GLOBAL_TEXT_FILTERS.map((f) => [f.id, f])
 );
-
-export function getCountryCallingCode(iso2: string): string | null {
-  return getCsvFilterValue('callingCode', iso2);
-}
-
-export function getCountryTld(iso2: string): string | null {
-  return getCsvFilterValue('tld', iso2);
-}
 
 export function getCombinedTextOverlay(country: CountryData, activeFilterIds: Set<string>): string | null {
   const parts: string[] = [];

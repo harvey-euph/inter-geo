@@ -1,18 +1,14 @@
 import {
-  COUNTRY_CALLING_CODES,
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_FILTERS,
   GLOBAL_TEXT_FILTERS_BY_ID,
-  getCountryCallingCode,
   getCombinedTextOverlay
 } from './globalFilters';
 
 export {
-  COUNTRY_CALLING_CODES,
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_FILTERS as INTERNATIONAL_TEXT_FILTERS,
   GLOBAL_TEXT_FILTERS_BY_ID as INTERNATIONAL_TEXT_FILTERS_BY_ID,
-  getCountryCallingCode,
   getCombinedTextOverlay
 };
 

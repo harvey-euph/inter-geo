@@ -81,7 +81,7 @@ async function decode(req: DecodeRequest): Promise<DecodeResponse> {
     const feature = raw as Feature;
     if (!isValidGeometry(feature.geometry, req.kind)) continue; // 跳過空 ring / 非道路折線
 
-    let d = '';
+    let d: string;
     try {
       d = pathGenerator(feature) || '';
     } catch {

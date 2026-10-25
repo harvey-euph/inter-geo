@@ -1005,7 +1005,6 @@ export function drawTaipowerLabels(rc: RenderContext): void {
     vh,
     dpr,
     visibleCopies,
-    expandedL2Countries,
     hasL3RegionMode,
     activeRegionalFilters,
     taipowerZoneRenderItems: tpItems,

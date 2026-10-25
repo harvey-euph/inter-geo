@@ -36,7 +36,6 @@ export const L3ChildPicker: React.FC<L3ChildPickerProps> = ({ subdivision, onSel
   useEffect(() => {
     if (!open || rows || !partition) return;
     let cancelled = false;
-    setError(false);
     loadL3Children(subdivision.iso2, {
       id: subdivision.id,
       code: subdivision.code,
@@ -71,7 +70,10 @@ export const L3ChildPicker: React.FC<L3ChildPickerProps> = ({ subdivision, onSel
         type="button"
         className="btn-primary l3-child-toggle"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open) setError(false);
+          setOpen((value) => !value);
+        }}
       >
         <ChevronDown size={16} className={open ? 'l3-child-chevron open' : 'l3-child-chevron'} />
         <span>下一級行政區（{count}）</span>

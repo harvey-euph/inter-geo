@@ -316,10 +316,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const rafId = useRef<number | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
   const isMouseInsideRef = useRef(false);
-  const hasFinePointerRef = useRef(
-    typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  const [hasFinePointer] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   );
-  const [centerCursorEnabled, setCenterCursorEnabled] = useState(() => !hasFinePointerRef.current);
+  const hasFinePointerRef = useRef(hasFinePointer);
+  const [centerCursorEnabled, setCenterCursorEnabled] = useState(!hasFinePointer);
   const centerCursorEnabledRef = useRef(centerCursorEnabled);
   const isInitializedRef = useRef(false);
 
@@ -790,7 +791,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Keep nationwide filter availability tied to its target bbox, independently of the hovered LOD.
   const syncRegionalFiltersViewport = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number, _currentLOD: LODLevel = lodLevelRef.current) => {
+    (k: number, x: number, y: number, vw: number, vh: number) => {
       const nextVisible: RegionalFilterDef[] = [];
 
       for (let i = 0; i < REGIONAL_FILTERS.length; i++) {
@@ -857,9 +858,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Unified viewport synchronizer for L3, Road networks, and Regional Filters
   const syncAllViewports = useCallback(
-    (k: number, x: number, y: number, vw: number, vh: number, currentLOD: LODLevel) => {
+    (k: number, x: number, y: number, vw: number, vh: number) => {
       syncRoadsViewport(k, x, y, vw, vh, isAnyRoadActive());
-      syncRegionalFiltersViewport(k, x, y, vw, vh, currentLOD);
+      syncRegionalFiltersViewport(k, x, y, vw, vh);
       scheduleViewUrlSync();
     },
     [syncRoadsViewport, syncRegionalFiltersViewport, isAnyRoadActive, scheduleViewUrlSync]
@@ -1640,24 +1641,26 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, getHoverClientPoint]
   );
 
-  hoverUpdateRef.current = updateHoverAtPoint;
-  hoverExpansionCheckRef.current = () => {
-    const signature = getHoverExpansionSignature();
-    if (signature === hoverExpansionSignatureRef.current) return;
-    hoverExpansionSignatureRef.current = signature;
-    const point = getHoverClientPoint();
-    hoverUpdateRef.current(point.x, point.y);
-  };
-  scheduleHoverSettleRef.current = () => {
-    if (hoverSettleTimerRef.current) clearTimeout(hoverSettleTimerRef.current);
-    hoverSettleTimerRef.current = setTimeout(() => {
-      hoverSettleTimerRef.current = null;
-      if (canTrackHover()) {
-        const point = getHoverClientPoint();
-        hoverUpdateRef.current(point.x, point.y);
-      }
-    }, 100);
-  };
+  useEffect(() => {
+    hoverUpdateRef.current = updateHoverAtPoint;
+    hoverExpansionCheckRef.current = () => {
+      const signature = getHoverExpansionSignature();
+      if (signature === hoverExpansionSignatureRef.current) return;
+      hoverExpansionSignatureRef.current = signature;
+      const point = getHoverClientPoint();
+      hoverUpdateRef.current(point.x, point.y);
+    };
+    scheduleHoverSettleRef.current = () => {
+      if (hoverSettleTimerRef.current) clearTimeout(hoverSettleTimerRef.current);
+      hoverSettleTimerRef.current = setTimeout(() => {
+        hoverSettleTimerRef.current = null;
+        if (canTrackHover()) {
+          const point = getHoverClientPoint();
+          hoverUpdateRef.current(point.x, point.y);
+        }
+      }, 100);
+    };
+  }, [updateHoverAtPoint, getHoverExpansionSignature, getHoverClientPoint, canTrackHover]);
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (activePointers.current.has(e.pointerId)) {
@@ -1707,7 +1710,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
 
-      const now = performance.now();
+      const now = e.timeStamp;
       if (now - lastDragSyncTime.current > 200) {
         lastDragSyncTime.current = now;
         syncAllViewports(
@@ -1715,8 +1718,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.x,
           transformRef.current.y,
           viewportSize.current.w,
-          vh,
-          nextLOD
+          vh
         );
       }
 
@@ -1750,7 +1752,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = wrapX(rawX, k);
       transformRef.current.y = clampY(rawY, k, vh);
 
-      const now = performance.now();
+      const now = e.timeStamp;
       if (now - lastDragSyncTime.current > 200) {
         lastDragSyncTime.current = now;
         syncRegionalFiltersViewport(
@@ -1758,8 +1760,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.x,
           transformRef.current.y,
           viewportSize.current.w,
-          vh,
-          lodLevelRef.current
+          vh
         );
       }
 
@@ -1826,8 +1827,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       syncAllViewports(
         k, x, y,
         viewportSize.current.w,
-        viewportSize.current.h,
-        lodLevelRef.current
+        viewportSize.current.h
       );
       updateHoverAtPoint(mousePos.current.x, mousePos.current.y);
     } else if (remaining === 1) {
@@ -1849,8 +1849,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       syncAllViewports(
         k, x, y,
         viewportSize.current.w,
-        viewportSize.current.h,
-        lodLevelRef.current
+        viewportSize.current.h
       );
     }
   };
@@ -1898,7 +1897,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
-      syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh, nextLOD);
+      syncAllViewports(newK, transformRef.current.x, transformRef.current.y, viewportSize.current.w, vh);
       hoverExpansionCheckRef.current();
       scheduleHoverSettleRef.current();
       requestRender();
@@ -1928,7 +1927,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const nextLOD = getLODLevel(newK);
       applyLOD(nextLOD);
       animateTo(newK, newX, newY, 280, () => {
-        syncAllViewports(newK, newX, newY, vw, vh, nextLOD);
+        syncAllViewports(newK, newX, newY, vw, vh);
       });
     },
     [wrapX, clampY, applyLOD, animateTo, syncAllViewports, getHoverClientPoint]
@@ -1948,7 +1947,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const targetLOD = getLODLevel(kMin);
     applyLOD(targetLOD);
     animateTo(kMin, targetX, targetY, 320, () => {
-      syncAllViewports(kMin, targetX, targetY, vw, vh, targetLOD);
+      syncAllViewports(kMin, targetX, targetY, vw, vh);
     });
   }, [wrapX, clampY, applyLOD, animateTo, syncAllViewports]);
 
@@ -2072,8 +2071,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x,
       transformRef.current.y,
       viewportSize.current.w,
-      viewportSize.current.h,
-      lodLevel
+      viewportSize.current.h
     );
     requestRender();
   }, [lodLevel, requestRender, syncRegionalFiltersViewport]);
@@ -2110,7 +2108,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       };
       requestRender();
     }
-  }, [selectedSubdivision, selectedMunicipality, loadL3PackForSubdivision, requestRender]);
+  }, [selectedSubdivision, selectedMunicipality, loadL3PackForSubdivision, requestRender, canTrackHover, getHoverClientPoint]);
 
   useEffect(() => {
     showRoadsRef.current = showRoads;
@@ -2333,7 +2331,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     zoomToSubdivisionRef,
     initialFocusTarget,
     focusMapRef,
-    getActiveLayerHoverTargets
+    getActiveLayerHoverTargets,
+    getHoverClientPoint
   ]);
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets (decoded in background worker)
@@ -2422,7 +2421,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
           transformRef.current.y = clampY(transformRef.current.y, newK, height);
           transformRef.current.x = wrapX(transformRef.current.x, newK);
-          syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height, lodLevelRef.current);
+          syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height);
           requestRender();
         }
       }
@@ -2463,7 +2462,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
       const initialLOD = getLODLevel(initialK);
-      syncAllViewports(initialK, initialX, initialY, vw, vh, initialLOD);
+      syncAllViewports(initialK, initialX, initialY, vw, vh);
       setLodLevel(initialLOD);
       lodLevelRef.current = initialLOD;
       renderCanvas();
@@ -2606,7 +2605,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (targetLOD !== 'L3') activeL3ParentRef.current = null;
       }
       animateTo(targetK, targetX, targetY, 380, () => {
-        syncAllViewports(targetK, targetX, targetY, vw, vh, targetLOD);
+        syncAllViewports(targetK, targetX, targetY, vw, vh);
       });
     };
 
@@ -2691,7 +2690,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         };
       }
       animateTo(targetK, targetX, targetY, 380, () => {
-        syncAllViewports(targetK, targetX, targetY, vw, vh, targetLOD);
+        syncAllViewports(targetK, targetX, targetY, vw, vh);
       });
     };
   }, [zoomToSubdivisionRef, wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD]);
@@ -2828,7 +2827,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     >
       <canvas ref={canvasRef} className="world-map-canvas" />
 
-      {!hasFinePointerRef.current && centerCursorEnabled && (
+      {!hasFinePointer && centerCursorEnabled && (
         <div className="map-center-cursor" aria-hidden="true">
           <span className="map-center-cursor-horizontal" />
           <span className="map-center-cursor-vertical" />
@@ -2881,7 +2880,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredTaipowerZone={hoveredTaipowerZone}
         activeRegionalFilters={activeRegionalFilters}
         onOpenFullInfo={
-          !hasFinePointerRef.current &&
+          !hasFinePointer &&
           (hoveredRoad || hoveredCountry || hoveredMunicipality || hoveredL2Subdivision)
             ? openHoveredFullInfo
             : undefined
@@ -2894,7 +2893,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         isFilterExpanded={isFilterExpanded}
         activeTextFilters={activeTextFilters}
         activeInternationalImageFilter={activeInternationalImageFilter}
-        isL2RegionMode={getExpandedL2Countries().size > 0}
+        isL2RegionMode={lodLevel !== 'L1'}
         activeRegionalFilters={activeRegionalFilters}
       />
 
@@ -2907,7 +2906,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         panelOpen={Boolean(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad)}
         panelWidth={detailPanelWidth}
         panelFullWidth={detailPanelFullWidth}
-        showCenterCursorControl={!hasFinePointerRef.current}
+        showCenterCursorControl={!hasFinePointer}
         centerCursorEnabled={centerCursorEnabled}
         onToggleCenterCursor={toggleCenterCursor}
       />

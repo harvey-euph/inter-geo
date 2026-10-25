@@ -1,6 +1,5 @@
 import {
   getAssignableRegionList,
-  parseEffectiveRange,
   type AssignableRegionList
 } from './assignableRegions';
 
@@ -113,18 +112,6 @@ export function splitCsvLine(line: string): string[] {
   return cells;
 }
 
-function normalizeCsvPath(rawPath: string): string {
-  const cleaned = rawPath.trim().replace(/^['"<]+|['">]+$/g, '');
-  if (cleaned.startsWith('/layers/')) return cleaned;
-  const relative = cleaned.replace(/^\.\//, '');
-  return `/layers/${relative}`;
-}
-
-function deriveIdFromPath(csvPath: string): string {
-  const fileName = csvPath.split('/').pop() || csvPath;
-  return fileName.replace(/\.csv$/i, '');
-}
-
 function parseLoadedTiming(raw: string): CsvLoadedTiming {
   const norm = raw.trim().toLowerCase();
   if (norm === 'init' || norm === 'eager' || norm === 'startup') {
@@ -139,92 +126,6 @@ function parseFilterType(raw: string): CsvFilterType {
   if (norm === 'text' || norm === 'label' || norm === 'badge') return 'Text';
   if (norm === 'image' || norm === 'icon' || norm === 'img') return 'Image';
   return 'Special';
-}
-
-/**
- * Parses `filter-reg.csv` into structured `CsvFilterRegistryEntry` items.
- *
- * Expected columns (case-insensitive):
- * `Loaded Timing, Effective Range, Path, Type`
- * (Also supports optional columns: `Id, NameZh, NameEn, ShortBadge, AccentColor, DescriptionZh`)
- */
-export function parseFilterRegistryCsv(csvText: string): CsvFilterRegistryEntry[] {
-  const lines = csvText.split(/\r?\n/);
-  const entries: CsvFilterRegistryEntry[] = [];
-
-  let headerMap: Map<string, number> | null = null;
-
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const rawLine = lines[lineIdx].trim();
-    if (!rawLine || rawLine.startsWith('//') || rawLine.startsWith('#')) {
-      continue;
-    }
-
-    const cells = splitCsvLine(rawLine);
-    if (cells.length < 4) continue;
-
-    // Detect header row on first non-comment line
-    if (!headerMap) {
-      const normalizedHeaders = cells.map((c) => c.toLowerCase().replace(/[\s_-]+/g, ''));
-      if (
-        normalizedHeaders.includes('loadedtiming') ||
-        normalizedHeaders.includes('effectiverange') ||
-        normalizedHeaders.includes('path')
-      ) {
-        headerMap = new Map<string, number>();
-        normalizedHeaders.forEach((h, idx) => headerMap!.set(h, idx));
-        continue;
-      }
-      // Fallback positional mapping: Loaded Timing, Effective Range, Path, Type
-      headerMap = new Map<string, number>([
-        ['loadedtiming', 0],
-        ['effectiverange', 1],
-        ['path', 2],
-        ['type', 3]
-      ]);
-    }
-
-    const getCell = (key: string, fallbackIdx?: number): string => {
-      const idx = headerMap?.get(key) ?? fallbackIdx;
-      return idx !== undefined && idx < cells.length ? cells[idx] : '';
-    };
-
-    const rawTiming = getCell('loadedtiming', 0);
-    const rawRange = getCell('effectiverange', 1);
-    const rawPath = getCell('path', 2);
-    const rawType = getCell('type', 3);
-
-    if (!rawPath) continue;
-
-    const normalizedPath = normalizeCsvPath(rawPath);
-    const { kind: rangeKind, targetIso2, targetIso2s } = parseEffectiveRange(rawRange || 'International');
-    const assignableList = getAssignableRegionList(rawRange || 'International');
-
-    const explicitId = getCell('id');
-    const meta: CsvFilterMetadata = {
-      id: explicitId || undefined,
-      nameZh: getCell('namezh') || undefined,
-      nameEn: getCell('nameen') || undefined,
-      shortBadge: getCell('shortbadge') || undefined,
-      accentColor: getCell('accentcolor') || undefined,
-      descriptionZh: getCell('descriptionzh') || undefined
-    };
-
-    entries.push({
-      id: explicitId || deriveIdFromPath(normalizedPath),
-      loadedTiming: parseLoadedTiming(rawTiming || 'init'),
-      effectiveRange: rawRange.trim() || 'International',
-      rangeKind,
-      targetIso2,
-      targetIso2s,
-      assignableList,
-      path: normalizedPath,
-      type: parseFilterType(rawType || 'Text'),
-      meta
-    });
-  }
-
-  return entries;
 }
 
 /**
