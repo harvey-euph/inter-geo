@@ -221,9 +221,12 @@ flowchart LR
 // @shortBadge: 🚦 方向
 // @group: fill-region
 // @type: FillWithColor
-// @default-color: #3b82f6
+// @default-color: #1e2430
 // @order: 8
-// @descriptionZh: 全球各國道路通行方向（靠左行駛 #f59e0b 與靠右行駛 #3b82f6）制度分布
+// @descriptionZh: 全球各國道路通行方向（靠左行駛 #f59e0b 與靠右行駛 #3b82f6，無街景或未收錄 #1e2430）制度分布
+// @legend: #f59e0b: 靠左行駛 (Left-hand Drive)
+// @legend: #3b82f6: 靠右行駛 (Right-hand Drive)
+// @legend: #1e2430: 無街景或未收錄
 region-id,value,label
 JP,#f59e0b,靠左
 GB,#f59e0b,靠左
