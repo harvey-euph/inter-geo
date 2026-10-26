@@ -37,6 +37,25 @@ export function normalizeDataPath(rawPath: string): string {
   if (p.startsWith('data/roads/')) {
     return p.replace(/^data\/roads\/([A-Za-z0-9_-]+)\.fgb$/, 'data/$1-roads.fgb');
   }
+  if (p.startsWith('layers/') && !p.includes('/', 7)) {
+    const fn = p.slice(7);
+    const fillRegionFiles = [
+      'base.csv',
+      'car-meta.csv',
+      'coverage.csv',
+      'driving-side.csv',
+      'plate-type.csv',
+      'poles.csv',
+      'road-markings.csv'
+    ];
+    const extObjectFiles = ['taiwan-power-poles.csv'];
+    const globalLabelFiles = ['country-code.csv', 'currency.csv', 'flags.csv', 'tld.csv'];
+    const areaLabelFiles = ['distinctive-letters.csv', 'india-scripts.csv', 'street-words.csv'];
+    if (fillRegionFiles.includes(fn)) return `layers/fill-region-with-color/${fn}`;
+    if (extObjectFiles.includes(fn)) return `layers/ext-object/${fn}`;
+    if (globalLabelFiles.includes(fn)) return `layers/global-label/${fn}`;
+    if (areaLabelFiles.includes(fn)) return `layers/area-label/${fn}`;
+  }
   return p;
 }
 

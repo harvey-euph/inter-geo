@@ -109,8 +109,8 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     const areaLabel: RegisteredCsvLayer[] = [];
 
     for (const f of allCsvLayers) {
-      const g = (f.meta.group as string) || '';
-      if (g === 'fill-region' || f.type === 'FillWithColor') {
+      const g = (f.meta.group as string) || (f.group as string) || '';
+      if (g === 'fill-region' || g === 'fill-region-with-color' || f.type === 'FillWithColor') {
         fillRegion.push({
           id: f.id,
           nameZh: f.nameZh,

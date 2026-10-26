@@ -7,6 +7,7 @@ import {
 } from './assignableRegions';
 import {
   parseLayerDataCsv,
+  type CsvLayerKVRow,
   type CsvLayerMetadata,
   type CsvLayerType,
   type ParsedCsvLayerData
@@ -42,7 +43,7 @@ export interface RegisteredCsvLayer {
   /** Layer type */
   type: CsvLayerType;
   /** Layer category group for accordion UI */
-  group: 'fill-region' | 'ext-object' | 'global-label' | 'area-label';
+  group: 'fill-region' | 'fill-region-with-color' | 'ext-object' | 'global-label' | 'area-label';
   /** Display order */
   order: number;
   /** Loading timing ('on-demand' or 'init') */
@@ -71,6 +72,8 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
   const effectiveRange = lm.effectiveRange || 'International';
   const { kind: rangeKind, targetIso2, targetIso2s } = parseEffectiveRange(effectiveRange);
   const assignableList = getAssignableRegionList(effectiveRange);
+  const rawGroup = lm.group || 'global-label';
+  const group = rawGroup === 'fill-region-with-color' ? 'fill-region' : rawGroup;
 
   return {
     id: lm.id,
@@ -87,7 +90,7 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     targetIso2s,
     assignableList,
     type: (lm.type as CsvLayerType) || 'Text',
-    group: lm.group || 'global-label',
+    group,
     order: lm.order ?? 999,
     loadedTiming: lm.loadedTiming || 'on-demand',
     goto: lm.goto || undefined,
@@ -234,6 +237,25 @@ export function getCsvLayerValue(layerId: string, regionId: string): string | nu
   return null;
 }
 export const getCsvFilterValue = getCsvLayerValue;
+
+/**
+ * Returns the full CsvLayerKVRow object with all custom column attributes.
+ */
+export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow | undefined {
+  if (!regionId) return undefined;
+  const layer = getCsvLayerById(layerId);
+  if (!layer || !layer.data) return undefined;
+
+  const upper = regionId.trim().toUpperCase();
+  const direct = layer.data.rowMap.get(upper);
+  if (direct !== undefined) return direct;
+
+  for (const key of layer.assignableList.normalizeId(upper)) {
+    const r = layer.data.rowMap.get(key);
+    if (r !== undefined) return r;
+  }
+  return undefined;
+}
 
 /**
  * Looks up an L2 subdivision's value in a Nationwide CSV layer.

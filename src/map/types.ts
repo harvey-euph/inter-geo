@@ -79,6 +79,7 @@ export interface ExtFeatureItem {
   label: string;
   color: string;
   bbox: [number, number, number, number];
+  attributes?: Record<string, string>;
 }
 
 export interface ExtFeatureRenderItem extends ExtFeatureItem {

@@ -70,13 +70,25 @@ export async function loadExtObjectLayerFeatures(
         const id = String(feature.id ?? props.id ?? props.code ?? props.name ?? '').trim();
         if (!id) continue;
 
-        const name = String(props.name ?? props.title ?? id);
+        const row =
+          csvLayer.data?.rowMap.get(id.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(id);
+
+        const name =
+          row?.attributes?.nameZh ||
+          row?.attributes?.name ||
+          String(props.name ?? props.title ?? id);
+
         const color =
+          row?.value ||
           getCsvLayerValue(layerId, id) ||
           (props.color as string) ||
           csvLayer.accentColor ||
           '#38bdf8';
+
         const label =
+          row?.label ||
+          row?.attributes?.subdivisions ||
           csvLayer.data?.labelMap.get(id.toUpperCase()) ||
           (props.nameZh as string) ||
           (props.description as string) ||
@@ -166,7 +178,8 @@ export async function loadExtObjectLayerFeatures(
             centroid,
             bbox: [minX, minY, maxX, maxY],
             corners,
-            innerGrid: isPercentageGrid ? 'percentage' : undefined
+            innerGrid: isPercentageGrid ? 'percentage' : undefined,
+            attributes: row?.attributes
           });
         }
       }

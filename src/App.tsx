@@ -64,7 +64,11 @@ export function App() {
           countryFlag: initialCountry.flag
         }
       : null;
-  const isFillRegion = isBaseLayer || initialCsvLayer?.type === 'FillWithColor' || initialCsvLayer?.group === 'fill-region';
+  const isFillRegion =
+    isBaseLayer ||
+    initialCsvLayer?.type === 'FillWithColor' ||
+    initialCsvLayer?.group === 'fill-region' ||
+    initialCsvLayer?.group === 'fill-region-with-color';
   const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'base');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
     () => new Set(initialCsvLayer?.type === 'Text' ? [effectiveLayerCandidate] : [])

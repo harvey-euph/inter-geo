@@ -216,8 +216,23 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             <span className="tooltip-badge" style={{ color: hoveredExtFeature.color, fontFamily: 'monospace', fontWeight: 700 }}>
               {hoveredExtFeature.id}
             </span>
+            {hoveredExtFeature.attributes?.examplePoleCode && (
+              <span className="tooltip-badge" style={{ color: '#fbbf24', fontFamily: 'monospace', fontWeight: 700 }}>
+                電桿範例: {hoveredExtFeature.attributes.examplePoleCode}
+              </span>
+            )}
             <span className="tooltip-badge">{gridObjectId(hoveredExtFeature.id)}</span>
           </div>
+          {hoveredExtFeature.attributes?.subdivisions && (
+            <div style={{ marginTop: 4, fontSize: 11, color: '#cbd5e1' }}>
+              涵蓋：{hoveredExtFeature.attributes.subdivisions}
+            </div>
+          )}
+          {hoveredExtFeature.attributes?.description && (
+            <div style={{ marginTop: 2, fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+              {hoveredExtFeature.attributes.description}
+            </div>
+          )}
           {renderStubsPreview(
             queryInfoStubs({ targetId: hoveredExtFeature.id, taipowerLetter: hoveredExtFeature.id })
           )}

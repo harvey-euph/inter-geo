@@ -25,7 +25,7 @@ export interface LayerMeta {
   nameEn: string;
   shortBadge: string | null;
   type: string;
-  group: 'fill-region' | 'ext-object' | 'global-label' | 'area-label';
+  group: 'fill-region' | 'fill-region-with-color' | 'ext-object' | 'global-label' | 'area-label';
   order: number;
   accentColor: string | null;
   defaultColor: string | null;
@@ -37,6 +37,7 @@ export interface LayerMeta {
   legend?: Array<{ key: string; color: string; labelZh: string }> | null;
   fgb?: string | null;
   innerGrid?: string | null;
+  columns?: string[];
   rowCount: number;
   targetKeys: string[];
 }

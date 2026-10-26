@@ -74,18 +74,25 @@ export interface CsvLayerKVRow {
   value: string;
   /** Optional 3rd column label/note for legend or tooltip */
   label?: string;
+  /** All parsed column attributes as a key-value dictionary */
+  attributes: Record<string, string>;
+  [key: string]: unknown;
 }
 export type CsvFilterKVRow = CsvLayerKVRow;
 
 export interface ParsedCsvLayerData {
   /** Metadata parsed from `// @key: value` header directives inside the CSV */
   meta: CsvLayerMetadata;
+  /** Column names from CSV header row */
+  columns: string[];
   /** Ordered K-V rows from the CSV */
   rows: CsvLayerKVRow[];
   /** O(1) lookup map from normalized region-id (and its aliases) to value */
   valueMap: Map<string, string>;
   /** O(1) lookup map from normalized region-id to optional 3rd-column label */
   labelMap: Map<string, string>;
+  /** O(1) lookup map from normalized region-id to full row object with all attributes */
+  rowMap: Map<string, CsvLayerKVRow>;
   /** Region IDs that did not match the assignable list for the layer's Effective Range */
   invalidRegionIds: string[];
 }
@@ -157,9 +164,14 @@ export function parseLayerDataCsv(
   const rows: CsvLayerKVRow[] = [];
   const valueMap = new Map<string, string>();
   const labelMap = new Map<string, string>();
+  const rowMap = new Map<string, CsvLayerKVRow>();
   const invalidRegionIds: string[] = [];
 
-  let isFirstDataRow = true;
+  let columns: string[] = [];
+  let regionIdCol = 0;
+  let valueCol = 1;
+  let labelCol = 2;
+  let hasCheckedHeader = false;
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i].trim();
@@ -178,6 +190,9 @@ export function parseLayerDataCsv(
         else if (key === 'accentColor') meta.accentColor = val;
         else if (key === 'default-color' || key === 'defaultcolor') meta.defaultColor = val;
         else if (key === 'goto') meta.goto = val;
+        else if (key === 'group') meta.group = val;
+        else if (key === 'fgb') meta.fgb = val;
+        else if (key === 'innerGrid' || key === 'inner-grid') meta.innerGrid = val;
         else if (key === 'descriptionZh') meta.descriptionZh = val;
         else if (key === 'focusTarget') meta.focusTarget = val;
         else if (key === 'effectiveRange' || key === 'range') meta.effectiveRange = val;
@@ -201,18 +216,82 @@ export function parseLayerDataCsv(
     const cells = splitCsvLine(rawLine);
     if (cells.length < 2) continue;
 
-    const [rawRegionId, rawValue, rawLabel] = cells;
+    // Check if first non-comment row is a column header row
+    if (!hasCheckedHeader) {
+      hasCheckedHeader = true;
+      const rawCols = cells.map((c) => c.trim().replace(/^"|"$/g, ''));
+      const normFirst = (rawCols[0] || '').toLowerCase().replace(/[\s_-]+/g, '');
+      const isHeader =
+        normFirst === 'regionid' ||
+        normFirst === 'region' ||
+        normFirst === 'iso2' ||
+        normFirst === 'id' ||
+        normFirst === 'key' ||
+        normFirst === 'code' ||
+        normFirst === 'letter' ||
+        rawCols.some((c) =>
+          ['color', 'value', 'label', 'namezh', 'nameen', 'examplepolecode', 'subdivisions'].includes(
+            c.toLowerCase().replace(/[\s_-]+/g, '')
+          )
+        );
 
-    // Skip optional header line if someone writes `region-id, value` at the top of the CSV
-    if (isFirstDataRow) {
-      isFirstDataRow = false;
-      const normKey = rawRegionId.toLowerCase().replace(/[\s_-]+/g, '');
-      if (normKey === 'regionid' || normKey === 'region' || normKey === 'iso2' || normKey === 'key') {
+      if (isHeader) {
+        columns = rawCols;
+        for (let cIdx = 0; cIdx < rawCols.length; cIdx++) {
+          const normCol = rawCols[cIdx].toLowerCase().replace(/[\s_-]+/g, '');
+          if (
+            normCol === 'regionid' ||
+            normCol === 'region' ||
+            normCol === 'iso2' ||
+            normCol === 'id' ||
+            normCol === 'code' ||
+            normCol === 'key' ||
+            normCol === 'letter'
+          ) {
+            regionIdCol = cIdx;
+          } else if (
+            normCol === 'color' ||
+            normCol === 'value' ||
+            normCol === 'val' ||
+            normCol === 'text' ||
+            normCol === 'image'
+          ) {
+            valueCol = cIdx;
+          } else if (
+            normCol === 'label' ||
+            normCol === 'namezh' ||
+            normCol === 'desc' ||
+            normCol === 'description' ||
+            normCol === 'subdivisions'
+          ) {
+            if (labelCol === 2 || normCol === 'label') {
+              labelCol = cIdx;
+            }
+          }
+        }
         continue;
+      } else {
+        columns = ['regionId', 'value', 'label'];
       }
     }
 
+    const rawRegionId = cells[regionIdCol] || cells[0] || '';
+    const rawValue = cells[valueCol] || cells[1] || '';
     if (!rawRegionId || !rawValue) continue;
+
+    const attributes: Record<string, string> = {};
+    for (let cIdx = 0; cIdx < cells.length; cIdx++) {
+      const colName = columns[cIdx] || `col${cIdx}`;
+      attributes[colName] = cells[cIdx];
+    }
+
+    const rawLabel =
+      cells[labelCol] ||
+      attributes.label ||
+      attributes.nameZh ||
+      attributes.subdivisions ||
+      cells[2] ||
+      '';
 
     if (assignableList.validIds.size > 0 && !assignableList.isValid(rawRegionId)) {
       invalidRegionIds.push(rawRegionId);
@@ -221,7 +300,8 @@ export function parseLayerDataCsv(
     const row: CsvLayerKVRow = {
       regionId: rawRegionId,
       value: rawValue,
-      label: rawLabel || undefined
+      label: rawLabel || undefined,
+      attributes
     };
     rows.push(row);
 
@@ -231,14 +311,17 @@ export function parseLayerDataCsv(
       if (rawLabel) {
         labelMap.set(k, rawLabel);
       }
+      rowMap.set(k, row);
     }
   }
 
   return {
     meta,
+    columns,
     rows,
     valueMap,
     labelMap,
+    rowMap,
     invalidRegionIds
   };
 }
