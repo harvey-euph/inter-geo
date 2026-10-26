@@ -221,7 +221,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                 電桿範例: {hoveredExtFeature.attributes.examplePoleCode}
               </span>
             )}
-            <span className="tooltip-badge">{gridObjectId(hoveredExtFeature.id)}</span>
+            <span className="tooltip-badge">{hoveredExtFeature.objectTag || gridObjectId(hoveredExtFeature.id)}</span>
           </div>
           {hoveredExtFeature.attributes?.subdivisions && (
             <div style={{ marginTop: 4, fontSize: 11, color: '#cbd5e1' }}>

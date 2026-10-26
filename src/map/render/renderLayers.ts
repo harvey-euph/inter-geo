@@ -1087,7 +1087,7 @@ export function drawExtFeatureLabels(rc: RenderContext): void {
 
       if (fontSize < 11) continue;
 
-      const letterText = item.id;
+      const letterText = item.id.includes('::') ? item.id.split('::').pop()! : item.id;
 
       ctx.save();
       ctx.translate(cxScr, cyScr);

@@ -58,6 +58,8 @@ export interface RegisteredCsvLayer {
   fgb?: string;
   /** Optional inner grid specification */
   innerGrid?: string;
+  /** Sample target keys from layer index */
+  targetKeys?: string[];
   /** Whether the full CSV data has been fetched and parsed */
   loaded: boolean;
   /** Parsed K-V data (populated after `loadOnDemandCsvLayer`) */
@@ -98,6 +100,7 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined,
     fgb: lm.fgb || undefined,
     innerGrid: lm.innerGrid || undefined,
+    targetKeys: lm.targetKeys || [],
     loaded: false,
     data: null,
     meta: {
@@ -116,7 +119,8 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
       focusTarget: lm.focusTarget || undefined,
       legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined,
       fgb: lm.fgb || undefined,
-      innerGrid: lm.innerGrid || undefined
+      innerGrid: lm.innerGrid || undefined,
+      targetKeys: lm.targetKeys || []
     }
   };
 }

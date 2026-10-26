@@ -148,6 +148,60 @@ export function resolveSubdivisionFileSync(parentPath: string, childId: string):
 }
 
 /**
+ * Resolves an external object FGB file path from an object tag (e.g. 'TW-powerpoles::A' -> 'data/TW-powerpoles.fgb')
+ * or a dataset prefix (e.g. 'TW-powerpoles' -> 'data/TW-powerpoles.fgb').
+ */
+export function resolveExtObjectFileSync(tagOrPrefix: string): string | null {
+  if (!cachedDataIndex) return null;
+  const tag = tagOrPrefix.trim();
+  if (!tag) return null;
+
+  const prefix = tag.includes('::') ? tag.split('::')[0].trim() : tag;
+  const prefixLower = prefix.toLowerCase();
+
+  // 1. Direct path check against dataIndex.files (e.g. data/TW-powerpoles.fgb)
+  const expectedPath = `data/${prefix}.fgb`.toLowerCase();
+  for (const f of cachedDataIndex.files) {
+    if (f.toLowerCase() === expectedPath) return f;
+  }
+
+  // 2. Lookup in extByCountry (e.g. TW-powerpoles -> ISO: TW, ext: powerpoles)
+  if (prefix.includes('-')) {
+    const dashIdx = prefix.indexOf('-');
+    const iso = prefix.slice(0, dashIdx).toUpperCase();
+    const ext = prefix.slice(dashIdx + 1).toLowerCase();
+    const byCountry = cachedDataIndex.extByCountry?.[iso];
+    if (byCountry) {
+      if (byCountry[ext]) return byCountry[ext];
+      const extClean = ext.replace(/[-_]/g, '');
+      for (const [k, v] of Object.entries(byCountry)) {
+        if (k.toLowerCase() === ext || k.toLowerCase().replace(/[-_]/g, '') === extClean) {
+          return v;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: match base filename in dataIndex.files
+  for (const f of cachedDataIndex.files) {
+    const filename = f.split('/').pop()?.replace(/\.fgb$/i, '').toLowerCase();
+    if (filename === prefixLower || (filename && filename.replace(/[-_]/g, '') === prefixLower.replace(/[-_]/g, ''))) {
+      return f;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Asynchronously loads the data-index and resolves the external object FGB file path.
+ */
+export async function resolveExtObjectFile(tagOrPrefix: string): Promise<string | null> {
+  await loadDataIndex();
+  return resolveExtObjectFileSync(tagOrPrefix);
+}
+
+/**
  * Loads and caches layers-index.json from the index branch.
  */
 export async function loadLayersIndex(): Promise<LayersIndex> {

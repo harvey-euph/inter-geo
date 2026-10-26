@@ -1,5 +1,6 @@
 import * as flatgeobuf from 'flatgeobuf';
 import { getDataUrl } from '../data/dataSource';
+import { resolveExtObjectFile } from '../data/geoIndexClient';
 import {
   getCsvLayerById,
   getCsvLayerValue,
@@ -49,10 +50,25 @@ export async function loadExtObjectLayerFeatures(
         await loadOnDemandCsvLayer(layerId);
       }
 
-      const fgbRelPath =
+      let fgbRelPath =
         csvLayer.meta.fgb ||
         ((csvLayer as unknown as Record<string, unknown>).fgb as string | undefined);
-      if (!fgbRelPath) return [];
+
+      if (!fgbRelPath) {
+        // Resolve from object tag in rows or targetKeys using index
+        const sampleTag =
+          csvLayer.data?.rows?.[0]?.regionId ||
+          csvLayer.meta.targetKeys?.[0] ||
+          csvLayer.id;
+        if (sampleTag) {
+          fgbRelPath = (await resolveExtObjectFile(sampleTag)) || undefined;
+        }
+      }
+
+      if (!fgbRelPath) {
+        console.warn(`[extObjectLoader] Unable to resolve FGB path for layer "${layerId}"`);
+        return [];
+      }
 
       const url = getDataUrl(fgbRelPath);
       const res = await fetch(url);
@@ -65,23 +81,39 @@ export async function loadExtObjectLayerFeatures(
       const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
       const items: ExtFeatureRenderItem[] = [];
 
+      const sampleTag =
+        csvLayer.data?.rows?.[0]?.regionId ||
+        csvLayer.meta.targetKeys?.[0] ||
+        '';
+      const samplePrefix = sampleTag.includes('::') ? sampleTag.split('::')[0] : '';
+
       for await (const feature of it) {
         const props = (feature.properties || {}) as Record<string, unknown>;
-        const id = String(props.id ?? props.code ?? props.name ?? feature.id ?? '').trim();
-        if (!id) continue;
+        const rawId = String(props.id ?? props.code ?? props.name ?? feature.id ?? '').trim();
+        if (!rawId) continue;
+
+        const subId = rawId.includes('::') ? rawId.split('::').pop()!.trim() : rawId;
+        const objectTag = rawId.includes('::')
+          ? rawId
+          : (samplePrefix ? `${samplePrefix}::${subId}` : rawId);
 
         const row =
-          csvLayer.data?.rowMap.get(id.toUpperCase()) ||
-          csvLayer.data?.rowMap.get(id);
+          csvLayer.data?.rowMap.get(rawId.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(subId.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(objectTag.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(rawId) ||
+          csvLayer.data?.rowMap.get(subId);
 
         const name =
           row?.attributes?.nameZh ||
           row?.attributes?.name ||
-          String(props.name ?? props.title ?? id);
+          String(props.name ?? props.title ?? subId);
 
         const color =
           row?.value ||
-          getCsvLayerValue(layerId, id) ||
+          getCsvLayerValue(layerId, rawId) ||
+          getCsvLayerValue(layerId, subId) ||
+          getCsvLayerValue(layerId, objectTag) ||
           (props.color as string) ||
           csvLayer.accentColor ||
           '#38bdf8';
@@ -89,7 +121,9 @@ export async function loadExtObjectLayerFeatures(
         const label =
           row?.label ||
           row?.attributes?.subdivisions ||
-          csvLayer.data?.labelMap.get(id.toUpperCase()) ||
+          csvLayer.data?.labelMap.get(rawId.toUpperCase()) ||
+          csvLayer.data?.labelMap.get(subId.toUpperCase()) ||
+          csvLayer.data?.labelMap.get(objectTag.toUpperCase()) ||
           (props.nameZh as string) ||
           (props.description as string) ||
           '';
@@ -178,7 +212,7 @@ export async function loadExtObjectLayerFeatures(
 
           items.push({
             layerId,
-            id,
+            id: subId,
             name,
             label,
             color,
@@ -190,6 +224,7 @@ export async function loadExtObjectLayerFeatures(
             bbox: [minX, minY, maxX, maxY],
             corners,
             innerGrid: isPercentageGrid ? 'percentage' : undefined,
+            objectTag,
             attributes: row?.attributes
           });
         }

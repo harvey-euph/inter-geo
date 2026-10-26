@@ -240,6 +240,8 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
     candidateKeys.push({ key: tid, weight: 40 });
     candidateKeys.push({ key: upper, weight: 40 });
     candidateKeys.push({ key: gridObjectId(upper), weight: 40 });
+    candidateKeys.push({ key: `TW-powerpoles::${upper}`, weight: 40 });
+    candidateKeys.push({ key: 'TW-powerpoles', weight: 30 });
     candidateKeys.push({ key: `TW-TP-${upper}`, weight: 35 });
     candidateKeys.push({ key: `TP-${upper}`, weight: 35 });
     candidateKeys.push({ key: 'TW-TP', weight: 25 });

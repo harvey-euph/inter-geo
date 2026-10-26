@@ -76,7 +76,9 @@ export function roadObjectId(iso2: string, name: string): string {
 }
 
 export function gridObjectId(letter: string): string {
-  return `TW::TP-${letter.trim().toUpperCase()}`;
+  const upper = letter.trim().toUpperCase();
+  if (upper.includes('::')) return upper;
+  return `TW-powerpoles::${upper}`;
 }
 
 /** `JP-01` → `JP::01`. Class tokens such as `US-HIGHWAY` stay as they are. */
