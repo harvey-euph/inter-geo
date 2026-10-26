@@ -279,13 +279,9 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
   const handleToggleLabel = (filterId: string) => {
     if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
-      const turningOn = !isEuCrossingActive;
       onToggleInternationalImageFilter('eu-pedestrian-crossing');
       onToggleRegionalFilter('eu-pedestrian-crossing');
       onToggleRegionalFilter('pedestrian-crossing');
-      if (turningOn && onGotoCamera) {
-        onGotoCamera(50.0, 15.0, 0.15);
-      }
       return;
     }
     // Check if it's regional vs global

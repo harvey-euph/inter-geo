@@ -271,18 +271,44 @@ export function App() {
       return next;
     });
     if (!turningOn || !targetDef) return;
-    const csvFocusTarget = getCsvLayerById(filterId)?.meta.focusTarget;
-    if (csvFocusTarget) {
-      const [iso2, ...namespace] = csvFocusTarget.split('::').map((part: string) => part.trim());
-      if (iso2 && namespace.length > 0) {
-        focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
-        return;
+
+    const csvLayer = getCsvLayerById(filterId);
+    if (csvLayer) {
+      // 1. Explicit @goto directive
+      const csvGoto = csvLayer.meta?.goto || csvLayer.goto;
+      if (csvGoto) {
+        try {
+          const p = new URLSearchParams(csvGoto);
+          const lat = Number(p.get('lat'));
+          const lon = Number(p.get('lon'));
+          const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+            return;
+          }
+        } catch {
+          // ignore malformed goto query
+        }
       }
-      if (iso2) {
-        focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
-        return;
+
+      // 2. Explicit @focusTarget directive
+      const csvFocusTarget = csvLayer.meta?.focusTarget || csvLayer.focusTarget;
+      if (csvFocusTarget) {
+        const [iso2, ...namespace] = csvFocusTarget.split('::').map((part: string) => part.trim());
+        if (iso2 && namespace.length > 0) {
+          focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
+          return;
+        }
+        if (iso2) {
+          focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
+          return;
+        }
       }
+
+      // For CSV layers without @goto or @focusTarget, do not jump camera
+      return;
     }
+
     if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
       focusMapRef.current?.({ kind: 'bbox', boxes: targetDef.customBBoxes });
     } else if (targetDef.customBBox) {
