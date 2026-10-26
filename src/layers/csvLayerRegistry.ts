@@ -169,6 +169,10 @@ export async function initCsvLayerRegistry(): Promise<RegisteredCsvLayer[]> {
       }
     }
 
+    if (byId.has('pedestrian-crossing') && !byId.has('eu-pedestrian-crossing')) {
+      byId.set('eu-pedestrian-crossing', byId.get('pedestrian-crossing')!);
+    }
+
     cachedLayers = list;
     cachedLayersById = byId;
     cachedLayersByPath = byPath;
@@ -218,7 +222,15 @@ export function getCsvLayerById(id: string): RegisteredCsvLayer | undefined {
   if (cachedLayersById === null) {
     getRegisteredCsvLayers();
   }
-  return cachedLayersById?.get(id);
+  const direct = cachedLayersById?.get(id);
+  if (direct) return direct;
+  if (id === 'eu-pedestrian-crossing') {
+    return cachedLayersById?.get('pedestrian-crossing');
+  }
+  if (id === 'pedestrian-crossing') {
+    return cachedLayersById?.get('eu-pedestrian-crossing');
+  }
+  return undefined;
 }
 export const getCsvFilterById = getCsvLayerById;
 

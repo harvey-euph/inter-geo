@@ -59,7 +59,9 @@ export function normalizeDataPath(rawPath: string): string {
       distinctiveletters: 'distinctive-letters',
       indiascripts: 'india-scripts',
       streetwords: 'street-words',
-      taiwanpowerpoles: 'taiwan-power-poles'
+      taiwanpowerpoles: 'taiwan-power-poles',
+      pedestriancrossing: 'pedestrian-crossing',
+      eupedestriancrossing: 'pedestrian-crossing'
     };
     const baseKey = fn.replace(/\.csv$/, '').toLowerCase().replace(/[-_]/g, '');
     const canonicalFn = (camelToKebab[baseKey] || fn.replace(/\.csv$/, '')) + '.csv';
@@ -82,7 +84,7 @@ export function normalizeDataPath(rawPath: string): string {
       'distinctive-letters.csv',
       'street-words.csv'
     ];
-    const areaLabelFiles = ['india-scripts.csv'];
+    const areaLabelFiles = ['india-scripts.csv', 'pedestrian-crossing.csv'];
     if (fillRegionFiles.includes(canonicalFn)) return `layers/fill-region-with-color/${canonicalFn}`;
     if (extObjectFiles.includes(canonicalFn)) return `layers/ext-object/${canonicalFn}`;
     if (globalLabelFiles.includes(canonicalFn)) return `layers/global-label/${canonicalFn}`;

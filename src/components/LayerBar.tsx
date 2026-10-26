@@ -5,7 +5,6 @@ import {
   isLayersIndexLoaded,
   type RegisteredCsvLayer
 } from '../layers/csvLayerRegistry';
-import { getAssignableRegionList } from '../layers/assignableRegions';
 import { type NationwideLayerDef } from '../data/nationwideLayers';
 import {
   Search,
@@ -213,35 +212,13 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   }, [categorized.globalLabel, matchesSearch]);
 
   // Group 4: Area Label (Distinctive letters, Street words, India scripts, EU crossing signs)
-  const isEuCrossingActive = activeRegionalFilters.has('eu-pedestrian-crossing') || activeInternationalImageFilter === 'eu-pedestrian-crossing';
+  const isEuCrossingActive =
+    activeRegionalFilters.has('eu-pedestrian-crossing') ||
+    activeRegionalFilters.has('pedestrian-crossing') ||
+    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+    activeInternationalImageFilter === 'pedestrian-crossing';
   const filteredAreaLabel = useMemo(() => {
-    const list = [...categorized.areaLabel];
-    // Include EU crossing signs if not already in list
-    if (!list.some((f) => f.id === 'eu-pedestrian-crossing' || f.id === 'eu-crossing-signs')) {
-      list.push({
-        id: 'eu-pedestrian-crossing',
-        nameZh: '歐洲行人過路標誌',
-        nameEn: 'European Pedestrian Crossing Signs',
-        shortBadge: '🚸 行人',
-        accentColor: '#38bdf8',
-        descriptionZh: '歐洲各國行人過路藍色警示標誌之條紋與人物特徵比較',
-        meta: { group: 'area-label', type: 'Image' },
-        rangeKind: 'International',
-        targetIso2: '*',
-        targetIso2s: ['*'],
-        assignableList: getAssignableRegionList('International'),
-        loadedTiming: 'on-demand',
-        effectiveRange: 'International',
-        path: 'images/crossing',
-        type: 'Image',
-        group: 'area-label',
-        order: 999,
-        goto: 'lat=50.0&lon=15.0&ratio=0.15',
-        loaded: true,
-        data: null
-      });
-    }
-    return list.filter(matchesSearch);
+    return categorized.areaLabel.filter(matchesSearch);
   }, [categorized.areaLabel, matchesSearch]);
 
   const windowRef = useRef<HTMLDivElement>(null);
@@ -301,10 +278,11 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   };
 
   const handleToggleLabel = (filterId: string) => {
-    if (filterId === 'eu-pedestrian-crossing') {
+    if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
       const turningOn = !isEuCrossingActive;
       onToggleInternationalImageFilter('eu-pedestrian-crossing');
       onToggleRegionalFilter('eu-pedestrian-crossing');
+      onToggleRegionalFilter('pedestrian-crossing');
       if (turningOn && onGotoCamera) {
         onGotoCamera(50.0, 15.0, 0.15);
       }
@@ -331,7 +309,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     (f) =>
       activeRegionalFilters.has(f.id) ||
       activeTextFilters.has(f.id) ||
-      (f.id === 'eu-pedestrian-crossing' && isEuCrossingActive)
+      ((f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing') && isEuCrossingActive)
   ).length;
 
   const totalActiveCount = activeFillCount + activeExtCount + activeGlobalCount + activeAreaCount;
@@ -574,7 +552,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
                   const checked =
                     activeRegionalFilters.has(f.id) ||
                     activeTextFilters.has(f.id) ||
-                    (f.id === 'eu-pedestrian-crossing' && isEuCrossingActive);
+                    ((f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing') && isEuCrossingActive);
                   return (
                     <label
                       key={f.id}

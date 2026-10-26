@@ -2173,11 +2173,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       activeRegionalFilters.has('pedestrian-crossing');
     if (!isCrossingActive) return;
 
+    const layer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
+    if (layer && !layer.loaded) {
+      void loadOnDemandCsvLayer(layer.id).then(() => requestRender());
+    }
+
     let hasUnloaded = false;
-    for (const [iso2, meta] of Object.entries(EUROPEAN_CROSSING_SIGNS)) {
+    const entries = layer?.data?.rows?.length
+      ? layer.data.rows.map((r) => [r.regionId, r.value || r.attributes.image] as [string, string])
+      : Object.entries(EUROPEAN_CROSSING_SIGNS).map(([k, v]) => [k, v.imagePath] as [string, string]);
+
+    for (const [iso2, imagePath] of entries) {
       if (!crossingImagesRef.current.has(iso2)) {
         const img = new Image();
-        img.src = getDataUrl(meta.imagePath);
+        img.src = getDataUrl(imagePath);
         img.onload = () => {
           requestRender();
         };

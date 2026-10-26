@@ -5,7 +5,7 @@ import type { RoadPathData } from '../../data/roadsMeta';
 import { isCapitalSubdivision } from '../../data/capitalSubdivisions';
 import { COUNTRIES_WITH_AREA_CODES } from '../../data/nationwideLayers';
 import { getSubdivisionAreaCodeBadge } from '../../data/domesticAreaCodes';
-import { EUROPEAN_CROSSING_SIGNS } from '../../data/pedestrianCrossing';
+import { getCrossingSign } from '../../data/pedestrianCrossing';
 import {
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_LAYERS_BY_ID,
@@ -949,7 +949,7 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
     const cMeta = item.countryMeta;
     if (!cMeta || !cMeta.iso2) continue;
 
-    const signMeta = EUROPEAN_CROSSING_SIGNS[cMeta.iso2];
+    const signMeta = getCrossingSign(cMeta.iso2);
     if (!signMeta) continue;
 
     const img = crossingImages.get(cMeta.iso2);
