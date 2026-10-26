@@ -10,7 +10,11 @@ import {
   getNationwideLayerById,
   type NationwideLayerDef
 } from './data/nationwideLayers';
-import { getCsvLayerById } from './layers/csvLayerRegistry';
+import {
+  getCsvLayerById,
+  loadOnDemandCsvLayer,
+  type RegisteredCsvLayer
+} from './layers/csvLayerRegistry';
 import './App.css';
 
 if (typeof window !== 'undefined') {
@@ -274,21 +278,44 @@ export function App() {
 
     const csvLayer = getCsvLayerById(filterId);
     if (csvLayer) {
-      // 1. Explicit @goto directive
-      const csvGoto = csvLayer.meta?.goto || csvLayer.goto;
-      if (csvGoto) {
+      const applyGoto = (gotoStr: string) => {
         try {
-          const p = new URLSearchParams(csvGoto);
+          const p = new URLSearchParams(gotoStr);
           const lat = Number(p.get('lat'));
           const lon = Number(p.get('lon'));
           const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
             focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
-            return;
+            return true;
           }
         } catch {
           // ignore malformed goto query
         }
+        return false;
+      };
+
+      // 1. Explicit @goto directive
+      const csvGoto = csvLayer.meta?.goto || csvLayer.goto;
+      if (csvGoto && applyGoto(csvGoto)) {
+        return;
+      }
+
+      // If not loaded yet, fetch and apply any @goto or @focusTarget defined in CSV
+      if (!csvLayer.loaded) {
+        void loadOnDemandCsvLayer(csvLayer.id).then((loaded: RegisteredCsvLayer | undefined) => {
+          const freshGoto = loaded?.meta?.goto || loaded?.goto || loaded?.data?.meta?.goto;
+          if (freshGoto && applyGoto(freshGoto)) return;
+
+          const freshFocusTarget = loaded?.meta?.focusTarget || loaded?.focusTarget || loaded?.data?.meta?.focusTarget;
+          if (freshFocusTarget) {
+            const [iso2, ...namespace] = freshFocusTarget.split('::').map((part: string) => part.trim());
+            if (iso2 && namespace.length > 0) {
+              focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
+            } else if (iso2) {
+              focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
+            }
+          }
+        });
       }
 
       // 2. Explicit @focusTarget directive

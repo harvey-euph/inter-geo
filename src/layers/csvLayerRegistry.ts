@@ -362,6 +362,14 @@ export async function loadOnDemandCsvLayer(
 
       layer.loaded = true;
       layer.data = parsed;
+      if (parsed.meta.goto) {
+        layer.goto = parsed.meta.goto;
+        layer.meta.goto = parsed.meta.goto;
+      }
+      if (parsed.meta.focusTarget) {
+        layer.focusTarget = parsed.meta.focusTarget;
+        layer.meta.focusTarget = parsed.meta.focusTarget;
+      }
       if (parsed.meta.defaultColor) {
         layer.defaultColor = parsed.meta.defaultColor;
         layer.meta.defaultColor = parsed.meta.defaultColor;
