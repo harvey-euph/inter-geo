@@ -1,9 +1,9 @@
-import type { CountryData, FilterCategory, LegendItem } from '../types/geo';
+import type { CountryData, LayerCategory, LegendItem } from '../types/geo';
 import { getCountryRoadMarking } from './roadMarkings';
 
-export interface FilterDefinition {
+export interface LayerDefinition {
   id: string;
-  category: FilterCategory;
+  category: LayerCategory;
   nameZh: string;
   descriptionZh: string;
   iconName?: string;
@@ -11,7 +11,9 @@ export interface FilterDefinition {
   getColor: (country: CountryData) => string | null; // return null if no match or default
 }
 
-export const FILTERS: FilterDefinition[] = [
+export type FilterDefinition = LayerDefinition;
+
+export const LAYERS: LayerDefinition[] = [
   {
     id: 'none',
     category: 'none',
@@ -126,3 +128,5 @@ export const FILTERS: FilterDefinition[] = [
     }
   }
 ];
+
+export const FILTERS = LAYERS;

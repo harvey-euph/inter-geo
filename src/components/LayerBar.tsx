@@ -1,8 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { getRegisteredCsvFilters, type RegisteredCsvFilter } from '../filters/csvFilterRegistry';
-import { getAssignableRegionList } from '../filters/assignableRegions';
-import { type NationwideFilterDef } from '../data/nationwideFilters';
-import { FILTERS } from '../data/filters';
+import {
+  getRegisteredCsvLayers,
+  onLayersIndexLoaded,
+  isLayersIndexLoaded,
+  type RegisteredCsvLayer
+} from '../layers/csvLayerRegistry';
+import { getAssignableRegionList } from '../layers/assignableRegions';
+import { type NationwideLayerDef } from '../data/nationwideLayers';
+import { LAYERS } from '../data/layers';
 import {
   Search,
   X,
@@ -16,7 +21,7 @@ import {
   MapPin
 } from 'lucide-react';
 
-export interface FilterBarProps {
+export interface LayerBarProps {
   activeFilterId: string;
   onSelectFilter: (filterId: string) => void;
   activeTextFilters: Set<string>;
@@ -25,7 +30,7 @@ export interface FilterBarProps {
   onToggleInternationalImageFilter: (filterId: string) => void;
   activeRegionalFilters: Set<string>;
   onToggleRegionalFilter: (filterId: string) => void;
-  visibleRegionalFilters?: NationwideFilterDef[];
+  visibleRegionalFilters?: NationwideLayerDef[];
   showInterstates?: boolean;
   onToggleInterstates?: () => void;
   showNumberedRoutes?: boolean;
@@ -35,8 +40,9 @@ export interface FilterBarProps {
   onCollapse: () => void;
   onGotoCamera?: (lat: number, lon: number, ratio?: number) => void;
 }
+export type FilterBarProps = LayerBarProps;
 
-export const FilterBar: React.FC<FilterBarProps> = React.memo(({
+export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   activeFilterId,
   onSelectFilter,
   activeTextFilters,
@@ -54,6 +60,14 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   onCollapse,
   onGotoCamera
 }) => {
+  const [layersLoaded, setLayersLoaded] = useState(isLayersIndexLoaded());
+
+  useEffect(() => {
+    if (!layersLoaded) {
+      return onLayersIndexLoaded(() => setLayersLoaded(true));
+    }
+  }, [layersLoaded]);
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // 4 Toggled Sections matching the spec:
@@ -75,10 +89,13 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   const q = searchQuery.trim().toLowerCase();
   const isSearching = q.length > 0;
 
-  // Retrieve registered CSV filters
-  const allCsvFilters = useMemo(() => getRegisteredCsvFilters(), []);
+  // Retrieve registered CSV layers
+  const allCsvLayers = useMemo(() => {
+    void layersLoaded;
+    return getRegisteredCsvLayers();
+  }, [layersLoaded]);
 
-  // Categorize CSV filters into the 4 groups
+  // Categorize CSV layers into the 4 groups
   const categorized = useMemo(() => {
     const fillRegion: Array<{
       id: string;
@@ -88,11 +105,11 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
       descriptionZh?: string;
       goto?: string;
     }> = [];
-    const extObject: RegisteredCsvFilter[] = [];
-    const globalLabel: RegisteredCsvFilter[] = [];
-    const areaLabel: RegisteredCsvFilter[] = [];
+    const extObject: RegisteredCsvLayer[] = [];
+    const globalLabel: RegisteredCsvLayer[] = [];
+    const areaLabel: RegisteredCsvLayer[] = [];
 
-    for (const f of allCsvFilters) {
+    for (const f of allCsvLayers) {
       const g = (f.meta.group as string) || '';
       if (g === 'fill-region' || f.type === 'FillWithColor') {
         fillRegion.push({
@@ -112,8 +129,8 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
       }
     }
 
-    // Include preset theme filters from FILTERS that aren't already covered by CSVs
-    for (const pf of FILTERS) {
+    // Include preset theme layers from LAYERS that aren't already covered by CSVs
+    for (const pf of LAYERS) {
       if (pf.id === 'none' || pf.id === 'base') continue;
       const alreadyHas = fillRegion.some(
         (r) =>
@@ -133,7 +150,7 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
     }
 
     return { fillRegion, extObject, globalLabel, areaLabel };
-  }, [allCsvFilters]);
+  }, [allCsvLayers]);
 
   const matchesSearch = useCallback(
     (item: { nameZh: string; nameEn?: string; id: string; shortBadge?: string; descriptionZh?: string }) => {
@@ -217,6 +234,8 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
         effectiveRange: 'International',
         path: 'images/crossing',
         type: 'Image',
+        group: 'area-label',
+        order: 999,
         loaded: true,
         data: null
       });
@@ -589,3 +608,5 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
     </div>
   );
 });
+
+export const FilterBar = LayerBar;

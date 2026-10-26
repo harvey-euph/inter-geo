@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import * as flatgeobuf from 'flatgeobuf';
 import type { CountryData } from '../types/geo';
-import { FILTERS } from '../data/filters';
-import type { FilterDefinition } from '../data/filters';
+import { LAYERS } from '../data/layers';
+import type { LayerDefinition } from '../data/layers';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
@@ -17,14 +17,14 @@ import type { L3PartitionMeta } from '../data/l3Manifest';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
 import type { RoadPathData } from '../data/roadsMeta';
 import {
-  NATIONWIDE_FILTERS,
+  NATIONWIDE_LAYERS,
   COUNTRIES_WITH_AREA_CODES,
   COUNTRIES_WITH_ROADS,
-  getNationwideFilterById,
-  getRoadFiltersForCountry
-} from '../data/nationwideFilters';
+  getNationwideLayerById,
+  getRoadLayersForCountry
+} from '../data/nationwideLayers';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
-import type { NationwideFilterDef } from '../data/nationwideFilters';
+import type { NationwideLayerDef } from '../data/nationwideLayers';
 import { EUROPEAN_CROSSING_SIGNS } from '../data/pedestrianCrossing';
 import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
@@ -32,11 +32,11 @@ import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo'
 import { decodeGeo } from '../map/geoWorkerClient';
 import { getDataUrl } from '../data/dataSource';
 import {
-  getCsvFilterById,
-  getCsvFilterValue,
+  getCsvLayerById,
+  getCsvLayerValue,
   getCsvSubdivisionValue,
-  loadOnDemandCsvFilter
-} from '../filters/csvFilterRegistry';
+  loadOnDemandCsvLayer
+} from '../layers/csvLayerRegistry';
 import {
   WORLD_COPIES,
   getCountryBBox,
@@ -102,8 +102,10 @@ export type MapFocusTarget = (
 
 export type MapSelectOptions = { focus?: boolean };
 
-type RegionalFilterDef = NationwideFilterDef;
-const REGIONAL_FILTERS = NATIONWIDE_FILTERS;
+type RegionalLayerDef = NationwideLayerDef;
+type RegionalFilterDef = RegionalLayerDef;
+const REGIONAL_LAYERS = NATIONWIDE_LAYERS;
+const REGIONAL_FILTERS = REGIONAL_LAYERS;
 
 function getDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   const dx = a.x - b.x;
@@ -141,7 +143,7 @@ interface WorldMapProps {
   activeTextFilters?: Set<string>;
   activeInternationalImageFilter?: string | null;
   activeRegionalFilters?: Set<string>;
-  onVisibleRegionalFiltersChange?: (filters: NationwideFilterDef[]) => void;
+  onVisibleRegionalFiltersChange?: (filters: NationwideLayerDef[]) => void;
   isFilterExpanded?: boolean;
   selectedCountry: CountryData | null;
   onSelectCountry: (country: CountryData | null, options?: MapSelectOptions) => void;
@@ -413,8 +415,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     getHoverClientPoint
   ]);
 
-  // Active filter definition
-  const activeFilterDef = useMemo<FilterDefinition>(() => {
+  // Active layer definition
+  const activeFilterDef = useMemo<LayerDefinition>(() => {
     if (activeFilterId === 'none' || activeFilterId === 'base') {
       return {
         id: 'none',
@@ -426,10 +428,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       };
     }
 
-    const preset = FILTERS.find((f) => f.id === activeFilterId);
+    const preset = LAYERS.find((f) => f.id === activeFilterId);
     if (preset) return preset;
 
-    const csvF = getCsvFilterById(activeFilterId);
+    const csvF = getCsvLayerById(activeFilterId);
     if (csvF) {
       return {
         id: csvF.id,
@@ -438,7 +440,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         descriptionZh: csvF.descriptionZh,
         legend: [],
         getColor: (country: CountryData) => {
-          const val = getCsvFilterValue(csvF.id, country.iso2);
+          const val = getCsvLayerValue(csvF.id, country.iso2);
           if (val) return val;
           const defaultCol = csvF.meta.defaultColor || (csvF.meta as Record<string, unknown>)['default-color'] as string | undefined;
           return defaultCol || null;
@@ -446,9 +448,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       };
     }
 
-    return FILTERS[0];
+    return LAYERS[0];
   }, [activeFilterId]);
-  const activeFilterDefRef = useRef<FilterDefinition>(activeFilterDef);
+  const activeFilterDefRef = useRef<LayerDefinition>(activeFilterDef);
 
   // Web Mercator Projection & GeoPath
   const projection = useMemo(() => createProjection(), []);
@@ -726,7 +728,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!set) return false;
 
       for (const id of set) {
-        const def = getNationwideFilterById(id);
+        const def = getNationwideLayerById(id);
         if (!def || def.layerType !== 'roads' || def.roadClass !== roadClass) continue;
         const owner = (def.countryIso2 || def.targetIso2 || '').toUpperCase();
         if (owner === upper) return true;
@@ -764,7 +766,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const set = activeRegionalFiltersRef.current;
     if (set) {
       for (const id of set) {
-        const def = getNationwideFilterById(id);
+        const def = getNationwideLayerById(id);
         if (def?.layerType === 'roads') return true;
         if (id === 'us-interstates' || id === 'us-numbered-routes') return true;
       }
@@ -864,7 +866,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const iso2 = COUNTRIES_WITH_ROADS[i];
         const b = getCountryBBox(iso2);
         if (b && isCountryVisibleOnScreen(b, k, x, y, vw, vh, 20)) {
-          const roadFilters = getRoadFiltersForCountry(iso2);
+          const roadFilters = getRoadLayersForCountry(iso2);
           for (let rIdx = 0; rIdx < roadFilters.length; rIdx++) {
             const filter = roadFilters[rIdx];
             const filterVisible = filter.customBBoxes
@@ -929,7 +931,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const getActiveLayerHoverTargets = useCallback(() => {
     const activeFilters = Array.from(activeRegionalFiltersRef.current)
-      .map((id) => getCsvFilterById(id))
+      .map((id) => getCsvLayerById(id))
       .filter((filter): filter is NonNullable<typeof filter> =>
         !!filter && filter.rangeKind === 'Nationwide'
       );
@@ -948,8 +950,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               .join(',')}`
           : '',
         hasCapitalLayer
-          ? `nationwide-capital:${NATIONWIDE_FILTERS.find((filter) => filter.id === 'nationwide-capital')?.targetIso2s
-              ?.map((iso2) => `${iso2}:${l2PathsByCountryRef.current[iso2]?.length || 0}`)
+          ? `nationwide-capital:${NATIONWIDE_LAYERS.find((layer: NationwideLayerDef) => layer.id === 'nationwide-capital')?.targetIso2s
+              ?.map((iso2: string) => `${iso2}:${l2PathsByCountryRef.current[iso2]?.length || 0}`)
               .join(',') || ''}`
           : ''
       ].filter(Boolean))
@@ -970,7 +972,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       }
     }
     if (hasCapitalLayer) {
-      for (const iso2 of NATIONWIDE_FILTERS.find((filter) => filter.id === 'nationwide-capital')?.targetIso2s || []) {
+      for (const iso2 of NATIONWIDE_LAYERS.find((layer: NationwideLayerDef) => layer.id === 'nationwide-capital')?.targetIso2s || []) {
         countries.add(iso2);
         const subs = l2PathsByCountryRef.current[iso2];
         if (!subs?.length) continue;
@@ -2050,9 +2052,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     activeFilterDefRef.current = activeFilterDef;
-    const csvF = getCsvFilterById(activeFilterId);
+    const csvF = getCsvLayerById(activeFilterId);
     if (csvF && !csvF.loaded) {
-      void loadOnDemandCsvFilter(activeFilterId).then(() => {
+      void loadOnDemandCsvLayer(activeFilterId).then(() => {
         requestRender();
       });
     }
@@ -2063,9 +2065,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     activeTextFiltersRef.current = activeTextFilters || new Set();
     if (activeTextFilters) {
       for (const id of activeTextFilters) {
-        const csvF = getCsvFilterById(id);
+        const csvF = getCsvLayerById(id);
         if (csvF && !csvF.loaded) {
-          void loadOnDemandCsvFilter(id).then(() => {
+          void loadOnDemandCsvLayer(id).then(() => {
             requestRender();
           });
         }
@@ -2082,9 +2084,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   useEffect(() => {
     activeRegionalFiltersRef.current = activeRegionalFilters;
     for (const id of activeRegionalFilters) {
-      const csvF = getCsvFilterById(id);
+      const csvF = getCsvLayerById(id);
       if (csvF && !csvF.loaded) {
-        void loadOnDemandCsvFilter(id).then(() => {
+        void loadOnDemandCsvLayer(id).then(() => {
           requestRender();
         });
       }

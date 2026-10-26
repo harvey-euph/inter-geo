@@ -72,7 +72,7 @@ export interface CountryData {
   confusedWith?: string[];
 }
 
-export type FilterCategory = 
+export type LayerCategory = 
   | 'none'
   | 'drivingSide' 
   | 'coverage' 
@@ -83,14 +83,18 @@ export type FilterCategory =
   | 'poles'
   | 'continent';
 
+export type FilterCategory = LayerCategory;
+
 export interface LegendItem {
   key: string;
   labelZh: string;
   color: string;
 }
 
-export interface ActiveFilter {
-  category: FilterCategory;
+export interface ActiveLayer {
+  category: LayerCategory;
   value?: string;
   titleZh: string;
 }
+
+export type ActiveFilter = ActiveLayer;

@@ -1,5 +1,5 @@
 /**
- * Nationwide Filters Registry (國內專屬濾鏡)
+ * Nationwide Layers Registry (國內專屬圖層)
  *
  * Surfaced ONLY when the user is at L2 zoom and the target country
  * is actively within the viewport.
@@ -8,16 +8,16 @@
 import { ROADS_MANIFEST } from './roadsManifest';
 import type { RoadShieldType } from './roadsMeta';
 import { findCountry } from './countries';
-import { getRegisteredCsvFilters } from '../filters/csvFilterRegistry';
+import { getRegisteredCsvLayers } from '../layers/csvLayerRegistry';
 
-export interface NationwideFilterDef {
-  /** Unique filter identifier */
+export interface NationwideLayerDef {
+  /** Unique layer identifier */
   id: string;
   /** Primary country ISO-2 code or '*' for all viewport-supported countries */
   targetIso2: string;
   /** Multi-country ISO-2 list if applicable */
   targetIso2s?: string[];
-  /** Country ISO-2 code for road filters */
+  /** Country ISO-2 code for road layers */
   countryIso2?: string;
   /** Road classification if layerType is 'roads' */
   roadClass?: 'Interstate' | 'Federal';
@@ -56,6 +56,8 @@ export interface NationwideFilterDef {
   descriptionZh: string;
 }
 
+export type NationwideFilterDef = NationwideLayerDef;
+
 export const COUNTRIES_WITH_AREA_CODES = ['BR', 'JP', 'FR', 'RU', 'TH', 'ID', 'AU', 'MX', 'AR', 'GB', 'US'];
 
 export const COUNTRIES_WITH_CAPITALS = [
@@ -71,7 +73,7 @@ export const COUNTRIES_WITH_ROADS = Object.keys(ROADS_MANIFEST);
  * official highway shields (Interstate shield, US route cutout, Autobahn blue sign,
  * Japan green expressway, Taiwan plum blossom, UK motorway, etc.).
  */
-export function getRoadFiltersForCountry(iso2: string): NationwideFilterDef[] {
+export function getRoadLayersForCountry(iso2: string): NationwideLayerDef[] {
   const upper = iso2.toUpperCase();
   const cMeta = findCountry(upper);
   const nameZh = cMeta?.nameZh || upper;
@@ -389,11 +391,11 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     };
   }),
 
-  // 3. Dynamically registered Nationwide CSV Filters from filter-reg.csv
-  ...getRegisteredCsvFilters()
+  // 3. Dynamically registered Nationwide CSV Layers
+  ...getRegisteredCsvLayers()
     .filter((f) => f.rangeKind === 'Nationwide')
     .map(
-      (f): NationwideFilterDef => ({
+      (f): NationwideLayerDef => ({
         id: f.id,
         targetIso2: f.targetIso2,
         targetIso2s: f.targetIso2s,
@@ -414,53 +416,59 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     )
 ];
 
-export const NATIONWIDE_FILTERS: NationwideFilterDef[] = [
-  ...BASE_NATIONWIDE_FILTERS
+export const BASE_NATIONWIDE_LAYERS = BASE_NATIONWIDE_FILTERS;
+
+export const NATIONWIDE_LAYERS: NationwideLayerDef[] = [
+  ...BASE_NATIONWIDE_LAYERS
 ];
+export const NATIONWIDE_FILTERS = NATIONWIDE_LAYERS;
 
 /**
- * Complete catalog of all Nationwide filters across all supported countries
- * (used when "Hide outside window ones" is unchecked in the Filter Selector).
+ * Complete catalog of all Nationwide layers across all supported countries
+ * (used when "Hide outside window ones" is unchecked in the Layer Selector).
  */
-export const ALL_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
-  ...BASE_NATIONWIDE_FILTERS,
-  ...COUNTRIES_WITH_ROADS.flatMap((iso2) => getRoadFiltersForCountry(iso2))
+export const ALL_NATIONWIDE_LAYERS: NationwideLayerDef[] = [
+  ...BASE_NATIONWIDE_LAYERS,
+  ...COUNTRIES_WITH_ROADS.flatMap((iso2) => getRoadLayersForCountry(iso2))
 ];
+export const ALL_NATIONWIDE_FILTERS = ALL_NATIONWIDE_LAYERS;
 
-export const NATIONWIDE_FILTERS_BY_ID = new Map<string, NationwideFilterDef>(
-  ALL_NATIONWIDE_FILTERS.map((f) => [f.id, f])
+export const NATIONWIDE_LAYERS_BY_ID = new Map<string, NationwideLayerDef>(
+  ALL_NATIONWIDE_LAYERS.map((f) => [f.id, f])
 );
+export const NATIONWIDE_FILTERS_BY_ID = NATIONWIDE_LAYERS_BY_ID;
 
 /**
- * Resolves a nationwide filter definition by ID, dynamically retrieving
- * country-specific highway shield filters when requested.
+ * Resolves a nationwide layer definition by ID, dynamically retrieving
+ * country-specific highway shield layers when requested.
  */
-export function getNationwideFilterById(id: string): NationwideFilterDef | undefined {
-  if (NATIONWIDE_FILTERS_BY_ID.has(id)) {
-    return NATIONWIDE_FILTERS_BY_ID.get(id);
+export function getNationwideLayerById(id: string): NationwideLayerDef | undefined {
+  if (NATIONWIDE_LAYERS_BY_ID.has(id)) {
+    return NATIONWIDE_LAYERS_BY_ID.get(id);
   }
   if (id.startsWith('roads-')) {
     const parts = id.split('-');
     const iso2 = parts[1];
     if (iso2) {
-      const filters = getRoadFiltersForCountry(iso2);
-      const match = filters.find((f) => f.id === id);
+      const layers = getRoadLayersForCountry(iso2);
+      const match = layers.find((f) => f.id === id);
       if (match) {
-        NATIONWIDE_FILTERS_BY_ID.set(id, match);
+        NATIONWIDE_LAYERS_BY_ID.set(id, match);
         return match;
       }
     }
   }
   return undefined;
 }
+export const getNationwideFilterById = getNationwideLayerById;
 
 /**
- * Returns available nationwide filters for a country visible in viewport,
- * including country-specific highway shield filters if roads data exists.
+ * Returns available nationwide layers for a country visible in viewport,
+ * including country-specific highway shield layers if roads data exists.
  */
-export function getNationwideFiltersForCountry(iso2: string): NationwideFilterDef[] {
+export function getNationwideLayersForCountry(iso2: string): NationwideLayerDef[] {
   const upper = iso2.toUpperCase();
-  const filters = BASE_NATIONWIDE_FILTERS.filter(
+  const layers = BASE_NATIONWIDE_LAYERS.filter(
     (f) =>
       f.targetIso2 === '*' ||
       f.targetIso2 === upper ||
@@ -468,8 +476,10 @@ export function getNationwideFiltersForCountry(iso2: string): NationwideFilterDe
   );
 
   if (COUNTRIES_WITH_ROADS.includes(upper)) {
-    filters.push(...getRoadFiltersForCountry(upper));
+    layers.push(...getRoadLayersForCountry(upper));
   }
 
-  return filters;
+  return layers;
 }
+export const getNationwideFiltersForCountry = getNationwideLayersForCountry;
+export const getRoadFiltersForCountry = getRoadLayersForCountry;

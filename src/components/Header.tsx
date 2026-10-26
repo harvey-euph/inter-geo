@@ -9,17 +9,26 @@ import {
 } from '../info/infotipPreferences';
 
 interface HeaderProps {
-  activeFilterCount: number;
-  isFilterExpanded: boolean;
-  onToggleFilterExpanded: () => void;
+  activeLayerCount?: number;
+  activeFilterCount?: number;
+  isLayerExpanded?: boolean;
+  isFilterExpanded?: boolean;
+  onToggleLayerExpanded?: () => void;
+  onToggleFilterExpanded?: () => void;
   onOpenQuiz?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = React.memo(({
+  activeLayerCount,
   activeFilterCount,
+  isLayerExpanded,
   isFilterExpanded,
+  onToggleLayerExpanded,
   onToggleFilterExpanded
 }) => {
+  const activeCount = activeLayerCount ?? activeFilterCount ?? 0;
+  const isExpanded = isLayerExpanded ?? isFilterExpanded ?? false;
+  const handleToggle = onToggleLayerExpanded ?? onToggleFilterExpanded;
   const pullStartRef = useRef<{ pointerId: number; x: number; y: number; ready: boolean } | null>(null);
   const [pullVisual, setPullVisual] = React.useState({ distance: 0, progress: 0, visible: false, ready: false });
   const [infotipMode, setInfotipMode] = useState<InfotipDisplayMode>(() => getInfotipDisplayMode());
@@ -104,16 +113,16 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       <div className="headline-filter-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button
           type="button"
-          className={`filter-trigger-btn ${isFilterExpanded ? 'open' : ''} ${activeFilterCount > 0 ? 'has-active' : ''}`}
-          onClick={onToggleFilterExpanded}
+          className={`filter-trigger-btn ${isExpanded ? 'open' : ''} ${activeCount > 0 ? 'has-active' : ''}`}
+          onClick={handleToggle}
           title="開啟 / 關閉圖層選擇器 (Layer Selector)"
         >
           <SlidersHorizontal size={14} className="filter-trigger-icon" />
           <span className="filter-trigger-label">圖層</span>
-          {activeFilterCount > 0 && (
-            <span className="filter-trigger-badge">{activeFilterCount}</span>
+          {activeCount > 0 && (
+            <span className="filter-trigger-badge">{activeCount}</span>
           )}
-          {isFilterExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
         <button

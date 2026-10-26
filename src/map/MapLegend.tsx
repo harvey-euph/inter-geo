@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { List } from 'lucide-react';
-import type { FilterDefinition } from '../data/filters';
-import { GLOBAL_TEXT_FILTERS_BY_ID } from '../data/globalFilters';
-import { getNationwideFilterById, NATIONWIDE_FILTERS_BY_ID } from '../data/nationwideFilters';
+import type { LayerDefinition } from '../data/layers';
+import { GLOBAL_TEXT_LAYERS_BY_ID } from '../data/globalLayers';
+import { getNationwideLayerById, NATIONWIDE_LAYERS_BY_ID } from '../data/nationwideLayers';
 
 export interface MapLegendProps {
-  activeFilterDef: FilterDefinition;
+  activeFilterDef: LayerDefinition;
   isFilterExpanded?: boolean;
   activeTextFilters?: Set<string>;
   activeInternationalImageFilter?: string | null;
@@ -63,7 +63,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
               <div className="legend-text-overlays-pills">
                 {activeTextFilters &&
                   Array.from(activeTextFilters).map((id) => {
-                    const tf = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
+                    const tf = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
                     if (!tf) return null;
                     return (
                       <span
@@ -103,7 +103,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
               </div>
               <div className="legend-text-overlays-pills">
                 {Array.from(activeRegionalFilters).map((id) => {
-                  const rf = getNationwideFilterById(id) || NATIONWIDE_FILTERS_BY_ID.get(id);
+                  const rf = getNationwideLayerById(id) || NATIONWIDE_LAYERS_BY_ID.get(id);
                   if (!rf) return null;
                   return (
                     <span

@@ -1,21 +1,21 @@
 import type { CountryData } from '../../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../../types/lod';
-import type { FilterDefinition } from '../../data/filters';
+import type { LayerDefinition } from '../../data/layers';
 import type { RoadPathData } from '../../data/roadsMeta';
 import type { TaipowerZoneDef } from '../../data/taiwanPowerPoles';
 import { isCapitalSubdivision } from '../../data/capitalSubdivisions';
-import { COUNTRIES_WITH_AREA_CODES } from '../../data/nationwideFilters';
+import { COUNTRIES_WITH_AREA_CODES } from '../../data/nationwideLayers';
 import { getSubdivisionAreaCodeBadge } from '../../data/domesticAreaCodes';
 import { EUROPEAN_CROSSING_SIGNS } from '../../data/pedestrianCrossing';
 import {
   COUNTRY_LABEL_CENTROIDS,
-  GLOBAL_TEXT_FILTERS_BY_ID,
+  GLOBAL_TEXT_LAYERS_BY_ID,
   getCombinedTextOverlay
-} from '../../data/globalFilters';
+} from '../../data/globalLayers';
 import {
-  getRegisteredCsvFilters,
+  getRegisteredCsvLayers,
   getCsvSubdivisionValue
-} from '../../filters/csvFilterRegistry';
+} from '../../layers/csvLayerRegistry';
 import { MAP_W } from '../geo';
 import {
   MAP_COLORS,
@@ -48,7 +48,7 @@ export interface RenderContext {
   expandedL2Countries: Set<string>;
   layerHoveredCountries: Set<string>;
   layerHoveredL2Subdivisions: Set<string>;
-  activeFilter: FilterDefinition;
+  activeFilter: LayerDefinition;
   activeTextFilters: Set<string>;
   activeInternationalImageFilter: string | null;
   activeRegionalFilters: Set<string>;
@@ -576,7 +576,7 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
 
   const singleFilterId = activeText.size === 1 ? Array.from(activeText)[0] : null;
   const singleFilterAccent = singleFilterId
-    ? GLOBAL_TEXT_FILTERS_BY_ID.get(singleFilterId)?.accentColor || '#f8fafc'
+    ? GLOBAL_TEXT_LAYERS_BY_ID.get(singleFilterId)?.accentColor || '#f8fafc'
     : '#f8fafc';
 
   ctx.save();
@@ -691,7 +691,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
   const isAreaCodeActive = activeAreaCodeCountries.length > 0;
 
   const activeNationwideCsvTextFilters = activeReg
-    ? getRegisteredCsvFilters().filter(
+    ? getRegisteredCsvLayers().filter(
         (f) => f.rangeKind === 'Nationwide' && f.type === 'Text' && activeReg.has(f.id)
       )
     : [];

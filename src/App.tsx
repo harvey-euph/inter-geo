@@ -1,17 +1,17 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
-import { FilterBar } from './components/FilterBar';
+import { LayerBar } from './components/LayerBar';
 import { WorldMap } from './components/WorldMap';
-import { FILTERS } from './data/filters';
+import { LAYERS } from './data/layers';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import {
-  getNationwideFilterById,
-  type NationwideFilterDef
-} from './data/nationwideFilters';
-import { getCsvFilterById } from './filters/csvFilterRegistry';
+  getNationwideLayerById,
+  type NationwideLayerDef
+} from './data/nationwideLayers';
+import { getCsvLayerById } from './layers/csvLayerRegistry';
 import './App.css';
 
 if (typeof window !== 'undefined') {
@@ -32,18 +32,18 @@ export function App() {
   const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
   const [initialLayerParam] = useState(() => new URLSearchParams(window.location.search).get('layer')?.trim() || '');
   const effectiveLayerCandidate = initialLayerParam || initialTargetParam;
-  const initialCsvLayer = effectiveLayerCandidate ? getCsvFilterById(effectiveLayerCandidate) : undefined;
-  const initialNationwideLayer = effectiveLayerCandidate ? getNationwideFilterById(effectiveLayerCandidate) : undefined;
-  const initialBaseLayer = FILTERS.some((filter) => filter.id === effectiveLayerCandidate);
+  const initialCsvLayer = effectiveLayerCandidate ? getCsvLayerById(effectiveLayerCandidate) : undefined;
+  const initialNationwideLayer = effectiveLayerCandidate ? getNationwideLayerById(effectiveLayerCandidate) : undefined;
+  const initialBaseLayer = LAYERS.some((layer) => layer.id === effectiveLayerCandidate);
   const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || initialBaseLayer;
   const initialLayerIds = initialNationwideLayer ? [effectiveLayerCandidate] : [];
   const initialTarget = isInitialLayer && !initialLayerParam ? '' : initialTargetParam;
   const [initialFocusTarget] = useState(() => {
     for (const id of initialLayerIds) {
-      const csvFocus = getCsvFilterById(id)?.meta.focusTarget;
+      const csvFocus = getCsvLayerById(id)?.meta.focusTarget;
       if (csvFocus) return csvFocus;
-      const filter = getNationwideFilterById(id);
-      if (filter?.targetIso2 && filter.targetIso2 !== '*') return filter.targetIso2;
+      const layer = getNationwideLayerById(id);
+      if (layer?.targetIso2 && layer.targetIso2 !== '*') return layer.targetIso2;
     }
     return '';
   });
@@ -61,10 +61,10 @@ export function App() {
     () => new Set(
       effectiveLayerCandidate === 'taiwan-power-poles'
         ? ['taiwan-power-poles']
-        : initialLayerIds.filter((id) => !!getNationwideFilterById(id))
+        : initialLayerIds.filter((id) => !!getNationwideLayerById(id))
     )
   );
-  const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideFilterDef[]>([]);
+  const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(initialCountry);
   const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
@@ -211,7 +211,7 @@ export function App() {
   }, []);
 
   const handleToggleRegionalFilter = useCallback((filterId: string) => {
-    const targetDef = getNationwideFilterById(filterId);
+    const targetDef = getNationwideLayerById(filterId);
     const turningOn = !activeRegionalFilters.has(filterId);
     setActiveRegionalFilters((prev) => {
       const next = new Set(prev);
@@ -231,7 +231,7 @@ export function App() {
         // Single-select within 'coloring' layerType
         if (targetDef?.layerType === 'coloring') {
           for (const existingId of Array.from(next)) {
-            const existingDef = getNationwideFilterById(existingId);
+            const existingDef = getNationwideLayerById(existingId);
             if (existingDef?.layerType === 'coloring') {
               next.delete(existingId);
             }
@@ -242,9 +242,9 @@ export function App() {
       return next;
     });
     if (!turningOn || !targetDef) return;
-    const csvFocusTarget = getCsvFilterById(filterId)?.meta.focusTarget;
+    const csvFocusTarget = getCsvLayerById(filterId)?.meta.focusTarget;
     if (csvFocusTarget) {
-      const [iso2, ...namespace] = csvFocusTarget.split('::').map((part) => part.trim());
+      const [iso2, ...namespace] = csvFocusTarget.split('::').map((part: string) => part.trim());
       if (iso2 && namespace.length > 0) {
         focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
         return;
@@ -373,7 +373,7 @@ export function App() {
     handleSelectCountry(c);
   }, [handleSelectCountry]);
 
-  const activeFilterCount =
+  const activeLayerCount =
     (activeFilterId !== 'none' ? 1 : 0) +
     activeTextFilters.size +
     (activeInternationalImageFilter ? 1 : 0) +
@@ -381,18 +381,18 @@ export function App() {
 
   return (
     <div className="app-layout">
-      {/* Top Navigation Headline with Single Filter Trigger Button */}
+      {/* Top Navigation Headline with Single Layer Trigger Button */}
       <Header
-        activeFilterCount={activeFilterCount}
-        isFilterExpanded={isFilterExpanded}
-        onToggleFilterExpanded={handleToggleFilterExpanded}
+        activeLayerCount={activeLayerCount}
+        isLayerExpanded={isFilterExpanded}
+        onToggleLayerExpanded={handleToggleFilterExpanded}
       />
 
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
-          {/* Tree-based Filter Selector Window */}
-          <FilterBar
+          {/* Tree-based Layer Selector Window */}
+          <LayerBar
             activeFilterId={activeFilterId}
             onSelectFilter={handleSelectFilter}
             activeTextFilters={activeTextFilters}

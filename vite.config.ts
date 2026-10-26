@@ -25,7 +25,7 @@ export default defineConfig({
             },
             {
               name: 'geo-data',
-              test: /src\/(data|info|filters|content|objects)\//
+              test: /src\/(data|info|layers|content|objects)\//
             }
           ]
         }

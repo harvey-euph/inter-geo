@@ -1,11 +1,11 @@
 import type { CountryData } from '../types/geo';
 import {
-  getRegisteredCsvFilters,
-  getCsvFilterValue
-} from '../filters/csvFilterRegistry';
+  getRegisteredCsvLayers,
+  getCsvLayerValue
+} from '../layers/csvLayerRegistry';
 
-export interface TextFilterDef {
-  /** Unique filter identifier (loaded dynamically from filter-reg.csv) */
+export interface TextLayerDef {
+  /** Unique layer identifier */
   id: string;
   /** Display name in Traditional Chinese */
   nameZh: string;
@@ -20,6 +20,8 @@ export interface TextFilterDef {
   /** Function to extract text string from country data */
   getText: (country: CountryData) => string | null;
 }
+
+export type TextFilterDef = TextLayerDef;
 
 /**
  * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
@@ -49,10 +51,10 @@ export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = {
 };
 
 /**
- * Dynamically builds `GLOBAL_TEXT_FILTERS` from all `International` + `Text` filters
+ * Dynamically builds `GLOBAL_TEXT_LAYERS` from all `International` + `Text` layers
  * registered from CSV files in `/layers/`.
  */
-export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
+export const GLOBAL_TEXT_LAYERS: TextLayerDef[] = getRegisteredCsvLayers()
   .filter((f) => f.rangeKind === 'International' && f.type === 'Text')
   .map((f) => ({
     id: f.id,
@@ -61,18 +63,20 @@ export const GLOBAL_TEXT_FILTERS: TextFilterDef[] = getRegisteredCsvFilters()
     shortBadge: f.shortBadge,
     descriptionZh: f.descriptionZh,
     accentColor: f.accentColor,
-    getText: (c: CountryData) => getCsvFilterValue(f.id, c.iso2)
+    getText: (c: CountryData) => getCsvLayerValue(f.id, c.iso2)
   }));
+export const GLOBAL_TEXT_FILTERS = GLOBAL_TEXT_LAYERS;
 
-export const GLOBAL_TEXT_FILTERS_BY_ID = new Map<string, TextFilterDef>(
-  GLOBAL_TEXT_FILTERS.map((f) => [f.id, f])
+export const GLOBAL_TEXT_LAYERS_BY_ID = new Map<string, TextLayerDef>(
+  GLOBAL_TEXT_LAYERS.map((f) => [f.id, f])
 );
+export const GLOBAL_TEXT_FILTERS_BY_ID = GLOBAL_TEXT_LAYERS_BY_ID;
 
-export function getCombinedTextOverlay(country: CountryData, activeFilterIds: Set<string>): string | null {
+export function getCombinedTextOverlay(country: CountryData, activeLayerIds: Set<string>): string | null {
   const parts: string[] = [];
-  for (const id of activeFilterIds) {
-    const def = GLOBAL_TEXT_FILTERS_BY_ID.get(id);
-    const val = def ? def.getText(country) : getCsvFilterValue(id, country.iso2);
+  for (const id of activeLayerIds) {
+    const def = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
+    const val = def ? def.getText(country) : getCsvLayerValue(id, country.iso2);
     if (val) parts.push(val);
   }
   return parts.length > 0 ? parts.join('  ') : null;
