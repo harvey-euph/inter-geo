@@ -16,7 +16,7 @@ export interface UseKeyboardNavParams {
   deterministicCountries: CountryPathData[];
   getTransform: () => { k: number; x: number; y: number };
   setTransformXY: (x: number, y: number) => void;
-  getViewport: () => { w: number; h: number };
+  getViewport: () => { w: number; h: number; centerX?: number };
   getMousePos: () => { x: number; y: number };
   getLodLevel: () => LODLevel;
   getSelectedRoad: () => RoadPathData | null;
@@ -200,8 +200,10 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
           const cx = (nextRoad.bbox[0] + nextRoad.bbox[2]) / 2;
           const cy = (nextRoad.bbox[1] + nextRoad.bbox[3]) / 2;
           const targetK = p.getTransform().k;
-          const { w: vw, h: vh } = p.getViewport();
-          const targetX = p.wrapX(vw / 2 - cx * targetK, targetK);
+          const vp = p.getViewport();
+          const { w: vw, h: vh } = vp;
+          const centerX = vp.centerX ?? vw / 2;
+          const targetX = p.wrapX(centerX - cx * targetK, targetK);
           const targetY = p.clampY(vh / 2 - cy * targetK, targetK, vh);
 
           p.animateTo(targetK, targetX, targetY, 250, () => {
@@ -256,8 +258,10 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
           const cx = (nextChild.bbox[0] + nextChild.bbox[2]) / 2;
           const cy = (nextChild.bbox[1] + nextChild.bbox[3]) / 2;
           const targetK = p.getTransform().k;
-          const { w: vw, h: vh } = p.getViewport();
-          const targetX = p.wrapX(vw / 2 - cx * targetK, targetK);
+          const vp = p.getViewport();
+          const { w: vw, h: vh } = vp;
+          const centerX = vp.centerX ?? vw / 2;
+          const targetX = p.wrapX(centerX - cx * targetK, targetK);
           const targetY = p.clampY(vh / 2 - cy * targetK, targetK, vh);
 
           p.animateTo(targetK, targetX, targetY, 200, () => {
@@ -303,8 +307,10 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
 
           const [cx, cy] = nextSub.centroid;
           const targetK = p.getTransform().k;
-          const { w: vw, h: vh } = p.getViewport();
-          const targetX = p.wrapX(vw / 2 - cx * targetK, targetK);
+          const vp = p.getViewport();
+          const { w: vw, h: vh } = vp;
+          const centerX = vp.centerX ?? vw / 2;
+          const targetX = p.wrapX(centerX - cx * targetK, targetK);
           const targetY = p.clampY(vh / 2 - cy * targetK, targetK, vh);
 
           p.animateTo(targetK, targetX, targetY, 250, () => {
@@ -338,8 +344,10 @@ export function useKeyboardNav(params: UseKeyboardNavParams): void {
             const [cx, cy] = nextCountry.centroid;
             const currentK = p.getTransform().k;
             const targetK = currentK > 2.8 ? 2.2 : currentK;
-            const { w: vw, h: vh } = p.getViewport();
-            const targetX = p.wrapX(vw / 2 - cx * targetK, targetK);
+            const vp = p.getViewport();
+            const { w: vw, h: vh } = vp;
+            const centerX = vp.centerX ?? vw / 2;
+            const targetX = p.wrapX(centerX - cx * targetK, targetK);
             const targetY = p.clampY(vh / 2 - cy * targetK, targetK, vh);
 
             p.animateTo(targetK, targetX, targetY, 300, () => {

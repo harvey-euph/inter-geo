@@ -358,6 +358,32 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Store container dimensions
   const viewportSize = useRef({ w: 1200, h: 800 });
+  const detailPanelWidthRef = useRef(detailPanelWidth);
+  const detailPanelFullWidthRef = useRef(detailPanelFullWidth);
+  useLayoutEffect(() => {
+    detailPanelWidthRef.current = detailPanelWidth;
+    detailPanelFullWidthRef.current = detailPanelFullWidth;
+  }, [detailPanelWidth, detailPanelFullWidth]);
+
+  const getRemainingVisibleArea = useCallback((forObject = false) => {
+    const vh = viewportSize.current.h;
+    const vw = viewportSize.current.w;
+    const isPanelOpen =
+      (forObject ||
+        Boolean(
+          selectedCountry ||
+          selectedCountryRef.current ||
+          selectedSubdivision ||
+          selectedMunicipality ||
+          selectedRoad
+        )) &&
+      !detailPanelFullWidthRef.current &&
+      vw > 768;
+    const panelW = isPanelOpen ? Math.min(detailPanelWidthRef.current, vw * 0.6) : 0;
+    const remainingW = vw - panelW;
+    const centerX = remainingW / 2;
+    return { vw, vh, remainingW, centerX, panelW };
+  }, [selectedCountry, selectedSubdivision, selectedMunicipality, selectedRoad]);
 
   // Transform stored in ref for direct 120fps GPU manipulation
   const transformRef = useRef({ k: 1, x: 0, y: 0 });
@@ -527,11 +553,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     if (initialTarget && !initialTargetHandledRef.current) return;
     const url = new URL(window.location.href);
     const { k, x, y } = transformRef.current;
-    const { w, h } = viewportSize.current;
-    if (w <= 0 || h <= 0 || k <= 0) return;
+    const { vh, remainingW, centerX } = getRemainingVisibleArea(false);
+    if (remainingW <= 0 || vh <= 0 || k <= 0) return;
 
-    const mapX = (((w / 2 - x) / k) % MAP_W + MAP_W) % MAP_W;
-    const mapY = (h / 2 - y) / k;
+    const mapX = (((centerX - x) / k) % MAP_W + MAP_W) % MAP_W;
+    const mapY = (vh / 2 - y) / k;
     const center = projection.invert?.([mapX, mapY]);
     if (!center || !center.every(Number.isFinite)) return;
 
@@ -540,7 +566,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     url.searchParams.set('lon', center[0].toFixed(5));
     url.searchParams.set('ratio', k.toFixed(3));
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [projection, initialTarget]);
+  }, [projection, initialTarget, getRemainingVisibleArea]);
 
   const scheduleViewUrlSync = useCallback(() => {
     if (viewUrlSyncTimerRef.current !== null) window.clearTimeout(viewUrlSyncTimerRef.current);
@@ -2266,13 +2292,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const [minX, minY, maxX, maxY] = target.bbox;
       const bw = Math.max(maxX - minX, 0.5);
       const bh = Math.max(maxY - minY, 0.5);
-      const vh = viewportSize.current.h;
-      const vw = viewportSize.current.w;
+      const { vw, vh, remainingW, centerX } = getRemainingVisibleArea(true);
       const kMin = vh / MAP_H;
-      const kFit = Math.min((vw * 0.7) / bw, (vh * 0.7) / bh);
+      const kFit = Math.min((remainingW * 0.7) / bw, (vh * 0.7) / bh);
       const targetK = Math.min(MAX_ZOOM_K, Math.max(kFit, kMin));
       const [cx, cy] = target.centroid;
-      const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+      const targetX = wrapX(centerX - cx * targetK, targetK);
       const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
 
       const targetLOD = getLODLevel(targetK);
@@ -2294,7 +2319,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         syncAllViewports(targetK, targetX, targetY, vw, vh);
       });
     },
-    [wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD]
+    [wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD, getRemainingVisibleArea]
   );
 
   const zoomToSubdivisionRefInternal = useRef(zoomToSubdivision);
@@ -2755,15 +2780,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     focusMapRef.current = (target: MapFocusTarget) => {
       if (target.kind === 'coordinates') {
-        const vh = viewportSize.current.h;
-        const vw = viewportSize.current.w;
+        const { vw, vh, centerX } = getRemainingVisibleArea(false);
         if (vw <= 0 || vh <= 0) return;
         const [px, py] = projection([target.lon, target.lat]) || [MAP_W / 2, MAP_H / 2];
         const kMin = vh / MAP_H;
         const targetK = target.ratio !== undefined
           ? Math.max(kMin, Math.min(MAX_ZOOM_K, target.ratio))
           : transformRef.current.k;
-        const targetX = wrapX(vw / 2 - px * targetK, targetK);
+        const targetX = wrapX(centerX - px * targetK, targetK);
         const targetY = clampY(vh / 2 - py * targetK, targetK, vh);
         const targetLOD = getLODLevel(targetK);
         if (targetLOD !== lodLevelRef.current) {
@@ -2785,12 +2809,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const minY = Math.min(raw.minY, raw.maxY);
       const maxY = Math.max(raw.minY, raw.maxY);
 
-      const vh = viewportSize.current.h;
-      const vw = viewportSize.current.w;
+      const { vw, vh, remainingW, centerX } = getRemainingVisibleArea(true);
       if (vw <= 0 || vh <= 0) return;
 
       const cur = transformRef.current;
-      if (!target.force && isAlreadyOnScreen({ minX, minY, maxX, maxY }, cur.k, cur.x, cur.y, vw, vh)) {
+      if (!target.force && isAlreadyOnScreen({ minX, minY, maxX, maxY }, cur.k, cur.x, cur.y, remainingW, vh)) {
         return;
       }
 
@@ -2804,11 +2827,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const kMin = vh / MAP_H;
       const l3 = DEFAULT_LOD_THRESHOLDS.l3Threshold;
       const kCap = Math.min(MAX_ZOOM_K, Number.isFinite(l3) ? l3 - 0.15 : 14);
-      const kFit = Math.min((vw * 0.62) / bwFit, (vh * 0.62) / bhFit);
+      const kFit = Math.min((remainingW * 0.62) / bwFit, (vh * 0.62) / bhFit);
       const targetK = Math.max(kMin, Math.min(kCap, kFit));
       const cx = (minX + maxX) / 2;
       const cy = (minY + maxY) / 2;
-      const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+      const targetX = wrapX(centerX - cx * targetK, targetK);
       const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
 
       const targetLOD = getLODLevel(targetK);
@@ -2833,7 +2856,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     clampY,
     animateTo,
     syncAllViewports,
-    projection
+    projection,
+    getRemainingVisibleArea
   ]);
 
   useEffect(() => {
@@ -2877,7 +2901,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       transformRef.current.x = x;
       transformRef.current.y = y;
     },
-    getViewport: () => viewportSize.current,
+    getViewport: () => {
+      const { vw, vh, centerX } = getRemainingVisibleArea(true);
+      return { w: vw, h: vh, centerX };
+    },
     getMousePos: () => mousePos.current,
     getLodLevel: () => lodLevelRef.current,
     getSelectedRoad: () => selectedRoadRef.current,
