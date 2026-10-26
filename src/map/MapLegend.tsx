@@ -3,6 +3,7 @@ import { List, ChevronUp } from 'lucide-react';
 import type { LayerDefinition } from '../data/layers';
 import { getGlobalTextLayerById, GLOBAL_TEXT_LAYERS_BY_ID } from '../data/globalLayers';
 import { getNationwideLayerById, NATIONWIDE_LAYERS_BY_ID } from '../data/nationwideLayers';
+import { getCsvLayerById } from '../layers/csvLayerRegistry';
 
 export interface MapLegendProps {
   activeFilterDef: LayerDefinition;
@@ -78,19 +79,20 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
               <div className="legend-text-overlays-pills">
                 {activeTextFilters &&
                   Array.from(activeTextFilters).map((id) => {
-                    const tf = getGlobalTextLayerById(id) || GLOBAL_TEXT_LAYERS_BY_ID.get(id);
+                    const tf = getGlobalTextLayerById(id) || GLOBAL_TEXT_LAYERS_BY_ID.get(id) || getCsvLayerById(id);
                     if (!tf) return null;
+                    const accent = tf.accentColor || '#38bdf8';
                     return (
                       <span
                         key={id}
                         className="legend-text-pill"
                         style={{
-                          borderColor: tf.accentColor,
-                          color: tf.accentColor,
-                          backgroundColor: `${tf.accentColor}18`
+                          borderColor: accent,
+                          color: accent,
+                          backgroundColor: `${accent}18`
                         }}
                       >
-                        {tf.shortBadge}
+                        {tf.shortBadge || tf.nameZh}
                       </span>
                     );
                   })}

@@ -121,7 +121,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         });
       } else if (g === 'ext-object') {
         extObject.push(f);
-      } else if (g === 'global-label' || (f.rangeKind === 'International' && !['distinctive-letters', 'distinctiveLetters', 'street-words', 'streetWords'].includes(f.id))) {
+      } else if (g === 'global-label' || (f.rangeKind === 'International' && f.type === 'Text')) {
         globalLabel.push(f);
       } else {
         areaLabel.push(f);

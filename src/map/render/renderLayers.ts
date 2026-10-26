@@ -13,7 +13,8 @@ import {
 } from '../../data/globalLayers';
 import {
   getRegisteredCsvLayers,
-  getCsvSubdivisionValue
+  getCsvSubdivisionValue,
+  getCsvLayerById
 } from '../../layers/csvLayerRegistry';
 import { MAP_W } from '../geo';
 import {
@@ -580,11 +581,23 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
     badgeWidthCache: widthCache
   } = rc;
 
-  if (!activeText || activeText.size === 0 || countryPathData.length === 0) return;
+  const allActiveText = new Set<string>(activeText || []);
+  if (rc.activeRegionalFilters) {
+    for (const id of rc.activeRegionalFilters) {
+      const l = getCsvLayerById(id);
+      if (l && l.type === 'Text' && l.rangeKind === 'International') {
+        allActiveText.add(id);
+      }
+    }
+  }
 
-  const singleFilterId = activeText.size === 1 ? Array.from(activeText)[0] : null;
+  if (allActiveText.size === 0 || countryPathData.length === 0) return;
+
+  const singleFilterId = allActiveText.size === 1 ? Array.from(allActiveText)[0] : null;
   const singleFilterAccent = singleFilterId
-    ? GLOBAL_TEXT_LAYERS_BY_ID.get(singleFilterId)?.accentColor || '#f8fafc'
+    ? GLOBAL_TEXT_LAYERS_BY_ID.get(singleFilterId)?.accentColor ||
+      getCsvLayerById(singleFilterId)?.accentColor ||
+      '#f8fafc'
     : '#f8fafc';
 
   ctx.save();
@@ -601,7 +614,7 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
     const cMeta = item.countryMeta;
     if (!cMeta) continue;
 
-    const badgeText = getCombinedTextOverlay(cMeta, activeText);
+    const badgeText = getCombinedTextOverlay(cMeta, allActiveText);
     if (!badgeText) continue;
 
     let textWidth = widthCache.get(badgeText);

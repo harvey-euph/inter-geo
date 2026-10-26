@@ -216,8 +216,8 @@ export function App() {
       if (next.has(filterId)) {
         next.delete(filterId);
       } else {
-        // Enforce max 2 concurrent text filters
-        if (next.size >= 2) {
+        // Enforce max 4 concurrent text filters
+        if (next.size >= 4) {
           const first = Array.from(next)[0];
           next.delete(first);
         }
