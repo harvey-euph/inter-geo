@@ -216,7 +216,7 @@ flowchart LR
 
 ```csv
 // @id: driving-side
-// @nameZh: 行駛方向 (左右行)
+// @nameZh: 行駛方向
 // @nameEn: Driving Side
 // @shortBadge: 🚦 方向
 // @group: fill-region

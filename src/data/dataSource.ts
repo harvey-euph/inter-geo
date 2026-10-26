@@ -52,7 +52,6 @@ export function normalizeDataPath(rawPath: string): string {
     const fn = p.slice(7);
     const camelToKebab: Record<string, string> = {
       drivingside: 'driving-side',
-      carmeta: 'car-meta',
       platetype: 'plate-type',
       roadmarkings: 'road-markings',
       countrycode: 'country-code',
@@ -68,7 +67,6 @@ export function normalizeDataPath(rawPath: string): string {
 
     const fillRegionFiles = [
       'base.csv',
-      'car-meta.csv',
       'coverage.csv',
       'driving-side.csv',
       'plate-type.csv',
