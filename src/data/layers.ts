@@ -15,7 +15,7 @@ export type FilterDefinition = LayerDefinition;
 
 export const LAYERS: LayerDefinition[] = [
   {
-    id: 'none',
+    id: 'coverage',
     category: 'none',
     nameZh: '🌍 街景全覽',
     descriptionZh: '顯示全球具備 Google 街景官方覆蓋之國家，點擊或滑動查看各地地理與道路文化特色',
@@ -93,7 +93,7 @@ export const LAYERS: LayerDefinition[] = [
     }
   },
   {
-    id: 'roadLines',
+    id: 'roadMarkings',
     category: 'roadLines',
     nameZh: '🛣️ 道路標線 (邊線與中線)',
     descriptionZh: '國家多邊形輪廓雙層著色：外圈邊界為邊線顏色，內部中心為車道中線顏色（如白邊+雙黃、全白、黃邊+白中線）',
@@ -130,3 +130,16 @@ export const LAYERS: LayerDefinition[] = [
 ];
 
 export const FILTERS = LAYERS;
+
+/**
+ * Resolves a built-in preset layer definition by ID with legacy alias support.
+ */
+export function getPresetLayerById(id: string): LayerDefinition | undefined {
+  return LAYERS.find(
+    (f) =>
+      f.id === id ||
+      (f.id === 'coverage' && (id === 'none' || id === 'coverage' || id === 'street-view-coverage')) ||
+      (f.id === 'roadMarkings' && (id === 'roadLines' || id === 'road-markings' || id === 'roadMarkings')) ||
+      (f.id === 'drivingSide' && (id === 'drivingSide' || id === 'driving-side'))
+  );
+}

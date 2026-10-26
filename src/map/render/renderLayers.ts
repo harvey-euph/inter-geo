@@ -191,7 +191,12 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         fillWithColor = MAP_COLORS.hovered;
       } else if (!item.countryMeta) {
         fillWithColor = MAP_COLORS.unmappedFill;
-      } else if (activeFilter.id === 'roadLines' && isCountryL2Region) {
+      } else if (
+        (activeFilter.id === 'roadLines' ||
+          activeFilter.id === 'roadMarkings' ||
+          activeFilter.id === 'road-markings') &&
+        isCountryL2Region
+      ) {
         fillWithColor = MAP_COLORS.defaultFill;
       } else {
         fillWithColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
@@ -293,10 +298,13 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
 
           // 1. Fill all subdivisions of this country in 1 draw call.
           // Road markings stay on L1 country shapes; at L2 the landmass uses the plain fill.
-          const defaultFill =
-            activeFilter.id === 'roadLines'
-              ? MAP_COLORS.defaultFill
-              : (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
+          const isRoadFilter =
+            activeFilter.id === 'roadLines' ||
+            activeFilter.id === 'roadMarkings' ||
+            activeFilter.id === 'road-markings';
+          const defaultFill = isRoadFilter
+            ? MAP_COLORS.defaultFill
+            : (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
           ctx.fillStyle = isParentSelected ? 'rgba(59, 130, 246, 0.34)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
           ctx.fill(countryCombined);
 

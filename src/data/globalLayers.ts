@@ -1,7 +1,9 @@
 import type { CountryData } from '../types/geo';
 import {
   getRegisteredCsvLayers,
-  getCsvLayerValue
+  getCsvLayerValue,
+  getCsvLayerById,
+  onLayersIndexLoaded
 } from '../layers/csvLayerRegistry';
 
 export interface TextLayerDef {
@@ -72,10 +74,53 @@ export const GLOBAL_TEXT_LAYERS_BY_ID = new Map<string, TextLayerDef>(
 );
 export const GLOBAL_TEXT_FILTERS_BY_ID = GLOBAL_TEXT_LAYERS_BY_ID;
 
+if (typeof window !== 'undefined') {
+  onLayersIndexLoaded(() => {
+    for (const f of getRegisteredCsvLayers()) {
+      if (f.rangeKind === 'International' && f.type === 'Text') {
+        const def: TextLayerDef = {
+          id: f.id,
+          nameZh: f.nameZh,
+          nameEn: f.nameEn,
+          shortBadge: f.shortBadge || f.nameZh,
+          descriptionZh: f.descriptionZh,
+          accentColor: f.accentColor,
+          getText: (c: CountryData) => getCsvLayerValue(f.id, c.iso2)
+        };
+        GLOBAL_TEXT_LAYERS_BY_ID.set(f.id, def);
+      }
+    }
+  });
+}
+
+/**
+ * Retrieves a global text layer definition by ID, supporting dynamic CSV registry lookup.
+ */
+export function getGlobalTextLayerById(id: string): TextLayerDef | undefined {
+  const existing = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
+  if (existing) return existing;
+  const csvF = getCsvLayerById(id);
+  if (csvF && csvF.type === 'Text') {
+    const dynamicDef: TextLayerDef = {
+      id: csvF.id,
+      nameZh: csvF.nameZh,
+      nameEn: csvF.nameEn,
+      shortBadge: csvF.shortBadge || csvF.nameZh,
+      descriptionZh: csvF.descriptionZh,
+      accentColor: csvF.accentColor || '#38bdf8',
+      getText: (c: CountryData) => getCsvLayerValue(csvF.id, c.iso2)
+    };
+    GLOBAL_TEXT_LAYERS_BY_ID.set(id, dynamicDef);
+    return dynamicDef;
+  }
+  return undefined;
+}
+export const getGlobalTextFilterById = getGlobalTextLayerById;
+
 export function getCombinedTextOverlay(country: CountryData, activeLayerIds: Set<string>): string | null {
   const parts: string[] = [];
   for (const id of activeLayerIds) {
-    const def = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
+    const def = getGlobalTextLayerById(id) || GLOBAL_TEXT_LAYERS_BY_ID.get(id);
     const val = def ? def.getText(country) : getCsvLayerValue(id, country.iso2);
     if (val) parts.push(val);
   }

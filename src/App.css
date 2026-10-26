@@ -1450,8 +1450,9 @@
   flex-direction: column;
   gap: 8px;
   box-shadow: var(--shadow-soft);
+  min-width: 190px;
   max-width: 280px;
-  transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
 }
 
@@ -1511,8 +1512,25 @@
   white-space: nowrap;
 }
 
+.legend-chevron-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.legend-empty-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding: 2px 0;
+}
+
 /* 收合時只留左上角 icon */
 .filter-legend-card.is-collapsed {
+  min-width: unset;
   width: auto;
   max-width: none;
   padding: 8px;

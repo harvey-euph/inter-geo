@@ -8,7 +8,7 @@
 import { ROADS_MANIFEST } from './roadsManifest';
 import type { RoadShieldType } from './roadsMeta';
 import { findCountry } from './countries';
-import { getRegisteredCsvLayers } from '../layers/csvLayerRegistry';
+import { getRegisteredCsvLayers, getCsvLayerById } from '../layers/csvLayerRegistry';
 
 export interface NationwideLayerDef {
   /** Unique layer identifier */
@@ -457,6 +457,24 @@ export function getNationwideLayerById(id: string): NationwideLayerDef | undefin
         return match;
       }
     }
+  }
+  const csvF = getCsvLayerById(id);
+  if (csvF) {
+    const dynamicDef: NationwideLayerDef = {
+      id: csvF.id,
+      targetIso2: csvF.targetIso2,
+      targetIso2s: csvF.targetIso2s,
+      nameZh: csvF.nameZh,
+      nameEn: csvF.nameEn,
+      shortBadge: csvF.shortBadge || csvF.nameZh,
+      titleZh: csvF.descriptionZh,
+      titleEn: csvF.nameEn,
+      activeColor: csvF.accentColor || '#10b981',
+      layerType: 'text',
+      descriptionZh: csvF.descriptionZh
+    };
+    NATIONWIDE_LAYERS_BY_ID.set(id, dynamicDef);
+    return dynamicDef;
   }
   return undefined;
 }

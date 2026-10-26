@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import * as flatgeobuf from 'flatgeobuf';
 import type { CountryData } from '../types/geo';
-import { LAYERS } from '../data/layers';
+import { LAYERS, getPresetLayerById } from '../data/layers';
 import type { LayerDefinition } from '../data/layers';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
@@ -421,28 +421,46 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       return {
         id: 'none',
         category: 'none',
-        nameZh: 'Base',
-        descriptionZh: '預設草圖底圖風格',
+        nameZh: '預設底圖 (Base)',
+        descriptionZh: '預設草圖底圖風格，未疊加任何主題著色',
         legend: [],
         getColor: () => null
       };
     }
 
-    const preset = LAYERS.find((f) => f.id === activeFilterId);
-    if (preset) return preset;
+    const preset = getPresetLayerById(activeFilterId);
+    if (preset) {
+      return {
+        ...preset,
+        id: activeFilterId
+      };
+    }
 
     const csvF = getCsvLayerById(activeFilterId);
     if (csvF) {
+      const activeColor =
+        csvF.accentColor ||
+        csvF.meta.defaultColor ||
+        ((csvF.meta as Record<string, unknown>)['default-color'] as string | undefined) ||
+        '#38bdf8';
       return {
         id: csvF.id,
         category: 'none',
         nameZh: csvF.nameZh,
         descriptionZh: csvF.descriptionZh,
-        legend: [],
+        legend: [
+          {
+            key: 'active',
+            labelZh: csvF.descriptionZh || csvF.nameZh,
+            color: activeColor
+          }
+        ],
         getColor: (country: CountryData) => {
           const val = getCsvLayerValue(csvF.id, country.iso2);
           if (val) return val;
-          const defaultCol = csvF.meta.defaultColor || (csvF.meta as Record<string, unknown>)['default-color'] as string | undefined;
+          const defaultCol =
+            csvF.meta.defaultColor ||
+            ((csvF.meta as Record<string, unknown>)['default-color'] as string | undefined);
           return defaultCol || null;
         }
       };

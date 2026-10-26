@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { List } from 'lucide-react';
+import { List, ChevronUp } from 'lucide-react';
 import type { LayerDefinition } from '../data/layers';
-import { GLOBAL_TEXT_LAYERS_BY_ID } from '../data/globalLayers';
+import { getGlobalTextLayerById, GLOBAL_TEXT_LAYERS_BY_ID } from '../data/globalLayers';
 import { getNationwideLayerById, NATIONWIDE_LAYERS_BY_ID } from '../data/nationwideLayers';
 
 export interface MapLegendProps {
@@ -23,6 +23,8 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
+  const isBase = activeFilterDef.id === 'none' || activeFilterDef.id === 'base';
+
   return (
     <div
       className={`filter-legend-card ${isFilterExpanded ? 'with-filter-bar' : ''} ${
@@ -40,19 +42,32 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
         <span className="legend-toggle-icon" aria-hidden>
           <List size={16} />
         </span>
-        {!collapsed && <span className="legend-title-text">{activeFilterDef.nameZh}</span>}
+        {!collapsed && (
+          <>
+            <span className="legend-title-text">{activeFilterDef.nameZh}</span>
+            <span className="legend-chevron-icon" aria-hidden>
+              <ChevronUp size={13} />
+            </span>
+          </>
+        )}
       </button>
 
       {!collapsed && (
         <>
-          <div className="legend-items-list legend-items">
-            {activeFilterDef.legend.map((item) => (
-              <div key={item.key} className="legend-item-row legend-item">
-                <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
-                <span className="legend-label">{item.labelZh}</span>
-              </div>
-            ))}
-          </div>
+          {activeFilterDef.legend.length > 0 ? (
+            <div className="legend-items-list legend-items">
+              {activeFilterDef.legend.map((item) => (
+                <div key={item.key} className="legend-item-row legend-item">
+                  <span className="legend-color-dot" style={{ backgroundColor: item.color }} />
+                  <span className="legend-label">{item.labelZh}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="legend-empty-hint">
+              {isBase ? '預設草圖底圖風格（未選取著色圖層）' : (activeFilterDef.descriptionZh || '暫無顏色圖例')}
+            </div>
+          )}
 
           {((activeTextFilters && activeTextFilters.size > 0) || activeInternationalImageFilter) && (
             <div className="legend-text-overlays-section">
@@ -63,7 +78,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
               <div className="legend-text-overlays-pills">
                 {activeTextFilters &&
                   Array.from(activeTextFilters).map((id) => {
-                    const tf = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
+                    const tf = getGlobalTextLayerById(id) || GLOBAL_TEXT_LAYERS_BY_ID.get(id);
                     if (!tf) return null;
                     return (
                       <span
@@ -95,7 +110,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
             </div>
           )}
 
-          {isL2RegionMode && activeRegionalFilters.size > 0 && (
+          {isL2RegionMode && activeRegionalFilters && activeRegionalFilters.size > 0 && (
             <div className="legend-text-overlays-section">
               <div className="legend-divider" />
               <div className="legend-text-overlays-header">
