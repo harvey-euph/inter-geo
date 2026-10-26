@@ -921,6 +921,18 @@
   user-select: none;
 }
 
+.filter-selector-window.is-dragged {
+  animation: none;
+}
+
+.filter-selector-window.is-dragging {
+  user-select: none;
+  cursor: grabbing;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
 @keyframes fswPopIn {
   from {
     opacity: 0;
@@ -941,6 +953,36 @@
   background: rgba(22, 27, 38, 0.95);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.fsw-top-bar:active,
+.filter-selector-window.is-dragging .fsw-top-bar {
+  cursor: grabbing;
+}
+
+.fsw-drag-grip {
+  color: rgba(255, 255, 255, 0.28);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+  pointer-events: none;
+}
+
+.fsw-top-bar:hover .fsw-drag-grip {
+  color: rgba(56, 189, 248, 0.85);
+}
+
+.fsw-search-wrapper,
+.fsw-search-input {
+  cursor: text;
+}
+
+.fsw-search-clear,
+.fsw-reset-btn,
+.fsw-close-btn {
+  cursor: pointer;
 }
 
 .fsw-search-wrapper {

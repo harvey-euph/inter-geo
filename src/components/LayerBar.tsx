@@ -16,7 +16,8 @@ import {
   Palette,
   Layers,
   Globe,
-  MapPin
+  MapPin,
+  GripHorizontal
 } from 'lucide-react';
 
 export interface LayerBarProps {
@@ -222,11 +223,119 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   }, [categorized.areaLabel, matchesSearch]);
 
   const windowRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    parentWidth: number;
+    parentHeight: number;
+    windowWidth: number;
+    windowHeight: number;
+  } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only primary mouse button or touch
+    if (e.button !== 0) return;
+
+    // Do not initiate drag if clicking on interactive elements
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest('input') ||
+      target?.closest('button') ||
+      target?.closest('a')
+    ) {
+      return;
+    }
+
+    if (!windowRef.current) return;
+    const rect = windowRef.current.getBoundingClientRect();
+    const parent = windowRef.current.offsetParent as HTMLElement | null;
+    const parentRect = parent ? parent.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+
+    dragStartRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: rect.left - parentRect.left,
+      initialY: rect.top - parentRect.top,
+      parentWidth: parentRect.width,
+      parentHeight: parentRect.height,
+      windowWidth: rect.width,
+      windowHeight: rect.height
+    };
+
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const ds = dragStartRef.current;
+    if (!ds || ds.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - ds.startX;
+    const dy = e.clientY - ds.startY;
+
+    const minX = 8;
+    const maxX = Math.max(minX, ds.parentWidth - ds.windowWidth - 8);
+    const minY = 8;
+    const maxY = Math.max(minY, ds.parentHeight - ds.windowHeight - 8);
+
+    const newX = Math.min(Math.max(ds.initialX + dx, minX), maxX);
+    const newY = Math.min(Math.max(ds.initialY + dy, minY), maxY);
+
+    setPosition({ x: Math.round(newX), y: Math.round(newY) });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const ds = dragStartRef.current;
+    if (!ds || ds.pointerId !== e.pointerId) return;
+
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    dragStartRef.current = null;
+    setIsDragging(false);
+  };
+
+  // Keep window clamped within view if viewport resizes
+  useEffect(() => {
+    if (!position || !windowRef.current) return;
+    const handleResize = () => {
+      const parent = windowRef.current?.offsetParent as HTMLElement | null;
+      const parentW = parent ? parent.clientWidth : window.innerWidth;
+      const parentH = parent ? parent.clientHeight : window.innerHeight;
+      const winW = windowRef.current?.offsetWidth || 410;
+      const winH = windowRef.current?.offsetHeight || 300;
+
+      const maxX = Math.max(8, parentW - winW - 8);
+      const maxY = Math.max(8, parentH - winH - 8);
+
+      setPosition((prev) => {
+        if (!prev) return null;
+        const clampedX = Math.min(Math.max(prev.x, 8), maxX);
+        const clampedY = Math.min(Math.max(prev.y, 8), maxY);
+        if (clampedX === prev.x && clampedY === prev.y) return prev;
+        return { x: clampedX, y: clampedY };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [position]);
 
   useEffect(() => {
     if (!isExpanded) return;
 
     const handlePointerDownOutside = (e: PointerEvent) => {
+      if (dragStartRef.current) return;
       const target = e.target as Element | null;
       if (!target) return;
       if (windowRef.current && windowRef.current.contains(target)) {
@@ -313,12 +422,28 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   return (
     <div
       ref={windowRef}
-      className="filter-selector-window"
+      className={`filter-selector-window ${position ? 'is-dragged' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      style={
+        position
+          ? {
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              transform: 'none'
+            }
+          : undefined
+      }
       role="dialog"
       aria-label="Layer Selector"
     >
-      {/* Top Bar: Search Bar & Actions */}
-      <div className="fsw-top-bar">
+      {/* Top Bar: Search Bar & Actions (Draggable Handle) */}
+      <div
+        className="fsw-top-bar"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <GripHorizontal size={14} className="fsw-drag-grip" />
         <div className="fsw-search-wrapper">
           <Search size={13} className="fsw-search-icon" />
           <input
