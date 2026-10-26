@@ -152,6 +152,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     // 1. Layer 1: Country Landmass (Direct Vector Rendering at L1 & Non-L2 Countries at L2/L3)
     // ========================================================
     const useHighRes = k >= 1.8;
+    if (useHighRes) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.8 / k;
+    }
     for (let i = 0; i < countryPathData.length; i++) {
       const item = countryPathData[i];
       if (!item.path2D) continue;
@@ -211,8 +215,6 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
 
       // At regional zoom (k >= 1.8), stroke individual country boundary
       if (useHighRes) {
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1.8 / k;
         ctx.stroke(renderPath);
       }
 

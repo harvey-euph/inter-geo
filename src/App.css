@@ -476,6 +476,81 @@
   display: none;
 }
 
+/* Touch device (mobile & tablet) floating tooltip styles */
+.map-tooltip.is-touch {
+  position: absolute !important;
+  top: 20px !important;
+  right: 12px !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: min(320px, calc(50% - 24px));
+  min-width: 0;
+  max-width: none;
+  max-height: 45vh;
+  overflow-y: auto;
+  padding: 8px;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.map-tooltip.is-touch.is-interactive:active {
+  border-color: #38bdf8;
+}
+
+.map-tooltip.is-touch .mobile-tooltip-open-hint {
+  display: block;
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  color: #7dd3fc;
+  font-size: 10px;
+  text-align: center;
+}
+
+.svg-map-wrapper.panel-open .map-tooltip.is-touch,
+.svg-map-wrapper.filter-panel-open .map-tooltip.is-touch {
+  display: none !important;
+}
+
+@media (pointer: coarse) {
+  .map-tooltip {
+    position: absolute !important;
+    top: 20px !important;
+    right: 12px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: min(320px, calc(50% - 24px));
+    min-width: 0;
+    max-width: none;
+    max-height: 45vh;
+    overflow-y: auto;
+    padding: 8px;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: pan-y;
+  }
+
+  .map-tooltip.is-interactive:active {
+    border-color: #38bdf8;
+  }
+
+  .mobile-tooltip-open-hint {
+    display: block;
+    margin-top: 4px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+    color: #7dd3fc;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .svg-map-wrapper.panel-open .map-tooltip,
+  .svg-map-wrapper.filter-panel-open .map-tooltip {
+    display: none !important;
+  }
+}
+
 @keyframes mapTooltipIn {
   from { opacity: 0; }
   to { opacity: 1; }

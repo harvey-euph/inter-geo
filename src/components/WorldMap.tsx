@@ -1522,6 +1522,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     (clientX: number, clientY: number, duringGesture = false) => {
       if (hasFinePointerRef.current && !isMouseInsideRef.current) return;
       if (!hasFinePointerRef.current && !centerCursorEnabledRef.current) return;
+      if (hasFinePointerRef.current && isDragging.current) return;
       if (isDragging.current && !duringGesture) return;
 
       if (!hasFinePointerRef.current) {
@@ -1725,9 +1726,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
-          const point = getHoverClientPoint();
-          hoverUpdateRef.current(point.x, point.y, true);
-          if (canTrackHover()) hoverExpansionCheckRef.current();
+          if (!hasFinePointerRef.current && centerCursorEnabledRef.current) {
+            const point = getHoverClientPoint();
+            hoverUpdateRef.current(point.x, point.y, true);
+            if (canTrackHover()) hoverExpansionCheckRef.current();
+          }
           rafId.current = null;
         });
       }
@@ -1741,6 +1744,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         hasDragged.current = true;
+        if (hasFinePointerRef.current && tooltipRef.current && tooltipRef.current.style.display !== 'none') {
+          tooltipRef.current.style.display = 'none';
+        }
       }
 
       const rawX = dragStart.current.x + dx;
@@ -1767,8 +1773,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
           renderCanvas();
-          const point = getHoverClientPoint();
-          hoverUpdateRef.current(point.x, point.y, true);
+          if (!hasFinePointerRef.current && centerCursorEnabledRef.current) {
+            const point = getHoverClientPoint();
+            hoverUpdateRef.current(point.x, point.y, true);
+          }
           rafId.current = null;
         });
       }
@@ -2879,6 +2887,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredL2Subdivision={hoveredL2Subdivision}
         hoveredTaipowerZone={hoveredTaipowerZone}
         activeRegionalFilters={activeRegionalFilters}
+        isTouch={!hasFinePointer}
         onOpenFullInfo={
           !hasFinePointer &&
           (hoveredRoad || hoveredCountry || hoveredMunicipality || hoveredL2Subdivision)

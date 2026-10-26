@@ -18,6 +18,7 @@ export interface MapTooltipProps {
   hoveredTaipowerZone: TaipowerZoneDef | null;
   activeRegionalFilters: Set<string>;
   onOpenFullInfo?: () => void;
+  isTouch?: boolean;
 }
 
 const MapTooltipComponent: React.FC<MapTooltipProps> = ({
@@ -28,7 +29,8 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
   hoveredL2Subdivision,
   hoveredTaipowerZone,
   activeRegionalFilters,
-  onOpenFullInfo
+  onOpenFullInfo,
+  isTouch = false
 }) => {
   if (!hoveredRoad && !hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredTaipowerZone) {
     return null;
@@ -37,7 +39,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
   return (
     <div
       ref={setTooltipNode}
-      className={`map-tooltip${onOpenFullInfo ? ' is-interactive' : ''}`}
+      className={`map-tooltip${onOpenFullInfo ? ' is-interactive' : ''}${isTouch ? ' is-touch' : ''}`}
       role={onOpenFullInfo ? 'button' : undefined}
       tabIndex={onOpenFullInfo ? 0 : undefined}
       aria-label={onOpenFullInfo ? '開啟完整資訊' : undefined}
