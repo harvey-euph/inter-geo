@@ -29,7 +29,7 @@ The major runtime design split in `inter-geo` is:
 | `src/App.tsx` | Top-level state, URL startup parsing, selected object, active filters, detail panel wiring, and map focus callbacks. |
 | `src/components/WorldMap.tsx` | Canvas lifecycle, camera transform, pointer/touch/wheel gestures, selection, hover, LOD transitions, visible-layer calculation, and data loading coordination. |
 | `src/components/Header.tsx` | App header, layer drawer trigger, and Infotip display mode selector. |
-| `src/components/FilterBar.tsx` | Accordion-grouped layer selector (`fill-region`, `ext-object`, `global-label`, `area-label`), filter search, and activation. |
+| `src/components/LayerBar.tsx` | Accordion-grouped layer selector (`fill-region`, `ext-object`, `global-label`, `area-label`), layer search, and activation. |
 | `src/components/CountryDetailPanel.tsx`, `src/components/MarkdownInfoCard.tsx` | Selected-object panel, essay card pagination, and reactive info rendering. |
 | `src/map/render/renderLayers.ts` | Canvas drawing routines for geography, labels, roads, and active data layers. |
 | `src/map/hitTest.ts` | Pointer-to-object resolution. Must agree with renderer visibility and draw order. |
@@ -39,8 +39,8 @@ The major runtime design split in `inter-geo` is:
 | `src/data/geoIndexClient.ts` | In-memory cached HTTP client for remote indexes (`data-index.json`, `layers-index.json`, `info-targets.json`). |
 | `src/info/infoRegistry.ts` | Target-to-card querying, priority ranking (0..139), and on-demand Markdown body fetching with caching and deduplication. |
 | `src/info/infotipPreferences.ts` | Infotip hover display mode state and LocalStorage persistence (`first-item`, `tags-badges`, `card-titles`, `minimal`). |
-| `src/filters/csvFilterRegistry.ts` | Registered CSV filter state, initial fast stubs, dynamic remote layer sync, and value lookups. |
-| `src/filters/assignableRegions.ts` | Generic region-id normalizer (`XX::YY`, `XX-YY`, numeric padding, Taiwan power pole zones) and effective range parser. |
+| `src/layers/csvLayerRegistry.ts` | Registered CSV layer state, dynamic remote layer sync from layers-index.json, and value lookups. |
+| `src/layers/assignableRegions.ts` | Generic region-id normalizer (`XX::YY`, `XX-YY`, numeric padding, Taiwan power pole zones) and effective range parser. |
 | `src/objects/objectId.ts` | Canonical object IDs, namespace formatting, and object alias helpers. |
 | `vite.config.ts` | Streamlined standard Vite React build configuration without build-time index plugins. |
 | `public/globe.svg` | Application favicon. |
@@ -67,9 +67,9 @@ The major runtime design split in `inter-geo` is:
 | Change URL startup parameters | `src/App.tsx`, `src/components/WorldMap.tsx`, `docs/url-initial-state.md` |
 | Change map camera, gestures, selection, or hover | `src/components/WorldMap.tsx`, then `src/map/hitTest.ts` and `src/map/render/renderLayers.ts` |
 | Change map colors, outlines, labels, or layer drawing | `src/map/render/renderLayers.ts`, `src/map/theme.ts` |
-| Change Layer UI grouping or selection | `src/components/FilterBar.tsx`, `src/filters/csvFilterRegistry.ts` |
+| Change Layer UI grouping or selection | `src/components/LayerBar.tsx`, `src/layers/csvLayerRegistry.ts` |
 | Change Infotip hover modes or card preview | `src/map/MapTooltip.tsx`, `src/info/infotipPreferences.ts`, `src/components/Header.tsx` |
-| Change region ID normalization or matching | `src/filters/assignableRegions.ts`, `src/objects/objectId.ts` |
+| Change region ID normalization or matching | `src/layers/assignableRegions.ts`, `src/objects/objectId.ts` |
 | Change index loading or remote endpoints | `src/data/dataSource.ts`, `src/data/geoIndexClient.ts` |
 
 ## Architecture and data flow
@@ -92,7 +92,7 @@ flowchart TD
     MAIN -->|fetch raw assets on-demand| SOURCE
 
     CLIENT --> INFOREG["src/info/infoRegistry.ts"]
-    CLIENT --> CSVREG["src/filters/csvFilterRegistry.ts"]
+    CLIENT --> CSVREG["src/layers/csvLayerRegistry.ts"]
     CLIENT --> MAP["src/components/WorldMap.tsx"]
 
     SOURCE --> INFOREG
@@ -162,7 +162,7 @@ Road edge lines and center dividing lines are standardized as `#border:#centerLi
 
 ### Generic Region Normalization
 
-`src/filters/assignableRegions.ts` provides `normalizeRegionKeys(rawId, defaultIso2)`:
+`src/layers/assignableRegions.ts` provides `normalizeRegionKeys(rawId, defaultIso2)`:
 - Maps `JP::26` $\leftrightarrow$ `JP-26` $\leftrightarrow$ `26`.
 - Automatically handles numeric padding: `JP-01` $\leftrightarrow$ `JP-1` $\leftrightarrow$ `01` $\leftrightarrow$ `1`.
 - Automatically namespaces country shortcuts: `CA` with `targetIso2 = 'US'` $\rightarrow$ `['CA', 'US::CA', 'US-CA']`.
