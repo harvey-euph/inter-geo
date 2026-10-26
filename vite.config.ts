@@ -36,6 +36,11 @@ function localGeoDataPlugin(): Plugin {
             return
           }
         }
+        if (url === '/' || url === '') {
+          res.writeHead(302, { Location: '/inter-geo/' })
+          res.end()
+          return
+        }
         next()
       })
     }
@@ -47,7 +52,7 @@ export default defineConfig({
   base: '/inter-geo',
   plugins: [react(), localGeoDataPlugin()],
   server: {
-    host: '0.0.0.0',
+    host: true,
     port: 5173,
     fs: {
       allow: ['..']
