@@ -13,10 +13,10 @@ import {
   type InfotipDisplayMode
 } from '../info/infotipPreferences';
 import { gridObjectId, roadObjectId, subdivisionObjectId } from '../objects/objectId';
-import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
 import type { InfoStub } from '../types/info';
+import type { ExtFeatureItem } from './types';
 
 export interface MapTooltipProps {
   setTooltipNode: (node: HTMLDivElement | null) => void;
@@ -24,7 +24,7 @@ export interface MapTooltipProps {
   hoveredCountry: CountryData | null;
   hoveredMunicipality: MunicipalityDetail | null;
   hoveredL2Subdivision: L2SubdivisionDetail | null;
-  hoveredTaipowerZone: TaipowerZoneDef | null;
+  hoveredExtFeature: ExtFeatureItem | null;
   activeRegionalFilters: Set<string>;
   onOpenFullInfo?: () => void;
   isTouch?: boolean;
@@ -36,7 +36,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
   hoveredCountry,
   hoveredMunicipality,
   hoveredL2Subdivision,
-  hoveredTaipowerZone,
+  hoveredExtFeature,
   activeRegionalFilters,
   onOpenFullInfo,
   isTouch = false
@@ -47,7 +47,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
     return subscribeInfotipDisplayMode(setInfotipMode);
   }, []);
 
-  if (!hoveredRoad && !hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredTaipowerZone) {
+  if (!hoveredRoad && !hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredExtFeature) {
     return null;
   }
 
@@ -196,50 +196,31 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
         }
       } : undefined}
     >
-      {/* Taiwan Taipower Pole Grid Tooltip */}
-      {!hoveredRoad && hoveredTaipowerZone && (
+      {/* ExtObject Feature Tooltip */}
+      {!hoveredRoad && hoveredExtFeature && (
         <>
           <div className="tooltip-header">
-            <span className="tooltip-flag" role="img" aria-label="grid">⚡</span>
+            <span className="tooltip-flag" role="img" aria-label="grid">📍</span>
             <div>
-              <div className="tooltip-name" style={{ color: hoveredTaipowerZone.color }}>
-                台電電力座標 · {hoveredTaipowerZone.letter} 區
+              <div className="tooltip-name" style={{ color: hoveredExtFeature.color }}>
+                {hoveredExtFeature.name || hoveredExtFeature.id}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {hoveredTaipowerZone.nameZh}
-              </div>
+              {hoveredExtFeature.label && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {hoveredExtFeature.label}
+                </div>
+              )}
             </div>
           </div>
           <div className="tooltip-meta" style={{ flexWrap: 'wrap', gap: 4 }}>
-            <span className="tooltip-badge" style={{ color: '#fbbf24', fontFamily: 'monospace', fontWeight: 700 }}>
-              電桿範例: {hoveredTaipowerZone.examplePoleCode}
+            <span className="tooltip-badge" style={{ color: hoveredExtFeature.color, fontFamily: 'monospace', fontWeight: 700 }}>
+              {hoveredExtFeature.id}
             </span>
-            <span className="tooltip-badge" style={{ color: '#38bdf8' }}>
-              80km × 50km 大分區
-            </span>
-            <span className="tooltip-badge">{gridObjectId(hoveredTaipowerZone.letter)}</span>
+            <span className="tooltip-badge">{gridObjectId(hoveredExtFeature.id)}</span>
           </div>
-          <div
-            style={{
-              marginTop: 6,
-              paddingTop: 6,
-              borderTop: '1px solid rgba(255,255,255,0.1)',
-              fontSize: 11,
-              color: '#94a3b8',
-              lineHeight: 1.5
-            }}
-          >
-            <div style={{ color: '#38bdf8', fontWeight: 600, marginBottom: 2 }}>【百分比座標解讀】</div>
-            <div>
-              • 首字「<strong style={{ color: hoveredTaipowerZone.color }}>{hoveredTaipowerZone.letter}</strong>」：代表本
-              80km × 50km 大分區
-            </div>
-            <div>• 前兩碼數字：由西向東橫向百分比（X% · 00~99）</div>
-            <div>• 後兩碼數字：由南向北縱向百分比（Y% · 00~99）</div>
-            <div style={{ marginTop: 4, color: '#cbd5e1' }}>
-              涵蓋：{hoveredTaipowerZone.subdivisionsZh.join('、')}
-            </div>
-          </div>
+          {renderStubsPreview(
+            queryInfoStubs({ targetId: hoveredExtFeature.id, taipowerLetter: hoveredExtFeature.id })
+          )}
         </>
       )}
 

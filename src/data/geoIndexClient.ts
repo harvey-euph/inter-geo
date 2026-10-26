@@ -35,6 +35,8 @@ export interface LayerMeta {
   focusTarget: string | null;
   goto: string | null;
   legend?: Array<{ key: string; color: string; labelZh: string }> | null;
+  fgb?: string | null;
+  innerGrid?: string | null;
   rowCount: number;
   targetKeys: string[];
 }

@@ -488,7 +488,7 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
     return queryInfoStubs(query);
   }, [query, indexLoaded]);
 
-  const queryKey = `${query.countryIso2 || ''}|${query.subdivisionCode || ''}|${query.subdivisionId ?? ''}|${query.municipalityCode || ''}|${query.roadName || ''}|${query.roadClass || ''}|${query.taipowerLetter || ''}`;
+  const queryKey = `${query.countryIso2 || ''}|${query.subdivisionCode || ''}|${query.subdivisionId ?? ''}|${query.municipalityCode || ''}|${query.roadName || ''}|${query.roadClass || ''}|${query.targetId || query.taipowerLetter || ''}`;
 
   const [pagination, setPagination] = useState<{ key: string; count: number }>({
     key: queryKey,

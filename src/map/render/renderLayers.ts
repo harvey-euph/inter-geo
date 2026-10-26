@@ -2,7 +2,6 @@ import type { CountryData } from '../../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../../types/lod';
 import type { LayerDefinition } from '../../data/layers';
 import type { RoadPathData } from '../../data/roadsMeta';
-import type { TaipowerZoneDef } from '../../data/taiwanPowerPoles';
 import { isCapitalSubdivision } from '../../data/capitalSubdivisions';
 import { COUNTRIES_WITH_AREA_CODES } from '../../data/nationwideLayers';
 import { getSubdivisionAreaCodeBadge } from '../../data/domesticAreaCodes';
@@ -28,10 +27,11 @@ import type {
   ActiveL3ParentInfo,
   CountryPathData,
   CrossingBadgeBox,
+  ExtFeatureItem,
+  ExtFeatureRenderItem,
   L2SubdivisionPathData,
   L3SubdivisionPathData,
-  RoadBundle,
-  TaipowerZoneRenderItem
+  RoadBundle
 } from '../types';
 
 export interface RenderContext {
@@ -68,8 +68,8 @@ export interface RenderContext {
     code?: string,
     id?: string | number
   ) => L3SubdivisionPathData[];
-  taipowerZoneRenderItems: TaipowerZoneRenderItem[];
-  hoveredTaipowerZone: TaipowerZoneDef | null;
+  extFeatureRenderItems: ExtFeatureRenderItem[];
+  hoveredExtFeature: ExtFeatureItem | null;
   visibleRoadIso2s: Set<string>;
   roadBundles: Map<string, RoadBundle>;
   isAnyRoadActive: () => boolean;
@@ -117,8 +117,8 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     activeL3Parent,
     hoveredL3Parent,
     getL3SubdivisionsForParent,
-    taipowerZoneRenderItems,
-    hoveredTaipowerZone,
+    extFeatureRenderItems,
+    hoveredExtFeature,
     visibleRoadIso2s,
     roadBundles,
     isAnyRoadActive,
@@ -428,22 +428,22 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
     }
 
     // ----------------------------------------------------
-    // Layer 3b: Taiwan Taipower Pole Grid Overlay (Nationwide Coloring Filter)
+    // Layer 3b: ExtObject Features Overlay (Polygons & Inner Grids)
     // ----------------------------------------------------
-    const isTaipowerGridActive = activeRegionalFilters.has('taiwan-power-poles');
-    if (isTaipowerGridActive) {
-      for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
-        const item = taipowerZoneRenderItems[i];
+    if (extFeatureRenderItems.length > 0) {
+      for (let i = 0; i < extFeatureRenderItems.length; i++) {
+        const item = extFeatureRenderItems[i];
         if (!inView(item.bbox, copyOffset, k, x, y, vw, vh, 0)) continue;
 
-        const isHovered = hoveredTaipowerZone?.letter === item.zone.letter;
+        const isHovered =
+          hoveredExtFeature?.id === item.id && hoveredExtFeature?.layerId === item.layerId;
 
         // 1. Transparent fill
-        ctx.fillStyle = isHovered ? item.hoverFillWithColor : item.zone.fillWithColor;
+        ctx.fillStyle = isHovered ? item.hoverFillColor : item.fillColor;
         ctx.fill(item.polygonPath2D);
 
         // 2. Dashed inner percentage grid lines (20%, 40%, 60%, 80%) - ONLY in L3 state
-        if (hasL3RegionMode) {
+        if (hasL3RegionMode && item.innerGridPath2D) {
           ctx.save();
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
           ctx.lineWidth = 0.9 / k;
@@ -453,7 +453,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         }
 
         // 3. Perimeter border
-        ctx.strokeStyle = isHovered ? '#ffffff' : item.zone.color;
+        ctx.strokeStyle = isHovered ? '#ffffff' : item.color;
         ctx.lineWidth = (isHovered ? 2.5 : 1.4) / k;
         ctx.stroke(item.polygonPath2D);
       }
@@ -1009,9 +1009,9 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
 }
 
 /**
- * Layer 7b: Taiwan Taipower Grid Letters & L3 Percentage Coordinate Markers
+ * Layer 7b: Generic ExtObject Labels & Inner Percentage Coordinate Markers
  */
-export function drawTaipowerLabels(rc: RenderContext): void {
+export function drawExtFeatureLabels(rc: RenderContext): void {
   const {
     ctx,
     k,
@@ -1022,45 +1022,58 @@ export function drawTaipowerLabels(rc: RenderContext): void {
     dpr,
     visibleCopies,
     hasL3RegionMode,
-    activeRegionalFilters,
-    taipowerZoneRenderItems: tpItems,
-    hoveredTaipowerZone: hoveredZ
+    extFeatureRenderItems,
+    hoveredExtFeature
   } = rc;
 
-  const isTaipowerGridActive = activeRegionalFilters.has('taiwan-power-poles');
-  if (!isTaipowerGridActive) return;
+  if (extFeatureRenderItems.length === 0) return;
 
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  for (let i = 0; i < tpItems.length; i++) {
-    const item = tpItems[i];
-    const isHovered = hoveredZ?.letter === item.zone.letter;
+  for (let i = 0; i < extFeatureRenderItems.length; i++) {
+    const item = extFeatureRenderItems[i];
+    const isHovered =
+      hoveredExtFeature?.id === item.id && hoveredExtFeature?.layerId === item.layerId;
 
     for (const copyIdx of visibleCopies) {
       const copyOffset = copyIdx * MAP_W;
-      const cxScr = (item.pCenter[0] + copyOffset) * k + x;
-      const cyScr = item.pCenter[1] * k + y;
+      const cxScr = (item.centroid[0] + copyOffset) * k + x;
+      const cyScr = item.centroid[1] * k + y;
 
       if (cxScr < -100 || cxScr > vw + 100 || cyScr < -100 || cyScr > vh + 100) continue;
 
-      // 格子在螢幕上的寬/高（用實際四角，比 bbox 更準）
-      const swx = (item.pSW[0] + copyOffset) * k + x;
-      const swy = item.pSW[1] * k + y;
-      const sex = (item.pSE[0] + copyOffset) * k + x;
-      const sey = item.pSE[1] * k + y;
-      const nwx = (item.pNW[0] + copyOffset) * k + x;
-      const nwy = item.pNW[1] * k + y;
+      let minEdge: number;
+      let pSWScr: [number, number] | undefined;
+      let pSEScr: [number, number] | undefined;
+      let pNWScr: [number, number] | undefined;
 
-      const edgeW = Math.hypot(sex - swx, sey - swy);
-      const edgeH = Math.hypot(nwx - swx, nwy - swy);
-      const minEdge = Math.min(edgeW, edgeH);
+      if (item.corners) {
+        const swx = (item.corners.sw[0] + copyOffset) * k + x;
+        const swy = item.corners.sw[1] * k + y;
+        const sex = (item.corners.se[0] + copyOffset) * k + x;
+        const sey = item.corners.se[1] * k + y;
+        const nwx = (item.corners.nw[0] + copyOffset) * k + x;
+        const nwy = item.corners.nw[1] * k + y;
+
+        const edgeW = Math.hypot(sex - swx, sey - swy);
+        const edgeH = Math.hypot(nwx - swx, nwy - swy);
+        minEdge = Math.min(edgeW, edgeH);
+
+        pSWScr = [swx, swy];
+        pSEScr = [sex, sey];
+        pNWScr = [nwx, nwy];
+      } else {
+        const edgeW = (item.bbox[2] - item.bbox[0]) * k;
+        const edgeH = (item.bbox[3] - item.bbox[1]) * k;
+        minEdge = Math.min(edgeW, edgeH);
+      }
 
       const fontSize = Math.min(120, Math.max(10, minEdge * 0.75));
 
       if (fontSize < 11) continue;
 
-      const letterText = item.zone.letter;
+      const letterText = item.id;
 
       ctx.save();
       ctx.translate(cxScr, cyScr);
@@ -1073,16 +1086,12 @@ export function drawTaipowerLabels(rc: RenderContext): void {
       ctx.strokeStyle = isHovered ? 'rgba(15, 23, 42, 0.9)' : 'rgba(15, 23, 42, 0.75)';
       ctx.strokeText(letterText, 0, 0);
 
-      ctx.fillStyle = isHovered ? '#ffffff' : item.zone.color;
+      ctx.fillStyle = isHovered ? '#ffffff' : item.color;
       ctx.fillText(letterText, 0, 0);
 
       ctx.restore();
 
-      if (hasL3RegionMode) {
-        const pSWScr = [swx, swy];
-        const pSEScr = [sex, sey];
-        const pNWScr = [nwx, nwy];
-
+      if (hasL3RegionMode && item.innerGrid === 'percentage' && pSWScr && pSEScr && pNWScr) {
         const pctFontSize = Math.min(18, Math.max(9, minEdge * 0.08));
         ctx.font = `bold ${pctFontSize}px ui-monospace, "JetBrains Mono", monospace`;
         ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';

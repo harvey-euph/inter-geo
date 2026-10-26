@@ -232,12 +232,16 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
     }
   }
 
-  // Taipower grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER-GRID')
-  if (query.taipowerLetter) {
-    const letter = query.taipowerLetter.toUpperCase().trim();
-    candidateKeys.push({ key: `TW-TP-${letter}`, weight: 40 });
-    candidateKeys.push({ key: gridObjectId(letter), weight: 40 });
-    candidateKeys.push({ key: `TP-${letter}`, weight: 35 });
+  // Generic target ID or Taipower grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER-GRID')
+  const targetId = query.targetId || query.taipowerLetter;
+  if (targetId) {
+    const tid = targetId.trim();
+    const upper = tid.toUpperCase();
+    candidateKeys.push({ key: tid, weight: 40 });
+    candidateKeys.push({ key: upper, weight: 40 });
+    candidateKeys.push({ key: gridObjectId(upper), weight: 40 });
+    candidateKeys.push({ key: `TW-TP-${upper}`, weight: 35 });
+    candidateKeys.push({ key: `TP-${upper}`, weight: 35 });
     candidateKeys.push({ key: 'TW-TP', weight: 25 });
     candidateKeys.push({ key: 'TAIPOWER-GRID', weight: 25 });
   }

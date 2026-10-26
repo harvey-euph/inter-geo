@@ -25,8 +25,6 @@ import {
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
 import type { NationwideLayerDef } from '../data/nationwideLayers';
 import { EUROPEAN_CROSSING_SIGNS } from '../data/pedestrianCrossing';
-import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
-import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo';
 import { decodeGeo } from '../map/geoWorkerClient';
 import { getDataUrl } from '../data/dataSource';
@@ -34,8 +32,11 @@ import {
   getCsvLayerById,
   getCsvLayerValue,
   getCsvSubdivisionValue,
-  loadOnDemandCsvLayer
+  loadOnDemandCsvLayer,
+  isLayersIndexLoaded,
+  onLayersIndexLoaded
 } from '../layers/csvLayerRegistry';
+import { loadExtObjectLayerFeatures } from '../layers/extObjectLoader';
 import { normalizeRegionKeys } from '../layers/assignableRegions';
 import {
   WORLD_COPIES,
@@ -49,7 +50,8 @@ import {
   type L2SubdivisionPathData,
   type L3SubdivisionPathData,
   type ActiveL3ParentInfo,
-  type TaipowerZoneRenderItem,
+  type ExtFeatureItem,
+  type ExtFeatureRenderItem,
   type RoadBundle,
   type CrossingBadgeBox,
   type HitFeature
@@ -59,7 +61,7 @@ import {
   drawGlobalTextBadges,
   drawAreaCodeBadges,
   drawCrossingSignBadges,
-  drawTaipowerLabels,
+  drawExtFeatureLabels,
   type RenderContext
 } from '../map/render/renderLayers';
 import { hitTestMapFeature } from '../map/hitTest';
@@ -306,9 +308,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     subdivisions: new Set<string>()
   });
 
-  // Taiwan Power Pole Grid hover state
-  const [hoveredTaipowerZone, setHoveredTaipowerZone] = useState<TaipowerZoneDef | null>(null);
-  const hoveredTaipowerZoneRef = useRef<TaipowerZoneDef | null>(null);
+  // ExtObject features hover state
+  const [hoveredExtFeature, setHoveredExtFeature] = useState<ExtFeatureItem | null>(null);
+  const hoveredExtFeatureRef = useRef<ExtFeatureItem | null>(null);
 
   // Feature Regional Filter: European Pedestrian Crossing Signs image cache & hit-testing boxes
   const crossingImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -471,7 +473,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       !hoveredL2Subdivision &&
       !hoveredMunicipality &&
       !hoveredRoad &&
-      !hoveredTaipowerZone
+      !hoveredExtFeature
     ) {
       return;
     }
@@ -482,7 +484,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     hoveredL2Subdivision,
     hoveredMunicipality,
     hoveredRoad,
-    hoveredTaipowerZone,
+    hoveredExtFeature,
     activeRegionalFilters,
     placeTooltip,
     getHoverClientPoint
@@ -578,71 +580,40 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }
   }, []);
 
-  const taipowerZoneRenderItems = useMemo<TaipowerZoneRenderItem[]>(() => {
-    return TAIWAN_POWER_POLE_ZONES.map((z) => {
-      const pSW = projection(z.sw) || [0, 0];
-      const pSE = projection(z.se) || [0, 0];
-      const pNE = projection(z.ne) || [0, 0];
-      const pNW = projection(z.nw) || [0, 0];
-      const pCenter = projection(z.center) || [0, 0];
+  const extFeatureRenderItemsRef = useRef<ExtFeatureRenderItem[]>([]);
+  const [layersIndexReady, setLayersIndexReady] = useState(() => isLayersIndexLoaded());
 
-      const polygonPath2D = new Path2D();
-      polygonPath2D.moveTo(pSW[0], pSW[1]);
-      polygonPath2D.lineTo(pSE[0], pSE[1]);
-      polygonPath2D.lineTo(pNE[0], pNE[1]);
-      polygonPath2D.lineTo(pNW[0], pNW[1]);
-      polygonPath2D.closePath();
-
-      const innerGridPath2D = new Path2D();
-      for (const pct of [0.2, 0.4, 0.6, 0.8]) {
-        const bX = (1 - pct) * pSW[0] + pct * pSE[0];
-        const bY = (1 - pct) * pSW[1] + pct * pSE[1];
-        const tX = (1 - pct) * pNW[0] + pct * pNE[0];
-        const tY = (1 - pct) * pNW[1] + pct * pNE[1];
-        innerGridPath2D.moveTo(bX, bY);
-        innerGridPath2D.lineTo(tX, tY);
-
-        const lX = (1 - pct) * pSW[0] + pct * pNW[0];
-        const lY = (1 - pct) * pSW[1] + pct * pNW[1];
-        const rX = (1 - pct) * pSE[0] + pct * pNE[0];
-        const rY = (1 - pct) * pSE[1] + pct * pNE[1];
-        innerGridPath2D.moveTo(lX, lY);
-        innerGridPath2D.lineTo(rX, rY);
-      }
-
-      const xs = [pSW[0], pSE[0], pNE[0], pNW[0]];
-      const ys = [pSW[1], pSE[1], pNE[1], pNW[1]];
-      const bbox: [number, number, number, number] = [
-        Math.min(...xs),
-        Math.min(...ys),
-        Math.max(...xs),
-        Math.max(...ys)
-      ];
-
-      const hoverFillWithColor = z.fillWithColor
-        .replace('0.28', '0.45')
-        .replace('0.25', '0.42')
-        .replace('0.22', '0.38')
-        .replace('0.18', '0.35');
-
-      return {
-        zone: z,
-        polygonPath2D,
-        innerGridPath2D,
-        pSW,
-        pSE,
-        pNE,
-        pNW,
-        pCenter,
-        bbox,
-        hoverFillWithColor
-      };
-    });
-  }, [projection]);
-  const taipowerZoneRenderItemsRef = useRef(taipowerZoneRenderItems);
   useEffect(() => {
-    taipowerZoneRenderItemsRef.current = taipowerZoneRenderItems;
-  }, [taipowerZoneRenderItems]);
+    if (!layersIndexReady) {
+      return onLayersIndexLoaded(() => setLayersIndexReady(true));
+    }
+  }, [layersIndexReady]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const activeExtLayerIds = Array.from(activeRegionalFilters).filter((id) => {
+      const layer = getCsvLayerById(id);
+      return layer && (layer.type === 'ExtObject' || layer.meta.group === 'ext-object' || layer.meta.fgb);
+    });
+
+    if (activeExtLayerIds.length === 0) {
+      extFeatureRenderItemsRef.current = [];
+      requestRender();
+      return;
+    }
+
+    Promise.all(
+      activeExtLayerIds.map((id) => loadExtObjectLayerFeatures(id, projection))
+    ).then((results) => {
+      if (cancelled) return;
+      extFeatureRenderItemsRef.current = results.flat();
+      requestRender();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRegionalFilters, projection, requestRender, layersIndexReady]);
 
   // Pre-calculate paths, Path2D and AABB bounding boxes for L1 Countries
   const countryPathData = useMemo<CountryPathData[]>(() => {
@@ -1182,8 +1153,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       activeL3Parent: activeL3ParentRef.current,
       hoveredL3Parent: hoveredL3ParentRef.current,
       getL3SubdivisionsForParent,
-      taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
-      hoveredTaipowerZone: hoveredTaipowerZoneRef.current,
+      extFeatureRenderItems: extFeatureRenderItemsRef.current,
+      hoveredExtFeature: hoveredExtFeatureRef.current,
       visibleRoadIso2s: visibleRoadIso2sRef.current,
       roadBundles: roadBundlesRef.current,
       isAnyRoadActive,
@@ -1204,7 +1175,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     drawGlobalTextBadges(rc);
     drawAreaCodeBadges(rc);
     renderedCrossingBadgesRef.current = drawCrossingSignBadges(rc);
-    drawTaipowerLabels(rc);
+    drawExtFeatureLabels(rc);
   }, [
     countryPathData,
     countryPathMap,
@@ -1409,7 +1380,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         activeL3Parent: activeL3ParentRef.current,
         hoveredL3Parent: hoveredL3ParentRef.current,
         getL3SubdivisionsForParent,
-        taipowerZoneRenderItems: taipowerZoneRenderItemsRef.current,
+        extFeatureRenderItems: extFeatureRenderItemsRef.current,
         countryBBoxes: countryBBoxesRef.current,
         l2ByCountry: l2PathsByCountryRef.current,
         l2DissolvedByCountry: l2CountryDissolvedPathsRef.current,
@@ -1559,9 +1530,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setHoveredL2Subdivision(null);
       hadHover = true;
     }
-    if (hoveredTaipowerZoneRef.current) {
-      hoveredTaipowerZoneRef.current = null;
-      setHoveredTaipowerZone(null);
+    if (hoveredExtFeatureRef.current) {
+      hoveredExtFeatureRef.current = null;
+      setHoveredExtFeature(null);
       hadHover = true;
     }
     if (tooltipRef.current) {
@@ -1576,13 +1547,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       country?: CountryData | null;
       municipality?: MunicipalityDetail | null;
       l2?: L2SubdivisionDetail | null;
-      taipower?: TaipowerZoneDef | null;
+      extFeature?: ExtFeatureItem | null;
     }) => {
       const road = next.road ?? null;
       const country = next.country ?? null;
       const municipality = next.municipality ?? null;
       const l2 = next.l2 ?? null;
-      const taipower = next.taipower ?? null;
+      const extFeature = next.extFeature ?? null;
 
       if (hoveredRoadRef.current !== road) {
         hoveredRoadRef.current = road;
@@ -1600,9 +1571,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredL2SubdivisionRef.current = l2;
         setHoveredL2Subdivision(l2);
       }
-      if (hoveredTaipowerZoneRef.current !== taipower) {
-        hoveredTaipowerZoneRef.current = taipower;
-        setHoveredTaipowerZone(taipower);
+      if (hoveredExtFeatureRef.current !== extFeature) {
+        hoveredExtFeatureRef.current = extFeature;
+        setHoveredExtFeature(extFeature);
       }
       requestRender();
     },
@@ -1693,9 +1664,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           setHoveredMunicipality(null);
           changed = true;
         }
-        if (hoveredTaipowerZoneRef.current) {
-          hoveredTaipowerZoneRef.current = null;
-          setHoveredTaipowerZone(null);
+        if (hoveredExtFeatureRef.current) {
+          hoveredExtFeatureRef.current = null;
+          setHoveredExtFeature(null);
           changed = true;
         }
         if (tooltipRef.current) {
@@ -1706,10 +1677,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         return;
       }
 
-      if (hit.type === 'taipowerZone') {
-        const z = hit.data;
-        if (hoveredTaipowerZoneRef.current?.letter !== z.letter) {
-          applyHover({ taipower: z });
+      if (hit.type === 'extFeature') {
+        const ef = hit.data;
+        if (
+          hoveredExtFeatureRef.current?.id !== ef.id ||
+          hoveredExtFeatureRef.current?.layerId !== ef.layerId
+        ) {
+          applyHover({ extFeature: ef });
         }
       } else if (hit.type === 'road') {
         const road = hit.data;
@@ -3073,7 +3047,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredCountry={hoveredCountry}
         hoveredMunicipality={hoveredMunicipality}
         hoveredL2Subdivision={hoveredL2Subdivision}
-        hoveredTaipowerZone={hoveredTaipowerZone}
+        hoveredExtFeature={hoveredExtFeature}
         activeRegionalFilters={activeRegionalFilters}
         isTouch={!hasFinePointer}
         onOpenFullInfo={

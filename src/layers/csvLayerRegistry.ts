@@ -53,6 +53,10 @@ export interface RegisteredCsvLayer {
   focusTarget?: string;
   /** Optional legend definitions */
   legend?: Array<{ key: string; color: string; labelZh: string }>;
+  /** Optional FGB geometry path */
+  fgb?: string;
+  /** Optional inner grid specification */
+  innerGrid?: string;
   /** Whether the full CSV data has been fetched and parsed */
   loaded: boolean;
   /** Parsed K-V data (populated after `loadOnDemandCsvLayer`) */
@@ -89,6 +93,8 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     goto: lm.goto || undefined,
     focusTarget: lm.focusTarget || undefined,
     legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined,
+    fgb: lm.fgb || undefined,
+    innerGrid: lm.innerGrid || undefined,
     loaded: false,
     data: null,
     meta: {
@@ -105,7 +111,9 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
       order: lm.order,
       goto: lm.goto || undefined,
       focusTarget: lm.focusTarget || undefined,
-      legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined
+      legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined,
+      fgb: lm.fgb || undefined,
+      innerGrid: lm.innerGrid || undefined
     }
   };
 }

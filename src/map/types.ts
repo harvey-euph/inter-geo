@@ -2,7 +2,6 @@ import type { Feature, Geometry } from 'geojson';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
 import type { RoadPathData } from '../data/roadsMeta';
-import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import { findCountry } from '../data/countries';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { ROADS_MANIFEST } from '../data/roadsManifest';
@@ -73,17 +72,28 @@ export interface ActiveL3ParentInfo {
   path2D: Path2D;
 }
 
-export interface TaipowerZoneRenderItem {
-  zone: TaipowerZoneDef;
-  polygonPath2D: Path2D;
-  innerGridPath2D: Path2D;
-  pSW: [number, number];
-  pSE: [number, number];
-  pNE: [number, number];
-  pNW: [number, number];
-  pCenter: [number, number];
+export interface ExtFeatureItem {
+  layerId: string;
+  id: string;
+  name: string;
+  label: string;
+  color: string;
   bbox: [number, number, number, number];
-  hoverFillWithColor: string;
+}
+
+export interface ExtFeatureRenderItem extends ExtFeatureItem {
+  fillColor: string;
+  hoverFillColor: string;
+  polygonPath2D: Path2D;
+  innerGridPath2D?: Path2D;
+  centroid: [number, number];
+  corners?: {
+    sw: [number, number];
+    se: [number, number];
+    ne: [number, number];
+    nw: [number, number];
+  };
+  innerGrid?: string;
 }
 
 export interface RoadBundle {
@@ -106,7 +116,7 @@ export type HitFeature =
   | { type: 'activeParentInterior'; data: ActiveL3ParentInfo }
   | { type: 'l2Subdivision'; data: L2SubdivisionPathData }
   | { type: 'country'; data: CountryPathData }
-  | { type: 'taipowerZone'; data: TaipowerZoneDef };
+  | { type: 'extFeature'; data: ExtFeatureItem };
 
 export function normParentKey(iso2: string, text: string): string {
   return `${(iso2 || '').toLowerCase()}-${String(text || '')

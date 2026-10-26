@@ -72,12 +72,18 @@ export function App() {
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
     initialCsvLayer?.type === 'Image' ? effectiveLayerCandidate : null
   );
+  const isExtObject = initialCsvLayer?.type === 'ExtObject' || initialCsvLayer?.group === 'ext-object';
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
-    () => new Set(
-      effectiveLayerCandidate === 'taiwan-power-poles'
-        ? ['taiwan-power-poles']
-        : initialLayerIds.filter((id) => !!getNationwideLayerById(id))
-    )
+    () =>
+      new Set(
+        initialLayerIds.filter(
+          (id) =>
+            !!getNationwideLayerById(id) ||
+            getCsvLayerById(id)?.type === 'ExtObject' ||
+            getCsvLayerById(id)?.meta.group === 'ext-object' ||
+            (isExtObject && id === effectiveLayerCandidate)
+        )
+      )
   );
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);

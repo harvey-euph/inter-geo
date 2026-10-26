@@ -151,9 +151,17 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   }, [categorized.fillRegion, matchesSearch]);
 
   // Group 2: Ext Object (Highways, Taipower grid, etc.)
-  const isTaipowerActive = activeRegionalFilters.has('taiwan-power-poles');
   const extObjectItems = useMemo(() => {
-    const list = [
+    const list: Array<{
+      id: string;
+      nameZh: string;
+      nameEn?: string;
+      shortBadge?: string;
+      descriptionZh?: string;
+      goto?: string;
+      checked: boolean;
+      onToggle: () => void;
+    }> = [
       {
         id: 'roads-highways',
         nameZh: '國道 / 主要高速公路網',
@@ -171,20 +179,33 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         descriptionZh: '各國一級編號道路與省道系統',
         checked: showNumberedRoutes,
         onToggle: () => onToggleNumberedRoutes?.()
-      },
-      {
-        id: 'taiwan-power-poles',
-        nameZh: '台灣電力座標格 (Taipower Grid)',
-        nameEn: 'Taiwan Taipower Grid',
-        shortBadge: '⚡ 台電',
-        descriptionZh: '台灣電力公司電線桿/配電箱之兩級百公尺座標格',
-        checked: isTaipowerActive,
-        onToggle: () => onToggleRegionalFilter('taiwan-power-poles')
       }
     ];
 
+    for (const layer of categorized.extObject) {
+      list.push({
+        id: layer.id,
+        nameZh: layer.nameZh,
+        nameEn: layer.nameEn,
+        shortBadge: layer.shortBadge || layer.nameZh,
+        descriptionZh: layer.descriptionZh,
+        goto: layer.goto,
+        checked: activeRegionalFilters.has(layer.id),
+        onToggle: () => onToggleRegionalFilter(layer.id)
+      });
+    }
+
     return list.filter(matchesSearch);
-  }, [showInterstates, showNumberedRoutes, isTaipowerActive, matchesSearch, onToggleInterstates, onToggleNumberedRoutes, onToggleRegionalFilter]);
+  }, [
+    showInterstates,
+    showNumberedRoutes,
+    categorized.extObject,
+    activeRegionalFilters,
+    matchesSearch,
+    onToggleInterstates,
+    onToggleNumberedRoutes,
+    onToggleRegionalFilter
+  ]);
 
   // Group 3: Global Label
   const filteredGlobalLabel = useMemo(() => {
@@ -296,7 +317,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   // Active counts for headers
   const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
   const activeFillCount = isBaseActive ? 0 : 1;
-  const activeExtCount = (showInterstates ? 1 : 0) + (showNumberedRoutes ? 1 : 0) + (isTaipowerActive ? 1 : 0);
+  const activeExtCount =
+    (showInterstates ? 1 : 0) +
+    (showNumberedRoutes ? 1 : 0) +
+    categorized.extObject.filter((l) => activeRegionalFilters.has(l.id)).length;
   const activeGlobalCount = filteredGlobalLabel.filter((f) => activeTextFilters.has(f.id)).length;
   const activeAreaCount = filteredAreaLabel.filter(
     (f) =>

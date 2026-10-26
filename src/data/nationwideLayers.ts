@@ -357,20 +357,6 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     layerType: 'coloring',
     descriptionZh: '特別凸顯標記當前國家之首都所在一級行政區（如東京、華盛頓DC、巴西利亞、巴黎大區、德里、柏林等）'
   },
-  // Taiwan Power Pole Coordinate Grid (台電電力座標網格 - 著色/透明方格)
-  {
-    id: 'taiwan-power-poles',
-    targetIso2: 'TW',
-    nameZh: '電線桿電力座標',
-    nameEn: 'Taipower Pole Grid',
-    shortBadge: '⚡ 電力網格',
-    titleZh: '台灣電線桿電力圖號座標網格 (Taipower Pole Coordinate Grid)',
-    titleEn: 'Taipower Pole Coordinate Grid',
-    activeColor: '#3b82f6',
-    layerType: 'coloring',
-    customBBox: { minX: 824, maxX: 844, minY: 422, maxY: 443 },
-    descriptionZh: '台灣電線桿/變電箱藍牌電力座標：首碼字母代表 80km×50km 大分區，後 4 碼數字代表西/南邊界的百分比座標 (00~99)'
-  },
 
   // 2. Text Layers: Domestic Area Codes (individually controllable per country)
   ...COUNTRIES_WITH_AREA_CODES.map((iso2): NationwideFilterDef => {

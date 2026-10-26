@@ -10,7 +10,7 @@ import {
   type HitFeature,
   type L2SubdivisionPathData,
   type L3SubdivisionPathData,
-  type TaipowerZoneRenderItem
+  type ExtFeatureRenderItem
 } from './types';
 
 export interface HitTestParams {
@@ -39,7 +39,7 @@ export interface HitTestParams {
     code?: string,
     id?: string | number
   ) => L3SubdivisionPathData[];
-  taipowerZoneRenderItems: TaipowerZoneRenderItem[];
+  extFeatureRenderItems: ExtFeatureRenderItem[];
   countryBBoxes: Record<string, [number, number, number, number]>;
   l2ByCountry: Record<string, L2SubdivisionPathData[]>;
   l2DissolvedByCountry: Record<string, Path2D>;
@@ -79,7 +79,7 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
     activeL3Parent,
     hoveredL3Parent,
     getL3SubdivisionsForParent,
-    taipowerZoneRenderItems,
+    extFeatureRenderItems,
     countryBBoxes,
     l2ByCountry,
     l2DissolvedByCountry,
@@ -297,16 +297,23 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
       }
     }
 
-    // 2a-2. Check Taipower Grid Zones (if filter active at L2/L3)
-    if (activeRegionalFilters?.has('taiwan-power-poles') && (copyIdx === 0 || copyIdx === 1)) {
-      for (let i = 0; i < taipowerZoneRenderItems.length; i++) {
-        const item = taipowerZoneRenderItems[i];
+    // 2a-2. Check ExtObject Features (if active at L2/L3)
+    if (extFeatureRenderItems.length > 0 && (copyIdx === 0 || copyIdx === 1)) {
+      for (let i = 0; i < extFeatureRenderItems.length; i++) {
+        const item = extFeatureRenderItems[i];
         const [minX, minY, maxX, maxY] = item.bbox;
         if (mapX < minX || mapX > maxX || mapY < minY || mapY > maxY) continue;
         if (ctx.isPointInPath(item.polygonPath2D, mx * dpr, my * dpr)) {
           return {
-            type: 'taipowerZone',
-            data: item.zone
+            type: 'extFeature',
+            data: {
+              layerId: item.layerId,
+              id: item.id,
+              name: item.name,
+              label: item.label,
+              color: item.color,
+              bbox: item.bbox
+            }
           };
         }
       }

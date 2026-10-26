@@ -114,6 +114,8 @@ export interface InfoQuery {
   roadName?: string;
   /** Road class (e.g. 'Interstate', 'U.S. Highway') */
   roadClass?: string;
+  /** Generic target ID (e.g. 'H', 'TW-TP-H', etc.) */
+  targetId?: string;
   /** Taipower grid letter (e.g. 'A', 'H', 'P') */
   taipowerLetter?: string;
   /** Filter by tags if needed */

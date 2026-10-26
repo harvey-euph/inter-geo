@@ -23,6 +23,9 @@ export interface CsvLayerMetadata {
   goto?: string;
   group?: string;
   legend?: Array<{ key: string; color: string; labelZh: string }>;
+  fgb?: string;
+  innerGrid?: string;
+  [key: string]: unknown;
 }
 export type CsvFilterMetadata = CsvLayerMetadata;
 
