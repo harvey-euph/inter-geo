@@ -48,7 +48,23 @@ export function App() {
     return '';
   });
   const initialTargetParts = initialTarget.split('::');
-  const initialCountry = initialTargetParts.length === 1 ? findCountry(initialTargetParts[0]) || null : null;
+  const initialCountry = initialTargetParts.length >= 1 ? findCountry(initialTargetParts[0]) || null : null;
+  const initialSubdivision: L2SubdivisionDetail | null =
+    initialTargetParts.length === 2 && initialCountry
+      ? {
+          id: initialTargetParts[1],
+          iso2: initialCountry.iso2,
+          name: initialTargetParts[1],
+          nameEn: initialTargetParts[1],
+          nameZh: initialTargetParts[1],
+          typeEn: '一級行政區',
+          code: initialTargetParts[1],
+          postal: initialTargetParts[1],
+          countryName: initialCountry.name,
+          countryNameZh: initialCountry.nameZh,
+          countryFlag: initialCountry.flag
+        }
+      : null;
   const isFillRegion = initialBaseLayer || initialCsvLayer?.type === 'FillWithColor';
   const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'none');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
@@ -66,8 +82,12 @@ export function App() {
   );
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
-  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(initialCountry);
-  const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(
+    initialSubdivision ? null : initialCountry
+  );
+  const [selectedSubdivision, setSelectedSubdivision] = useState<L2SubdivisionDetail | null>(
+    initialSubdivision
+  );
   const [selectedMunicipality, setSelectedMunicipality] = useState<MunicipalityDetail | null>(null);
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(420);

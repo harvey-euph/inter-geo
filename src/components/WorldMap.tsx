@@ -37,6 +37,7 @@ import {
   getCsvSubdivisionValue,
   loadOnDemandCsvLayer
 } from '../layers/csvLayerRegistry';
+import { normalizeRegionKeys } from '../layers/assignableRegions';
 import {
   WORLD_COPIES,
   getCountryBBox,
@@ -106,6 +107,53 @@ type RegionalLayerDef = NationwideLayerDef;
 type RegionalFilterDef = RegionalLayerDef;
 const REGIONAL_LAYERS = NATIONWIDE_LAYERS;
 const REGIONAL_FILTERS = REGIONAL_LAYERS;
+
+function findSubdivisionMatch(
+  list: L2SubdivisionPathData[],
+  targetId: string | number,
+  iso2: string
+): L2SubdivisionPathData | undefined {
+  const idStr = String(targetId).trim();
+  if (!idStr) return undefined;
+  const lower = idStr.toLowerCase();
+  const upper = idStr.toUpperCase();
+  const normalizedTargetKeys = new Set(
+    normalizeRegionKeys(idStr, iso2).map((k) => k.toLowerCase())
+  );
+
+  return list.find((p) => {
+    // 1. Direct equality (case-insensitive) on any attribute
+    if (
+      String(p.id).toLowerCase() === lower ||
+      p.code.toLowerCase() === lower ||
+      p.postal.toLowerCase() === lower ||
+      p.name.toLowerCase() === lower ||
+      p.nameZh.toLowerCase() === lower ||
+      p.nameEn.toLowerCase() === lower
+    ) {
+      return true;
+    }
+
+    // 2. Normalized keys match (e.g. 'CA' matches 'US-CA', '47' matches 'JP-47', '01' matches '1')
+    const subKeys = [
+      ...normalizeRegionKeys(p.code || '', iso2),
+      ...normalizeRegionKeys(p.postal || '', iso2),
+      ...normalizeRegionKeys(String(p.id), iso2)
+    ];
+    for (const sk of subKeys) {
+      if (normalizedTargetKeys.has(sk.toLowerCase())) {
+        return true;
+      }
+    }
+
+    // 3. Prefix matching: e.g. p.code is 'US-CA', target is 'CA' (or vice-versa)
+    if (p.code && p.code.toUpperCase() === `${iso2.toUpperCase()}-${upper}`) return true;
+    if (p.postal && upper === `${iso2.toUpperCase()}-${p.postal.toUpperCase()}`) return true;
+    if (p.postal && p.postal.toUpperCase() === upper) return true;
+
+    return false;
+  });
+}
 
 function getDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
   const dx = a.x - b.x;
@@ -476,6 +524,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const syncViewToUrl = useCallback(() => {
     if (typeof window === 'undefined') return;
+    if (initialTarget && !initialTargetHandledRef.current) return;
     const url = new URL(window.location.href);
     const { k, x, y } = transformRef.current;
     const { w, h } = viewportSize.current;
@@ -491,7 +540,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     url.searchParams.set('lon', center[0].toFixed(5));
     url.searchParams.set('ratio', k.toFixed(3));
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [projection]);
+  }, [projection, initialTarget]);
 
   const scheduleViewUrlSync = useCallback(() => {
     if (viewUrlSyncTimerRef.current !== null) window.clearTimeout(viewUrlSyncTimerRef.current);
@@ -2207,6 +2256,57 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     requestRender();
   }, [showRoads, showInterstates, showNumberedRoutes, syncRoadsViewport, isAnyRoadActive, requestRender]);
 
+  // Frame an L2 subdivision. Used by the detail panel for any country that has a deeper level.
+  const zoomToSubdivision = useCallback(
+    (iso2: string, id: string | number) => {
+      const list = l2PathsByCountryRef.current[iso2] || [];
+      const target = findSubdivisionMatch(list, id, iso2);
+      if (!target) return;
+
+      const [minX, minY, maxX, maxY] = target.bbox;
+      const bw = Math.max(maxX - minX, 0.5);
+      const bh = Math.max(maxY - minY, 0.5);
+      const vh = viewportSize.current.h;
+      const vw = viewportSize.current.w;
+      const kMin = vh / MAP_H;
+      const kFit = Math.min((vw * 0.7) / bw, (vh * 0.7) / bh);
+      const targetK = Math.min(MAX_ZOOM_K, Math.max(kFit, kMin));
+      const [cx, cy] = target.centroid;
+      const targetX = wrapX(vw / 2 - cx * targetK, targetK);
+      const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
+
+      const targetLOD = getLODLevel(targetK);
+      applyLOD(targetLOD);
+      selectedL2SubdivisionRef.current = { iso2, id: target.id };
+
+      if (targetLOD === 'L3') {
+        loadL3PackForSubdivision(iso2, target.code, target.name, target.id);
+        activeL3ParentRef.current = {
+          iso2,
+          id: target.id,
+          name: target.name,
+          code: target.code,
+          bbox: target.bbox,
+          path2D: target.path2D
+        };
+      }
+      animateTo(targetK, targetX, targetY, 380, () => {
+        syncAllViewports(targetK, targetX, targetY, vw, vh);
+      });
+    },
+    [wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD]
+  );
+
+  const zoomToSubdivisionRefInternal = useRef(zoomToSubdivision);
+  useLayoutEffect(() => {
+    zoomToSubdivisionRefInternal.current = zoomToSubdivision;
+  }, [zoomToSubdivision]);
+
+  useEffect(() => {
+    if (!zoomToSubdivisionRef) return;
+    zoomToSubdivisionRef.current = zoomToSubdivision;
+  }, [zoomToSubdivisionRef, zoomToSubdivision]);
+
   // Startup loader: show the map as soon as L1 countries finish, then stream all 91 L2 files in Web Workers
   useEffect(() => {
     let isMounted = true;
@@ -2240,6 +2340,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const streamAllL2InBackground = async () => {
       const queue = [...L2_MANIFEST];
       const CONCURRENCY = 8;
+
+      // If initialTarget or initialFocusTarget targets a country, prioritize it at the front of queue
+      const rawTarget = initialTarget || initialFocusTarget || '';
+      const sepIdx = rawTarget.indexOf('::');
+      const priorityIso2 = rawTarget
+        ? (sepIdx > 0 ? rawTarget.slice(0, sepIdx) : rawTarget).trim().toUpperCase()
+        : '';
+      if (priorityIso2) {
+        const pIdx = queue.findIndex((c) => c.iso2 === priorityIso2);
+        if (pIdx > -1) {
+          const [pItem] = queue.splice(pIdx, 1);
+          queue.unshift(pItem);
+        }
+      }
 
       const worker = async () => {
         while (queue.length > 0) {
@@ -2322,15 +2436,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 const targetIso2 = initialTarget.slice(0, separatorIndex).trim().toUpperCase();
                 const targetId = initialTarget.slice(separatorIndex + 2).trim();
                 if (targetIso2 === iso2 && targetId) {
-                  const targetSubdivision = paths.find((sub) =>
-                    [sub.id, sub.code, sub.name, sub.nameEn, sub.nameZh].some(
-                      (value) => String(value).toLowerCase() === targetId.toLowerCase()
-                    )
-                  );
+                  const targetSubdivision = findSubdivisionMatch(paths, targetId, iso2);
                   if (targetSubdivision) {
                     initialTargetHandledRef.current = true;
                     onSelectSubdivision?.(toL2Detail(targetSubdivision), { focus: false });
-                    zoomToSubdivisionRef?.current?.(iso2, targetSubdivision.id);
+                    zoomToSubdivisionRefInternal.current(iso2, targetSubdivision.id);
                   }
                 }
               }
@@ -2339,11 +2449,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             if (initialFocusTarget && !initialFocusTargetHandledRef.current) {
               const [targetIso2, targetId] = initialFocusTarget.split('::').map((part) => part.trim());
               if (targetIso2?.toUpperCase() === iso2 && targetId) {
-                const targetSubdivision = paths.find((sub) =>
-                  [sub.id, sub.code, sub.name, sub.nameEn, sub.nameZh].some(
-                    (value) => String(value).toLowerCase() === targetId.toLowerCase()
-                  )
-                );
+                const targetSubdivision = findSubdivisionMatch(paths, targetId, iso2);
                 if (targetSubdivision) {
                   initialFocusTargetHandledRef.current = true;
                   focusMapRef?.current?.({
@@ -2580,15 +2686,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
     const subdivisionBox = (iso2: string, id: string | number): MapFocusBox | null => {
       const list = l2PathsByCountryRef.current[iso2] || [];
-      const idStr = String(id);
-      const target = list.find(
-        (p) =>
-          String(p.id) === idStr ||
-          p.code === idStr ||
-          p.name === idStr ||
-          p.nameZh === idStr ||
-          p.nameEn === idStr
-      );
+      const target = findSubdivisionMatch(list, id, iso2);
       return target ? tupleBox(target.bbox) : countryBox(iso2);
     };
 
@@ -2741,75 +2839,35 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   useEffect(() => {
     if (!initialTarget || initialTargetHandledRef.current) return;
     const parts = initialTarget.split('::');
-    if (parts.length !== 1) return;
     const iso2 = parts[0].trim().toUpperCase();
     const country = findCountry(iso2);
     if (!country || !countryPathMap.has(iso2)) return;
 
-    initialTargetHandledRef.current = true;
-    onSelectCountry(country, { focus: false });
-    focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    if (parts.length === 1) {
+      initialTargetHandledRef.current = true;
+      onSelectCountry(country, { focus: false });
+      focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    } else if (parts.length === 2) {
+      // Immediately frame the parent country while background worker decodes subdivision geometry
+      focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    }
   }, [initialTarget, countryPathMap, onSelectCountry, focusMapRef]);
 
   useEffect(() => {
     if (!initialFocusTarget || initialFocusTargetHandledRef.current) return;
     const parts = initialFocusTarget.split('::').map((part) => part.trim());
-    if (parts.length !== 1) return;
     const iso2 = parts[0].toUpperCase();
     if (!findCountry(iso2) || !countryPathMap.has(iso2)) return;
 
-    initialFocusTargetHandledRef.current = true;
-    focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    if (parts.length === 1) {
+      initialFocusTargetHandledRef.current = true;
+      focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    } else if (parts.length === 2) {
+      focusMapRef?.current?.({ kind: 'country', iso2, force: true });
+    }
   }, [initialFocusTarget, countryPathMap, focusMapRef]);
 
-  // Frame an L2 subdivision. Used by the detail panel for any country that has a deeper level.
-  useEffect(() => {
-    if (!zoomToSubdivisionRef) return;
-    zoomToSubdivisionRef.current = (iso2: string, id: string | number) => {
-      const list = l2PathsByCountryRef.current[iso2] || [];
-      const idStr = String(id);
-      const target = list.find(
-        (p) =>
-          String(p.id) === idStr ||
-          p.code === idStr ||
-          p.name === idStr ||
-          p.nameZh === idStr ||
-          p.nameEn === idStr
-      );
-      if (!target) return;
 
-      const [minX, minY, maxX, maxY] = target.bbox;
-      const bw = Math.max(maxX - minX, 0.5);
-      const bh = Math.max(maxY - minY, 0.5);
-      const vh = viewportSize.current.h;
-      const vw = viewportSize.current.w;
-      const kMin = vh / MAP_H;
-      const kFit = Math.min((vw * 0.7) / bw, (vh * 0.7) / bh);
-      const targetK = Math.min(MAX_ZOOM_K, Math.max(kFit, kMin));
-      const [cx, cy] = target.centroid;
-      const targetX = wrapX(vw / 2 - cx * targetK, targetK);
-      const targetY = clampY(vh / 2 - cy * targetK, targetK, vh);
-
-      const targetLOD = getLODLevel(targetK);
-      applyLOD(targetLOD);
-      selectedL2SubdivisionRef.current = { iso2, id: target.id };
-
-      if (targetLOD === 'L3') {
-        loadL3PackForSubdivision(iso2, target.code, target.name, target.id);
-        activeL3ParentRef.current = {
-          iso2,
-          id: target.id,
-          name: target.name,
-          code: target.code,
-          bbox: target.bbox,
-          path2D: target.path2D
-        };
-      }
-      animateTo(targetK, targetX, targetY, 380, () => {
-        syncAllViewports(targetK, targetX, targetY, vw, vh);
-      });
-    };
-  }, [zoomToSubdivisionRef, wrapX, clampY, animateTo, syncAllViewports, loadL3PackForSubdivision, applyLOD]);
 
   // Arrow key navigation hook
   useKeyboardNav({
