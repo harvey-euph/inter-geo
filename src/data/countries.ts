@@ -1,6 +1,7 @@
 import type { CountryData } from '../types/geo';
+import { SUPPLEMENTAL_COUNTRIES_DATA } from './supplementalCountries';
 
-export const COUNTRIES_DATA: CountryData[] = [
+export const CORE_COUNTRIES_DATA: CountryData[] = [
   // ==========================================
   // --- 亞洲 (Asia) ---
   // ==========================================
@@ -2780,6 +2781,8 @@ export const COUNTRIES_DATA: CountryData[] = [
     confusedWith: ["Jordan", "Senegal", "France"]
   }
 ];
+
+export const COUNTRIES_DATA: CountryData[] = [...CORE_COUNTRIES_DATA, ...SUPPLEMENTAL_COUNTRIES_DATA];
 
 // Comprehensive alias dictionary to match ANY TopoJSON name or ISO code variants
 const NAME_ALIASES: Record<string, string> = {

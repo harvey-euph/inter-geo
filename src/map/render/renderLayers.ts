@@ -24,15 +24,16 @@ import {
   drawPill,
   fillRoadMarkingPolygon
 } from '../theme';
-import type {
-  ActiveL3ParentInfo,
-  CountryPathData,
-  CrossingBadgeBox,
-  ExtFeatureItem,
-  ExtFeatureRenderItem,
-  L2SubdivisionPathData,
-  L3SubdivisionPathData,
-  RoadBundle
+import {
+  makeUnknownCountry,
+  type ActiveL3ParentInfo,
+  type CountryPathData,
+  type CrossingBadgeBox,
+  type ExtFeatureItem,
+  type ExtFeatureRenderItem,
+  type L2SubdivisionPathData,
+  type L3SubdivisionPathData,
+  type RoadBundle
 } from '../types';
 
 export interface RenderContext {
@@ -190,8 +191,6 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         fillWithColor = MAP_COLORS.selected;
       } else if (isHovered) {
         fillWithColor = MAP_COLORS.hovered;
-      } else if (!item.countryMeta) {
-        fillWithColor = MAP_COLORS.unmappedFill;
       } else if (
         (activeFilter.id === 'roadLines' ||
           activeFilter.id === 'roadMarkings' ||
@@ -200,7 +199,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       ) {
         fillWithColor = MAP_COLORS.defaultFill;
       } else {
-        fillWithColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
+        const cMeta =
+          item.countryMeta ||
+          makeUnknownCountry(String(item.id || ''), iso2 || '', item.name, item.name);
+        fillWithColor = activeFilter.getColor(cMeta) || MAP_COLORS.defaultFill;
       }
 
       const renderPath = (useHighRes && iso2 && dissolvedByCountry[iso2]) || item.path2D;

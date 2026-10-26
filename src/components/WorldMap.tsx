@@ -547,7 +547,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       nameZh: '基礎底圖',
       descriptionZh: '全球陸地基礎底圖輪廓風格',
       legend: [],
-      getColor: () => '#232a38'
+      getColor: () => '#38bdf8'
     };
   }, [activeFilterId, layersIndexReady, csvLoadedRev]);
   const activeFilterDefRef = useRef<LayerDefinition>(activeFilterDef);
@@ -633,7 +633,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         // fallback
       }
       const path2D = new Path2D(pathD);
-      const countryMeta = findCountry(feature.id) || findCountry(feature.properties?.name);
+      const countryMeta =
+        findCountry(feature.id) ||
+        findCountry(feature.properties?.name) ||
+        makeUnknownCountry(
+          String(feature.id || feature.properties?.id || ''),
+          '',
+          feature.properties?.name || 'Unknown',
+          feature.properties?.name || 'Unknown'
+        );
       let centroid: [number, number] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
       try {
         const c = pathGenerator.centroid(feature);
