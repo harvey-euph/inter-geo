@@ -116,21 +116,32 @@ export async function loadExtObjectLayerFeatures(
           let minY = Infinity;
           let maxX = -Infinity;
           let maxY = -Infinity;
-          let sumX = 0;
-          let sumY = 0;
 
           for (const p of projectedCoords) {
             minX = Math.min(minX, p[0]);
             minY = Math.min(minY, p[1]);
             maxX = Math.max(maxX, p[0]);
             maxY = Math.max(maxY, p[1]);
+          }
+
+          // GeoJSON polygons are closed loops where the first point equals the last point.
+          // Exclude the duplicate closing point when computing the centroid to avoid biasing towards the start vertex.
+          const isClosed =
+            projectedCoords.length > 1 &&
+            projectedCoords[0][0] === projectedCoords[projectedCoords.length - 1][0] &&
+            projectedCoords[0][1] === projectedCoords[projectedCoords.length - 1][1];
+          const uniquePoints = isClosed ? projectedCoords.slice(0, -1) : projectedCoords;
+
+          let sumX = 0;
+          let sumY = 0;
+          for (const p of uniquePoints) {
             sumX += p[0];
             sumY += p[1];
           }
 
           const centroid: [number, number] = [
-            sumX / projectedCoords.length,
-            sumY / projectedCoords.length
+            sumX / uniquePoints.length,
+            sumY / uniquePoints.length
           ];
 
           let innerGridPath2D: Path2D | undefined;
