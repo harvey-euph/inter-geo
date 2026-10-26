@@ -86,13 +86,24 @@ export function drawPill(
 export function fillRoadMarkingPolygon(
   c: CanvasRenderingContext2D,
   path: Path2D,
-  iso2: string,
+  specOrIso2: string,
   lineWidth: number,
-  overrideFillColor?: string
+  overrideFillWithColor?: string
 ): void {
-  const rm = getCountryRoadMarking(iso2);
-  const centerColor = overrideFillColor || rm.centerColor;
-  if (rm.outerColor === rm.centerColor || overrideFillColor) {
+  let outerColor: string;
+  let centerColor: string;
+
+  if (specOrIso2.includes(':')) {
+    const parts = specOrIso2.split(':');
+    outerColor = parts[0].trim();
+    centerColor = (parts[1] || parts[0]).trim();
+  } else {
+    const rm = getCountryRoadMarking(specOrIso2);
+    outerColor = rm.outerColor;
+    centerColor = overrideFillWithColor || rm.centerColor;
+  }
+
+  if (outerColor === centerColor || overrideFillWithColor) {
     c.fillStyle = centerColor;
     c.fill(path);
   } else {
@@ -100,7 +111,7 @@ export function fillRoadMarkingPolygon(
     c.clip(path);
     c.fillStyle = centerColor;
     c.fill(path);
-    c.strokeStyle = rm.outerColor;
+    c.strokeStyle = outerColor;
     c.lineWidth = lineWidth;
     c.stroke(path);
     c.restore();

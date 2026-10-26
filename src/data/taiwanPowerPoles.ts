@@ -20,7 +20,7 @@ export interface TaipowerZoneDef {
   x0: number; // TWD67 TM2 West Origin (m)
   y0: number; // TWD67 TM2 South Origin (m)
   color: string;
-  fillColor: string;
+  fillWithColor: string;
   examplePoleCode: string;
   descriptionZh: string;
   // Corners in [lon, lat] (WGS84)
@@ -97,7 +97,7 @@ const RAW_ZONES: Array<{
   x0: number;
   y0: number;
   color: string;
-  fillColor: string;
+  fillWithColor: string;
   examplePoleCode: string;
   descriptionZh: string;
 }> = [
@@ -109,7 +109,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2750000,
     color: '#0ea5e9',
-    fillColor: 'rgba(14, 165, 233, 0.22)',
+    fillWithColor: 'rgba(14, 165, 233, 0.22)',
     examplePoleCode: 'A0590 AA12',
     descriptionZh: '台灣極西北海岸角與新竹外海'
   },
@@ -121,7 +121,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2750000,
     color: '#3b82f6',
-    fillColor: 'rgba(59, 130, 246, 0.28)',
+    fillWithColor: 'rgba(59, 130, 246, 0.28)',
     examplePoleCode: 'B8230 AA93',
     descriptionZh: '大台北都會區、基隆市及桃園大園/蘆竹/龜山'
   },
@@ -133,7 +133,7 @@ const RAW_ZONES: Array<{
     x0: 330000,
     y0: 2750000,
     color: '#6366f1',
-    fillColor: 'rgba(99, 102, 241, 0.22)',
+    fillWithColor: 'rgba(99, 102, 241, 0.22)',
     examplePoleCode: 'C1045 AB01',
     descriptionZh: '台灣本島極東三貂角陸地與東部海域'
   },
@@ -145,7 +145,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2700000,
     color: '#10b981',
-    fillColor: 'rgba(16, 185, 129, 0.25)',
+    fillWithColor: 'rgba(16, 185, 129, 0.25)',
     examplePoleCode: 'D2450 CA32',
     descriptionZh: '桃竹苗濱海走廊、西濱快速道路沿線'
   },
@@ -157,7 +157,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2700000,
     color: '#8b5cf6',
-    fillColor: 'rgba(139, 92, 246, 0.28)',
+    fillWithColor: 'rgba(139, 92, 246, 0.28)',
     examplePoleCode: 'E4560 DE54',
     descriptionZh: '桃竹苗客家山莊、雪霸山脈北段與雪山山脈'
   },
@@ -169,7 +169,7 @@ const RAW_ZONES: Array<{
     x0: 330000,
     y0: 2700000,
     color: '#06b6d4',
-    fillColor: 'rgba(6, 182, 212, 0.25)',
+    fillWithColor: 'rgba(6, 182, 212, 0.25)',
     examplePoleCode: 'F3020 BC87',
     descriptionZh: '蘭陽平原水田、蘇花公路起點與蘇澳港'
   },
@@ -181,7 +181,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2650000,
     color: '#f59e0b',
-    fillColor: 'rgba(245, 158, 11, 0.28)',
+    fillWithColor: 'rgba(245, 158, 11, 0.28)',
     examplePoleCode: 'G3540 EA21',
     descriptionZh: '大台中盆地、清泉崗、彰化北部農田與八卦台地'
   },
@@ -193,7 +193,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2650000,
     color: '#d97706',
-    fillColor: 'rgba(217, 119, 6, 0.25)',
+    fillWithColor: 'rgba(217, 119, 6, 0.25)',
     examplePoleCode: 'H5050 DD11',
     descriptionZh: '台灣屋脊中央山脈、中橫公路與合歡山'
   },
@@ -205,7 +205,7 @@ const RAW_ZONES: Array<{
     x0: 90000,
     y0: 2600000,
     color: '#14b8a6',
-    fillColor: 'rgba(20, 184, 166, 0.22)',
+    fillWithColor: 'rgba(20, 184, 166, 0.22)',
     examplePoleCode: 'J4030 CC20',
     descriptionZh: '澎湖群島北部島嶼及濁水溪出海口海域'
   },
@@ -217,7 +217,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2600000,
     color: '#84cc16',
-    fillColor: 'rgba(132, 204, 22, 0.25)',
+    fillWithColor: 'rgba(132, 204, 22, 0.25)',
     examplePoleCode: 'K6520 BD88',
     descriptionZh: '嘉南平原糧倉北部、濁水溪南岸農田'
   },
@@ -229,7 +229,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2600000,
     color: '#ec4899',
-    fillColor: 'rgba(236, 72, 153, 0.25)',
+    fillWithColor: 'rgba(236, 72, 153, 0.25)',
     examplePoleCode: 'L4025 AA15',
     descriptionZh: '花蓮核心縱谷平原、花東海岸台 11 線北端'
   },
@@ -241,7 +241,7 @@ const RAW_ZONES: Array<{
     x0: 90000,
     y0: 2550000,
     color: '#22d3ee',
-    fillColor: 'rgba(34, 211, 238, 0.22)',
+    fillWithColor: 'rgba(34, 211, 238, 0.22)',
     examplePoleCode: 'M2580 CB90',
     descriptionZh: '澎湖馬公本島與七美嶼、台南鹽田潟湖區'
   },
@@ -253,7 +253,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2550000,
     color: '#eab308',
-    fillColor: 'rgba(234, 179, 8, 0.28)',
+    fillWithColor: 'rgba(234, 179, 8, 0.28)',
     examplePoleCode: 'N5230 EA45',
     descriptionZh: '文化古都台南市區、嘉義阿里山公路森林'
   },
@@ -265,7 +265,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2550000,
     color: '#f43f5e',
-    fillColor: 'rgba(244, 63, 94, 0.25)',
+    fillWithColor: 'rgba(244, 63, 94, 0.25)',
     examplePoleCode: 'O3570 DA23',
     descriptionZh: '花東縱谷池上關山米鄉、成功三仙台海岸'
   },
@@ -277,7 +277,7 @@ const RAW_ZONES: Array<{
     x0: 90000,
     y0: 2500000,
     color: '#64748b',
-    fillColor: 'rgba(100, 116, 139, 0.18)',
+    fillWithColor: 'rgba(100, 116, 139, 0.18)',
     examplePoleCode: 'P1010 AA01',
     descriptionZh: '高雄港外錨泊區海域'
   },
@@ -289,7 +289,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2500000,
     color: '#ef4444',
-    fillColor: 'rgba(239, 68, 68, 0.28)',
+    fillWithColor: 'rgba(239, 68, 68, 0.28)',
     examplePoleCode: 'Q4060 BB33',
     descriptionZh: '大高雄都會中心區、愛河、屏東平原高屏溪沿線'
   },
@@ -301,7 +301,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2500000,
     color: '#a855f7',
-    fillColor: 'rgba(168, 85, 247, 0.28)',
+    fillWithColor: 'rgba(168, 85, 247, 0.28)',
     examplePoleCode: 'R1998 EE79',
     descriptionZh: '台東黑森林卑南溪口、太麻里金針山與綠島'
   },
@@ -313,7 +313,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2450000,
     color: '#f97316',
-    fillColor: 'rgba(249, 115, 22, 0.28)',
+    fillWithColor: 'rgba(249, 115, 22, 0.28)',
     examplePoleCode: 'T3050 CD44',
     descriptionZh: '國境之南恆春古城、墾丁國家公園與佳鵝公路'
   },
@@ -325,7 +325,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2450000,
     color: '#0284c7',
-    fillColor: 'rgba(2, 132, 199, 0.25)',
+    fillWithColor: 'rgba(2, 132, 199, 0.25)',
     examplePoleCode: 'U1580 AA05',
     descriptionZh: '達悟族拼板舟故鄉蘭嶼與東清灣'
   },
@@ -337,7 +337,7 @@ const RAW_ZONES: Array<{
     x0: 170000,
     y0: 2400000,
     color: '#475569',
-    fillColor: 'rgba(71, 85, 105, 0.18)',
+    fillWithColor: 'rgba(71, 85, 105, 0.18)',
     examplePoleCode: 'V2020 AA01',
     descriptionZh: '台灣本島極南鵝鑾鼻燈塔南方巴士海峽'
   },
@@ -349,7 +349,7 @@ const RAW_ZONES: Array<{
     x0: 250000,
     y0: 2400000,
     color: '#334155',
-    fillColor: 'rgba(51, 65, 85, 0.18)',
+    fillWithColor: 'rgba(51, 65, 85, 0.18)',
     examplePoleCode: 'W1010 AA01',
     descriptionZh: '蘭嶼南方太平洋航道海域'
   }

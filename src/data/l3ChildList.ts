@@ -1,4 +1,5 @@
 import { decodeGeo } from '../map/geoWorkerClient';
+import { getDataUrl } from './dataSource';
 import type { MunicipalityDetail } from '../types/lod';
 import { findCountry } from './countries';
 import { findL3Partition, type L3PartitionMeta } from './l3Manifest';
@@ -46,7 +47,7 @@ export function loadL3Children(
   const cached = loadedByFile.get(partition.file);
   if (cached) return cached;
 
-  const pending = decodeGeo(`${import.meta.env.BASE_URL}/${partition.file}`, 'l3')
+  const pending = decodeGeo(getDataUrl(partition.file), 'l3')
     .then((result) => {
       const rows = result.features.map((feature) => toChild(feature.props || {}, iso2));
       rows.sort((a, b) => childLabel(a).localeCompare(childLabel(b), 'zh-Hant'));

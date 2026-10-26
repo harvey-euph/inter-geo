@@ -1,7 +1,8 @@
-import catalog from 'virtual:object-index';
 import type { CountryRoot, GeoObjectKind, GeoObjectRecord, ObjectCatalog } from './types';
 
 export type { CountryRoot, GeoObjectKind, GeoObjectRecord, ObjectCatalog };
+
+const catalog: ObjectCatalog = { countries: [], objects: [] };
 
 const objectsById = new Map<string, GeoObjectRecord>();
 const childrenByParent = new Map<string, GeoObjectRecord[]>();

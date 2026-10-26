@@ -450,6 +450,25 @@
   pointer-events: auto !important;
 }
 
+.tooltip-mode-switch {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 1px 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: all 0.14s ease;
+  margin-left: auto;
+  line-height: 1;
+}
+
+.tooltip-mode-switch:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border-color: #38bdf8;
+}
+
 /* Tooltip floating card */
 .map-tooltip {
   position: fixed;
@@ -1317,6 +1336,31 @@
   background: #38bdf8;
   border-color: #38bdf8;
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+}
+
+.fsw-radio-circle {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(148, 163, 184, 0.45);
+  background: rgba(11, 14, 20, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.14s ease;
+}
+
+.fsw-radio-circle.checked {
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+}
+
+.fsw-radio-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
 }
 
 .fsw-shield-icon {

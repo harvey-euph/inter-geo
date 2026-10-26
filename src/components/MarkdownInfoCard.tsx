@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { loadInfoCard, queryInfoStubs } from '../info/infoRegistry';
+import { isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, queryInfoStubs } from '../info/infoRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
 
@@ -475,7 +475,18 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
   pageSize = 3,
   onSelectCountryName
 }) => {
-  const essayStubs = useMemo(() => queryInfoStubs(query), [query]);
+  const [indexLoaded, setIndexLoaded] = useState(isInfoIndexLoaded());
+
+  useEffect(() => {
+    if (!indexLoaded) {
+      return onInfoIndexLoaded(() => setIndexLoaded(true));
+    }
+  }, [indexLoaded]);
+
+  const essayStubs = useMemo(() => {
+    void indexLoaded;
+    return queryInfoStubs(query);
+  }, [query, indexLoaded]);
 
   const queryKey = `${query.countryIso2 || ''}|${query.subdivisionCode || ''}|${query.subdivisionId ?? ''}|${query.municipalityCode || ''}|${query.roadName || ''}|${query.roadClass || ''}|${query.taipowerLetter || ''}`;
 

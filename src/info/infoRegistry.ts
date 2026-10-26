@@ -1,4 +1,3 @@
-import infoIndexStubs from 'virtual:info-index';
 import {
   gridObjectId,
   localFromSubdivisionCode,
@@ -6,17 +5,50 @@ import {
   numericNamespaceIds,
   roadObjectId
 } from '../objects/objectId';
-import type { InfoCard, InfoQuery, InfoStub } from '../types/info';
+import type { InfoCard, InfoImagePosition, InfoImageSize, InfoQuery, InfoStub, InfoTargetType } from '../types/info';
 import { parseMarkdownInfo } from './infoParser';
+import { getDataUrl } from '../data/dataSource';
+import { loadInfoTargetsIndex, type InfoTargetCardEntry, type InfoTargetsIndex } from '../data/geoIndexClient';
 
 let cachedStubsByTarget: Map<string, InfoStub[]> | null = null;
 let cachedStubsById: Map<string, InfoStub> | null = null;
+let isLoaded = false;
 
-/** In-memory cache of parsed full InfoCard objects by card ID */
-const loadedCardsById = new Map<string, InfoCard>();
+type InfoIndexListener = () => void;
+const listeners = new Set<InfoIndexListener>();
 
-/** Deduplicate concurrent HTTP fetches for the same .md file */
-const inFlightFiles = new Map<string, Promise<InfoCard[]>>();
+export function onInfoIndexLoaded(cb: InfoIndexListener): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+export function isInfoIndexLoaded(): boolean {
+  return isLoaded;
+}
+
+function entryToStub(entry: InfoTargetCardEntry): InfoStub {
+  const filename = entry.file.split('/').pop() || entry.file;
+  return {
+    id: entry.id,
+    title: entry.title,
+    icon: entry.icon || undefined,
+    accentColor: entry.accent || undefined,
+    targets: entry.targets,
+    targetType: (entry.type as InfoTargetType) || undefined,
+    tags: entry.tags || undefined,
+    image: entry.image || undefined,
+    imageSize: (entry.imageSize as InfoImageSize) || undefined,
+    imagePosition: (entry.imagePosition as InfoImagePosition) || undefined,
+    imageAlt: entry.imageAlt || undefined,
+    comparisonTargets: entry.comparison || undefined,
+    sourceFile: filename,
+    sourcePath: entry.file.startsWith('/') ? entry.file.slice(1) : entry.file,
+    priority: entry.priority,
+    firstItemPreview: entry.preview ? { content: entry.preview } : undefined
+  };
+}
 
 function normalizeTargetKey(rawTarget: string): string {
   return rawTarget
@@ -25,23 +57,25 @@ function normalizeTargetKey(rawTarget: string): string {
     .replace(/^(COUNTRY|SUBDIVISION|MUNICIPALITY|ROAD|GRID):/, '');
 }
 
-function initializeStubIndex(): void {
-  if (cachedStubsByTarget !== null) return;
-
+function syncFromInfoTargets(targetsMap: InfoTargetsIndex): void {
   const byTarget = new Map<string, InfoStub[]>();
   const byId = new Map<string, InfoStub>();
 
-  for (const stub of infoIndexStubs) {
-    byId.set(stub.id, stub);
+  for (const [targetKey, entries] of Object.entries(targetsMap)) {
+    for (const entry of entries) {
+      let stub = byId.get(entry.id);
+      if (!stub) {
+        stub = entryToStub(entry);
+        byId.set(stub.id, stub);
+      }
 
-    const addTarget = (raw: string) => {
-      const upper = raw.toUpperCase().trim();
+      const upper = targetKey.toUpperCase().trim();
       const normalized = normalizeTargetKey(upper);
-      for (const key of new Set([upper, normalized])) {
-        if (!key) continue;
-        const keys = [key];
-        const alias = namespaceAliasForTarget(key);
-        if (alias && alias !== key) keys.push(alias);
+      for (const k of new Set([upper, normalized])) {
+        if (!k) continue;
+        const keys = [k];
+        const alias = namespaceAliasForTarget(k);
+        if (alias && alias !== k) keys.push(alias);
         for (const indexKey of keys) {
           const list = byTarget.get(indexKey) || [];
           if (!list.includes(stub)) {
@@ -50,36 +84,53 @@ function initializeStubIndex(): void {
           }
         }
       }
-    };
-
-    for (const target of stub.targets) {
-      addTarget(target);
-    }
-
-    if (stub.comparisonTargets) {
-      for (const comp of stub.comparisonTargets) {
-        addTarget(comp);
-      }
     }
   }
 
   cachedStubsByTarget = byTarget;
   cachedStubsById = byId;
+  isLoaded = true;
+
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error(err);
+    }
+  }
 }
 
+export async function initInfoIndex(): Promise<void> {
+  try {
+    const targets = await loadInfoTargetsIndex();
+    syncFromInfoTargets(targets);
+  } catch (err) {
+    console.warn('[infoRegistry] Failed to initialize info index:', err);
+  }
+}
+
+// Trigger lazy background load of the remote info-targets.json index
+if (typeof window !== 'undefined') {
+  void initInfoIndex();
+}
+
+/** In-memory cache of parsed full InfoCard objects by card ID */
+const loadedCardsById = new Map<string, InfoCard>();
+
+/** Deduplicate concurrent HTTP fetches for the same .md file */
+const inFlightFiles = new Map<string, Promise<InfoCard[]>>();
+
 /**
- * Returns all lightweight InfoStub entries from the build-time index
+ * Returns all lightweight InfoStub entries from the remote index
  */
 export function getAllInfoStubs(): InfoStub[] {
-  initializeStubIndex();
-  return infoIndexStubs;
+  return Array.from(cachedStubsById?.values() || []);
 }
 
 /**
  * Finds a single InfoStub by ID
  */
 export function getInfoStubById(id: string): InfoStub | undefined {
-  initializeStubIndex();
   return cachedStubsById?.get(id);
 }
 
@@ -88,7 +139,6 @@ export function getInfoStubById(id: string): InfoStub | undefined {
  * Does NOT trigger any network requests.
  */
 export function queryInfoStubs(query: InfoQuery): InfoStub[] {
-  initializeStubIndex();
   if (!cachedStubsByTarget) return [];
 
   const candidateKeys: Array<{ key: string; weight: number }> = [];
@@ -204,9 +254,15 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
     }
   }
 
-  let results = Array.from(scoreMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([stub]) => stub);
+  let results = Array.from(scoreMap.keys());
+
+  // Strict priority sorting: 0 to 139 ascending, preserving discovery order when equal
+  results.sort((a, b) => {
+    const pA = a.priority !== undefined ? a.priority : 140;
+    const pB = b.priority !== undefined ? b.priority : 140;
+    if (pA !== pB) return pA - pB;
+    return 0;
+  });
 
   // A child card keeps its own essays when a shared code string also hits an ancestor card.
   if (!hasRoadContext && hasMunicipalityContext) {
@@ -234,7 +290,7 @@ export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
 
   let pending = inFlightFiles.get(stub.sourcePath);
   if (!pending) {
-    const assetUrl = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/${stub.sourcePath.replace(/^\/+/, '')}`;
+    const assetUrl = getDataUrl(stub.sourcePath);
     pending = fetch(assetUrl)
       .then((res) => {
         if (!res.ok) {

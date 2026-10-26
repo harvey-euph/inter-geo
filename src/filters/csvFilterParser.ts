@@ -4,7 +4,7 @@ import {
 } from './assignableRegions';
 
 export type CsvLoadedTiming = 'init' | 'on-demand';
-export type CsvFilterType = 'FillColor' | 'Text' | 'Image' | 'Special';
+export type CsvFilterType = 'FillWithColor' | 'Text' | 'Image' | 'Special' | 'ExtObject';
 
 export interface CsvFilterMetadata {
   id?: string;
@@ -18,6 +18,9 @@ export interface CsvFilterMetadata {
   type?: CsvFilterType;
   loadedTiming?: CsvLoadedTiming;
   order?: number;
+  defaultColor?: string;
+  goto?: string;
+  group?: string;
 }
 
 /**
@@ -122,7 +125,7 @@ function parseLoadedTiming(raw: string): CsvLoadedTiming {
 
 function parseFilterType(raw: string): CsvFilterType {
   const norm = raw.trim().toLowerCase();
-  if (norm === 'fillcolor' || norm === 'fill' || norm === 'color') return 'FillColor';
+  if (norm === 'fillwithcolor' || norm === 'fillcolor' || norm === 'fill' || norm === 'color') return 'FillWithColor';
   if (norm === 'text' || norm === 'label' || norm === 'badge') return 'Text';
   if (norm === 'image' || norm === 'icon' || norm === 'img') return 'Image';
   return 'Special';
@@ -162,6 +165,8 @@ export function parseFilterDataCsv(
         else if (key === 'nameEn') meta.nameEn = val;
         else if (key === 'shortBadge') meta.shortBadge = val;
         else if (key === 'accentColor') meta.accentColor = val;
+        else if (key === 'default-color' || key === 'defaultcolor') meta.defaultColor = val;
+        else if (key === 'goto') meta.goto = val;
         else if (key === 'descriptionZh') meta.descriptionZh = val;
         else if (key === 'focusTarget') meta.focusTarget = val;
         else if (key === 'effectiveRange' || key === 'range') meta.effectiveRange = val;

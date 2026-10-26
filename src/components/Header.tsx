@@ -1,5 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Globe, SlidersHorizontal, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import {
+  getInfotipDisplayMode,
+  setInfotipDisplayMode,
+  subscribeInfotipDisplayMode,
+  INFOTIP_MODE_OPTIONS,
+  type InfotipDisplayMode
+} from '../info/infotipPreferences';
 
 interface HeaderProps {
   activeFilterCount: number;
@@ -15,6 +22,20 @@ export const Header: React.FC<HeaderProps> = React.memo(({
 }) => {
   const pullStartRef = useRef<{ pointerId: number; x: number; y: number; ready: boolean } | null>(null);
   const [pullVisual, setPullVisual] = React.useState({ distance: 0, progress: 0, visible: false, ready: false });
+  const [infotipMode, setInfotipMode] = useState<InfotipDisplayMode>(() => getInfotipDisplayMode());
+
+  useEffect(() => {
+    return subscribeInfotipDisplayMode(setInfotipMode);
+  }, []);
+
+  const handleCycleInfotipMode = () => {
+    const modes: InfotipDisplayMode[] = ['first-item', 'tags-badges', 'card-titles', 'minimal'];
+    const nextIdx = (modes.indexOf(infotipMode) + 1) % modes.length;
+    setInfotipDisplayMode(modes[nextIdx]);
+  };
+
+  const infotipModeMeta =
+    INFOTIP_MODE_OPTIONS.find((m) => m.id === infotipMode) || INFOTIP_MODE_OPTIONS[0];
 
   return (
     <header
@@ -79,13 +100,13 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </div>
       </div>
 
-      {/* Center / Left-Center: Single Filter Selector Button */}
-      <div className="headline-filter-row">
+      {/* Center / Left-Center: Layer Selector & Infotip Mode Buttons */}
+      <div className="headline-filter-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button
           type="button"
           className={`filter-trigger-btn ${isFilterExpanded ? 'open' : ''} ${activeFilterCount > 0 ? 'has-active' : ''}`}
           onClick={onToggleFilterExpanded}
-          title="開啟 / 關閉濾鏡選擇器 (Filter Selector)"
+          title="開啟 / 關閉圖層選擇器 (Layer Selector)"
         >
           <SlidersHorizontal size={14} className="filter-trigger-icon" />
           <span className="filter-trigger-label">圖層</span>
@@ -93,6 +114,18 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             <span className="filter-trigger-badge">{activeFilterCount}</span>
           )}
           {isFilterExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        <button
+          type="button"
+          className="filter-trigger-btn"
+          onClick={handleCycleInfotipMode}
+          title={`提示卡模式: ${infotipModeMeta.nameZh} (${infotipModeMeta.descriptionZh}) - 點擊切換`}
+        >
+          <span style={{ fontSize: 13 }}>{infotipModeMeta.icon}</span>
+          <span className="filter-trigger-label" style={{ fontSize: 11 }}>
+            {infotipModeMeta.nameZh}
+          </span>
         </button>
       </div>
 

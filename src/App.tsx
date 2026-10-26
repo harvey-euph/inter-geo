@@ -30,12 +30,14 @@ const QuizModal = lazy(() =>
 
 export function App() {
   const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
-  const initialCsvLayer = initialTargetParam ? getCsvFilterById(initialTargetParam) : undefined;
-  const initialNationwideLayer = initialTargetParam ? getNationwideFilterById(initialTargetParam) : undefined;
-  const initialBaseLayer = FILTERS.some((filter) => filter.id === initialTargetParam);
+  const [initialLayerParam] = useState(() => new URLSearchParams(window.location.search).get('layer')?.trim() || '');
+  const effectiveLayerCandidate = initialLayerParam || initialTargetParam;
+  const initialCsvLayer = effectiveLayerCandidate ? getCsvFilterById(effectiveLayerCandidate) : undefined;
+  const initialNationwideLayer = effectiveLayerCandidate ? getNationwideFilterById(effectiveLayerCandidate) : undefined;
+  const initialBaseLayer = FILTERS.some((filter) => filter.id === effectiveLayerCandidate);
   const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || initialBaseLayer;
-  const initialLayerIds = initialNationwideLayer ? [initialTargetParam] : [];
-  const initialTarget = isInitialLayer ? '' : initialTargetParam;
+  const initialLayerIds = initialNationwideLayer ? [effectiveLayerCandidate] : [];
+  const initialTarget = isInitialLayer && !initialLayerParam ? '' : initialTargetParam;
   const [initialFocusTarget] = useState(() => {
     for (const id of initialLayerIds) {
       const csvFocus = getCsvFilterById(id)?.meta.focusTarget;
@@ -47,15 +49,20 @@ export function App() {
   });
   const initialTargetParts = initialTarget.split('::');
   const initialCountry = initialTargetParts.length === 1 ? findCountry(initialTargetParts[0]) || null : null;
-  const [activeFilterId, setActiveFilterId] = useState<string>(initialBaseLayer ? initialTargetParam : 'none');
+  const isFillRegion = initialBaseLayer || initialCsvLayer?.type === 'FillWithColor';
+  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'none');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
-    () => new Set(initialCsvLayer?.rangeKind === 'International' && initialCsvLayer.type === 'Text' ? [initialTargetParam] : [])
+    () => new Set(initialCsvLayer?.type === 'Text' ? [effectiveLayerCandidate] : [])
   );
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
-    initialCsvLayer?.rangeKind === 'International' && initialCsvLayer.type === 'Image' ? initialTargetParam : null
+    initialCsvLayer?.type === 'Image' ? effectiveLayerCandidate : null
   );
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
-    () => new Set(initialLayerIds.filter((id) => !!getNationwideFilterById(id)))
+    () => new Set(
+      effectiveLayerCandidate === 'taiwan-power-poles'
+        ? ['taiwan-power-poles']
+        : initialLayerIds.filter((id) => !!getNationwideFilterById(id))
+    )
   );
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideFilterDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
@@ -65,8 +72,12 @@ export function App() {
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(420);
   const [detailPanelFullWidth, setDetailPanelFullWidth] = useState(false);
-  const [showInterstates, setShowInterstates] = useState<boolean>(false);
-  const [showNumberedRoutes, setShowNumberedRoutes] = useState<boolean>(false);
+  const [showInterstates, setShowInterstates] = useState<boolean>(
+    () => effectiveLayerCandidate === 'roads-highways'
+  );
+  const [showNumberedRoutes, setShowNumberedRoutes] = useState<boolean>(
+    () => effectiveLayerCandidate === 'roads-numbered'
+  );
   const showRoads = showInterstates || showNumberedRoutes;
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
@@ -391,9 +402,16 @@ export function App() {
             activeRegionalFilters={activeRegionalFilters}
             onToggleRegionalFilter={handleToggleRegionalFilter}
             visibleRegionalFilters={visibleRegionalFilters}
+            showInterstates={showInterstates}
+            onToggleInterstates={() => setShowInterstates((prev) => !prev)}
+            showNumberedRoutes={showNumberedRoutes}
+            onToggleNumberedRoutes={() => setShowNumberedRoutes((prev) => !prev)}
             onResetAll={handleResetAllFilters}
             isExpanded={isFilterExpanded}
             onCollapse={handleCollapseFilter}
+            onGotoCamera={(lat, lon, ratio) => {
+              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+            }}
           />
 
           {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}

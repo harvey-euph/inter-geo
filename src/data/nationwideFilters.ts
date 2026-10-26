@@ -404,7 +404,7 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
         titleEn: f.nameEn,
         activeColor: f.accentColor,
         layerType:
-          f.type === 'FillColor'
+          f.type === 'FillWithColor'
             ? 'coloring'
             : f.type === 'Image'
               ? 'image'

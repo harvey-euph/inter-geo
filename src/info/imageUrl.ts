@@ -1,6 +1,8 @@
+import { getDataUrl } from '../data/dataSource';
+
 /**
  * Resolve Info image sources. Remote HTTP(S) URLs are used as-is; local assets
- * are resolved under Vite's base path so the app also works from a subpath.
+ * are resolved under inter-geo-data repository path.
  */
 export function resolveInfoImageUrl(source: string): string {
   const value = source.trim();
@@ -8,6 +10,5 @@ export function resolveInfoImageUrl(source: string): string {
 
   if (/^(https?:)?\/\//i.test(value)) return value;
 
-  const base = import.meta.env.BASE_URL.replace(/\/+$/, '');
-  return `${base}/${value.replace(/^\/+/, '')}`;
+  return getDataUrl(value);
 }

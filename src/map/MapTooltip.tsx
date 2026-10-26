@@ -1,13 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { findCountry } from '../data/countries';
 import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCrossingSign } from '../data/pedestrianCrossing';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
+import { getDataUrl } from '../data/dataSource';
 import { queryInfoStubs } from '../info/infoRegistry';
+import {
+  getInfotipDisplayMode,
+  subscribeInfotipDisplayMode,
+  setInfotipDisplayMode,
+  INFOTIP_MODE_OPTIONS,
+  type InfotipDisplayMode
+} from '../info/infotipPreferences';
 import { gridObjectId, roadObjectId, subdivisionObjectId } from '../objects/objectId';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
+import type { InfoStub } from '../types/info';
 
 export interface MapTooltipProps {
   setTooltipNode: (node: HTMLDivElement | null) => void;
@@ -32,9 +41,141 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
   onOpenFullInfo,
   isTouch = false
 }) => {
+  const [infotipMode, setInfotipMode] = useState<InfotipDisplayMode>(() => getInfotipDisplayMode());
+
+  useEffect(() => {
+    return subscribeInfotipDisplayMode(setInfotipMode);
+  }, []);
+
   if (!hoveredRoad && !hoveredCountry && !hoveredMunicipality && !hoveredL2Subdivision && !hoveredTaipowerZone) {
     return null;
   }
+
+  const cycleInfotipMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const modes: InfotipDisplayMode[] = ['first-item', 'tags-badges', 'card-titles', 'minimal'];
+    const nextIdx = (modes.indexOf(infotipMode) + 1) % modes.length;
+    setInfotipDisplayMode(modes[nextIdx]);
+  };
+
+  const currentModeMeta =
+    INFOTIP_MODE_OPTIONS.find((m) => m.id === infotipMode) || INFOTIP_MODE_OPTIONS[0];
+
+  const renderStubsPreview = (stubs: InfoStub[], fallbackHints?: string[]) => {
+    if (infotipMode === 'minimal') {
+      return null;
+    }
+
+    if (infotipMode === 'card-titles') {
+      if (stubs.length === 0) return null;
+      return (
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 4,
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3
+          }}
+        >
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
+            相關線索主題 ({stubs.length})
+          </div>
+          {stubs.slice(0, 4).map((s) => (
+            <div
+              key={s.id}
+              style={{
+                fontSize: 11,
+                color: s.accentColor || '#38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <span>{s.icon || '📄'}</span>
+              <span style={{ fontWeight: 600 }}>{s.title}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (infotipMode === 'tags-badges') {
+      const allTags = Array.from(new Set(stubs.flatMap((s) => s.tags || [])));
+      if (allTags.length === 0 && (!fallbackHints || fallbackHints.length === 0)) return null;
+      return (
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 4,
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 4
+          }}
+        >
+          {allTags.slice(0, 6).map((tag) => (
+            <span
+              key={tag}
+              className="tooltip-badge"
+              style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.25)' }}
+            >
+              #{tag}
+            </span>
+          ))}
+          {fallbackHints?.slice(0, 2).map((hint, idx) => (
+            <span key={idx} className="tooltip-badge" style={{ color: '#93c5fd' }}>
+              {hint}
+            </span>
+          ))}
+        </div>
+      );
+    }
+
+    // Default: 'first-item'
+    const stub = stubs[0];
+    if (stub) {
+      const preview = stub.firstItemPreview;
+      return (
+        <div
+          style={{
+            fontSize: 11,
+            color: stub.accentColor || '#fbbf24',
+            marginTop: 4,
+            lineHeight: 1.3,
+            borderTop: '1px solid var(--border-color)',
+            paddingTop: 4
+          }}
+        >
+          {stub.icon || '💡'} <strong>{stub.title}</strong>
+          {preview && (
+            <div style={{ color: '#cbd5e1', marginTop: 2, fontSize: 10.5 }}>
+              {preview.label ? `${preview.label} ` : ''}
+              {preview.content.length > 75 ? `${preview.content.slice(0, 75)}...` : preview.content}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (fallbackHints && fallbackHints.length > 0) {
+      return (
+        <div
+          style={{
+            fontSize: 11,
+            color: '#93c5fd',
+            marginTop: 4,
+            lineHeight: 1.3,
+            borderTop: '1px solid var(--border-color)',
+            paddingTop: 4
+          }}
+        >
+          💡 {fallbackHints[0]}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div
@@ -184,7 +325,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                   }}
                 >
                   <img
-                    src={`${import.meta.env.BASE_URL}/${cSign.imagePath}`}
+                    src={getDataUrl(cSign.imagePath)}
                     alt="crossing"
                     style={{ width: 24, height: 24, objectFit: 'contain' }}
                   />
@@ -213,6 +354,14 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                 <span>👑 國家首都所在一級行政區</span>
               </div>
             )}
+          {(() => {
+            const mdStubs = queryInfoStubs({
+              countryIso2: hoveredL2Subdivision.iso2,
+              subdivisionCode: hoveredL2Subdivision.code,
+              subdivisionId: hoveredL2Subdivision.id
+            });
+            return renderStubsPreview(mdStubs);
+          })()}
         </>
       )}
 
@@ -280,6 +429,14 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               <div className="tooltip-name">{hoveredCountry.nameZh}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hoveredCountry.name}</div>
             </div>
+            <button
+              type="button"
+              className="tooltip-mode-switch"
+              title={`提示卡模式: ${currentModeMeta.nameZh} (${currentModeMeta.descriptionZh}) - 點擊切換`}
+              onClick={cycleInfotipMode}
+            >
+              {currentModeMeta.icon}
+            </button>
           </div>
           <div className="tooltip-meta">
             <span className="tooltip-badge">
@@ -297,47 +454,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
           </div>
           {(() => {
             const mdStubs = queryInfoStubs({ countryIso2: hoveredCountry.iso2 });
-            const stub = mdStubs[0];
-            if (stub) {
-              const preview = stub.firstItemPreview;
-              return (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: stub.accentColor || '#fbbf24',
-                    marginTop: 4,
-                    lineHeight: 1.3,
-                    borderTop: '1px solid var(--border-color)',
-                    paddingTop: 4
-                  }}
-                >
-                  {stub.icon || '💡'} <strong>{stub.title}</strong>
-                  {preview && (
-                    <div style={{ color: '#cbd5e1', marginTop: 2, fontSize: 10.5 }}>
-                      {preview.label ? `${preview.label} ` : ''}
-                      {preview.content.length > 75 ? `${preview.content.slice(0, 75)}...` : preview.content}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            if (hoveredCountry.keyHints && hoveredCountry.keyHints.length > 0) {
-              return (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: '#93c5fd',
-                    marginTop: 4,
-                    lineHeight: 1.3,
-                    borderTop: '1px solid var(--border-color)',
-                    paddingTop: 4
-                  }}
-                >
-                  💡 {hoveredCountry.keyHints[0]}
-                </div>
-              );
-            }
-            return null;
+            return renderStubsPreview(mdStubs, hoveredCountry.keyHints);
           })()}
           {activeRegionalFilters.has('eu-pedestrian-crossing') &&
             (() => {
@@ -355,7 +472,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
                   }}
                 >
                   <img
-                    src={`${import.meta.env.BASE_URL}/${cSign.imagePath}`}
+                    src={getDataUrl(cSign.imagePath)}
                     alt="crossing"
                     style={{ width: 24, height: 24, objectFit: 'contain' }}
                   />

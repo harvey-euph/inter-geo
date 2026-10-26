@@ -6,6 +6,11 @@ import type { FilterDefinition } from '../data/filters';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
 import type { LODLevel, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
+import {
+  loadDataIndex,
+  hasCountryL2Sync,
+  resolveSubdivisionFileSync
+} from '../data/geoIndexClient';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { L3_PARTITIONS_BY_KEY } from '../data/l3Manifest';
 import type { L3PartitionMeta } from '../data/l3Manifest';
@@ -25,8 +30,10 @@ import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
 import type { TaipowerZoneDef } from '../data/taiwanPowerPoles';
 import { MAP_W, MAP_H, createProjection, createPathGenerator } from '../map/geo';
 import { decodeGeo } from '../map/geoWorkerClient';
+import { getDataUrl } from '../data/dataSource';
 import {
   getCsvFilterById,
+  getCsvFilterValue,
   getCsvSubdivisionValue,
   loadOnDemandCsvFilter
 } from '../filters/csvFilterRegistry';
@@ -90,6 +97,7 @@ export type MapFocusTarget = (
     }
   | { kind: 'road'; bbox: [number, number, number, number] }
   | { kind: 'bbox'; boxes: MapFocusBox[] }
+  | { kind: 'coordinates'; lat: number; lon: number; ratio?: number }
 ) & { force?: boolean };
 
 export type MapSelectOptions = { focus?: boolean };
@@ -407,7 +415,38 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Active filter definition
   const activeFilterDef = useMemo<FilterDefinition>(() => {
-    return FILTERS.find((f) => f.id === activeFilterId) || FILTERS[0];
+    if (activeFilterId === 'none' || activeFilterId === 'base') {
+      return {
+        id: 'none',
+        category: 'none',
+        nameZh: 'Base',
+        descriptionZh: '預設草圖底圖風格',
+        legend: [],
+        getColor: () => null
+      };
+    }
+
+    const preset = FILTERS.find((f) => f.id === activeFilterId);
+    if (preset) return preset;
+
+    const csvF = getCsvFilterById(activeFilterId);
+    if (csvF) {
+      return {
+        id: csvF.id,
+        category: 'none',
+        nameZh: csvF.nameZh,
+        descriptionZh: csvF.descriptionZh,
+        legend: [],
+        getColor: (country: CountryData) => {
+          const val = getCsvFilterValue(csvF.id, country.iso2);
+          if (val) return val;
+          const defaultCol = csvF.meta.defaultColor || (csvF.meta as Record<string, unknown>)['default-color'] as string | undefined;
+          return defaultCol || null;
+        }
+      };
+    }
+
+    return FILTERS[0];
   }, [activeFilterId]);
   const activeFilterDefRef = useRef<FilterDefinition>(activeFilterDef);
 
@@ -490,7 +529,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         Math.max(...ys)
       ];
 
-      const hoverFillColor = z.fillColor
+      const hoverFillWithColor = z.fillWithColor
         .replace('0.28', '0.45')
         .replace('0.25', '0.42')
         .replace('0.22', '0.38')
@@ -506,7 +545,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         pNW,
         pCenter,
         bbox,
-        hoverFillColor
+        hoverFillWithColor
       };
     });
   }, [projection]);
@@ -1151,7 +1190,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       inFlightL3PacksRef.current.add(filePath);
 
       try {
-        const { features: decoded } = await decodeGeo(`${import.meta.env.BASE_URL}/${filePath}`, 'l3');
+        const { features: decoded } = await decodeGeo(getDataUrl(filePath), 'l3');
         const paths: L3SubdivisionPathData[] = [];
 
         for (let i = 0; i < decoded.length; i++) {
@@ -1231,12 +1270,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         partition = L3_PARTITIONS_BY_KEY[`${normIso2}:${String(id)}`];
       }
 
+      let partitionFile: string | undefined = partition?.file;
+      if (!partitionFile) {
+        const candidateKeys = [code, id !== undefined ? String(id) : '', name].filter(Boolean) as string[];
+        for (const cand of candidateKeys) {
+          const resolved = resolveSubdivisionFileSync(normIso2, cand);
+          if (resolved) {
+            partitionFile = resolved;
+            break;
+          }
+        }
+      }
+
       if (
-        partition &&
-        !loadedL3PacksRef.current.has(partition.file) &&
-        !inFlightL3PacksRef.current.has(partition.file)
+        partitionFile &&
+        !loadedL3PacksRef.current.has(partitionFile) &&
+        !inFlightL3PacksRef.current.has(partitionFile)
       ) {
-        fetchL3Pack(partition.file);
+        fetchL3Pack(partitionFile);
       }
     },
     [fetchL3Pack]
@@ -1999,8 +2050,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   useEffect(() => {
     activeFilterDefRef.current = activeFilterDef;
+    const csvF = getCsvFilterById(activeFilterId);
+    if (csvF && !csvF.loaded) {
+      void loadOnDemandCsvFilter(activeFilterId).then(() => {
+        requestRender();
+      });
+    }
     requestRender();
-  }, [activeFilterDef, requestRender]);
+  }, [activeFilterDef, activeFilterId, requestRender]);
 
   useEffect(() => {
     activeTextFiltersRef.current = activeTextFilters || new Set();
@@ -2049,7 +2106,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     for (const [iso2, meta] of Object.entries(EUROPEAN_CROSSING_SIGNS)) {
       if (!crossingImagesRef.current.has(iso2)) {
         const img = new Image();
-        img.src = `${import.meta.env.BASE_URL}/${meta.imagePath}`;
+        img.src = getDataUrl(meta.imagePath);
         img.onload = () => {
           requestRender();
         };
@@ -2133,10 +2190,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Startup loader: show the map as soon as L1 countries finish, then stream all 91 L2 files in Web Workers
   useEffect(() => {
     let isMounted = true;
+    void loadDataIndex();
 
     const loadL1 = async (): Promise<GeoFeature[]> => {
       try {
-        const res = await fetch(`${import.meta.env.BASE_URL}/data/countries-110m.fgb`);
+        const res = await fetch(getDataUrl('data/COUNTRY.fgb'));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buffer = await res.arrayBuffer();
         if (!isMounted) return [];
@@ -2169,10 +2227,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           const c = queue.shift();
           if (!c) break;
           const iso2 = c.iso2;
+          if (!hasCountryL2Sync(iso2)) {
+            continue;
+          }
           try {
             
             const { features: decoded, dissolvedD } = await decodeGeo(
-              `${import.meta.env.BASE_URL}/data/l2/${iso2}.fgb`, 'l2', iso2
+              getDataUrl(`data/${iso2}.fgb`), 'l2', iso2
             );
             if (!isMounted) return;
 
@@ -2356,7 +2417,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       (async () => {
         try {
           const { features: decoded } = await decodeGeo(
-            `${import.meta.env.BASE_URL}/data/roads/${iso2}.fgb`, 'roads', iso2
+            getDataUrl(`data/${iso2}-roads.fgb`), 'roads', iso2
           );
           if (!isMounted) return;
 
@@ -2530,6 +2591,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (!Number.isFinite(minX)) return null;
         return { minX, minY, maxX, maxY };
       }
+      if (target.kind === 'coordinates') {
+        return null;
+      }
       const iso2 = target.iso2 || '';
       if (iso2 && target.code) {
         const kids = getL3SubdivisionsForParent(iso2, target.parentName, target.parentCode, target.code);
@@ -2572,6 +2636,29 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     };
 
     focusMapRef.current = (target: MapFocusTarget) => {
+      if (target.kind === 'coordinates') {
+        const vh = viewportSize.current.h;
+        const vw = viewportSize.current.w;
+        if (vw <= 0 || vh <= 0) return;
+        const [px, py] = projection([target.lon, target.lat]) || [MAP_W / 2, MAP_H / 2];
+        const kMin = vh / MAP_H;
+        const targetK = target.ratio !== undefined
+          ? Math.max(kMin, Math.min(MAX_ZOOM_K, target.ratio))
+          : transformRef.current.k;
+        const targetX = wrapX(vw / 2 - px * targetK, targetK);
+        const targetY = clampY(vh / 2 - py * targetK, targetK, vh);
+        const targetLOD = getLODLevel(targetK);
+        if (targetLOD !== lodLevelRef.current) {
+          lodLevelRef.current = targetLOD;
+          setLodLevel(targetLOD);
+          if (targetLOD !== 'L3') activeL3ParentRef.current = null;
+        }
+        animateTo(targetK, targetX, targetY, 380, () => {
+          syncAllViewports(targetK, targetX, targetY, vw, vh);
+        });
+        return;
+      }
+
       const raw = resolveBox(target);
       if (!raw) return;
 
@@ -2627,7 +2714,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     wrapX,
     clampY,
     animateTo,
-    syncAllViewports
+    syncAllViewports,
+    projection
   ]);
 
   useEffect(() => {

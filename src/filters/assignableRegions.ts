@@ -1,7 +1,6 @@
 import { COUNTRIES_DATA } from '../data/countries';
 import { L2_MANIFEST } from '../data/l2Manifest';
 import { TAIWAN_POWER_POLE_ZONES } from '../data/taiwanPowerPoles';
-import { getObject, objectsByParent } from '../objects/objectRegistry';
 
 export interface AssignableRegionList {
   /** Identifier of the effective range (e.g. 'International', 'Nationwide:JP', 'Nationwide:TW') */
@@ -41,9 +40,7 @@ const ISO2_WORLD_COUNTRIES = [
 export const INTERNATIONAL_COUNTRY_IDS: ReadonlySet<string> = new Set(ISO2_WORLD_COUNTRIES);
 
 function isCatalogChild(iso2: string, upper: string): boolean {
-  if (!upper.startsWith(`${iso2}::`)) return false;
-  const obj = getObject(upper);
-  return !!obj && (obj.parentId || '').toUpperCase() === iso2;
+  return upper.startsWith(`${iso2}::`);
 }
 
 function namespacedKeys(iso2: string, short: string): string[] {
@@ -51,15 +48,13 @@ function namespacedKeys(iso2: string, short: string): string[] {
 }
 
 /**
- * Japan's 47 prefectures. Aliases come from the JP L2 object catalog
- * (`JP::26`, `JP::01`, `JP-01`, `01`, kanji, zh, en).
+ * Japan's 47 prefectures.
+ * (`JP::26`, `JP::01`, `JP-01`, `01`, `1`..`47`).
  */
 const jpAliasToCanonical = new Map<string, string>();
 const jpCanonicalIds = new Set<string>();
-for (const pref of objectsByParent('JP', 'subdivision')) {
-  const local = pref.id.split('::')[1] || pref.code;
-  if (!/^\d+$/.test(local)) continue;
-  const num = String(parseInt(local, 10));
+for (let i = 1; i <= 47; i++) {
+  const num = String(i);
   const padded = num.padStart(2, '0');
   const canonical = `JP-${padded}`;
   jpCanonicalIds.add(canonical);
@@ -69,11 +64,7 @@ for (const pref of objectsByParent('JP', 'subdivision')) {
     `JP::${num}`,
     `JP::${padded}`,
     padded,
-    num,
-    pref.name,
-    pref.nameEn,
-    pref.nameZh,
-    ...(pref.aliases || [])
+    num
   ];
   for (const alias of aliases) {
     const key = alias.trim().toUpperCase();

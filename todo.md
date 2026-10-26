@@ -5,24 +5,24 @@
 
 # Structure
 
-- [ ] **多 repo 架構** 把資料 (data / layers / info / images) 都放到另一個 repo: `https://github.com/harvey-euph/inter-geo-data` (已準備好，只須改檔案路徑即可)
+- [x] **多 repo 架構** 把資料 (data / layers / info / images) 都放到另一個 repo: `https://github.com/harvey-euph/inter-geo-data` (已準備好，只須改檔案路徑即可)
     - 不是 submodule，直接在前端 fetch `https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads/main` 的內容
     - `inter-geo-data` push main 時 Action 自動整理索引，推到另一個 branch index，這個 branch 只存這檔案 (某種 inverted index 結構)
     - 當我要知道要抓哪些檔案時，先去查 index 這樣就可以做到動態增刪檔案
     - 後面會解釋各種資料類型怎麼組成 index
 
-- [ ] 重新設計 fgb 物件的組織架構方式、重新命名整理
+- [x] 重新設計 fgb 物件的組織架構方式、重新命名整理
     - 所有任何層級的 (Multi)Point / (Multi)LineString / (Multi)Polygon 都是一個存於 fgb file 的幾何物件，不需要存名字以外的 header，存了也不會用
     - 每個檔案只存同一個層級﹑類型的資料
     - 頁面啟動時會最先抓 `data/COUNTRY.fgb` 用來畫世界草圖和國家邊界，因此程式一定要讀完所有國家。
     - `data/COUNTRY.fgb` 裡面的物件都是國家，會用兩個字母作為標籤，例如 `JP`, `US`
     - 當 `data/COUNTRY.fgb` 裡面有物件 `XX` 就代表 "可能有" `data/XX.fgb` 存在，代表這個國家的第一級區域劃分
-    - 可能會沒有檔案，這時候不能視為錯誤，因為這是預期行為，Google Street View 有 Coverage 我才有準備檔案，但也要為未來擴充保留空間，所以可能回傳空的 200 state 或有其他更好的做法
+    - 可能會沒有檔案，要根據 `https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads/index/data-index.json` 確認 
     - `data/XX.fgb` 會 on-demand requested，當用戶涉及任何需要看到 `XX` 國家內的行政區的行為就要去要
     - 同理，如果 `data/XX.fgb` 裡面有物件叫做 `YY`，可能會有 `data/XX/YY.fgb` 存有 `YY` 裡面的次級行政區，此行為目前只有兩層，但我要讓這件事變成不受限制，只要 `*/A.fgb` 檔案裡面有物件 `B` ，就有可能找到 `*/A/B.fgb` 來細分，方便擴充
     - 可能會有 `XX-ZZ.fgb` 代表 `XX` 的國界以外資訊，例如公路﹑鐵路﹑數據點散布圖﹑其他 covering info，會被其他地方呼叫到，例如 Layer，稍後提及。 
 
-- [ ] 重新設計 Layer 的操作方式﹑編輯方式，目標是整合讓所有 filter 都能來自一個 csv file
+- [x] 重新設計 Layer 的操作方式﹑編輯方式，目標是整合讓所有 filter 都能來自一個 csv file
     - csv 格式如下:
     ```
     // file-name.csv // 不用另外 id，直接用 file-name 來追縱，URL 找 layer 也直接放 `?layer=file-name`
@@ -86,7 +86,7 @@
     - 最後是我還不清楚該怎麼做的: 道路標線，包含邊線與中線，現在使用外框和中心分色，但是要怎麼標準化到 csv 還在想 (幫我想方案)
         
 
-- [ ] 同理，對每個 Object 來說，都會有 "hover 出現的 Infotip" 和 "出現在右邊可以全螢幕的 Info Card" 也要重新設計
+- [x] 同理，對每個 Object 來說，都會有 "hover 出現的 Infotip" 和 "出現在右邊可以全螢幕的 Info Card" 也要重新設計
     - Info Card
         - 同樣的，我會用相同的 md 格式放在 `inter-geo-data`，標註 targets，紀錄 index 的時候就會有 map: target -> lists of files 來告訴前端要 on-demand下載哪些 .md 取得文章
         - 排序嚴格依照 priority: 0 到 139 ，如果相同直接依照讀取順序排 

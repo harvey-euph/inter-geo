@@ -184,23 +184,27 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       const screenH = (maxY - minY) * k;
       if (!isSelected && !isHovered && screenW < 1.5 && screenH < 1.5) continue;
 
-      let fillColor: string | CanvasGradient;
+      let fillWithColor: string | CanvasGradient;
       if (isSelected) {
-        fillColor = MAP_COLORS.selected;
+        fillWithColor = MAP_COLORS.selected;
       } else if (isHovered) {
-        fillColor = MAP_COLORS.hovered;
+        fillWithColor = MAP_COLORS.hovered;
       } else if (!item.countryMeta) {
-        fillColor = MAP_COLORS.unmappedFill;
+        fillWithColor = MAP_COLORS.unmappedFill;
       } else if (activeFilter.id === 'roadLines' && isCountryL2Region) {
-        fillColor = MAP_COLORS.defaultFill;
+        fillWithColor = MAP_COLORS.defaultFill;
       } else {
-        fillColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
+        fillWithColor = activeFilter.getColor(item.countryMeta) || MAP_COLORS.defaultFill;
       }
 
       const renderPath = (useHighRes && iso2 && dissolvedByCountry[iso2]) || item.path2D;
 
+      const isRoadMarkingsFilter =
+        activeFilter.id === 'roadLines' ||
+        activeFilter.id === 'roadMarkings' ||
+        activeFilter.id === 'road-markings';
       const paintRoadMarkings =
-        activeFilter.id === 'roadLines' &&
+        isRoadMarkingsFilter &&
         !isCountryL2Region &&
         !isSelected &&
         !isHovered &&
@@ -208,8 +212,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
 
       if (paintRoadMarkings && item.countryMeta) {
         fillRoadMarkingPolygon(ctx, renderPath, item.countryMeta.iso2, 8.5 / k);
+      } else if (typeof fillWithColor === 'string' && fillWithColor.includes(':')) {
+        fillRoadMarkingPolygon(ctx, renderPath, fillWithColor, 8.5 / k);
       } else {
-        ctx.fillStyle = fillColor;
+        ctx.fillStyle = fillWithColor;
         ctx.fill(renderPath);
       }
 
@@ -425,7 +431,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         const isHovered = hoveredTaipowerZone?.letter === item.zone.letter;
 
         // 1. Transparent fill
-        ctx.fillStyle = isHovered ? item.hoverFillColor : item.zone.fillColor;
+        ctx.fillStyle = isHovered ? item.hoverFillWithColor : item.zone.fillWithColor;
         ctx.fill(item.polygonPath2D);
 
         // 2. Dashed inner percentage grid lines (20%, 40%, 60%, 80%) - ONLY in L3 state

@@ -83,7 +83,7 @@ export interface TaipowerZoneRenderItem {
   pNW: [number, number];
   pCenter: [number, number];
   bbox: [number, number, number, number];
-  hoverFillColor: string;
+  hoverFillWithColor: string;
 }
 
 export interface RoadBundle {

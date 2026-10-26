@@ -1,24 +1,22 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { getRegisteredCsvFilters, type RegisteredCsvFilter } from '../filters/csvFilterRegistry';
+import { getAssignableRegionList } from '../filters/assignableRegions';
+import { type NationwideFilterDef } from '../data/nationwideFilters';
 import { FILTERS } from '../data/filters';
-import {
-  INTERNATIONAL_TEXT_FILTERS,
-  INTERNATIONAL_IMAGE_FILTERS
-} from '../data/internationalFilters';
-import {
-  ALL_NATIONWIDE_FILTERS,
-  type NationwideFilterDef
-} from '../data/nationwideFilters';
-import { RoadShieldBadge } from './RoadShieldBadge';
 import {
   Search,
   X,
   ChevronRight,
   ChevronDown,
   Check,
-  RotateCcw
+  RotateCcw,
+  Palette,
+  Layers,
+  Globe,
+  MapPin
 } from 'lucide-react';
 
-interface FilterBarProps {
+export interface FilterBarProps {
   activeFilterId: string;
   onSelectFilter: (filterId: string) => void;
   activeTextFilters: Set<string>;
@@ -27,10 +25,15 @@ interface FilterBarProps {
   onToggleInternationalImageFilter: (filterId: string) => void;
   activeRegionalFilters: Set<string>;
   onToggleRegionalFilter: (filterId: string) => void;
-  visibleRegionalFilters: NationwideFilterDef[];
+  visibleRegionalFilters?: NationwideFilterDef[];
+  showInterstates?: boolean;
+  onToggleInterstates?: () => void;
+  showNumberedRoutes?: boolean;
+  onToggleNumberedRoutes?: () => void;
   onResetAll: () => void;
   isExpanded: boolean;
   onCollapse: () => void;
+  onGotoCamera?: (lat: number, lon: number, ratio?: number) => void;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = React.memo(({
@@ -42,26 +45,27 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   onToggleInternationalImageFilter,
   activeRegionalFilters,
   onToggleRegionalFilter,
-  visibleRegionalFilters,
+  showInterstates = false,
+  onToggleInterstates,
+  showNumberedRoutes = false,
+  onToggleNumberedRoutes,
   onResetAll,
   isExpanded,
-  onCollapse
+  onCollapse,
+  onGotoCamera
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [hideOutsideWindow, setHideOutsideWindow] = useState(true);
 
-  // Tree expansion states matching the schematic default:
-  // v International -> > Fill Color, > Image, v Text
-  // v Nationwide -> > Fill Color, > Image, > Text
+  // 4 Toggled Sections matching the spec:
+  // v Fill Region With Color (Radio select)
+  // v Ext Object (Multi-select)
+  // v Global Label (Multi-select)
+  // v Area Label (Multi-select)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    international: true,
-    'int-fill': false,
-    'int-image': false,
-    'int-text': true,
-    nationwide: true,
-    'nat-fill': false,
-    'nat-image': false,
-    'nat-text': false
+    fillRegion: true,
+    extObject: true,
+    globalLabel: true,
+    areaLabel: true
   });
 
   const toggleSection = (key: string) => {
@@ -71,87 +75,154 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   const q = searchQuery.trim().toLowerCase();
   const isSearching = q.length > 0;
 
-  // International Fill Color options (exclude 'none' since unchecking turns off coloring)
-  const intFillFilters = useMemo(() => {
-    const list = FILTERS.filter((f) => f.id !== 'none');
-    if (!isSearching) return list;
-    return list.filter(
-      (f) =>
-        f.nameZh.toLowerCase().includes(q) ||
-        f.id.toLowerCase().includes(q) ||
-        f.descriptionZh.toLowerCase().includes(q)
-    );
-  }, [isSearching, q]);
+  // Retrieve registered CSV filters
+  const allCsvFilters = useMemo(() => getRegisteredCsvFilters(), []);
 
-  const intImageFilters = useMemo(() => {
-    if (!isSearching) return INTERNATIONAL_IMAGE_FILTERS;
-    return INTERNATIONAL_IMAGE_FILTERS.filter(
-      (f) =>
-        f.nameZh.toLowerCase().includes(q) ||
-        f.nameEn.toLowerCase().includes(q) ||
-        f.descriptionZh.toLowerCase().includes(q)
-    );
-  }, [isSearching, q]);
+  // Categorize CSV filters into the 4 groups
+  const categorized = useMemo(() => {
+    const fillRegion: Array<{
+      id: string;
+      nameZh: string;
+      nameEn?: string;
+      shortBadge?: string;
+      descriptionZh?: string;
+      goto?: string;
+    }> = [];
+    const extObject: RegisteredCsvFilter[] = [];
+    const globalLabel: RegisteredCsvFilter[] = [];
+    const areaLabel: RegisteredCsvFilter[] = [];
 
-  const intTextFilters = useMemo(() => {
-    if (!isSearching) return INTERNATIONAL_TEXT_FILTERS;
-    return INTERNATIONAL_TEXT_FILTERS.filter(
-      (f) =>
-        f.nameZh.toLowerCase().includes(q) ||
-        f.nameEn.toLowerCase().includes(q) ||
-        f.shortBadge.toLowerCase().includes(q) ||
-        f.descriptionZh.toLowerCase().includes(q)
-    );
-  }, [isSearching, q]);
-
-  // Nationwide filters source: either viewport-visible (+ any currently active) or all nationwide filters
-  const baseNationwideList = useMemo(() => {
-    if (!hideOutsideWindow) {
-      return ALL_NATIONWIDE_FILTERS;
-    }
-    const map = new Map<string, NationwideFilterDef>();
-    for (const f of visibleRegionalFilters) {
-      map.set(f.id, f);
-    }
-    // Always keep currently checked filters visible so the user can uncheck them
-    for (const f of ALL_NATIONWIDE_FILTERS) {
-      if (activeRegionalFilters.has(f.id) && !map.has(f.id)) {
-        map.set(f.id, f);
+    for (const f of allCsvFilters) {
+      const g = (f.meta.group as string) || '';
+      if (g === 'fill-region' || f.type === 'FillWithColor') {
+        fillRegion.push({
+          id: f.id,
+          nameZh: f.nameZh,
+          nameEn: f.nameEn,
+          shortBadge: f.shortBadge || f.nameZh,
+          descriptionZh: f.descriptionZh,
+          goto: f.goto
+        });
+      } else if (g === 'ext-object') {
+        extObject.push(f);
+      } else if (g === 'global-label' || (f.rangeKind === 'International' && !['distinctive-letters', 'distinctiveLetters', 'street-words', 'streetWords'].includes(f.id))) {
+        globalLabel.push(f);
+      } else {
+        areaLabel.push(f);
       }
     }
-    return Array.from(map.values());
-  }, [hideOutsideWindow, visibleRegionalFilters, activeRegionalFilters]);
 
-  const filteredNationwideList = useMemo(() => {
-    if (!isSearching) return baseNationwideList;
-    return baseNationwideList.filter(
-      (f) =>
-        f.nameZh.toLowerCase().includes(q) ||
-        f.nameEn.toLowerCase().includes(q) ||
-        f.shortBadge.toLowerCase().includes(q) ||
-        f.descriptionZh.toLowerCase().includes(q) ||
-        (f.countryIso2 && f.countryIso2.toLowerCase().includes(q)) ||
-        (f.targetIso2 && f.targetIso2.toLowerCase().includes(q))
-    );
-  }, [baseNationwideList, isSearching, q]);
+    // Include preset theme filters from FILTERS that aren't already covered by CSVs
+    for (const pf of FILTERS) {
+      if (pf.id === 'none' || pf.id === 'base') continue;
+      const alreadyHas = fillRegion.some(
+        (r) =>
+          r.id.toLowerCase() === pf.id.toLowerCase() ||
+          (pf.id === 'drivingSide' && (r.id === 'driving-side' || r.id === 'drivingSide')) ||
+          (pf.id === 'roadLines' && (r.id === 'road-markings' || r.id === 'roadMarkings'))
+      );
+      if (!alreadyHas) {
+        fillRegion.push({
+          id: pf.id,
+          nameZh: pf.nameZh,
+          nameEn: pf.id,
+          shortBadge: pf.nameZh.slice(0, 4),
+          descriptionZh: pf.descriptionZh
+        });
+      }
+    }
 
-  const natFillFilters = useMemo(
-    () =>
-      filteredNationwideList.filter(
-        (f) => f.layerType === 'coloring' || f.layerType === 'roads'
-      ),
-    [filteredNationwideList]
+    return { fillRegion, extObject, globalLabel, areaLabel };
+  }, [allCsvFilters]);
+
+  const matchesSearch = useCallback(
+    (item: { nameZh: string; nameEn?: string; id: string; shortBadge?: string; descriptionZh?: string }) => {
+      if (!isSearching) return true;
+      return (
+        item.nameZh.toLowerCase().includes(q) ||
+        (item.nameEn && item.nameEn.toLowerCase().includes(q)) ||
+        item.id.toLowerCase().includes(q) ||
+        (item.shortBadge && item.shortBadge.toLowerCase().includes(q)) ||
+        (item.descriptionZh && item.descriptionZh.toLowerCase().includes(q))
+      );
+    },
+    [isSearching, q]
   );
 
-  const natImageFilters = useMemo(
-    () => filteredNationwideList.filter((f) => f.layerType === 'image'),
-    [filteredNationwideList]
-  );
+  // Group 1: Fill Region With Color (Base + CSV filters)
+  const filteredFillRegion = useMemo(() => {
+    return categorized.fillRegion.filter(matchesSearch);
+  }, [categorized.fillRegion, matchesSearch]);
 
-  const natTextFilters = useMemo(
-    () => filteredNationwideList.filter((f) => f.layerType === 'text'),
-    [filteredNationwideList]
-  );
+  // Group 2: Ext Object (Highways, Taipower grid, etc.)
+  const isTaipowerActive = activeRegionalFilters.has('taiwan-power-poles');
+  const extObjectItems = useMemo(() => {
+    const list = [
+      {
+        id: 'roads-highways',
+        nameZh: '國道 / 主要高速公路網',
+        nameEn: 'National Highways & Interstates',
+        shortBadge: '🛣️ 國道',
+        descriptionZh: '全球主要高速公路與美國州際公路路網',
+        checked: showInterstates,
+        onToggle: () => onToggleInterstates?.()
+      },
+      {
+        id: 'roads-numbered',
+        nameZh: '省道 / 編號道路',
+        nameEn: 'Numbered Routes',
+        shortBadge: '🛤️ 省道',
+        descriptionZh: '各國一級編號道路與省道系統',
+        checked: showNumberedRoutes,
+        onToggle: () => onToggleNumberedRoutes?.()
+      },
+      {
+        id: 'taiwan-power-poles',
+        nameZh: '台灣電力座標格 (Taipower Grid)',
+        nameEn: 'Taiwan Taipower Grid',
+        shortBadge: '⚡ 台電',
+        descriptionZh: '台灣電力公司電線桿/配電箱之兩級百公尺座標格',
+        checked: isTaipowerActive,
+        onToggle: () => onToggleRegionalFilter('taiwan-power-poles')
+      }
+    ];
+
+    return list.filter(matchesSearch);
+  }, [showInterstates, showNumberedRoutes, isTaipowerActive, matchesSearch, onToggleInterstates, onToggleNumberedRoutes, onToggleRegionalFilter]);
+
+  // Group 3: Global Label
+  const filteredGlobalLabel = useMemo(() => {
+    return categorized.globalLabel.filter(matchesSearch);
+  }, [categorized.globalLabel, matchesSearch]);
+
+  // Group 4: Area Label (Distinctive letters, Street words, India scripts, EU crossing signs)
+  const isEuCrossingActive = activeRegionalFilters.has('eu-pedestrian-crossing') || activeInternationalImageFilter === 'eu-pedestrian-crossing';
+  const filteredAreaLabel = useMemo(() => {
+    const list = [...categorized.areaLabel];
+    // Include EU crossing signs if not already in list
+    if (!list.some((f) => f.id === 'eu-pedestrian-crossing' || f.id === 'eu-crossing-signs')) {
+      list.push({
+        id: 'eu-pedestrian-crossing',
+        nameZh: '歐洲行人過路標誌',
+        nameEn: 'European Pedestrian Crossing Signs',
+        shortBadge: '🚸 行人',
+        accentColor: '#38bdf8',
+        descriptionZh: '歐洲各國行人過路藍色警示標誌之條紋與人物特徵比較',
+        meta: { group: 'area-label', type: 'Image' },
+        rangeKind: 'International',
+        targetIso2: '*',
+        targetIso2s: ['*'],
+        assignableList: getAssignableRegionList('International'),
+        loadedTiming: 'on-demand',
+        effectiveRange: 'International',
+        path: 'images/crossing',
+        type: 'Image',
+        loaded: true,
+        data: null
+      });
+    }
+    return list.filter(matchesSearch);
+  }, [categorized.areaLabel, matchesSearch]);
 
   const windowRef = useRef<HTMLDivElement>(null);
 
@@ -191,43 +262,68 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
   const isSectionOpen = (key: string, hasSearchMatches: boolean) =>
     isSearching ? hasSearchMatches : !!openSections[key];
 
-  const activeIntFillCount = activeFilterId !== 'none' ? 1 : 0;
-  const activeIntImageCount = activeInternationalImageFilter ? 1 : 0;
-  const activeIntTextCount = activeTextFilters.size;
+  const handleSelectFillLayer = (layerId: string, gotoStr?: string) => {
+    const nextId = activeFilterId === layerId ? 'none' : layerId;
+    onSelectFilter(nextId);
+    if (gotoStr && onGotoCamera) {
+      try {
+        const p = new URLSearchParams(gotoStr);
+        const lat = Number(p.get('lat'));
+        const lon = Number(p.get('lon'));
+        const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          onGotoCamera(lat, lon, ratio);
+        }
+      } catch {
+        // ignore malformed goto query
+      }
+    }
+  };
 
-  const activeNatFillCount = natFillFilters.filter((f) =>
-    activeRegionalFilters.has(f.id)
-  ).length;
-  const activeNatImageCount = natImageFilters.filter((f) =>
-    activeRegionalFilters.has(f.id)
-  ).length;
-  const activeNatTextCount = natTextFilters.filter((f) =>
-    activeRegionalFilters.has(f.id)
+  const handleToggleLabel = (filterId: string) => {
+    if (filterId === 'eu-pedestrian-crossing') {
+      onToggleInternationalImageFilter('eu-pedestrian-crossing');
+      onToggleRegionalFilter('eu-pedestrian-crossing');
+      return;
+    }
+    // Check if it's regional vs global
+    const isRegional = categorized.areaLabel.some((f) => f.id === filterId);
+    if (isRegional) {
+      onToggleRegionalFilter(filterId);
+    } else {
+      onToggleTextFilter(filterId);
+    }
+  };
+
+  // Active counts for headers
+  const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
+  const activeFillCount = isBaseActive ? 0 : 1;
+  const activeExtCount = (showInterstates ? 1 : 0) + (showNumberedRoutes ? 1 : 0) + (isTaipowerActive ? 1 : 0);
+  const activeGlobalCount = filteredGlobalLabel.filter((f) => activeTextFilters.has(f.id)).length;
+  const activeAreaCount = filteredAreaLabel.filter(
+    (f) =>
+      activeRegionalFilters.has(f.id) ||
+      activeTextFilters.has(f.id) ||
+      (f.id === 'eu-pedestrian-crossing' && isEuCrossingActive)
   ).length;
 
-  const nationwideOpen = isSectionOpen('nationwide', filteredNationwideList.length > 0);
-
-  const totalActiveCount =
-    activeIntFillCount +
-    activeIntImageCount +
-    activeIntTextCount +
-    activeRegionalFilters.size;
+  const totalActiveCount = activeFillCount + activeExtCount + activeGlobalCount + activeAreaCount;
 
   return (
     <div
       ref={windowRef}
       className="filter-selector-window"
       role="dialog"
-      aria-label="Filter Selector"
+      aria-label="Layer Selector"
     >
-      {/* Top Bar: --- Search Bar --- [x] */}
+      {/* Top Bar: Search Bar & Actions */}
       <div className="fsw-top-bar">
         <div className="fsw-search-wrapper">
           <Search size={13} className="fsw-search-icon" />
           <input
             type="text"
             className="fsw-search-input"
-            placeholder="Search filters (e.g. Country Code, TLD, Road)..."
+            placeholder="搜尋圖層 (e.g. Coverage, Driving Side, 國旗, 標線)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -248,7 +344,7 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
             type="button"
             className="fsw-reset-btn"
             onClick={onResetAll}
-            title="重設所有已勾選的濾鏡 (Reset all active filters)"
+            title="重設所有圖層 (Reset all layers)"
           >
             <RotateCcw size={12} />
             <span>Reset</span>
@@ -259,414 +355,232 @@ export const FilterBar: React.FC<FilterBarProps> = React.memo(({
           type="button"
           className="fsw-close-btn"
           onClick={onCollapse}
-          title="關閉濾鏡視窗 [x]"
-          aria-label="Close Filter Selector"
+          title="關閉圖層視窗 [x]"
+          aria-label="Close Layer Selector"
         >
           <X size={15} />
         </button>
       </div>
 
-      {/* Tree Content */}
+      {/* Tree Content: 4 Major Sections */}
       <div className="fsw-tree-body">
-        {/* ======================== v International ======================== */}
+        {/* ============================================================== */}
+        {/* 1. Fill Region With Color (擇一圓點 Radio Buttons)               */}
+        {/* ============================================================== */}
         <div className="fsw-group">
           <button
             type="button"
             className="fsw-group-header"
-            onClick={() => toggleSection('international')}
+            onClick={() => toggleSection('fillRegion')}
           >
             <span className="fsw-chevron">
-              {isSectionOpen(
-                'international',
-                intFillFilters.length + intImageFilters.length + intTextFilters.length > 0
-              ) ? (
+              {isSectionOpen('fillRegion', filteredFillRegion.length > 0) ? (
                 <ChevronDown size={14} />
               ) : (
                 <ChevronRight size={14} />
               )}
             </span>
-            <span className="fsw-group-title">International</span>
-            <span className="fsw-group-sub">國際通用</span>
-            {activeIntFillCount + activeIntImageCount + activeIntTextCount > 0 && (
-              <span className="fsw-count-pill">
-                {activeIntFillCount + activeIntImageCount + activeIntTextCount}
-              </span>
-            )}
+            <Palette size={14} style={{ color: '#38bdf8' }} />
+            <span className="fsw-group-title">Fill Region With Color</span>
+            <span className="fsw-group-sub">區塊著色 · 單選</span>
+            {activeFillCount > 0 && <span className="fsw-count-pill">{activeFillCount}</span>}
           </button>
 
-          {isSectionOpen(
-            'international',
-            intFillFilters.length + intImageFilters.length + intTextFilters.length > 0
-          ) && (
+          {isSectionOpen('fillRegion', filteredFillRegion.length > 0) && (
             <div className="fsw-group-children">
-              {/* > Fill Color */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('int-fill')}
+              <div className="fsw-item-list">
+                {/* Option 0: Base */}
+                <label
+                  className={`fsw-checkbox-row ${isBaseActive ? 'checked' : ''}`}
+                  title="預設地圖底圖草圖風格，不疊加任何主題著色"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelectFilter('none');
+                  }}
                 >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('int-fill', intFillFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
+                  <span className={`fsw-radio-circle ${isBaseActive ? 'checked' : ''}`}>
+                    {isBaseActive && <span className="fsw-radio-dot" />}
                   </span>
-                  <span className="fsw-subgroup-title">Fill Color</span>
-                  <span className="fsw-subgroup-hint">著色圖層 · 單選</span>
-                  {activeIntFillCount > 0 && (
-                    <span className="fsw-count-pill">{activeIntFillCount}</span>
-                  )}
-                </button>
+                  <span className="fsw-item-name">Base</span>
+                  <span className="fsw-item-name-zh">預設草圖底圖</span>
+                </label>
 
-                {isSectionOpen('int-fill', intFillFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {intFillFilters.length === 0 ? (
-                      <div className="fsw-empty-item">No matching fill color filters</div>
-                    ) : (
-                      intFillFilters.map((f) => {
-                        const checked = activeFilterId === f.id;
-                        return (
-                          <label
-                            key={f.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={f.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onSelectFilter(checked ? 'none' : f.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            <span className="fsw-item-name">{f.nameZh}</span>
-                            <span className="fsw-item-name-zh">{f.id}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* > Image */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('int-image')}
-                >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('int-image', intImageFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
-                  </span>
-                  <span className="fsw-subgroup-title">Image</span>
-                  <span className="fsw-subgroup-hint">圖片標記</span>
-                  {activeIntImageCount > 0 && (
-                    <span className="fsw-count-pill">{activeIntImageCount}</span>
-                  )}
-                </button>
-
-                {isSectionOpen('int-image', intImageFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {intImageFilters.length === 0 ? (
-                      <div className="fsw-empty-item">No matching image filters</div>
-                    ) : (
-                      intImageFilters.map((imgF) => {
-                        const checked = activeInternationalImageFilter === imgF.id;
-                        return (
-                          <label
-                            key={imgF.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={imgF.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onToggleInternationalImageFilter(imgF.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            <span className="fsw-item-name">{imgF.nameEn}</span>
-                            <span className="fsw-item-name-zh">{imgF.nameZh}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* v Text */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('int-text')}
-                >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('int-text', intTextFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
-                  </span>
-                  <span className="fsw-subgroup-title">Text</span>
-                  <span className="fsw-subgroup-hint">文字標籤 · 最多 2 項</span>
-                  {activeIntTextCount > 0 && (
-                    <span className="fsw-count-pill">{activeIntTextCount}</span>
-                  )}
-                </button>
-
-                {isSectionOpen('int-text', intTextFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {intTextFilters.length === 0 ? (
-                      <div className="fsw-empty-item">No matching text filters</div>
-                    ) : (
-                      intTextFilters.map((tf) => {
-                        const checked = activeTextFilters.has(tf.id);
-                        return (
-                          <label
-                            key={tf.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={tf.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onToggleTextFilter(tf.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            <span className="fsw-item-name">{tf.nameEn}</span>
-                            <span className="fsw-item-name-zh">{tf.nameZh}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+                {/* Dynamic Fill With Color Layers */}
+                {filteredFillRegion.map((f) => {
+                  const checked =
+                    activeFilterId === f.id ||
+                    (activeFilterId === 'drivingSide' && (f.id === 'driving-side' || f.id === 'drivingSide')) ||
+                    (activeFilterId === 'driving-side' && (f.id === 'driving-side' || f.id === 'drivingSide')) ||
+                    (activeFilterId === 'roadLines' && (f.id === 'road-markings' || f.id === 'roadMarkings')) ||
+                    (activeFilterId === 'road-markings' && (f.id === 'road-markings' || f.id === 'roadMarkings'));
+                  return (
+                    <label
+                      key={f.id}
+                      className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
+                      title={f.descriptionZh || f.nameZh}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSelectFillLayer(f.id, f.goto);
+                      }}
+                    >
+                      <span className={`fsw-radio-circle ${checked ? 'checked' : ''}`}>
+                        {checked && <span className="fsw-radio-dot" />}
+                      </span>
+                      <span className="fsw-item-name">{f.shortBadge || f.nameZh}</span>
+                      <span className="fsw-item-name-zh">{f.nameZh}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
 
-        {/* ======================== v Nationwide ======================== */}
-        <div className="fsw-group fsw-group-nationwide">
+        {/* ============================================================== */}
+        {/* 2. Ext Object (外加物件 · 複選 Checkboxes)                       */}
+        {/* ============================================================== */}
+        <div className="fsw-group">
           <button
             type="button"
-            className="fsw-group-backdrop"
-            aria-expanded={nationwideOpen}
-            aria-label="Nationwide"
-            onClick={() => toggleSection('nationwide')}
-          />
-          <div className="fsw-group-header fsw-group-header-nationwide">
-            <span className="fsw-group-header-main">
-              <span className="fsw-chevron">
-                {nationwideOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
-              <span className="fsw-group-title">Nationwide</span>
-              {activeRegionalFilters.size > 0 && (
-                <span className="fsw-count-pill">{activeRegionalFilters.size}</span>
+            className="fsw-group-header"
+            onClick={() => toggleSection('extObject')}
+          >
+            <span className="fsw-chevron">
+              {isSectionOpen('extObject', extObjectItems.length > 0) ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
               )}
             </span>
+            <Layers size={14} style={{ color: '#a855f7' }} />
+            <span className="fsw-group-title">Ext Object</span>
+            <span className="fsw-group-sub">外加物件 · 複選</span>
+            {activeExtCount > 0 && <span className="fsw-count-pill">{activeExtCount}</span>}
+          </button>
 
-            {/* Hole in the group button: this checkbox keeps its own click. */}
-            <label
-              className="fsw-window-filter-toggle"
-              title="只顯示當前視野 (L2/L3) 內的區域專屬濾鏡 (Hide filters outside current map viewport)"
-            >
-              <input
-                type="checkbox"
-                checked={hideOutsideWindow}
-                onChange={(e) => setHideOutsideWindow(e.target.checked)}
-              />
-              <span className={`fsw-mini-checkbox ${hideOutsideWindow ? 'checked' : ''}`}>
-                {hideOutsideWindow && <Check size={10} strokeWidth={3} />}
-              </span>
-              <span className="fsw-window-filter-label">Hide outside window ones</span>
-            </label>
-          </div>
-
-          {nationwideOpen && (
+          {isSectionOpen('extObject', extObjectItems.length > 0) && (
             <div className="fsw-group-children">
-              {/* > Fill Color */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('nat-fill')}
-                >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('nat-fill', natFillFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
-                  </span>
-                  <span className="fsw-subgroup-title">Fill Color</span>
-                  <span className="fsw-subgroup-hint">區域著色 / 路網 ({natFillFilters.length})</span>
-                  {activeNatFillCount > 0 && (
-                    <span className="fsw-count-pill">{activeNatFillCount}</span>
-                  )}
-                </button>
-
-                {isSectionOpen('nat-fill', natFillFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {natFillFilters.length === 0 ? (
-                      <div className="fsw-empty-item">
-                        {hideOutsideWindow
-                          ? 'Zoom in (L2) to a country or uncheck "Hide outside window ones"'
-                          : 'No matching nationwide fill filters'}
-                      </div>
-                    ) : (
-                      natFillFilters.map((rf) => {
-                        const checked = activeRegionalFilters.has(rf.id);
-                        return (
-                          <label
-                            key={rf.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={rf.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onToggleRegionalFilter(rf.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            {rf.shieldType && (
-                              <span className="fsw-shield-icon">
-                                <RoadShieldBadge
-                                  type={rf.shieldType}
-                                  label={rf.shortBadge}
-                                  size={16}
-                                  active={checked}
-                                />
-                              </span>
-                            )}
-                            <span className="fsw-item-name">{rf.nameEn}</span>
-                            <span className="fsw-item-name-zh">{rf.nameZh}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+              <div className="fsw-item-list">
+                {extObjectItems.map((item) => (
+                  <label
+                    key={item.id}
+                    className={`fsw-checkbox-row ${item.checked ? 'checked' : ''}`}
+                    title={item.descriptionZh}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      item.onToggle();
+                    }}
+                  >
+                    <span className={`fsw-checkbox ${item.checked ? 'checked' : ''}`}>
+                      {item.checked && <Check size={11} strokeWidth={3} />}
+                    </span>
+                    <span className="fsw-item-name">{item.shortBadge}</span>
+                    <span className="fsw-item-name-zh">{item.nameZh}</span>
+                  </label>
+                ))}
               </div>
+            </div>
+          )}
+        </div>
 
-              {/* > Image */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('nat-image')}
-                >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('nat-image', natImageFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
-                  </span>
-                  <span className="fsw-subgroup-title">Image</span>
-                  <span className="fsw-subgroup-hint">區域圖片 ({natImageFilters.length})</span>
-                  {activeNatImageCount > 0 && (
-                    <span className="fsw-count-pill">{activeNatImageCount}</span>
-                  )}
-                </button>
+        {/* ============================================================== */}
+        {/* 3. Global Label (全球文字與標籤 · 複選 Checkboxes)                */}
+        {/* ============================================================== */}
+        <div className="fsw-group">
+          <button
+            type="button"
+            className="fsw-group-header"
+            onClick={() => toggleSection('globalLabel')}
+          >
+            <span className="fsw-chevron">
+              {isSectionOpen('globalLabel', filteredGlobalLabel.length > 0) ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </span>
+            <Globe size={14} style={{ color: '#10b981' }} />
+            <span className="fsw-group-title">Global Label</span>
+            <span className="fsw-group-sub">全球文字與標籤 · 複選</span>
+            {activeGlobalCount > 0 && <span className="fsw-count-pill">{activeGlobalCount}</span>}
+          </button>
 
-                {isSectionOpen('nat-image', natImageFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {natImageFilters.length === 0 ? (
-                      <div className="fsw-empty-item">
-                        {hideOutsideWindow
-                          ? 'No image filters in current window'
-                          : 'No nationwide image filters registered'}
-                      </div>
-                    ) : (
-                      natImageFilters.map((rf) => {
-                        const checked = activeRegionalFilters.has(rf.id);
-                        return (
-                          <label
-                            key={rf.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={rf.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onToggleRegionalFilter(rf.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            <span className="fsw-item-name">{rf.nameEn}</span>
-                            <span className="fsw-item-name-zh">{rf.nameZh}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+          {isSectionOpen('globalLabel', filteredGlobalLabel.length > 0) && (
+            <div className="fsw-group-children">
+              <div className="fsw-item-list">
+                {filteredGlobalLabel.map((f) => {
+                  const checked = activeTextFilters.has(f.id);
+                  return (
+                    <label
+                      key={f.id}
+                      className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
+                      title={f.descriptionZh || f.nameZh}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onToggleTextFilter(f.id);
+                      }}
+                    >
+                      <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
+                        {checked && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <span className="fsw-item-name">{f.shortBadge || f.nameZh}</span>
+                      <span className="fsw-item-name-zh">{f.nameZh}</span>
+                    </label>
+                  );
+                })}
               </div>
+            </div>
+          )}
+        </div>
 
-              {/* > Text */}
-              <div className="fsw-subgroup">
-                <button
-                  type="button"
-                  className="fsw-subgroup-header"
-                  onClick={() => toggleSection('nat-text')}
-                >
-                  <span className="fsw-chevron">
-                    {isSectionOpen('nat-text', natTextFilters.length > 0) ? (
-                      <ChevronDown size={13} />
-                    ) : (
-                      <ChevronRight size={13} />
-                    )}
-                  </span>
-                  <span className="fsw-subgroup-title">Text</span>
-                  <span className="fsw-subgroup-hint">區域文字 ({natTextFilters.length})</span>
-                  {activeNatTextCount > 0 && (
-                    <span className="fsw-count-pill">{activeNatTextCount}</span>
-                  )}
-                </button>
+        {/* ============================================================== */}
+        {/* 4. Area Label (區域特徵與圖標 · 複選 Checkboxes)                  */}
+        {/* ============================================================== */}
+        <div className="fsw-group">
+          <button
+            type="button"
+            className="fsw-group-header"
+            onClick={() => toggleSection('areaLabel')}
+          >
+            <span className="fsw-chevron">
+              {isSectionOpen('areaLabel', filteredAreaLabel.length > 0) ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </span>
+            <MapPin size={14} style={{ color: '#f59e0b' }} />
+            <span className="fsw-group-title">Area Label</span>
+            <span className="fsw-group-sub">區域特徵與圖標 · 複選</span>
+            {activeAreaCount > 0 && <span className="fsw-count-pill">{activeAreaCount}</span>}
+          </button>
 
-                {isSectionOpen('nat-text', natTextFilters.length > 0) && (
-                  <div className="fsw-item-list">
-                    {natTextFilters.length === 0 ? (
-                      <div className="fsw-empty-item">
-                        {hideOutsideWindow
-                          ? 'Zoom in (L2) to a supported country or uncheck "Hide outside window ones"'
-                          : 'No matching nationwide text filters'}
-                      </div>
-                    ) : (
-                      natTextFilters.map((rf) => {
-                        const checked = activeRegionalFilters.has(rf.id);
-                        return (
-                          <label
-                            key={rf.id}
-                            className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                            title={rf.descriptionZh}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onToggleRegionalFilter(rf.id);
-                            }}
-                          >
-                            <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                              {checked && <Check size={11} strokeWidth={3} />}
-                            </span>
-                            <span className="fsw-item-name">{rf.nameEn}</span>
-                            <span className="fsw-item-name-zh">{rf.nameZh}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+          {isSectionOpen('areaLabel', filteredAreaLabel.length > 0) && (
+            <div className="fsw-group-children">
+              <div className="fsw-item-list">
+                {filteredAreaLabel.map((f) => {
+                  const checked =
+                    activeRegionalFilters.has(f.id) ||
+                    activeTextFilters.has(f.id) ||
+                    (f.id === 'eu-pedestrian-crossing' && isEuCrossingActive);
+                  return (
+                    <label
+                      key={f.id}
+                      className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
+                      title={f.descriptionZh || f.nameZh}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleToggleLabel(f.id);
+                      }}
+                    >
+                      <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
+                        {checked && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <span className="fsw-item-name">{f.shortBadge || f.nameZh}</span>
+                      <span className="fsw-item-name-zh">{f.nameZh}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
