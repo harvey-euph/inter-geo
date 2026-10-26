@@ -490,8 +490,19 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     getHoverClientPoint
   ]);
 
+  const [layersIndexReady, setLayersIndexReady] = useState(() => isLayersIndexLoaded());
+  const [csvLoadedRev, setCsvLoadedRev] = useState(0);
+
+  useEffect(() => {
+    if (!layersIndexReady) {
+      return onLayersIndexLoaded(() => setLayersIndexReady(true));
+    }
+  }, [layersIndexReady]);
+
   // Active layer definition
   const activeFilterDef = useMemo<LayerDefinition>(() => {
+    void csvLoadedRev;
+    void layersIndexReady;
     const csvF = getCsvLayerById(activeFilterId) || (activeFilterId === 'none' ? getCsvLayerById('base') : undefined);
     if (csvF) {
       const defaultCol =
@@ -538,7 +549,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       legend: [],
       getColor: () => '#232a38'
     };
-  }, [activeFilterId]);
+  }, [activeFilterId, layersIndexReady, csvLoadedRev]);
   const activeFilterDefRef = useRef<LayerDefinition>(activeFilterDef);
 
   // Web Mercator Projection & GeoPath
@@ -581,13 +592,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   }, []);
 
   const extFeatureRenderItemsRef = useRef<ExtFeatureRenderItem[]>([]);
-  const [layersIndexReady, setLayersIndexReady] = useState(() => isLayersIndexLoaded());
-
-  useEffect(() => {
-    if (!layersIndexReady) {
-      return onLayersIndexLoaded(() => setLayersIndexReady(true));
-    }
-  }, [layersIndexReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2117,6 +2121,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const csvF = getCsvLayerById(activeFilterId);
     if (csvF && !csvF.loaded) {
       void loadOnDemandCsvLayer(activeFilterId).then(() => {
+        setCsvLoadedRev((v) => v + 1);
         requestRender();
       });
     }

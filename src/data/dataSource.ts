@@ -6,7 +6,9 @@
 
 export const DATA_RAW_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DATA_BASE_URL) ||
-  'https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads';
+  (typeof import.meta !== 'undefined' && import.meta.env?.DEV
+    ? '/inter-geo/@geo-data'
+    : 'https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads');
 
 export const DATA_BRANCH = 'main';
 export const INDEX_BRANCH = 'index';
@@ -37,8 +39,25 @@ export function normalizeDataPath(rawPath: string): string {
   if (p.startsWith('data/roads/')) {
     return p.replace(/^data\/roads\/([A-Za-z0-9_-]+)\.fgb$/, 'data/$1-roads.fgb');
   }
+  if (p.startsWith('layers/fill-region/') && !p.startsWith('layers/fill-region-with-color/')) {
+    p = p.replace(/^layers\/fill-region\//, 'layers/fill-region-with-color/');
+  }
   if (p.startsWith('layers/') && !p.includes('/', 7)) {
     const fn = p.slice(7);
+    const camelToKebab: Record<string, string> = {
+      drivingside: 'driving-side',
+      carmeta: 'car-meta',
+      platetype: 'plate-type',
+      roadmarkings: 'road-markings',
+      countrycode: 'country-code',
+      distinctiveletters: 'distinctive-letters',
+      indiascripts: 'india-scripts',
+      streetwords: 'street-words',
+      taiwanpowerpoles: 'taiwan-power-poles'
+    };
+    const baseKey = fn.replace(/\.csv$/, '').toLowerCase().replace(/[-_]/g, '');
+    const canonicalFn = (camelToKebab[baseKey] || fn.replace(/\.csv$/, '')) + '.csv';
+
     const fillRegionFiles = [
       'base.csv',
       'car-meta.csv',
@@ -51,10 +70,10 @@ export function normalizeDataPath(rawPath: string): string {
     const extObjectFiles = ['taiwan-power-poles.csv'];
     const globalLabelFiles = ['country-code.csv', 'currency.csv', 'flags.csv', 'tld.csv'];
     const areaLabelFiles = ['distinctive-letters.csv', 'india-scripts.csv', 'street-words.csv'];
-    if (fillRegionFiles.includes(fn)) return `layers/fill-region-with-color/${fn}`;
-    if (extObjectFiles.includes(fn)) return `layers/ext-object/${fn}`;
-    if (globalLabelFiles.includes(fn)) return `layers/global-label/${fn}`;
-    if (areaLabelFiles.includes(fn)) return `layers/area-label/${fn}`;
+    if (fillRegionFiles.includes(canonicalFn)) return `layers/fill-region-with-color/${canonicalFn}`;
+    if (extObjectFiles.includes(canonicalFn)) return `layers/ext-object/${canonicalFn}`;
+    if (globalLabelFiles.includes(canonicalFn)) return `layers/global-label/${canonicalFn}`;
+    if (areaLabelFiles.includes(canonicalFn)) return `layers/area-label/${canonicalFn}`;
   }
   return p;
 }

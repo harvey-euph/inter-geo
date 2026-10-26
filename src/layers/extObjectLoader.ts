@@ -67,7 +67,7 @@ export async function loadExtObjectLayerFeatures(
 
       for await (const feature of it) {
         const props = (feature.properties || {}) as Record<string, unknown>;
-        const id = String(feature.id ?? props.id ?? props.code ?? props.name ?? '').trim();
+        const id = String(props.id ?? props.code ?? props.name ?? feature.id ?? '').trim();
         if (!id) continue;
 
         const row =
