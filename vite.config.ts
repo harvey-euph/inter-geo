@@ -31,6 +31,11 @@ function localGeoDataPlugin(): Plugin {
             else if (filePath.endsWith('.csv')) res.setHeader('Content-Type', 'text/plain; charset=utf-8')
             else if (filePath.endsWith('.fgb')) res.setHeader('Content-Type', 'application/octet-stream')
             else if (filePath.endsWith('.md')) res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+            else if (filePath.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml')
+            else if (filePath.endsWith('.png')) res.setHeader('Content-Type', 'image/png')
+            else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) res.setHeader('Content-Type', 'image/jpeg')
+            else if (filePath.endsWith('.webp')) res.setHeader('Content-Type', 'image/webp')
+            else if (filePath.endsWith('.gif')) res.setHeader('Content-Type', 'image/gif')
             res.setHeader('Access-Control-Allow-Origin', '*')
             fs.createReadStream(filePath).pipe(res)
             return

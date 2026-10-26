@@ -94,7 +94,8 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
                       </span>
                     );
                   })}
-                {activeInternationalImageFilter === 'pedestrian-crossing' && (
+                {(activeInternationalImageFilter === 'pedestrian-crossing' ||
+                  activeInternationalImageFilter === 'eu-pedestrian-crossing') && (
                   <span
                     className="legend-text-pill"
                     style={{

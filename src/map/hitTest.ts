@@ -102,7 +102,9 @@ export function hitTestMapFeature(params: HitTestParams): HitFeature | null {
   // 0. European Pedestrian Crossing Sign Badges (Direct click / hover on floating badge)
   if (
     activeInternationalImageFilter === 'pedestrian-crossing' ||
-    activeRegionalFilters?.has('eu-pedestrian-crossing')
+    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+    activeRegionalFilters?.has('eu-pedestrian-crossing') ||
+    activeRegionalFilters?.has('pedestrian-crossing')
   ) {
     for (let b = 0; b < renderedCrossingBadges.length; b++) {
       const badge = renderedCrossingBadges[b];

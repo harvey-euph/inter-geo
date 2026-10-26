@@ -2168,7 +2168,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   useEffect(() => {
     const isCrossingActive =
       activeInternationalImageFilter === 'pedestrian-crossing' ||
-      activeRegionalFilters.has('eu-pedestrian-crossing');
+      activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+      activeRegionalFilters.has('eu-pedestrian-crossing') ||
+      activeRegionalFilters.has('pedestrian-crossing');
     if (!isCrossingActive) return;
 
     let hasUnloaded = false;
@@ -2178,6 +2180,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         img.src = getDataUrl(meta.imagePath);
         img.onload = () => {
           requestRender();
+        };
+        img.onerror = (e) => {
+          console.warn(`[CrossingSigns] Failed to load image for ${iso2} from ${img.src}`, e);
         };
         crossingImagesRef.current.set(iso2, img);
         hasUnloaded = true;

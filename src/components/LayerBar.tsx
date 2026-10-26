@@ -236,6 +236,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         type: 'Image',
         group: 'area-label',
         order: 999,
+        goto: 'lat=50.0&lon=15.0&ratio=0.15',
         loaded: true,
         data: null
       });
@@ -301,8 +302,12 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
   const handleToggleLabel = (filterId: string) => {
     if (filterId === 'eu-pedestrian-crossing') {
+      const turningOn = !isEuCrossingActive;
       onToggleInternationalImageFilter('eu-pedestrian-crossing');
       onToggleRegionalFilter('eu-pedestrian-crossing');
+      if (turningOn && onGotoCamera) {
+        onGotoCamera(50.0, 15.0, 0.15);
+      }
       return;
     }
     // Check if it's regional vs global

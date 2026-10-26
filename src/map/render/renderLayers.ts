@@ -920,7 +920,8 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
 
   const activeCrossingSign =
     activeInternationalImageFilter === 'pedestrian-crossing' ||
-    (activeReg && activeReg.has('eu-pedestrian-crossing'));
+    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+    (activeReg && (activeReg.has('eu-pedestrian-crossing') || activeReg.has('pedestrian-crossing')));
   const currentRenderedBadges: CrossingBadgeBox[] = [];
 
   if (!activeCrossingSign) return currentRenderedBadges;
