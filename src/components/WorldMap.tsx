@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import * as flatgeobuf from 'flatgeobuf';
-import type { CountryData } from '../types/geo';
-import { LAYERS, getPresetLayerById } from '../data/layers';
+import type { CountryData, LegendItem } from '../types/geo';
 import type { LayerDefinition } from '../data/layers';
 import { findCountry, COUNTRIES_DATA } from '../data/countries';
 import { getLODLevel, DEFAULT_LOD_THRESHOLDS, MAX_ZOOM_K } from '../types/lod';
@@ -491,56 +490,52 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   // Active layer definition
   const activeFilterDef = useMemo<LayerDefinition>(() => {
-    if (activeFilterId === 'none' || activeFilterId === 'base') {
-      return {
-        id: 'none',
-        category: 'none',
-        nameZh: '預設底圖 (Base)',
-        descriptionZh: '預設草圖底圖風格，未疊加任何主題著色',
-        legend: [],
-        getColor: () => null
-      };
-    }
-
-    const preset = getPresetLayerById(activeFilterId);
-    if (preset) {
-      return {
-        ...preset,
-        id: activeFilterId
-      };
-    }
-
-    const csvF = getCsvLayerById(activeFilterId);
+    const csvF = getCsvLayerById(activeFilterId) || (activeFilterId === 'none' ? getCsvLayerById('base') : undefined);
     if (csvF) {
-      const activeColor =
-        csvF.accentColor ||
+      const defaultCol =
         csvF.meta.defaultColor ||
-        ((csvF.meta as Record<string, unknown>)['default-color'] as string | undefined) ||
-        '#38bdf8';
+        csvF.defaultColor ||
+        ((csvF.meta as Record<string, unknown>)['default-color'] as string | undefined);
+
+      let legend: LegendItem[] = [];
+      if (csvF.legend && csvF.legend.length > 0) {
+        legend = csvF.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh }));
+      } else if (csvF.id !== 'base' && csvF.data?.rows) {
+        const seenColors = new Set<string>();
+        for (const row of csvF.data.rows) {
+          if (!seenColors.has(row.value)) {
+            seenColors.add(row.value);
+            legend.push({
+              key: row.value,
+              labelZh: row.label || row.value,
+              color: row.value
+            });
+          }
+        }
+      }
+
       return {
         id: csvF.id,
         category: 'none',
         nameZh: csvF.nameZh,
-        descriptionZh: csvF.descriptionZh,
-        legend: [
-          {
-            key: 'active',
-            labelZh: csvF.descriptionZh || csvF.nameZh,
-            color: activeColor
-          }
-        ],
+        descriptionZh: csvF.descriptionZh || '',
+        legend,
         getColor: (country: CountryData) => {
           const val = getCsvLayerValue(csvF.id, country.iso2);
           if (val) return val;
-          const defaultCol =
-            csvF.meta.defaultColor ||
-            ((csvF.meta as Record<string, unknown>)['default-color'] as string | undefined);
           return defaultCol || null;
         }
       };
     }
 
-    return LAYERS[0];
+    return {
+      id: 'base',
+      category: 'none',
+      nameZh: '基礎底圖',
+      descriptionZh: '全球陸地基礎底圖輪廓風格',
+      legend: [],
+      getColor: () => '#232a38'
+    };
   }, [activeFilterId]);
   const activeFilterDefRef = useRef<LayerDefinition>(activeFilterDef);
 

@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
 import { WorldMap } from './components/WorldMap';
-import { LAYERS } from './data/layers';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
@@ -34,8 +33,8 @@ export function App() {
   const effectiveLayerCandidate = initialLayerParam || initialTargetParam;
   const initialCsvLayer = effectiveLayerCandidate ? getCsvLayerById(effectiveLayerCandidate) : undefined;
   const initialNationwideLayer = effectiveLayerCandidate ? getNationwideLayerById(effectiveLayerCandidate) : undefined;
-  const initialBaseLayer = LAYERS.some((layer) => layer.id === effectiveLayerCandidate);
-  const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || initialBaseLayer;
+  const isBaseLayer = effectiveLayerCandidate === 'base' || effectiveLayerCandidate === 'none';
+  const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || isBaseLayer;
   const initialLayerIds = initialNationwideLayer ? [effectiveLayerCandidate] : [];
   const initialTarget = isInitialLayer && !initialLayerParam ? '' : initialTargetParam;
   const [initialFocusTarget] = useState(() => {
@@ -65,8 +64,8 @@ export function App() {
           countryFlag: initialCountry.flag
         }
       : null;
-  const isFillRegion = initialBaseLayer || initialCsvLayer?.type === 'FillWithColor';
-  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'none');
+  const isFillRegion = isBaseLayer || initialCsvLayer?.type === 'FillWithColor' || initialCsvLayer?.group === 'fill-region';
+  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'base');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
     () => new Set(initialCsvLayer?.type === 'Text' ? [effectiveLayerCandidate] : [])
   );
@@ -286,7 +285,7 @@ export function App() {
   }, [activeRegionalFilters]);
 
   const handleResetAllFilters = useCallback(() => {
-    setActiveFilterId('none');
+    setActiveFilterId('base');
     setActiveTextFilters(new Set());
     setActiveInternationalImageFilter(null);
     setActiveRegionalFilters(new Set());
@@ -394,7 +393,7 @@ export function App() {
   }, [handleSelectCountry]);
 
   const activeLayerCount =
-    (activeFilterId !== 'none' ? 1 : 0) +
+    (activeFilterId !== 'none' && activeFilterId !== 'base' ? 1 : 0) +
     activeTextFilters.size +
     (activeInternationalImageFilter ? 1 : 0) +
     activeRegionalFilters.size;

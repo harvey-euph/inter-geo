@@ -7,7 +7,6 @@ import {
 } from '../layers/csvLayerRegistry';
 import { getAssignableRegionList } from '../layers/assignableRegions';
 import { type NationwideLayerDef } from '../data/nationwideLayers';
-import { LAYERS } from '../data/layers';
 import {
   Search,
   X,
@@ -126,26 +125,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         globalLabel.push(f);
       } else {
         areaLabel.push(f);
-      }
-    }
-
-    // Include preset theme layers from LAYERS that aren't already covered by CSVs
-    for (const pf of LAYERS) {
-      if (pf.id === 'none' || pf.id === 'base') continue;
-      const alreadyHas = fillRegion.some(
-        (r) =>
-          r.id.toLowerCase() === pf.id.toLowerCase() ||
-          (pf.id === 'drivingSide' && (r.id === 'driving-side' || r.id === 'drivingSide')) ||
-          (pf.id === 'roadLines' && (r.id === 'road-markings' || r.id === 'roadMarkings'))
-      );
-      if (!alreadyHas) {
-        fillRegion.push({
-          id: pf.id,
-          nameZh: pf.nameZh,
-          nameEn: pf.id,
-          shortBadge: pf.nameZh.slice(0, 4),
-          descriptionZh: pf.descriptionZh
-        });
       }
     }
 
@@ -282,7 +261,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     isSearching ? hasSearchMatches : !!openSections[key];
 
   const handleSelectFillLayer = (layerId: string, gotoStr?: string) => {
-    const nextId = activeFilterId === layerId ? 'none' : layerId;
+    const nextId = activeFilterId === layerId ? 'base' : layerId;
     onSelectFilter(nextId);
     if (gotoStr && onGotoCamera) {
       try {
@@ -408,25 +387,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
           {isSectionOpen('fillRegion', filteredFillRegion.length > 0) && (
             <div className="fsw-group-children">
               <div className="fsw-item-list">
-                {/* Option 0: Base */}
-                <label
-                  className={`fsw-checkbox-row ${isBaseActive ? 'checked' : ''}`}
-                  title="預設地圖底圖草圖風格，不疊加任何主題著色"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onSelectFilter('none');
-                  }}
-                >
-                  <span className={`fsw-radio-circle ${isBaseActive ? 'checked' : ''}`}>
-                    {isBaseActive && <span className="fsw-radio-dot" />}
-                  </span>
-                  <span className="fsw-item-name">Base</span>
-                  <span className="fsw-item-name-zh">預設草圖底圖</span>
-                </label>
-
-                {/* Dynamic Fill With Color Layers */}
+                {/* Dynamic Fill With Color Layers (including base) */}
                 {filteredFillRegion.map((f) => {
                   const checked =
+                    (f.id === 'base' && isBaseActive) ||
                     activeFilterId === f.id ||
                     (activeFilterId === 'drivingSide' && (f.id === 'driving-side' || f.id === 'drivingSide')) ||
                     (activeFilterId === 'driving-side' && (f.id === 'driving-side' || f.id === 'drivingSide')) ||

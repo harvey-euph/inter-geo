@@ -34,6 +34,7 @@ export interface LayerMeta {
   loadedTiming: string;
   focusTarget: string | null;
   goto: string | null;
+  legend?: Array<{ key: string; color: string; labelZh: string }> | null;
   rowCount: number;
   targetKeys: string[];
 }

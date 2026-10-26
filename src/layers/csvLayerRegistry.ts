@@ -51,6 +51,8 @@ export interface RegisteredCsvLayer {
   goto?: string;
   /** Optional target object ID to focus */
   focusTarget?: string;
+  /** Optional legend definitions */
+  legend?: Array<{ key: string; color: string; labelZh: string }>;
   /** Whether the full CSV data has been fetched and parsed */
   loaded: boolean;
   /** Parsed K-V data (populated after `loadOnDemandCsvLayer`) */
@@ -86,6 +88,7 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     loadedTiming: lm.loadedTiming || 'on-demand',
     goto: lm.goto || undefined,
     focusTarget: lm.focusTarget || undefined,
+    legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined,
     loaded: false,
     data: null,
     meta: {
@@ -101,7 +104,8 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
       group: lm.group,
       order: lm.order,
       goto: lm.goto || undefined,
-      focusTarget: lm.focusTarget || undefined
+      focusTarget: lm.focusTarget || undefined,
+      legend: lm.legend ? lm.legend.map((item) => ({ key: item.key, color: item.color, labelZh: item.labelZh })) : undefined
     }
   };
 }
@@ -312,6 +316,14 @@ export async function loadOnDemandCsvLayer(
 
       layer.loaded = true;
       layer.data = parsed;
+      if (parsed.meta.defaultColor) {
+        layer.defaultColor = parsed.meta.defaultColor;
+        layer.meta.defaultColor = parsed.meta.defaultColor;
+      }
+      if (parsed.meta.legend) {
+        layer.legend = parsed.meta.legend;
+        layer.meta.legend = parsed.meta.legend;
+      }
       return layer;
     } catch (err) {
       console.warn(`[CSV Layer] Failed to fetch on-demand CSV at ${layer.path}:`, err);

@@ -22,6 +22,7 @@ export interface CsvLayerMetadata {
   defaultColor?: string;
   goto?: string;
   group?: string;
+  legend?: Array<{ key: string; color: string; labelZh: string }>;
 }
 export type CsvFilterMetadata = CsvLayerMetadata;
 
@@ -163,7 +164,7 @@ export function parseLayerDataCsv(
 
     // Parse metadata directives in comments: e.g. `// @id: callingCode` or `# @nameZh: 電話國碼`
     if (rawLine.startsWith('//') || rawLine.startsWith('#')) {
-      const directiveMatch = rawLine.match(/^(?:\/\/|#)\s*@([a-zA-Z0-9_]+)\s*:\s*(.+)$/);
+      const directiveMatch = rawLine.match(/^(?:\/\/|#)\s*@([a-zA-Z0-9_-]+)\s*[:=]\s*(.+)$/);
       if (directiveMatch) {
         const key = directiveMatch[1].trim();
         const val = directiveMatch[2].trim();
@@ -182,6 +183,13 @@ export function parseLayerDataCsv(
         else if (key === 'order' || key === 'priority') {
           const n = parseInt(val, 10);
           if (!isNaN(n)) meta.order = n;
+        } else if (key === 'legend') {
+          const sep = val.includes(':') ? ':' : ',';
+          const parts = val.split(sep);
+          const color = parts[0].trim();
+          const labelZh = parts.slice(1).join(sep).trim();
+          if (!meta.legend) meta.legend = [];
+          meta.legend.push({ key: color, color, labelZh });
         }
       }
       continue;
