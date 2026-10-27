@@ -128,6 +128,25 @@ export function getAllInfoStubs(): InfoStub[] {
 }
 
 /**
+ * Returns all unique tags across all info stubs along with their frequency count,
+ * sorted by frequency descending.
+ */
+export function getAllDatabaseTagsWithCounts(): { tag: string; count: number }[] {
+  const stubs = getAllInfoStubs();
+  const counts: Record<string, number> = {};
+  for (const stub of stubs) {
+    if (stub.tags && Array.isArray(stub.tags)) {
+      for (const t of stub.tags) {
+        counts[t] = (counts[t] || 0) + 1;
+      }
+    }
+  }
+  return Object.entries(counts)
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+/**
  * Finds a single InfoStub by ID
  */
 export function getInfoStubById(id: string): InfoStub | undefined {

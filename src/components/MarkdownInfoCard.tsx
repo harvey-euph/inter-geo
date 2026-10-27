@@ -3,6 +3,13 @@ import { ChevronDown } from 'lucide-react';
 import { isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, queryInfoStubs } from '../info/infoRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
+import {
+  getInfoTagPreferences,
+  subscribeInfoTagPreferences,
+  matchesCardTagFilter,
+  resetInfoTagPreferences,
+  type InfoTagPreferences
+} from '../info/infoTagPreferences';
 
 interface MarkdownInfoCardProps {
   card: InfoCard;
@@ -476,6 +483,11 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
   onSelectCountryName
 }) => {
   const [indexLoaded, setIndexLoaded] = useState(isInfoIndexLoaded());
+  const [tagPrefs, setTagPrefs] = useState<InfoTagPreferences>(() => getInfoTagPreferences());
+
+  useEffect(() => {
+    return subscribeInfoTagPreferences(setTagPrefs);
+  }, []);
 
   useEffect(() => {
     if (!indexLoaded) {
@@ -487,6 +499,10 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
     void indexLoaded;
     return queryInfoStubs(query);
   }, [query, indexLoaded]);
+
+  const filteredStubs = useMemo(() => {
+    return essayStubs.filter((stub) => matchesCardTagFilter(stub.tags, tagPrefs));
+  }, [essayStubs, tagPrefs]);
 
   const queryKey = `${query.countryIso2 || ''}|${query.subdivisionCode || ''}|${query.subdivisionId ?? ''}|${query.municipalityCode || ''}|${query.roadName || ''}|${query.roadClass || ''}|${query.targetId || query.taipowerLetter || ''}`;
 
@@ -500,7 +516,7 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || visibleCount >= essayStubs.length) return;
+    if (!el || visibleCount >= filteredStubs.length) return;
 
     if (typeof IntersectionObserver === 'undefined') {
       return;
@@ -511,7 +527,7 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
         if (entries.some((entry) => entry.isIntersecting)) {
           setPagination((prev) => ({
             key: queryKey,
-            count: Math.min(essayStubs.length, (prev.key === queryKey ? prev.count : pageSize) + pageSize)
+            count: Math.min(filteredStubs.length, (prev.key === queryKey ? prev.count : pageSize) + pageSize)
           }));
         }
       },
@@ -520,25 +536,59 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [visibleCount, essayStubs.length, queryKey, pageSize]);
+  }, [visibleCount, filteredStubs.length, queryKey, pageSize]);
 
   if (essayStubs.length === 0) return null;
 
-  const visibleStubs = essayStubs.slice(0, visibleCount);
-  const remainingCount = essayStubs.length - visibleStubs.length;
+  const visibleStubs = filteredStubs.slice(0, visibleCount);
+  const remainingCount = filteredStubs.length - visibleStubs.length;
 
   return (
     <CountryLinkContext.Provider value={onSelectCountryName}>
-      {visibleStubs.map((stub) => (
-        <LazyMarkdownInfoCard key={stub.id} stub={stub} />
-      ))}
+      {filteredStubs.length < essayStubs.length && filteredStubs.length > 0 && (
+        <div className="info-cards-filter-subtle-bar">
+          <span className="subtle-hint-text">
+            已套用標籤篩選
+          </span>
+          <button
+            type="button"
+            className="info-subtle-reset-btn"
+            onClick={resetInfoTagPreferences}
+            title="還原為顯示該地區全部情報"
+          >
+            顯示全部
+          </button>
+        </div>
+      )}
+
+      {filteredStubs.length === 0 ? (
+        <div className="info-cards-empty-filter">
+          <div className="info-empty-icon">🔍</div>
+          <div className="info-empty-title">目前分類或標籤篩選條件下無符合情報</div>
+          <div className="info-empty-desc">
+            此地區情報卡已被目前的分類或排除條件過濾。
+          </div>
+          <button
+            type="button"
+            className="info-empty-reset-btn"
+            onClick={resetInfoTagPreferences}
+          >
+            重設標籤篩選（顯示全部情報）
+          </button>
+        </div>
+      ) : (
+        visibleStubs.map((stub) => (
+          <LazyMarkdownInfoCard key={stub.id} stub={stub} />
+        ))
+      )}
+
       {remainingCount > 0 && (
         <div
           ref={sentinelRef}
           onClick={() =>
             setPagination({
               key: queryKey,
-              count: Math.min(essayStubs.length, visibleCount + pageSize)
+              count: Math.min(filteredStubs.length, visibleCount + pageSize)
             })
           }
           style={{

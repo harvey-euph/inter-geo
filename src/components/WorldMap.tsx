@@ -190,8 +190,11 @@ function getBBoxScreenAreaRatio(
 interface WorldMapProps {
   activeFilterId: string;
   activeTextFilters?: Set<string>;
+  onToggleTextFilter?: (filterId: string) => void;
   activeInternationalImageFilter?: string | null;
+  onToggleInternationalImageFilter?: (filterId: string) => void;
   activeRegionalFilters?: Set<string>;
+  onToggleRegionalFilter?: (filterId: string) => void;
   onVisibleRegionalFiltersChange?: (filters: NationwideLayerDef[]) => void;
   isFilterExpanded?: boolean;
   selectedCountry: CountryData | null;
@@ -220,8 +223,11 @@ interface WorldMapProps {
 export const WorldMap: React.FC<WorldMapProps> = ({
   activeFilterId,
   activeTextFilters,
+  onToggleTextFilter,
   activeInternationalImageFilter,
+  onToggleInternationalImageFilter,
   activeRegionalFilters: activeRegionalFiltersProp,
+  onToggleRegionalFilter,
   onVisibleRegionalFiltersChange,
   isFilterExpanded = false,
   selectedCountry,
@@ -3093,6 +3099,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         activeInternationalImageFilter={activeInternationalImageFilter}
         isL2RegionMode={lodLevel !== 'L1'}
         activeRegionalFilters={activeRegionalFilters}
+        onToggleTextFilter={onToggleTextFilter}
+        onToggleInternationalImageFilter={onToggleInternationalImageFilter}
+        onToggleRegionalFilter={onToggleRegionalFilter}
       />
 
       {/* Map Control Buttons */}

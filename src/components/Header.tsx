@@ -2,19 +2,27 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Globe, SlidersHorizontal, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import {
   getInfotipDisplayMode,
-  setInfotipDisplayMode,
   subscribeInfotipDisplayMode,
   INFOTIP_MODE_OPTIONS,
   type InfotipDisplayMode
 } from '../info/infotipPreferences';
+import {
+  getInfoTagPreferences,
+  subscribeInfoTagPreferences,
+  type InfoTagPreferences
+} from '../info/infoTagPreferences';
 
 interface HeaderProps {
   activeLayerCount?: number;
   activeFilterCount?: number;
   isLayerExpanded?: boolean;
   isFilterExpanded?: boolean;
+  isLayerFocused?: boolean;
   onToggleLayerExpanded?: () => void;
   onToggleFilterExpanded?: () => void;
+  isInfoSettingsExpanded?: boolean;
+  isInfoSettingsFocused?: boolean;
+  onToggleInfoSettingsExpanded?: () => void;
   onOpenQuiz?: () => void;
 }
 
@@ -23,8 +31,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   activeFilterCount,
   isLayerExpanded,
   isFilterExpanded,
+  isLayerFocused,
   onToggleLayerExpanded,
-  onToggleFilterExpanded
+  onToggleFilterExpanded,
+  isInfoSettingsExpanded,
+  isInfoSettingsFocused,
+  onToggleInfoSettingsExpanded
 }) => {
   const activeCount = activeLayerCount ?? activeFilterCount ?? 0;
   const isExpanded = isLayerExpanded ?? isFilterExpanded ?? false;
@@ -32,16 +44,21 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   const pullStartRef = useRef<{ pointerId: number; x: number; y: number; ready: boolean } | null>(null);
   const [pullVisual, setPullVisual] = React.useState({ distance: 0, progress: 0, visible: false, ready: false });
   const [infotipMode, setInfotipMode] = useState<InfotipDisplayMode>(() => getInfotipDisplayMode());
+  const [tagPrefs, setTagPrefs] = useState<InfoTagPreferences>(() => getInfoTagPreferences());
 
   useEffect(() => {
-    return subscribeInfotipDisplayMode(setInfotipMode);
+    const unsubTip = subscribeInfotipDisplayMode(setInfotipMode);
+    const unsubTags = subscribeInfoTagPreferences(setTagPrefs);
+    return () => {
+      unsubTip();
+      unsubTags();
+    };
   }, []);
 
-  const handleCycleInfotipMode = () => {
-    const modes: InfotipDisplayMode[] = ['first-item', 'tags-badges', 'card-titles', 'minimal'];
-    const nextIdx = (modes.indexOf(infotipMode) + 1) % modes.length;
-    setInfotipDisplayMode(modes[nextIdx]);
-  };
+  const hasActiveTagFilter =
+    tagPrefs.activeCategory !== 'all' ||
+    tagPrefs.includeTags.length > 0 ||
+    tagPrefs.excludeTags.length > 0;
 
   const infotipModeMeta =
     INFOTIP_MODE_OPTIONS.find((m) => m.id === infotipMode) || INFOTIP_MODE_OPTIONS[0];
@@ -109,32 +126,30 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </div>
       </div>
 
-      {/* Center / Left-Center: Layer Selector & Infotip Mode Buttons */}
+      {/* Center / Left-Center: Layer Selector & Infotip Settings Buttons */}
       <div className="headline-filter-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button
           type="button"
-          className={`filter-trigger-btn ${isExpanded ? 'open' : ''} ${activeCount > 0 ? 'has-active' : ''}`}
+          className={`filter-trigger-btn ${isExpanded ? 'open' : ''} ${isLayerFocused ? 'focused' : ''} ${activeCount > 0 ? 'has-active' : ''}`}
           onClick={handleToggle}
-          title="開啟 / 關閉圖層選擇器 (Layer Selector)"
+          title={isLayerFocused ? "已聚焦圖層視窗 (點擊收合)" : isExpanded ? "點擊聚焦圖層視窗" : "開啟圖層選擇器"}
         >
           <SlidersHorizontal size={14} className="filter-trigger-icon" />
           <span className="filter-trigger-label">圖層</span>
-          {activeCount > 0 && (
-            <span className="filter-trigger-badge">{activeCount}</span>
-          )}
           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
         <button
           type="button"
-          className="filter-trigger-btn"
-          onClick={handleCycleInfotipMode}
-          title={`提示卡模式: ${infotipModeMeta.nameZh} (${infotipModeMeta.descriptionZh}) - 點擊切換`}
+          className={`filter-trigger-btn ${isInfoSettingsExpanded ? 'open' : ''} ${isInfoSettingsFocused ? 'focused' : ''} ${hasActiveTagFilter ? 'has-active' : ''}`}
+          onClick={onToggleInfoSettingsExpanded}
+          title={isInfoSettingsFocused ? "已聚焦資訊視窗 (點擊收合)" : isInfoSettingsExpanded ? "點擊聚焦資訊視窗" : `提示卡與情報偏好設定: ${infotipModeMeta.nameZh}${hasActiveTagFilter ? ' (已套用自訂標籤篩選)' : ''}`}
         >
           <span style={{ fontSize: 13 }}>{infotipModeMeta.icon}</span>
-          <span className="filter-trigger-label" style={{ fontSize: 11 }}>
-            {infotipModeMeta.nameZh}
+          <span className="filter-trigger-label" style={{ fontSize: 12 }}>
+            資訊
           </span>
+          {isInfoSettingsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
 

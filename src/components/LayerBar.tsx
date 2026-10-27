@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   getRegisteredCsvLayers,
   onLayersIndexLoaded,
@@ -7,18 +7,15 @@ import {
 } from '../layers/csvLayerRegistry';
 import { type NationwideLayerDef } from '../data/nationwideLayers';
 import {
-  Search,
-  X,
   ChevronRight,
   ChevronDown,
   Check,
-  RotateCcw,
   Palette,
   Layers,
   Globe,
-  MapPin,
-  GripHorizontal
+  MapPin
 } from 'lucide-react';
+import { FloatingWindow } from './FloatingWindow';
 
 export interface LayerBarProps {
   activeFilterId: string;
@@ -38,6 +35,9 @@ export interface LayerBarProps {
   isExpanded: boolean;
   onCollapse: () => void;
   onGotoCamera?: (lat: number, lon: number, ratio?: number) => void;
+  zIndex?: number;
+  isFront?: boolean;
+  onFocusWindow?: () => void;
 }
 export type FilterBarProps = LayerBarProps;
 
@@ -57,7 +57,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   onResetAll,
   isExpanded,
   onCollapse,
-  onGotoCamera
+  onGotoCamera,
+  zIndex,
+  isFront,
+  onFocusWindow
 }) => {
   const [layersLoaded, setLayersLoaded] = useState(isLayersIndexLoaded());
 
@@ -67,7 +70,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     }
   }, [layersLoaded]);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = '';
 
   // 4 Toggled Sections matching the spec:
   // v Fill Region With Color (Radio select)
@@ -222,149 +225,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     return categorized.areaLabel.filter(matchesSearch);
   }, [categorized.areaLabel, matchesSearch]);
 
-  const windowRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    initialX: number;
-    initialY: number;
-    parentWidth: number;
-    parentHeight: number;
-    windowWidth: number;
-    windowHeight: number;
-  } | null>(null);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only primary mouse button or touch
-    if (e.button !== 0) return;
-
-    // Do not initiate drag if clicking on interactive elements
-    const target = e.target as HTMLElement | null;
-    if (
-      target?.closest('input') ||
-      target?.closest('button') ||
-      target?.closest('a')
-    ) {
-      return;
-    }
-
-    if (!windowRef.current) return;
-    const rect = windowRef.current.getBoundingClientRect();
-    const parent = windowRef.current.offsetParent as HTMLElement | null;
-    const parentRect = parent ? parent.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-
-    dragStartRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      initialX: rect.left - parentRect.left,
-      initialY: rect.top - parentRect.top,
-      parentWidth: parentRect.width,
-      parentHeight: parentRect.height,
-      windowWidth: rect.width,
-      windowHeight: rect.height
-    };
-
-    setIsDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const ds = dragStartRef.current;
-    if (!ds || ds.pointerId !== e.pointerId) return;
-
-    const dx = e.clientX - ds.startX;
-    const dy = e.clientY - ds.startY;
-
-    const minX = 8;
-    const maxX = Math.max(minX, ds.parentWidth - ds.windowWidth - 8);
-    const minY = 8;
-    const maxY = Math.max(minY, ds.parentHeight - ds.windowHeight - 8);
-
-    const newX = Math.min(Math.max(ds.initialX + dx, minX), maxX);
-    const newY = Math.min(Math.max(ds.initialY + dy, minY), maxY);
-
-    setPosition({ x: Math.round(newX), y: Math.round(newY) });
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const ds = dragStartRef.current;
-    if (!ds || ds.pointerId !== e.pointerId) return;
-
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
-    }
-    dragStartRef.current = null;
-    setIsDragging(false);
-  };
-
-  // Keep window clamped within view if viewport resizes
-  useEffect(() => {
-    if (!position || !windowRef.current) return;
-    const handleResize = () => {
-      const parent = windowRef.current?.offsetParent as HTMLElement | null;
-      const parentW = parent ? parent.clientWidth : window.innerWidth;
-      const parentH = parent ? parent.clientHeight : window.innerHeight;
-      const winW = windowRef.current?.offsetWidth || 410;
-      const winH = windowRef.current?.offsetHeight || 300;
-
-      const maxX = Math.max(8, parentW - winW - 8);
-      const maxY = Math.max(8, parentH - winH - 8);
-
-      setPosition((prev) => {
-        if (!prev) return null;
-        const clampedX = Math.min(Math.max(prev.x, 8), maxX);
-        const clampedY = Math.min(Math.max(prev.y, 8), maxY);
-        if (clampedX === prev.x && clampedY === prev.y) return prev;
-        return { x: clampedX, y: clampedY };
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [position]);
-
-  useEffect(() => {
-    if (!isExpanded) return;
-
-    const handlePointerDownOutside = (e: PointerEvent) => {
-      if (dragStartRef.current) return;
-      const target = e.target as Element | null;
-      if (!target) return;
-      if (windowRef.current && windowRef.current.contains(target)) {
-        return;
-      }
-      if (target.closest('.filter-trigger-btn')) {
-        return;
-      }
-      onCollapse();
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        onCollapse();
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDownOutside, true);
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDownOutside, true);
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [isExpanded, onCollapse]);
-
-  if (!isExpanded) return null;
-
   const isSectionOpen = (key: string, hasSearchMatches: boolean) =>
     isSearching ? hasSearchMatches : !!openSections[key];
 
@@ -402,9 +262,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     }
   };
 
-  // Active counts for headers
+  // Check if base layer is active
   const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
-  const activeFillCount = isBaseActive ? 0 : 1;
+
+  // Active counts for headers (ignoring Fill Region With Color)
   const activeExtCount =
     (showInterstates ? 1 : 0) +
     (showNumberedRoutes ? 1 : 0) +
@@ -417,77 +278,22 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
       ((f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing') && isEuCrossingActive)
   ).length;
 
-  const totalActiveCount = activeFillCount + activeExtCount + activeGlobalCount + activeAreaCount;
+  const totalActiveCount = activeExtCount + activeGlobalCount + activeAreaCount;
 
   return (
-    <div
-      ref={windowRef}
-      className={`filter-selector-window ${position ? 'is-dragged' : ''} ${isDragging ? 'is-dragging' : ''}`}
-      style={
-        position
-          ? {
-              left: `${position.x}px`,
-              top: `${position.y}px`,
-              transform: 'none'
-            }
-          : undefined
-      }
-      role="dialog"
-      aria-label="Layer Selector"
+    <FloatingWindow
+      title="圖層選擇器"
+      icon={<Layers size={14} className="title-icon" />}
+      isExpanded={isExpanded}
+      onCollapse={onCollapse}
+      zIndex={zIndex}
+      isFront={isFront}
+      onFocusWindow={onFocusWindow}
+      hasActiveReset={totalActiveCount > 0}
+      onReset={onResetAll}
+      resetLabel="Reset"
+      resetTitle="重設所有圖層 (Reset all layers)"
     >
-      {/* Top Bar: Search Bar & Actions (Draggable Handle) */}
-      <div
-        className="fsw-top-bar"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <GripHorizontal size={14} className="fsw-drag-grip" />
-        <div className="fsw-search-wrapper">
-          <Search size={13} className="fsw-search-icon" />
-          <input
-            type="text"
-            className="fsw-search-input"
-            placeholder="搜尋圖層 (e.g. Coverage, Driving Side, 國旗, 標線)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="fsw-search-clear"
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-
-        {totalActiveCount > 0 && (
-          <button
-            type="button"
-            className="fsw-reset-btn"
-            onClick={onResetAll}
-            title="重設所有圖層 (Reset all layers)"
-          >
-            <RotateCcw size={12} />
-            <span>Reset</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          className="fsw-close-btn"
-          onClick={onCollapse}
-          title="關閉圖層視窗 [x]"
-          aria-label="Close Layer Selector"
-        >
-          <X size={15} />
-        </button>
-      </div>
-
       {/* Tree Content: 4 Major Sections */}
       <div className="fsw-tree-body">
         {/* ============================================================== */}
@@ -509,7 +315,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <Palette size={14} style={{ color: '#38bdf8' }} />
             <span className="fsw-group-title">Fill Region With Color</span>
             <span className="fsw-group-sub">區塊著色 · 單選</span>
-            {activeFillCount > 0 && <span className="fsw-count-pill">{activeFillCount}</span>}
           </button>
 
           {isSectionOpen('fillRegion', filteredFillRegion.length > 0) && (
@@ -566,7 +371,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <Layers size={14} style={{ color: '#a855f7' }} />
             <span className="fsw-group-title">Ext Object</span>
             <span className="fsw-group-sub">外加物件 · 複選</span>
-            {activeExtCount > 0 && <span className="fsw-count-pill">{activeExtCount}</span>}
           </button>
 
           {isSectionOpen('extObject', extObjectItems.length > 0) && (
@@ -613,7 +417,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <Globe size={14} style={{ color: '#10b981' }} />
             <span className="fsw-group-title">Global Label</span>
             <span className="fsw-group-sub">全球文字與標籤 · 複選</span>
-            {activeGlobalCount > 0 && <span className="fsw-count-pill">{activeGlobalCount}</span>}
           </button>
 
           {isSectionOpen('globalLabel', filteredGlobalLabel.length > 0) && (
@@ -663,7 +466,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <MapPin size={14} style={{ color: '#f59e0b' }} />
             <span className="fsw-group-title">Area Label</span>
             <span className="fsw-group-sub">區域特徵與圖標 · 複選</span>
-            {activeAreaCount > 0 && <span className="fsw-count-pill">{activeAreaCount}</span>}
           </button>
 
           {isSectionOpen('areaLabel', filteredAreaLabel.length > 0) && (
@@ -697,7 +499,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
           )}
         </div>
       </div>
-    </div>
+    </FloatingWindow>
   );
 });
 

@@ -5,6 +5,7 @@ import { getCrossingSign } from '../data/pedestrianCrossing';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
 import { getDataUrl } from '../data/dataSource';
 import { queryInfoStubs } from '../info/infoRegistry';
+import { matchesCardTagFilter } from '../info/infoTagPreferences';
 import {
   getInfotipDisplayMode,
   subscribeInfotipDisplayMode,
@@ -351,12 +352,13 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               </div>
             )}
           {(() => {
-            const mdStubs = queryInfoStubs({
+            const allStubs = queryInfoStubs({
               countryIso2: hoveredL2Subdivision.iso2,
               subdivisionCode: hoveredL2Subdivision.code,
               subdivisionId: hoveredL2Subdivision.id
             });
-            return renderStubsPreview(mdStubs);
+            const filteredStubs = allStubs.filter((s) => matchesCardTagFilter(s.tags));
+            return renderStubsPreview(filteredStubs.length > 0 ? filteredStubs : allStubs);
           })()}
         </>
       )}
@@ -449,8 +451,9 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             )}
           </div>
           {(() => {
-            const mdStubs = queryInfoStubs({ countryIso2: hoveredCountry.iso2 });
-            return renderStubsPreview(mdStubs, hoveredCountry.keyHints);
+            const allStubs = queryInfoStubs({ countryIso2: hoveredCountry.iso2 });
+            const filteredStubs = allStubs.filter((s) => matchesCardTagFilter(s.tags));
+            return renderStubsPreview(filteredStubs.length > 0 ? filteredStubs : allStubs, hoveredCountry.keyHints);
           })()}
           {activeRegionalFilters.has('eu-pedestrian-crossing') &&
             (() => {

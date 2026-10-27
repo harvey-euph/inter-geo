@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
+import { InfoSettingsWindow } from './components/InfoSettingsWindow';
 import { WorldMap } from './components/WorldMap';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
@@ -365,15 +366,82 @@ export function App() {
     setActiveFilterId(filterId);
   }, []);
 
-  const handleToggleFilterExpanded = useCallback(() => {
-    setIsFilterExpanded((prev) => !prev);
+  const [activeWindow, setActiveWindow] = useState<'layer' | 'info' | null>(null);
+  const [layerZIndex, setLayerZIndex] = useState(35);
+  const [infoZIndex, setInfoZIndex] = useState(35);
+  const nextZIndexRef = useRef(36);
+
+  const bringToFront = useCallback((win: 'layer' | 'info') => {
+    const nextZ = nextZIndexRef.current++;
+    if (win === 'layer') {
+      setLayerZIndex(nextZ);
+    } else {
+      setInfoZIndex(nextZ);
+    }
+    setActiveWindow(win);
   }, []);
+
+  const [isInfoSettingsExpanded, setIsInfoSettingsExpanded] = useState(false);
+
+  const handleToggleFilterExpanded = useCallback(() => {
+    if (!isFilterExpanded) {
+      setIsFilterExpanded(true);
+      bringToFront('layer');
+      return;
+    }
+    if (activeWindow !== 'layer') {
+      bringToFront('layer');
+      return;
+    }
+    setIsFilterExpanded(false);
+    if (isInfoSettingsExpanded) {
+      bringToFront('info');
+    } else {
+      setActiveWindow(null);
+    }
+  }, [isFilterExpanded, activeWindow, isInfoSettingsExpanded, bringToFront]);
 
   const handleCollapseFilter = useCallback(() => {
     setIsFilterExpanded(false);
-  }, []);
+    if (activeWindow === 'layer') {
+      if (isInfoSettingsExpanded) {
+        bringToFront('info');
+      } else {
+        setActiveWindow(null);
+      }
+    }
+  }, [activeWindow, isInfoSettingsExpanded, bringToFront]);
 
-  // Keyboard shortcut: ESC to close right detail panel or active modal
+  const handleToggleInfoSettingsExpanded = useCallback(() => {
+    if (!isInfoSettingsExpanded) {
+      setIsInfoSettingsExpanded(true);
+      bringToFront('info');
+      return;
+    }
+    if (activeWindow !== 'info') {
+      bringToFront('info');
+      return;
+    }
+    setIsInfoSettingsExpanded(false);
+    if (isFilterExpanded) {
+      bringToFront('layer');
+    } else {
+      setActiveWindow(null);
+    }
+  }, [isInfoSettingsExpanded, activeWindow, isFilterExpanded, bringToFront]);
+
+  const handleCollapseInfoSettings = useCallback(() => {
+    setIsInfoSettingsExpanded(false);
+    if (activeWindow === 'info') {
+      if (isFilterExpanded) {
+        bringToFront('layer');
+      } else {
+        setActiveWindow(null);
+      }
+    }
+  }, [activeWindow, isFilterExpanded, bringToFront]);
+
+  // Keyboard shortcut: ESC to close frontmost window or active modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -381,8 +449,25 @@ export function App() {
           setIsQuizOpen(false);
           return;
         }
+        // If both floating windows are open, close the one that is currently focused/on top
+        if (isFilterExpanded && isInfoSettingsExpanded) {
+          if (activeWindow === 'layer') {
+            setIsFilterExpanded(false);
+            bringToFront('info');
+          } else {
+            setIsInfoSettingsExpanded(false);
+            bringToFront('layer');
+          }
+          return;
+        }
         if (isFilterExpanded) {
           setIsFilterExpanded(false);
+          setActiveWindow(null);
+          return;
+        }
+        if (isInfoSettingsExpanded) {
+          setIsInfoSettingsExpanded(false);
+          setActiveWindow(null);
           return;
         }
         handleClosePanel();
@@ -393,7 +478,7 @@ export function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isQuizOpen, isFilterExpanded, handleClosePanel]);
+  }, [isQuizOpen, isFilterExpanded, isInfoSettingsExpanded, activeWindow, bringToFront, handleClosePanel]);
 
   const handleSelectCountryByName = useCallback(
     (name: string) => {
@@ -456,7 +541,6 @@ export function App() {
   }, [handleSelectCountry]);
 
   const activeLayerCount =
-    (activeFilterId !== 'none' && activeFilterId !== 'base' ? 1 : 0) +
     activeTextFilters.size +
     (activeInternationalImageFilter ? 1 : 0) +
     activeRegionalFilters.size;
@@ -467,7 +551,11 @@ export function App() {
       <Header
         activeLayerCount={activeLayerCount}
         isLayerExpanded={isFilterExpanded}
+        isLayerFocused={isFilterExpanded && activeWindow === 'layer'}
         onToggleLayerExpanded={handleToggleFilterExpanded}
+        isInfoSettingsExpanded={isInfoSettingsExpanded}
+        isInfoSettingsFocused={isInfoSettingsExpanded && activeWindow === 'info'}
+        onToggleInfoSettingsExpanded={handleToggleInfoSettingsExpanded}
       />
 
       {/* Main Viewport */}
@@ -491,17 +579,32 @@ export function App() {
             onResetAll={handleResetAllFilters}
             isExpanded={isFilterExpanded}
             onCollapse={handleCollapseFilter}
+            zIndex={layerZIndex}
+            isFront={activeWindow === 'layer'}
+            onFocusWindow={() => bringToFront('layer')}
             onGotoCamera={(lat, lon, ratio) => {
               focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
             }}
+          />
+
+          {/* Infotip & Info Tag Preference Window */}
+          <InfoSettingsWindow
+            isExpanded={isInfoSettingsExpanded}
+            onCollapse={handleCollapseInfoSettings}
+            zIndex={infoZIndex}
+            isFront={activeWindow === 'info'}
+            onFocusWindow={() => bringToFront('info')}
           />
 
           {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}
           <WorldMap
             activeFilterId={activeFilterId}
             activeTextFilters={activeTextFilters}
+            onToggleTextFilter={handleToggleTextFilter}
             activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
             activeRegionalFilters={activeRegionalFilters}
+            onToggleRegionalFilter={handleToggleRegionalFilter}
             onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
             isFilterExpanded={isFilterExpanded}
             selectedCountry={selectedCountry}
