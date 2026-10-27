@@ -219,6 +219,45 @@ export function toggleExcludeTag(tag: string): void {
   });
 }
 
+export function moveTagToInclude(tag: string): void {
+  const norm = tag.trim().toLowerCase();
+  const currentIncludes = new Set(currentPreferences.includeTags.map((t) => t.toLowerCase()));
+  const currentExcludes = new Set(currentPreferences.excludeTags.map((t) => t.toLowerCase()));
+
+  currentIncludes.add(norm);
+  currentExcludes.delete(norm);
+
+  setInfoTagPreferences({
+    includeTags: [...currentIncludes],
+    excludeTags: [...currentExcludes]
+  });
+}
+
+export function moveTagToExclude(tag: string): void {
+  const norm = tag.trim().toLowerCase();
+  const currentIncludes = new Set(currentPreferences.includeTags.map((t) => t.toLowerCase()));
+  const currentExcludes = new Set(currentPreferences.excludeTags.map((t) => t.toLowerCase()));
+
+  currentExcludes.add(norm);
+  currentIncludes.delete(norm);
+
+  setInfoTagPreferences({
+    includeTags: [...currentIncludes],
+    excludeTags: [...currentExcludes]
+  });
+}
+
+export function moveTagToDefault(tag: string): void {
+  const norm = tag.trim().toLowerCase();
+  const currentIncludes = currentPreferences.includeTags.filter((t) => t.toLowerCase() !== norm);
+  const currentExcludes = currentPreferences.excludeTags.filter((t) => t.toLowerCase() !== norm);
+
+  setInfoTagPreferences({
+    includeTags: currentIncludes,
+    excludeTags: currentExcludes
+  });
+}
+
 /**
  * Checks whether an info card's tags satisfy the active filtering preferences.
  */

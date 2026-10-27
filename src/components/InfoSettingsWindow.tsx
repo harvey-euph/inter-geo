@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Search,
   X,
   Check,
   Ban,
-  Sparkles
+  Sparkles,
+  ChevronUp,
+  ChevronDown,
+  GripVertical
 } from 'lucide-react';
 import { FloatingWindow } from './FloatingWindow';
 import {
@@ -15,12 +18,12 @@ import {
   type InfotipDisplayMode
 } from '../info/infotipPreferences';
 import {
-  INFO_CATEGORIES,
   getInfoTagPreferences,
   setInfoTagPreferences,
   resetInfoTagPreferences,
-  toggleIncludeTag,
-  toggleExcludeTag,
+  moveTagToInclude,
+  moveTagToExclude,
+  moveTagToDefault,
   subscribeInfoTagPreferences,
   type InfoTagPreferences
 } from '../info/infoTagPreferences';
@@ -35,6 +38,25 @@ export interface InfoSettingsWindowProps {
   zIndex?: number;
   isFront?: boolean;
   onFocusWindow?: () => void;
+}
+
+type DropZoneId = 'include' | 'default' | 'exclude';
+
+interface TagDragState {
+  tag: string;
+  fromZone: DropZoneId;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  grabOffsetX: number;
+  grabOffsetY: number;
+  width: number;
+  height: number;
+  tilt: number;
+  hoveredZone: DropZoneId | null;
+  isDragging: boolean;
+  pointerId: number;
 }
 
 export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(({
@@ -53,8 +75,13 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
   // All tags with counts across database
   const [dbTags, setDbTags] = useState<{ tag: string; count: number }[]>(() => getAllDatabaseTagsWithCounts());
 
-  // Search in tags
-  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  // Dropzone DOM refs for boundary collision detection
+  const mustContainZoneRef = useRef<HTMLDivElement>(null);
+  const defaultZoneRef = useRef<HTMLDivElement>(null);
+  const mustNotContainZoneRef = useRef<HTMLDivElement>(null);
+
+  // Drag & drop state
+  const [dragState, setDragState] = useState<TagDragState | null>(null);
 
   // Subscriptions
   useEffect(() => {
@@ -70,20 +97,161 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
     };
   }, []);
 
-  // Active filters check
+  // Set lookups
+  const includeSet = useMemo(() => new Set(tagPrefs.includeTags.map((t) => t.toLowerCase())), [tagPrefs.includeTags]);
+  const excludeSet = useMemo(() => new Set(tagPrefs.excludeTags.map((t) => t.toLowerCase())), [tagPrefs.excludeTags]);
+
   const hasActiveTagFilter =
-    tagPrefs.activeCategory !== 'all' ||
     tagPrefs.includeTags.length > 0 ||
     tagPrefs.excludeTags.length > 0;
 
-  const activeCategoryDef = INFO_CATEGORIES.find((c) => c.id === tagPrefs.activeCategory);
+  // Filter default tags: all tags in db that are NOT in include and NOT in exclude
+  const defaultTags = useMemo(() => {
+    return dbTags.filter(({ tag }) => {
+      const lower = tag.toLowerCase();
+      return !includeSet.has(lower) && !excludeSet.has(lower);
+    });
+  }, [dbTags, includeSet, excludeSet]);
 
-  // Filter dbTags by search
-  const filteredTags = useMemo(() => {
-    if (!tagSearchQuery.trim()) return dbTags;
-    const q = tagSearchQuery.toLowerCase().trim();
-    return dbTags.filter((item) => item.tag.toLowerCase().includes(q));
-  }, [dbTags, tagSearchQuery]);
+  // Determine which dropzone the pointer is currently over
+  const detectHoveredZone = useCallback((clientX: number, clientY: number): DropZoneId | null => {
+    const pad = 3;
+    if (mustContainZoneRef.current) {
+      const r = mustContainZoneRef.current.getBoundingClientRect();
+      if (
+        clientX >= r.left - pad &&
+        clientX <= r.right + pad &&
+        clientY >= r.top - pad &&
+        clientY <= r.bottom + pad
+      ) {
+        return 'include';
+      }
+    }
+    if (mustNotContainZoneRef.current) {
+      const r = mustNotContainZoneRef.current.getBoundingClientRect();
+      if (
+        clientX >= r.left - pad &&
+        clientX <= r.right + pad &&
+        clientY >= r.top - pad &&
+        clientY <= r.bottom + pad
+      ) {
+        return 'exclude';
+      }
+    }
+    if (defaultZoneRef.current) {
+      const r = defaultZoneRef.current.getBoundingClientRect();
+      if (
+        clientX >= r.left - pad &&
+        clientX <= r.right + pad &&
+        clientY >= r.top - pad &&
+        clientY <= r.bottom + pad
+      ) {
+        return 'default';
+      }
+    }
+    return null;
+  }, []);
+
+  // Pointer down on a tag initiates drag tracking
+  const handleTagPointerDown = (
+    tag: string,
+    fromZone: DropZoneId,
+    e: React.PointerEvent<HTMLDivElement>
+  ) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const grabOffsetX = startX - rect.left;
+    const grabOffsetY = startY - rect.top;
+
+    setDragState({
+      tag,
+      fromZone,
+      startX,
+      startY,
+      currentX: startX,
+      currentY: startY,
+      grabOffsetX,
+      grabOffsetY,
+      width: rect.width,
+      height: rect.height,
+      tilt: 0,
+      hoveredZone: fromZone,
+      isDragging: false,
+      pointerId: e.pointerId
+    });
+  };
+
+  // Window-level pointer listeners ensuring the tag stays firmly glued to the cursor
+  const dragStateRef = useRef<TagDragState | null>(null);
+  dragStateRef.current = dragState;
+  const isDraggingActive = dragState !== null;
+
+  useEffect(() => {
+    if (!isDraggingActive) return;
+
+    const onPointerMove = (e: PointerEvent) => {
+      const current = dragStateRef.current;
+      if (!current) return;
+
+      const dx = Math.abs(e.clientX - current.startX);
+      const dy = Math.abs(e.clientY - current.startY);
+      const isDragging = current.isDragging || dx > 3 || dy > 3;
+      const hoveredZone = isDragging ? detectHoveredZone(e.clientX, e.clientY) : null;
+
+      // Calculate horizontal velocity for natural tilt physics
+      const vx = e.clientX - current.currentX;
+      const rawTilt = Math.max(-14, Math.min(14, vx * 0.75));
+      const tilt = isDragging ? current.tilt * 0.35 + rawTilt * 0.65 : 0;
+
+      setDragState((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentX: e.clientX,
+              currentY: e.clientY,
+              tilt,
+              isDragging,
+              hoveredZone
+            }
+          : null
+      );
+    };
+
+    const onPointerUp = () => {
+      const current = dragStateRef.current;
+      if (current && current.isDragging && current.hoveredZone) {
+        const { tag, fromZone, hoveredZone } = current;
+        if (hoveredZone !== fromZone) {
+          if (hoveredZone === 'include') {
+            moveTagToInclude(tag);
+          } else if (hoveredZone === 'exclude') {
+            moveTagToExclude(tag);
+          } else if (hoveredZone === 'default') {
+            moveTagToDefault(tag);
+          }
+        }
+      }
+      setDragState(null);
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [isDraggingActive, detectHoveredZone]);
 
   return (
     <FloatingWindow
@@ -97,13 +265,209 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
       hasActiveReset={hasActiveTagFilter}
       onReset={resetInfoTagPreferences}
       resetLabel="Reset"
-      resetTitle="重設所有分類與標籤篩選"
+      resetTitle="重設所有標籤規劃"
       className="info-settings-window"
       topBarClassName="info-settings-top-bar"
     >
       {/* Scrollable Body Content */}
       <div className="info-settings-scroll-body">
-        {/* Section A: Tooltip Display Mode */}
+        {/* Section A: Tag Planning Board (Must Included / Must Not / Default) */}
+        <section className="info-settings-section tag-board-section">
+          <div className="info-settings-section-header">
+            <span className="section-title">進階特徵標籤規劃</span>
+            <span className="section-sub">游標／觸控拖曳標籤進行分類放置</span>
+          </div>
+
+          <div className="tag-board-container">
+            {/* Top Row: 7:3 Split (must included : must not included) */}
+            <div className="tag-board-top-row">
+              {/* Left: MUST INCLUDED (70%) */}
+              <div
+                ref={mustContainZoneRef}
+                className={`tag-board-zone zone-include ${
+                  dragState?.hoveredZone === 'include' ? 'is-drop-active' : ''
+                }`}
+              >
+                <div className="zone-header">
+                  <span className="zone-icon">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                  <span className="zone-title">must</span>
+                  {tagPrefs.includeTags.length > 0 && (
+                    <button
+                      type="button"
+                      className="zone-clear-btn"
+                      onClick={() => setInfoTagPreferences({ includeTags: [] })}
+                      title="清空強制包含"
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
+                <div className="zone-content">
+                  {tagPrefs.includeTags.length === 0 ? (
+                    <div className="zone-placeholder">
+                      拖曳標籤至此以強制包含
+                    </div>
+                  ) : (
+                    <div className="zone-pills-row">
+                      {tagPrefs.includeTags.map((tag) => {
+                        const isPicked = dragState?.isDragging && dragState.tag === tag && dragState.fromZone === 'include';
+                        return (
+                          <div
+                            key={tag}
+                            className={`info-draggable-tag-pill is-include ${isPicked ? 'is-picked-up' : ''}`}
+                            onPointerDown={(e) => handleTagPointerDown(tag, 'include', e)}
+                            title="拖曳移動，或點擊 ✕ 放回預設"
+                          >
+                            <GripVertical size={11} className="drag-grip-icon" />
+                            <span className="tag-name">{tag}</span>
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveTagToDefault(tag);
+                              }}
+                              title="放回預設"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: MUST NOT INCLUDED (40%) */}
+              <div
+                ref={mustNotContainZoneRef}
+                className={`tag-board-zone zone-exclude ${
+                  dragState?.hoveredZone === 'exclude' ? 'is-drop-active' : ''
+                }`}
+              >
+                <div className="zone-header">
+                  <span className="zone-icon">
+                    <Ban size={12} strokeWidth={2.5} />
+                  </span>
+                  <span className="zone-title">ignore</span>
+                  {tagPrefs.excludeTags.length > 0 && (
+                    <button
+                      type="button"
+                      className="zone-clear-btn"
+                      onClick={() => setInfoTagPreferences({ excludeTags: [] })}
+                      title="清空強制排除"
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
+                <div className="zone-content">
+                  {tagPrefs.excludeTags.length === 0 ? (
+                    <div className="zone-placeholder">
+                      拖曳標籤至此排除
+                    </div>
+                  ) : (
+                    <div className="zone-pills-row">
+                      {tagPrefs.excludeTags.map((tag) => {
+                        const isPicked = dragState?.isDragging && dragState.tag === tag && dragState.fromZone === 'exclude';
+                        return (
+                          <div
+                            key={tag}
+                            className={`info-draggable-tag-pill is-exclude ${isPicked ? 'is-picked-up' : ''}`}
+                            onPointerDown={(e) => handleTagPointerDown(tag, 'exclude', e)}
+                            title="拖曳移動，或點擊 ✕ 放回預設"
+                          >
+                            <GripVertical size={11} className="drag-grip-icon" />
+                            <span className="tag-name">{tag}</span>
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveTagToDefault(tag);
+                              }}
+                              title="放回預設"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: DEFAULT (100% Full Width) */}
+            <div
+              ref={defaultZoneRef}
+              className={`tag-board-zone zone-default ${
+                dragState?.hoveredZone === 'default' ? 'is-drop-active' : ''
+              }`}
+            >
+              <div className="zone-header">
+                <span className="zone-title">default</span>
+                <span className="zone-sub">預設未指定</span>
+              </div>
+
+              <div className="zone-content default-scroll-content">
+                {defaultTags.length === 0 ? (
+                  <div className="zone-placeholder">
+                    所有標籤已分配至包含或排除
+                  </div>
+                ) : (
+                  <div className="zone-pills-row">
+                    {defaultTags.map(({ tag }) => {
+                      const isPicked = dragState?.isDragging && dragState.tag === tag && dragState.fromZone === 'default';
+                      return (
+                        <div
+                          key={tag}
+                          className={`info-draggable-tag-pill is-default ${isPicked ? 'is-picked-up' : ''}`}
+                          onPointerDown={(e) => handleTagPointerDown(tag, 'default', e)}
+                          title="拖曳至上方包含或排除，或點擊快捷按鈕"
+                        >
+                          <GripVertical size={11} className="drag-grip-icon" />
+                          <span className="tag-name">{tag}</span>
+
+                          <div className="tag-quick-actions">
+                            <button
+                              type="button"
+                              className="tag-quick-btn to-include"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveTagToInclude(tag);
+                              }}
+                              title="移至 must included (強制包含)"
+                            >
+                              <ChevronUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              className="tag-quick-btn to-exclude"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveTagToExclude(tag);
+                              }}
+                              title="移至 must not included (強制排除)"
+                            >
+                              <ChevronDown size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Section B: Tooltip Display Mode */}
         <section className="info-settings-section">
           <div className="info-settings-section-header">
             <span className="section-title">地圖提示卡懸浮模式</span>
@@ -131,175 +495,44 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
             })}
           </div>
         </section>
-
-        {/* Section B: Quick Categories */}
-        <section className="info-settings-section">
-          <div className="info-settings-section-header">
-            <span className="section-title">情報主題分類</span>
-            <span className="section-sub">選擇欲著重觀看的知識主題</span>
-          </div>
-          <div className="info-cat-grid">
-            {INFO_CATEGORIES.map((cat) => {
-              const isActive = tagPrefs.activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  className={`info-cat-card-btn ${isActive ? 'is-active' : ''}`}
-                  onClick={() => {
-                    if (tagPrefs.activeCategory === cat.id) {
-                      setInfoTagPreferences({ activeCategory: 'all' });
-                    } else {
-                      setInfoTagPreferences({ activeCategory: cat.id });
-                    }
-                  }}
-                  title={cat.descriptionZh}
-                >
-                  <span className="cat-icon">{cat.icon}</span>
-                  <span className="cat-name">{cat.nameZh}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Section C: Active Chips Summary (if any filter active) */}
-        {hasActiveTagFilter && (
-          <section className="info-settings-section active-chips-section">
-            <div className="active-chips-header">
-              <span className="chips-label">已套用篩選條件：</span>
-              <button
-                type="button"
-                className="clear-all-link"
-                onClick={resetInfoTagPreferences}
-              >
-                清除全部條件
-              </button>
-            </div>
-            <div className="info-active-chips-row">
-              {tagPrefs.activeCategory !== 'all' && activeCategoryDef && (
-                <span className="info-active-chip cat-chip">
-                  <span className="chip-icon">{activeCategoryDef.icon}</span>
-                  <span>{activeCategoryDef.nameZh}</span>
-                  <button
-                    type="button"
-                    className="chip-remove"
-                    onClick={() => setInfoTagPreferences({ activeCategory: 'all' })}
-                    title="清除此分類"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              )}
-
-              {tagPrefs.includeTags.map((tag) => (
-                <span key={`inc-${tag}`} className="info-active-chip include-chip">
-                  <span className="chip-prefix">+ 只看</span>
-                  <span className="chip-text">{tag}</span>
-                  <button
-                    type="button"
-                    className="chip-remove"
-                    onClick={() => toggleIncludeTag(tag)}
-                    title="移除此包含條件"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-
-              {tagPrefs.excludeTags.map((tag) => (
-                <span key={`exc-${tag}`} className="info-active-chip exclude-chip">
-                  <span className="chip-prefix">- 排除</span>
-                  <span className="chip-text">{tag}</span>
-                  <button
-                    type="button"
-                    className="chip-remove"
-                    onClick={() => toggleExcludeTag(tag)}
-                    title="移除此排除條件"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Section D: Advanced Tag Planning */}
-        <section className="info-settings-section">
-          <div className="info-settings-section-header">
-            <span className="section-title">進階特徵標籤規劃</span>
-            <span className="section-sub">點擊 [✓ 只看] 包含標籤；點擊 [✕ 排除] 隱藏該標籤情報</span>
-          </div>
-
-          <div className="fsw-search-wrapper" style={{ marginBottom: 8 }}>
-            <Search size={13} className="fsw-search-icon" />
-            <input
-              type="text"
-              className="fsw-search-input"
-              placeholder="搜尋特徵標籤 (如: 護柱, 語言, 滑雪, 歷史, 標線)..."
-              value={tagSearchQuery}
-              onChange={(e) => setTagSearchQuery(e.target.value)}
-            />
-            {tagSearchQuery && (
-              <button
-                type="button"
-                className="fsw-search-clear"
-                onClick={() => setTagSearchQuery('')}
-                title="清除搜尋"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          <div className="info-tag-pills-list">
-            {filteredTags.length === 0 ? (
-              <div className="info-no-tags-found">無符合搜尋字詞之標籤</div>
-            ) : (
-              filteredTags.slice(0, 150).map(({ tag }) => {
-                const isIncluded = tagPrefs.includeTags.includes(tag.toLowerCase());
-                const isExcluded = tagPrefs.excludeTags.includes(tag.toLowerCase());
-
-                let chipStateClass = 'state-neutral';
-                if (isIncluded) chipStateClass = 'state-included';
-                if (isExcluded) chipStateClass = 'state-excluded';
-
-                return (
-                  <div key={tag} className={`info-interactive-tag-pill ${chipStateClass}`}>
-                    <span className="tag-pill-name">{tag}</span>
-
-                    <button
-                      type="button"
-                      className={`tag-btn-include ${isIncluded ? 'is-active' : ''}`}
-                      onClick={() => toggleIncludeTag(tag)}
-                      title={isIncluded ? `取消只看 ${tag}` : `只看含 ${tag} 的情報`}
-                    >
-                      <Check size={11} />
-                      <span>只看</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`tag-btn-exclude ${isExcluded ? 'is-active' : ''}`}
-                      onClick={() => toggleExcludeTag(tag)}
-                      title={isExcluded ? `取消排除 ${tag}` : `排除隱藏含 ${tag} 的情報`}
-                    >
-                      <Ban size={11} />
-                      <span>排除</span>
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          {filteredTags.length > 150 && (
-            <div className="info-more-tags-hint">
-              尚有更多標籤，請在上方搜尋框輸入關鍵字快速過濾
-            </div>
-          )}
-        </section>
       </div>
+
+      {/* Floating Ghost Chip stuck directly to cursor via React Portal */}
+      {dragState?.isDragging &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className={`tag-drag-ghost zone-${dragState.hoveredZone || dragState.fromZone} ${
+              dragState.hoveredZone ? 'is-over-zone' : ''
+            }`}
+            style={{
+              position: 'fixed',
+              left: `${dragState.currentX - dragState.grabOffsetX}px`,
+              top: `${dragState.currentY - dragState.grabOffsetY}px`,
+              width: `${dragState.width}px`,
+              height: `${dragState.height}px`,
+              transform: `rotate(${dragState.tilt.toFixed(1)}deg) scale(${dragState.hoveredZone ? 1.05 : 1.02})`,
+              transformOrigin: `${dragState.grabOffsetX}px ${dragState.grabOffsetY}px`,
+              pointerEvents: 'none',
+              zIndex: 999999
+            }}
+          >
+            <span className="ghost-glow-aura" />
+            <GripVertical size={11} className="drag-grip-icon" />
+            <span className="tag-name">{dragState.tag}</span>
+            {dragState.hoveredZone === 'include' && (
+              <span className="ghost-badge to-include">
+                <Check size={10} strokeWidth={3} />
+              </span>
+            )}
+            {dragState.hoveredZone === 'exclude' && (
+              <span className="ghost-badge to-exclude">
+                <Ban size={10} strokeWidth={2.5} />
+              </span>
+            )}
+          </div>,
+          document.body
+        )}
     </FloatingWindow>
   );
 });
