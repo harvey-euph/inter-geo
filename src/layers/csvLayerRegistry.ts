@@ -68,8 +68,6 @@ export interface RegisteredCsvLayer {
   meta: CsvLayerMetadata;
 }
 
-export type RegisteredCsvFilter = RegisteredCsvLayer;
-
 function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
   const effectiveRange = lm.effectiveRange || 'International';
   const { kind: rangeKind, targetIso2, targetIso2s } = parseEffectiveRange(effectiveRange);
@@ -173,6 +171,25 @@ export async function initCsvLayerRegistry(): Promise<RegisteredCsvLayer[]> {
       byId.set('eu-pedestrian-crossing', byId.get('pedestrian-crossing')!);
     }
 
+    const areaCodeAliases: Record<string, string> = {
+      'area-codes-BR': 'br-ddd-codes',
+      'area-codes-JP': 'jp-area-codes',
+      'area-codes-AU': 'au-area-codes',
+      'area-codes-FR': 'fr-area-codes',
+      'area-codes-RU': 'ru-area-codes',
+      'area-codes-TH': 'th-area-codes',
+      'area-codes-ID': 'id-area-codes',
+      'area-codes-MX': 'mx-area-codes',
+      'area-codes-AR': 'ar-area-codes',
+      'area-codes-GB': 'gb-area-codes',
+      'area-codes-US': 'us-area-codes'
+    };
+    for (const [alias, targetId] of Object.entries(areaCodeAliases)) {
+      if (byId.has(targetId) && !byId.has(alias)) {
+        byId.set(alias, byId.get(targetId)!);
+      }
+    }
+
     cachedLayers = list;
     cachedLayersById = byId;
     cachedLayersByPath = byPath;
@@ -213,7 +230,6 @@ export function getRegisteredCsvLayers(): RegisteredCsvLayer[] {
   }
   return cachedLayers;
 }
-export const getRegisteredCsvFilters = getRegisteredCsvLayers;
 
 /**
  * Looks up a registered CSV layer by ID or filename.
@@ -230,9 +246,24 @@ export function getCsvLayerById(id: string): RegisteredCsvLayer | undefined {
   if (id === 'pedestrian-crossing') {
     return cachedLayersById?.get('eu-pedestrian-crossing');
   }
+  const areaCodeAliases: Record<string, string> = {
+    'area-codes-BR': 'br-ddd-codes',
+    'area-codes-JP': 'jp-area-codes',
+    'area-codes-AU': 'au-area-codes',
+    'area-codes-FR': 'fr-area-codes',
+    'area-codes-RU': 'ru-area-codes',
+    'area-codes-TH': 'th-area-codes',
+    'area-codes-ID': 'id-area-codes',
+    'area-codes-MX': 'mx-area-codes',
+    'area-codes-AR': 'ar-area-codes',
+    'area-codes-GB': 'gb-area-codes',
+    'area-codes-US': 'us-area-codes'
+  };
+  if (areaCodeAliases[id]) {
+    return cachedLayersById?.get(areaCodeAliases[id]);
+  }
   return undefined;
 }
-export const getCsvFilterById = getCsvLayerById;
 
 /**
  * Looks up a region's value in a registered CSV layer (O(1) Map lookup).
@@ -252,7 +283,6 @@ export function getCsvLayerValue(layerId: string, regionId: string): string | nu
   }
   return null;
 }
-export const getCsvFilterValue = getCsvLayerValue;
 
 /**
  * Returns the full CsvLayerKVRow object with all custom column attributes.
@@ -323,7 +353,6 @@ export function getCsvLayerRecord(layerId: string): Record<string, string> {
   }
   return record;
 }
-export const getCsvFilterRecord = getCsvLayerRecord;
 
 /**
  * Fetches and parses a CSV layer over HTTP on demand when activated.
@@ -390,4 +419,3 @@ export async function loadOnDemandCsvLayer(
   inFlightLoads.set(layer.id, promise);
   return promise;
 }
-export const loadOnDemandCsvFilter = loadOnDemandCsvLayer;

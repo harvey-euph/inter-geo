@@ -75,10 +75,27 @@ export function normalizeDataPath(rawPath: string): string {
       'distinctive-letters.csv',
       'street-words.csv'
     ];
-    const areaFeatureFiles = ['taiwan-power-poles.csv', 'india-scripts.csv', 'pedestrian-crossing.csv'];
+    const areaFeatureFiles = [
+      'taiwan-power-poles.csv',
+      'india-scripts.csv',
+      'pedestrian-crossing.csv',
+      'br-ddd-codes.csv',
+      'jp-area-codes.csv',
+      'au-area-codes.csv',
+      'fr-area-codes.csv',
+      'ru-area-codes.csv',
+      'th-area-codes.csv',
+      'id-area-codes.csv',
+      'mx-area-codes.csv',
+      'ar-area-codes.csv',
+      'gb-area-codes.csv',
+      'us-area-codes.csv'
+    ];
     if (fillRegionFiles.includes(canonicalFn)) return `layers/fill-region-with-color/${canonicalFn}`;
     if (globalLabelFiles.includes(canonicalFn)) return `layers/global-label/${canonicalFn}`;
-    if (areaFeatureFiles.includes(canonicalFn)) return `layers/area-feature/${canonicalFn}`;
+    if (areaFeatureFiles.includes(canonicalFn) || canonicalFn.endsWith('-area-codes.csv') || canonicalFn === 'br-ddd-codes.csv') {
+      return `layers/area-feature/${canonicalFn}`;
+    }
   }
   return p;
 }

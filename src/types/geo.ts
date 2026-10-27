@@ -83,8 +83,6 @@ export type LayerCategory =
   | 'poles'
   | 'continent';
 
-export type FilterCategory = LayerCategory;
-
 export interface LegendItem {
   key: string;
   labelZh: string;
@@ -96,5 +94,3 @@ export interface ActiveLayer {
   value?: string;
   titleZh: string;
 }
-
-export type ActiveFilter = ActiveLayer;

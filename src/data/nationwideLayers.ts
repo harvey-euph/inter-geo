@@ -56,8 +56,6 @@ export interface NationwideLayerDef {
   descriptionZh: string;
 }
 
-export type NationwideFilterDef = NationwideLayerDef;
-
 export const COUNTRIES_WITH_AREA_CODES = ['BR', 'JP', 'FR', 'RU', 'TH', 'ID', 'AU', 'MX', 'AR', 'GB', 'US'];
 
 export const COUNTRIES_WITH_CAPITALS = [
@@ -342,7 +340,7 @@ export function getRoadLayersForCountry(iso2: string): NationwideLayerDef[] {
   ];
 }
 
-export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
+export const BASE_NATIONWIDE_LAYERS: NationwideLayerDef[] = [
   // 1. Coloring Layer: Capital Subdivision Highlight
   {
     id: 'nationwide-capital',
@@ -358,26 +356,7 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     descriptionZh: '特別凸顯標記當前國家之首都所在一級行政區（如東京、華盛頓DC、巴西利亞、巴黎大區、德里、柏林等）'
   },
 
-  // 2. Text Layers: Domestic Area Codes (individually controllable per country)
-  ...COUNTRIES_WITH_AREA_CODES.map((iso2): NationwideFilterDef => {
-    const country = findCountry(iso2);
-    const countryName = country?.name || iso2;
-    const countryNameZh = country?.nameZh || iso2;
-    return {
-      id: `area-codes-${iso2}`,
-      targetIso2: iso2,
-      nameZh: `${countryNameZh}國內區域碼`,
-      nameEn: `${countryName} Domestic Area Codes`,
-      shortBadge: `📞 ${iso2} 區碼`,
-      titleZh: `${countryNameZh}各一級行政區國內電話區碼`,
-      titleEn: `${countryName} Domestic Area Codes`,
-      activeColor: '#10b981',
-      layerType: 'text',
-      descriptionZh: `顯示${countryNameZh}各一級行政區之國內電話區號`
-    };
-  }),
-
-  // 3. Dynamically registered Nationwide CSV Layers
+  // 2. Dynamically registered Nationwide CSV Layers (including area codes & regional features)
   ...getRegisteredCsvLayers()
     .filter((f) => f.rangeKind === 'Nationwide')
     .map(
@@ -402,12 +381,9 @@ export const BASE_NATIONWIDE_FILTERS: NationwideFilterDef[] = [
     )
 ];
 
-export const BASE_NATIONWIDE_LAYERS = BASE_NATIONWIDE_FILTERS;
-
 export const NATIONWIDE_LAYERS: NationwideLayerDef[] = [
   ...BASE_NATIONWIDE_LAYERS
 ];
-export const NATIONWIDE_FILTERS = NATIONWIDE_LAYERS;
 
 /**
  * Complete catalog of all Nationwide layers across all supported countries
@@ -417,12 +393,10 @@ export const ALL_NATIONWIDE_LAYERS: NationwideLayerDef[] = [
   ...BASE_NATIONWIDE_LAYERS,
   ...COUNTRIES_WITH_ROADS.flatMap((iso2) => getRoadLayersForCountry(iso2))
 ];
-export const ALL_NATIONWIDE_FILTERS = ALL_NATIONWIDE_LAYERS;
 
 export const NATIONWIDE_LAYERS_BY_ID = new Map<string, NationwideLayerDef>(
   ALL_NATIONWIDE_LAYERS.map((f) => [f.id, f])
 );
-export const NATIONWIDE_FILTERS_BY_ID = NATIONWIDE_LAYERS_BY_ID;
 
 /**
  * Resolves a nationwide layer definition by ID, dynamically retrieving
@@ -464,7 +438,6 @@ export function getNationwideLayerById(id: string): NationwideLayerDef | undefin
   }
   return undefined;
 }
-export const getNationwideFilterById = getNationwideLayerById;
 
 /**
  * Returns available nationwide layers for a country visible in viewport,
@@ -479,11 +452,44 @@ export function getNationwideLayersForCountry(iso2: string): NationwideLayerDef[
       (f.targetIso2s && f.targetIso2s.includes(upper))
   );
 
+  const csvLayers = getRegisteredCsvLayers()
+    .filter(
+      (f) =>
+        f.rangeKind === 'Nationwide' &&
+        (f.targetIso2 === '*' || f.targetIso2 === upper || (f.targetIso2s && f.targetIso2s.includes(upper)))
+    )
+    .map(
+      (f): NationwideLayerDef => ({
+        id: f.id,
+        targetIso2: f.targetIso2,
+        targetIso2s: f.targetIso2s,
+        nameZh: f.nameZh,
+        nameEn: f.nameEn,
+        shortBadge: f.shortBadge,
+        titleZh: f.descriptionZh,
+        titleEn: f.nameEn,
+        activeColor: f.accentColor,
+        layerType:
+          f.type === 'FillWithColor'
+            ? 'coloring'
+            : f.type === 'Image'
+              ? 'image'
+              : 'text',
+        descriptionZh: f.descriptionZh
+      })
+    );
+
+  const existingIds = new Set(layers.map((l) => l.id));
+  for (const cl of csvLayers) {
+    if (!existingIds.has(cl.id)) {
+      layers.push(cl);
+      existingIds.add(cl.id);
+    }
+  }
+
   if (COUNTRIES_WITH_ROADS.includes(upper)) {
     layers.push(...getRoadLayersForCountry(upper));
   }
 
   return layers;
 }
-export const getNationwideFiltersForCountry = getNationwideLayersForCountry;
-export const getRoadFiltersForCountry = getRoadLayersForCountry;

@@ -39,7 +39,6 @@ export interface LayerBarProps {
   isFront?: boolean;
   onFocusWindow?: () => void;
 }
-export type FilterBarProps = LayerBarProps;
 
 export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   activeFilterId,
@@ -464,5 +463,3 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     </FloatingWindow>
   );
 });
-
-export const FilterBar = LayerBar;

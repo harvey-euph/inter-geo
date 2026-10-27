@@ -5,7 +5,6 @@ import {
 
 export type CsvLoadedTiming = 'init' | 'on-demand';
 export type CsvLayerType = 'FillWithColor' | 'Text' | 'Image' | 'Special' | 'ExtObject';
-export type CsvFilterType = CsvLayerType;
 
 export interface CsvLayerMetadata {
   id?: string;
@@ -28,7 +27,6 @@ export interface CsvLayerMetadata {
   targetKeys?: string[];
   [key: string]: unknown;
 }
-export type CsvFilterMetadata = CsvLayerMetadata;
 
 /**
  * Lightweight index entry extracted from the top comment lines of a `.csv` layer file
@@ -42,7 +40,6 @@ export interface CsvLayerStub {
   order?: number;
   meta: CsvLayerMetadata;
 }
-export type CsvFilterStub = CsvLayerStub;
 
 export interface CsvLayerRegistryEntry {
   /** Derived or explicit unique layer ID */
@@ -66,7 +63,6 @@ export interface CsvLayerRegistryEntry {
   /** Optional UI metadata from registry columns */
   meta: CsvLayerMetadata;
 }
-export type CsvFilterRegistryEntry = CsvLayerRegistryEntry;
 
 export interface CsvLayerKVRow {
   /** Original region-id written in the CSV */
@@ -79,7 +75,6 @@ export interface CsvLayerKVRow {
   attributes: Record<string, string>;
   [key: string]: unknown;
 }
-export type CsvFilterKVRow = CsvLayerKVRow;
 
 export interface ParsedCsvLayerData {
   /** Metadata parsed from `// @key: value` header directives inside the CSV */
@@ -97,7 +92,6 @@ export interface ParsedCsvLayerData {
   /** Region IDs that did not match the assignable list for the layer's Effective Range */
   invalidRegionIds: string[];
 }
-export type ParsedCsvFilterData = ParsedCsvLayerData;
 
 /**
  * Splits a single CSV line into cells, respecting double-quoted fields and escaped quotes (`""`).
@@ -148,7 +142,6 @@ export function parseLayerType(raw: string): CsvLayerType {
   if (norm === 'image' || norm === 'icon' || norm === 'img') return 'Image';
   return 'Special';
 }
-export const parseFilterType = parseLayerType;
 
 /**
  * Parses a layer K-V CSV file (`region-id, color code/text/image path`).
@@ -238,29 +231,53 @@ export function parseLayerDataCsv(
 
       if (isHeader) {
         columns = rawCols;
+        let foundRegionCol = false;
+        let foundValueCol = false;
         for (let cIdx = 0; cIdx < rawCols.length; cIdx++) {
           const normCol = rawCols[cIdx].toLowerCase().replace(/[\s_-]+/g, '');
           if (
             normCol === 'regionid' ||
             normCol === 'region' ||
             normCol === 'iso2' ||
-            normCol === 'id' ||
-            normCol === 'code' ||
-            normCol === 'key' ||
-            normCol === 'letter'
+            normCol === 'subdivision' ||
+            normCol === 'state'
           ) {
             regionIdCol = cIdx;
+            foundRegionCol = true;
           } else if (
             normCol === 'color' ||
             normCol === 'value' ||
             normCol === 'val' ||
             normCol === 'text' ||
-            normCol === 'image'
+            normCol === 'image' ||
+            normCol === 'areacode' ||
+            normCol === 'ddd' ||
+            normCol === 'prefix' ||
+            normCol === 'dialing' ||
+            normCol === 'phonecode'
           ) {
             valueCol = cIdx;
+            foundValueCol = true;
+          } else if (normCol === 'code') {
+            if (!foundRegionCol && cIdx === 0) {
+              regionIdCol = cIdx;
+              foundRegionCol = true;
+            } else if (!foundValueCol) {
+              valueCol = cIdx;
+            }
+          } else if (
+            normCol === 'id' ||
+            normCol === 'key' ||
+            normCol === 'letter'
+          ) {
+            if (!foundRegionCol) {
+              regionIdCol = cIdx;
+              foundRegionCol = true;
+            }
           } else if (
             normCol === 'label' ||
             normCol === 'namezh' ||
+            normCol === 'nameen' ||
             normCol === 'desc' ||
             normCol === 'description' ||
             normCol === 'subdivisions'
@@ -276,23 +293,24 @@ export function parseLayerDataCsv(
       }
     }
 
-    const rawRegionId = cells[regionIdCol] || cells[0] || '';
-    const rawValue = cells[valueCol] || cells[1] || '';
+    const rawRegionId = (cells[regionIdCol] || cells[0] || '').replace(/^"|"$/g, '').trim();
+    const rawValue = (cells[valueCol] || cells[1] || '').replace(/^"|"$/g, '').trim();
     if (!rawRegionId || !rawValue) continue;
 
     const attributes: Record<string, string> = {};
     for (let cIdx = 0; cIdx < cells.length; cIdx++) {
       const colName = columns[cIdx] || `col${cIdx}`;
-      attributes[colName] = cells[cIdx];
+      attributes[colName] = (cells[cIdx] || '').replace(/^"|"$/g, '').trim();
     }
 
-    const rawLabel =
+    const rawLabel = (
       cells[labelCol] ||
       attributes.label ||
       attributes.nameZh ||
       attributes.subdivisions ||
       cells[2] ||
-      '';
+      ''
+    ).replace(/^"|"$/g, '').trim();
 
     if (assignableList.validIds.size > 0 && !assignableList.isValid(rawRegionId)) {
       invalidRegionIds.push(rawRegionId);
@@ -326,4 +344,3 @@ export function parseLayerDataCsv(
     invalidRegionIds
   };
 }
-export const parseFilterDataCsv = parseLayerDataCsv;

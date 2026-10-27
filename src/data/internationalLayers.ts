@@ -8,9 +8,7 @@ import {
 export {
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_LAYERS as INTERNATIONAL_TEXT_LAYERS,
-  GLOBAL_TEXT_LAYERS as INTERNATIONAL_TEXT_FILTERS,
   GLOBAL_TEXT_LAYERS_BY_ID as INTERNATIONAL_TEXT_LAYERS_BY_ID,
-  GLOBAL_TEXT_LAYERS_BY_ID as INTERNATIONAL_TEXT_FILTERS_BY_ID,
   getCombinedTextOverlay
 };
 
@@ -29,8 +27,6 @@ export interface InternationalImageLayerDef {
   accentColor: string;
 }
 
-export type InternationalImageFilterDef = InternationalImageLayerDef;
-
 export const INTERNATIONAL_IMAGE_LAYERS: InternationalImageLayerDef[] = [
   {
     id: 'pedestrian-crossing',
@@ -41,9 +37,7 @@ export const INTERNATIONAL_IMAGE_LAYERS: InternationalImageLayerDef[] = [
     accentColor: '#38bdf8'
   }
 ];
-export const INTERNATIONAL_IMAGE_FILTERS = INTERNATIONAL_IMAGE_LAYERS;
 
 export const INTERNATIONAL_IMAGE_LAYERS_BY_ID = new Map<string, InternationalImageLayerDef>(
   INTERNATIONAL_IMAGE_LAYERS.map((f) => [f.id, f])
 );
-export const INTERNATIONAL_IMAGE_FILTERS_BY_ID = INTERNATIONAL_IMAGE_LAYERS_BY_ID;

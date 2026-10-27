@@ -23,8 +23,6 @@ export interface TextLayerDef {
   getText: (country: CountryData) => string | null;
 }
 
-export type TextFilterDef = TextLayerDef;
-
 /**
  * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
  * Corrects geometric centroids distorted by far-off polar islands or overseas territories.
@@ -67,12 +65,10 @@ export const GLOBAL_TEXT_LAYERS: TextLayerDef[] = getRegisteredCsvLayers()
     accentColor: f.accentColor,
     getText: (c: CountryData) => getCsvLayerValue(f.id, c.iso2)
   }));
-export const GLOBAL_TEXT_FILTERS = GLOBAL_TEXT_LAYERS;
 
 export const GLOBAL_TEXT_LAYERS_BY_ID = new Map<string, TextLayerDef>(
   GLOBAL_TEXT_LAYERS.map((f) => [f.id, f])
 );
-export const GLOBAL_TEXT_FILTERS_BY_ID = GLOBAL_TEXT_LAYERS_BY_ID;
 
 if (typeof window !== 'undefined') {
   onLayersIndexLoaded(() => {
@@ -115,7 +111,6 @@ export function getGlobalTextLayerById(id: string): TextLayerDef | undefined {
   }
   return undefined;
 }
-export const getGlobalTextFilterById = getGlobalTextLayerById;
 
 export function getCombinedTextOverlay(country: CountryData, activeLayerIds: Set<string>): string | null {
   const parts: string[] = [];

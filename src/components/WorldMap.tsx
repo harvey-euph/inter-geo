@@ -105,9 +105,7 @@ export type MapFocusTarget = (
 export type MapSelectOptions = { focus?: boolean };
 
 type RegionalLayerDef = NationwideLayerDef;
-type RegionalFilterDef = RegionalLayerDef;
 const REGIONAL_LAYERS = NATIONWIDE_LAYERS;
-const REGIONAL_FILTERS = REGIONAL_LAYERS;
 
 function findSubdivisionMatch(
   list: L2SubdivisionPathData[],
@@ -324,7 +322,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const selectedRoadRef = useRef<RoadPathData | null>(selectedRoad || null);
 
   // Dynamic Regional Filters state (surfaced only when target region is visible in viewport)
-  const visibleRegionalFiltersRef = useRef<RegionalFilterDef[]>([]);
+  const visibleRegionalFiltersRef = useRef<RegionalLayerDef[]>([]);
   const [internalActiveRegionalFilters] = useState<Set<string>>(new Set());
   const activeRegionalFilters = activeRegionalFiltersProp ?? internalActiveRegionalFilters;
   const activeRegionalFiltersRef = useRef<Set<string>>(activeRegionalFilters);
@@ -945,10 +943,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Keep nationwide filter availability tied to its target bbox, independently of the hovered LOD.
   const syncRegionalFiltersViewport = useCallback(
     (k: number, x: number, y: number, vw: number, vh: number) => {
-      const nextVisible: RegionalFilterDef[] = [];
+      const nextVisible: RegionalLayerDef[] = [];
 
-      for (let i = 0; i < REGIONAL_FILTERS.length; i++) {
-        const filter = REGIONAL_FILTERS[i];
+      for (let i = 0; i < REGIONAL_LAYERS.length; i++) {
+        const filter = REGIONAL_LAYERS[i];
         if (filter.minZoomK && k < filter.minZoomK) continue;
 
         if (filter.targetIso2 === '*') {

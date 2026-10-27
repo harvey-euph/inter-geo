@@ -3,8 +3,6 @@ import type { L2SubdivisionDetail, MunicipalityDetail } from '../../types/lod';
 import type { LayerDefinition } from '../../data/layers';
 import type { RoadPathData } from '../../data/roadsMeta';
 import { isCapitalSubdivision } from '../../data/capitalSubdivisions';
-import { COUNTRIES_WITH_AREA_CODES } from '../../data/nationwideLayers';
-import { getSubdivisionAreaCodeBadge } from '../../data/domesticAreaCodes';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
 import {
   COUNTRY_LABEL_CENTROIDS,
@@ -696,7 +694,6 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     vh,
     dpr,
     visibleCopies,
-    isL2RegionMode,
     expandedL2Countries,
     layerHoveredCountries,
     layerHoveredL2Subdivisions,
@@ -710,83 +707,22 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     badgeWidthCache: widthCache
   } = rc;
 
-  const activeAreaCodeCountries = COUNTRIES_WITH_AREA_CODES.filter((iso2) => activeReg.has(`area-codes-${iso2}`));
-  const isAreaCodeActive = activeAreaCodeCountries.length > 0;
-
   const activeNationwideCsvTextFilters = activeReg
     ? getRegisteredCsvLayers().filter(
-        (f) => f.rangeKind === 'Nationwide' && f.type === 'Text' && activeReg.has(f.id)
+        (f) =>
+          f.rangeKind === 'Nationwide' &&
+          f.type === 'Text' &&
+          (activeReg.has(f.id) || (f.targetIso2 && activeReg.has(`area-codes-${f.targetIso2}`)))
       )
     : [];
 
-  if ((!isAreaCodeActive || !isL2RegionMode) && activeNationwideCsvTextFilters.length === 0) return;
+  if (activeNationwideCsvTextFilters.length === 0) return;
 
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.font = MONO_BADGE_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-
-  if (isAreaCodeActive && isL2RegionMode) {
-    for (const iso2 of activeAreaCodeCountries) {
-      if (!expandedL2Countries.has(iso2)) continue;
-      const subs = l2ByCountry[iso2];
-      if (!subs || subs.length === 0) continue;
-
-      for (let i = 0; i < subs.length; i++) {
-        const sub = subs[i];
-        const badgeText = getSubdivisionAreaCodeBadge(iso2, sub);
-        if (!badgeText) continue;
-
-        let textWidth = widthCache.get(badgeText);
-        if (textWidth === undefined) {
-          textWidth = ctx.measureText(badgeText).width;
-          widthCache.set(badgeText, textWidth);
-        }
-        const badgeW = Math.round(textWidth + 12);
-        const badgeH = 20;
-
-        for (const copyIdx of visibleCopies) {
-          const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
-          const screenY = sub.centroid[1] * k + y;
-
-          if (screenX < -70 || screenX > vw + 70 || screenY < -30 || screenY > vh + 30) continue;
-
-          const isSubHovered = !!(
-            hoveredL2 &&
-            hoveredL2.iso2 === sub.iso2 &&
-            (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
-          );
-          const isSubSelected = !!(
-            selectedL2 &&
-            selectedL2.iso2 === sub.iso2 &&
-            String(selectedL2.id) === String(sub.id)
-          );
-
-          const badgeX = Math.round(screenX - badgeW / 2);
-          const badgeY = Math.round(screenY - badgeH / 2);
-
-          drawPill(
-            ctx,
-            badgeX,
-            badgeY,
-            badgeW,
-            badgeH,
-            5,
-            isSubSelected,
-            isSubHovered,
-            'rgba(15, 23, 42, 0.90)',
-            '#10b981',
-            1.2,
-            1.6
-          );
-
-          ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : '#34d399';
-          ctx.fillText(badgeText, screenX, screenY + 0.5);
-        }
-      }
-    }
-  }
 
   for (const csvFilter of activeNationwideCsvTextFilters) {
     const targetIso2s =
