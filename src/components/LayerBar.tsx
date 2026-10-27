@@ -47,7 +47,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   activeTextFilters,
   onToggleTextFilter,
   activeInternationalImageFilter,
-  onToggleInternationalImageFilter,
   activeRegionalFilters,
   onToggleRegionalFilter,
   showInterstates = false,
@@ -72,16 +71,14 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
   const searchQuery = '';
 
-  // 4 Toggled Sections matching the spec:
+  // 3 Toggled Sections matching the spec:
   // v Fill Region With Color (Radio select)
-  // v Ext Object (Multi-select)
   // v Global Label (Multi-select)
-  // v Area Label (Multi-select)
+  // v Area Feature (Multi-select)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     fillRegion: true,
-    extObject: true,
     globalLabel: true,
-    areaLabel: true
+    areaFeature: true
   });
 
   const toggleSection = (key: string) => {
@@ -97,7 +94,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     return getRegisteredCsvLayers();
   }, [layersLoaded]);
 
-  // Categorize CSV layers into the 4 groups
+  // Categorize CSV layers into groups
   const categorized = useMemo(() => {
     const fillRegion: Array<{
       id: string;
@@ -107,9 +104,8 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
       descriptionZh?: string;
       goto?: string;
     }> = [];
-    const extObject: RegisteredCsvLayer[] = [];
     const globalLabel: RegisteredCsvLayer[] = [];
-    const areaLabel: RegisteredCsvLayer[] = [];
+    const areaFeature: RegisteredCsvLayer[] = [];
 
     for (const f of allCsvLayers) {
       const g = (f.meta.group as string) || (f.group as string) || '';
@@ -122,16 +118,18 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
           descriptionZh: f.descriptionZh,
           goto: f.goto
         });
-      } else if (g === 'ext-object') {
-        extObject.push(f);
-      } else if (g === 'global-label' || (f.rangeKind === 'International' && f.type === 'Text')) {
+      } else if (g === 'global-label' || (f.rangeKind === 'International' && f.type === 'Text' && g !== 'area-feature')) {
         globalLabel.push(f);
       } else {
-        areaLabel.push(f);
+        areaFeature.push(f);
       }
     }
 
-    return { fillRegion, extObject, globalLabel, areaLabel };
+    return {
+      fillRegion,
+      globalLabel,
+      areaFeature
+    };
   }, [allCsvLayers]);
 
   const matchesSearch = useCallback(
@@ -153,8 +151,69 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     return categorized.fillRegion.filter(matchesSearch);
   }, [categorized.fillRegion, matchesSearch]);
 
-  // Group 2: Ext Object (Highways, Taipower grid, etc.)
-  const extObjectItems = useMemo(() => {
+  // Group 2: Global Label
+  const filteredGlobalLabel = useMemo(() => {
+    return categorized.globalLabel.filter(matchesSearch);
+  }, [categorized.globalLabel, matchesSearch]);
+
+  // Group 3: Area Feature (Highways, Taipower grid, Pedestrian crossing, South Asia scripts, etc.)
+  const isEuCrossingActive =
+    activeRegionalFilters.has('eu-pedestrian-crossing') ||
+    activeRegionalFilters.has('pedestrian-crossing') ||
+    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+    activeInternationalImageFilter === 'pedestrian-crossing';
+
+  const isSectionOpen = (key: string, hasSearchMatches: boolean) => {
+    if (isSearching) return hasSearchMatches;
+    return !!openSections[key];
+  };
+
+  const handleSelectFillLayer = (layerId: string, gotoStr?: string) => {
+    const nextId = activeFilterId === layerId ? 'base' : layerId;
+    onSelectFilter(nextId);
+    if (gotoStr && onGotoCamera) {
+      try {
+        const p = new URLSearchParams(gotoStr);
+        const lat = Number(p.get('lat'));
+        const lon = Number(p.get('lon'));
+        const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          onGotoCamera(lat, lon, ratio);
+        }
+      } catch {
+        // ignore malformed goto query
+      }
+    }
+  };
+
+  const handleToggleLabel = useCallback(
+    (filterId: string, gotoStr?: string) => {
+      if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
+        const turningOn = !isEuCrossingActive;
+        onToggleRegionalFilter('pedestrian-crossing');
+        if (turningOn && onGotoCamera) {
+          const goto = gotoStr || 'lat=50&lon=16&ratio=4';
+          try {
+            const p = new URLSearchParams(goto);
+            const lat = Number(p.get('lat'));
+            const lon = Number(p.get('lon'));
+            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              onGotoCamera(lat, lon, ratio);
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return;
+      }
+
+      onToggleRegionalFilter(filterId);
+    },
+    [isEuCrossingActive, onToggleRegionalFilter, onGotoCamera]
+  );
+
+  const areaFeatureItems = useMemo(() => {
     const list: Array<{
       id: string;
       nameZh: string;
@@ -185,16 +244,21 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
       }
     ];
 
-    for (const layer of categorized.extObject) {
+    for (const layer of categorized.areaFeature) {
+      const isEuCrossing = layer.id === 'eu-pedestrian-crossing' || layer.id === 'pedestrian-crossing';
+      const checked = isEuCrossing
+        ? isEuCrossingActive
+        : (activeRegionalFilters.has(layer.id) || activeTextFilters.has(layer.id));
+
       list.push({
         id: layer.id,
         nameZh: layer.nameZh,
         nameEn: layer.nameEn,
         shortBadge: layer.shortBadge || layer.nameZh,
-        descriptionZh: layer.descriptionZh,
+        descriptionZh: layer.descriptionZh || layer.nameZh,
         goto: layer.goto,
-        checked: activeRegionalFilters.has(layer.id),
-        onToggle: () => onToggleRegionalFilter(layer.id)
+        checked,
+        onToggle: () => handleToggleLabel(layer.id, layer.goto)
       });
     }
 
@@ -202,83 +266,31 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   }, [
     showInterstates,
     showNumberedRoutes,
-    categorized.extObject,
+    categorized.areaFeature,
     activeRegionalFilters,
+    activeTextFilters,
+    isEuCrossingActive,
     matchesSearch,
     onToggleInterstates,
     onToggleNumberedRoutes,
-    onToggleRegionalFilter
+    handleToggleLabel
   ]);
-
-  // Group 3: Global Label
-  const filteredGlobalLabel = useMemo(() => {
-    return categorized.globalLabel.filter(matchesSearch);
-  }, [categorized.globalLabel, matchesSearch]);
-
-  // Group 4: Area Label (Distinctive letters, Street words, India scripts, EU crossing signs)
-  const isEuCrossingActive =
-    activeRegionalFilters.has('eu-pedestrian-crossing') ||
-    activeRegionalFilters.has('pedestrian-crossing') ||
-    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
-    activeInternationalImageFilter === 'pedestrian-crossing';
-  const filteredAreaLabel = useMemo(() => {
-    return categorized.areaLabel.filter(matchesSearch);
-  }, [categorized.areaLabel, matchesSearch]);
-
-  const isSectionOpen = (key: string, hasSearchMatches: boolean) =>
-    isSearching ? hasSearchMatches : !!openSections[key];
-
-  const handleSelectFillLayer = (layerId: string, gotoStr?: string) => {
-    const nextId = activeFilterId === layerId ? 'base' : layerId;
-    onSelectFilter(nextId);
-    if (gotoStr && onGotoCamera) {
-      try {
-        const p = new URLSearchParams(gotoStr);
-        const lat = Number(p.get('lat'));
-        const lon = Number(p.get('lon'));
-        const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          onGotoCamera(lat, lon, ratio);
-        }
-      } catch {
-        // ignore malformed goto query
-      }
-    }
-  };
-
-  const handleToggleLabel = (filterId: string) => {
-    if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
-      onToggleInternationalImageFilter('eu-pedestrian-crossing');
-      onToggleRegionalFilter('eu-pedestrian-crossing');
-      onToggleRegionalFilter('pedestrian-crossing');
-      return;
-    }
-    // Check if it's regional vs global
-    const isRegional = categorized.areaLabel.some((f) => f.id === filterId);
-    if (isRegional) {
-      onToggleRegionalFilter(filterId);
-    } else {
-      onToggleTextFilter(filterId);
-    }
-  };
 
   // Check if base layer is active
   const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
 
-  // Active counts for headers (ignoring Fill Region With Color)
-  const activeExtCount =
+  // Active counts for header
+  const activeAreaFeatureCount =
     (showInterstates ? 1 : 0) +
     (showNumberedRoutes ? 1 : 0) +
-    categorized.extObject.filter((l) => activeRegionalFilters.has(l.id)).length;
+    categorized.areaFeature.filter((f) =>
+      (f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing')
+        ? isEuCrossingActive
+        : (activeRegionalFilters.has(f.id) || activeTextFilters.has(f.id))
+    ).length;
   const activeGlobalCount = filteredGlobalLabel.filter((f) => activeTextFilters.has(f.id)).length;
-  const activeAreaCount = filteredAreaLabel.filter(
-    (f) =>
-      activeRegionalFilters.has(f.id) ||
-      activeTextFilters.has(f.id) ||
-      ((f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing') && isEuCrossingActive)
-  ).length;
 
-  const totalActiveCount = activeExtCount + activeGlobalCount + activeAreaCount;
+  const totalActiveCount = activeAreaFeatureCount + activeGlobalCount;
 
   return (
     <FloatingWindow
@@ -353,53 +365,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         </div>
 
         {/* ============================================================== */}
-        {/* 2. Ext Object (外加物件 · 複選 Checkboxes)                       */}
-        {/* ============================================================== */}
-        <div className="fsw-group">
-          <button
-            type="button"
-            className="fsw-group-header"
-            onClick={() => toggleSection('extObject')}
-          >
-            <span className="fsw-chevron">
-              {isSectionOpen('extObject', extObjectItems.length > 0) ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-            </span>
-            <Layers size={14} style={{ color: '#a855f7' }} />
-            <span className="fsw-group-title">Ext Object</span>
-            <span className="fsw-group-sub">外加物件 · 複選</span>
-          </button>
-
-          {isSectionOpen('extObject', extObjectItems.length > 0) && (
-            <div className="fsw-group-children">
-              <div className="fsw-item-list">
-                {extObjectItems.map((item) => (
-                  <label
-                    key={item.id}
-                    className={`fsw-checkbox-row ${item.checked ? 'checked' : ''}`}
-                    title={item.descriptionZh}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      item.onToggle();
-                    }}
-                  >
-                    <span className={`fsw-checkbox ${item.checked ? 'checked' : ''}`}>
-                      {item.checked && <Check size={11} strokeWidth={3} />}
-                    </span>
-                    <span className="fsw-item-name">{item.shortBadge}</span>
-                    <span className="fsw-item-name-zh">{item.nameZh}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ============================================================== */}
-        {/* 3. Global Label (全球文字與標籤 · 複選 Checkboxes)                */}
+        {/* 2. Global Label (全球文字與標籤 · 複選 Checkboxes)                */}
         {/* ============================================================== */}
         <div className="fsw-group">
           <button
@@ -417,6 +383,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <Globe size={14} style={{ color: '#10b981' }} />
             <span className="fsw-group-title">Global Label</span>
             <span className="fsw-group-sub">全球文字與標籤 · 複選</span>
+            {activeGlobalCount > 0 && <span className="fsw-count-pill">{activeGlobalCount}</span>}
           </button>
 
           {isSectionOpen('globalLabel', filteredGlobalLabel.length > 0) && (
@@ -448,52 +415,47 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         </div>
 
         {/* ============================================================== */}
-        {/* 4. Area Label (區域特徵與圖標 · 複選 Checkboxes)                  */}
+        {/* 3. Area Feature (區域特徵與物件 · 複選 Checkboxes)                */}
         {/* ============================================================== */}
         <div className="fsw-group">
           <button
             type="button"
             className="fsw-group-header"
-            onClick={() => toggleSection('areaLabel')}
+            onClick={() => toggleSection('areaFeature')}
           >
             <span className="fsw-chevron">
-              {isSectionOpen('areaLabel', filteredAreaLabel.length > 0) ? (
+              {isSectionOpen('areaFeature', areaFeatureItems.length > 0) ? (
                 <ChevronDown size={14} />
               ) : (
                 <ChevronRight size={14} />
               )}
             </span>
             <MapPin size={14} style={{ color: '#f59e0b' }} />
-            <span className="fsw-group-title">Area Label</span>
-            <span className="fsw-group-sub">區域特徵與圖標 · 複選</span>
+            <span className="fsw-group-title">Area Feature</span>
+            <span className="fsw-group-sub">區域特徵與物件 · 複選</span>
+            {activeAreaFeatureCount > 0 && <span className="fsw-count-pill">{activeAreaFeatureCount}</span>}
           </button>
 
-          {isSectionOpen('areaLabel', filteredAreaLabel.length > 0) && (
+          {isSectionOpen('areaFeature', areaFeatureItems.length > 0) && (
             <div className="fsw-group-children">
               <div className="fsw-item-list">
-                {filteredAreaLabel.map((f) => {
-                  const checked =
-                    activeRegionalFilters.has(f.id) ||
-                    activeTextFilters.has(f.id) ||
-                    ((f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing') && isEuCrossingActive);
-                  return (
-                    <label
-                      key={f.id}
-                      className={`fsw-checkbox-row ${checked ? 'checked' : ''}`}
-                      title={f.descriptionZh || f.nameZh}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleToggleLabel(f.id);
-                      }}
-                    >
-                      <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
-                        {checked && <Check size={11} strokeWidth={3} />}
-                      </span>
-                      <span className="fsw-item-name">{f.shortBadge || f.nameZh}</span>
-                      <span className="fsw-item-name-zh">{f.nameZh}</span>
-                    </label>
-                  );
-                })}
+                {areaFeatureItems.map((item) => (
+                  <label
+                    key={item.id}
+                    className={`fsw-checkbox-row ${item.checked ? 'checked' : ''}`}
+                    title={item.descriptionZh}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      item.onToggle();
+                    }}
+                  >
+                    <span className={`fsw-checkbox ${item.checked ? 'checked' : ''}`}>
+                      {item.checked && <Check size={11} strokeWidth={3} />}
+                    </span>
+                    <span className="fsw-item-name">{item.shortBadge}</span>
+                    <span className="fsw-item-name-zh">{item.nameZh}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}

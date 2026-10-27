@@ -24,9 +24,10 @@ Inter-Geo 是一個專為地理探索、實境觀察與 GeoGuessr 競技研判�
 - **現代單一 Canvas 2D 向量引擎**：全系統捨棄肥重且容易引起 DOM Reflow 的 SVG 節點架構，全面收攏至 HTML5 Canvas 2D + `Path2D` 預編譯幾何路徑，在 120Hz/144Hz 螢幕下維持滿幀 120 FPS 的極限流暢度。
 - **純前端解耦雙庫設計**：前端 Web 應用庫 (`inter-geo`) 不含任何重型 GIS 圖資、CSV 數據或 Markdown 文檔；所有空間幾何、圖層與情報卡全數由資料內容庫 (`inter-geo-data`) 集中管理，並透過 GitHub Actions 自動編譯輕量化索引。
 - **多層次幾何 LOD 與視窗動態串流 (Viewport BBox Culling)**：僅下載並解碼當前螢幕可視範圍內的空間多邊形，非可視區 0 記憶體與網路負載。
-- **無限階層分區下鑽 (Unlimited Hierarchy Recursion)**：突破傳統 L1/L2 兩層限制，支援任意深度的行政區下鑽（如美國 3,200+ 郡、日本 1,900+ 市區町村、德國 400+ 縣轄郡等 276+ 獨立微型分區包）。
-- **結構化圖層體系 (Layer System)**：全面統一圖層命名與分類（4 大類別：區塊著色、外加幾何、全域標籤、區域標籤），支援雙色道路標線（邊線/中線）、即時著色與動態圖例。
-- **動態情報檔案庫與 4 種懸停模式**：點擊地圖任意物件即可閱讀豐富的 GeoGuessr 判讀情報卡；地圖懸停 Tooltip 提供「線索重點」、「特徵膠囊」、「線索清單」、「極簡名稱」等 4 種顯示模式。
+- **無限階層分區下鑽與幾何緊密度判定 (Unlimited Hierarchy & Geometric Solidity)**：突破傳統 L1/L2 兩層限制，支援任意深度的行政區下鑽（如美國 3,200+ 郡、日本 1,900+ 市區町村等 276+ 獨立微型分區包）。結合多邊形幾何面積與外框比例算術計算（Geometric Solidity），杜絕狹長或離島國家（如美國含阿拉斯加/夏威夷、日本含沖繩、智利）因海域 BBox 過大而過早展開 L2 的問題。
+- **結構化圖層體系 (Layer System)**：全面統一圖層命名與分類（3 大類別：區塊著色 Fill Region、全域標籤 Global Label、區域特徵 Area Feature），支援雙色道路標線（邊線/中線）、即時著色與動態圖例。
+- **動態情報檔案庫與 3 軌標籤規劃板**：點擊地圖任意物件即可閱讀豐富的 GeoGuessr 判讀情報卡；提供浮動情報設定面板（必含 / 必不含 / 預設三軌拖曳規劃），搭配游標物理跟隨動畫與地圖 Tooltip「線索重點」、「特徵膠囊」、「線索清單」、「極簡名稱」等 4 種顯示模式。
+- **單擊海洋視窗智慧收合 (Ocean Click-to-Dismiss)**：點擊無任何陸地之海洋區域自動收合圖層選擇器與情報設定面板，同時完整保留單擊各國陸地檢視焦點與情資之流暢操作。
 - **無縫換日線橫向世界鏡像 (Continuous World Wrapping)**：支援橫跨經度 180° 國際換日線的連續平移拖曳，消除地圖邊界斷點。
 - **高頻 URL 視角同步**：地圖中心經緯度、縮放比例與啟用圖層即時反映於網址列（`?lat=...&lon=...&ratio=...&layer=...`），方便分享與直接深層連結。
 
@@ -118,12 +119,14 @@ flowchart TD
 
     subgraph UIComponents["使用者介面組件"]
       HEADER["src/components/Header.tsx\n(圖層開關 / 模式切換)"]
-      LAYER_BAR["src/components/LayerBar.tsx\n(4 大類別樹狀圖層面板)"]
+      LAYER_BAR["src/components/LayerBar.tsx\n(3 大類別圖層面板)"]
+      INFO_WINDOW["src/components/InfoSettingsWindow.tsx\n(情報標籤偏好設定面板)"]
       PANEL["src/components/CountryDetailPanel.tsx\n(物件詳細情報抽屜)"]
     end
 
     APP_STATE <--> HEADER
     APP_STATE <--> LAYER_BAR
+    APP_STATE <--> INFO_WINDOW
     APP_STATE <--> PANEL
     PANEL --> INFO_REG
   end
@@ -234,14 +237,13 @@ TW,#3b82f6,靠右
 US,#3b82f6,靠右
 ```
 
-### 4 大圖層分類群組 (`LayerBar.tsx`)
+### 3 大圖層分類群組 (`LayerBar.tsx`)
 
 | 群組代號 | 名稱 | 選取邏輯 | 適用場景與圖層範例 |
 | --- | --- | --- | --- |
-| `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、道路標線 (Road Markings) |
-| `ext-object` | 外加物件 | 複選 (Checkbox) | 美國州際公路、美國國道、台灣電力座標系統等非邊界幾何 |
-| `global-label` | 全域標籤 | 複選 (Pill) | 國際化藥丸標籤：國旗、國際電話國碼、國家頂級網域 (ccTLD)、通用貨幣符號 |
-| `area-label` | 區域標籤 | 複選 (Pill) | 區域性特徵：街道命名詞綴、南亞各邦書寫字母、歐洲人行道告示牌特徵 |
+| `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
+| `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
+| `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、南亞各邦書寫字母 |
 
 ### 雙色道路標線標準 (Double-Color Road Markings)
 
@@ -309,8 +311,9 @@ US,#3b82f6,靠右
 | `src/App.tsx` | 應用頂層調度器、選取狀態管理、網址參數解析、側邊欄協調 |
 | `src/App.css` | 全系統 CSS 樣式庫（深色現代主題、Canvas 排版、動態圖例、HUD） |
 | `src/components/WorldMap.tsx` | 核心地圖組件、Canvas 生命週期、相機手勢、視窗可見性計算、圖資排程 |
-| `src/components/Header.tsx` | 頂部導航列、品牌 Logo、圖層面板開關、Infotip 模式切換按鈕 |
-| `src/components/LayerBar.tsx` | 4 大類別樹狀圖層面板、關鍵字搜尋過濾、圖層單選/複選控制 |
+| `src/components/Header.tsx` | 頂部導航列、品牌 Logo、圖層選擇器開關、情報設定面板開關 |
+| `src/components/LayerBar.tsx` | 3 大類別樹狀圖層面板、關鍵字搜尋過濾、圖層單選/複選控制 |
+| `src/components/InfoSettingsWindow.tsx` | 浮動情報設定面板、3 軌標籤規劃板（必含/必不含/預設）、游標物理跟隨拖曳、即時預覽 |
 | `src/components/CountryDetailPanel.tsx` | 點擊物件後彈出的情報抽屜、Markdown 卡片輪播與分頁 |
 | `src/components/MarkdownInfoCard.tsx` | 結構化 Markdown 渲染組件，支援強調文字與自訂標籤樣式 |
 | `src/map/MapLegend.tsx` | 地圖左上方動態圖例卡片，支援展開/收合、多圖層徽章同步 |
@@ -338,7 +341,7 @@ US,#3b82f6,靠右
 | 檔案 / 目錄路徑 | 系統職責 |
 | --- | --- |
 | `data/**/*.fgb` | 全球與各國空間幾何（`COUNTRY.fgb`, `JP.fgb`, `US/CA.fgb`, `US-roads.fgb`） |
-| `layers/*.csv` | 標準化 CSV 圖層數據，包含 `@id`, `@group`, `@type` 等頭部 Directives |
+| `layers/` | 標準化 CSV 圖層數據，依類別資料夾存放（`fill-region-with-color/`, `global-label/`, `area-feature/`） |
 | `info/*.md` | 各國與各區域之實戰情報卡，包含 Markdown 內文與元數據 |
 | `images/**/*` | 依類別整理之實景圖片資源（交通號誌、防撞柱、特色建築） |
 | `scripts/build-indexes.mjs` | Node.js 索引編譯腳本，解析全部數據生成 JSON 索引清單 |
@@ -350,7 +353,7 @@ US,#3b82f6,靠右
 
 | 任務目標 | 建議優先修改的檔案 |
 | --- | --- |
-| **新增或編輯地圖圖層** | 在 `inter-geo-data/layers/*.csv` 新增或修改檔案；推送到 `main` 分支自動重建索引。 |
+| **新增或編輯地圖圖層** | 在 `inter-geo-data/layers/` 新增或修改檔案（依類別置於 `fill-region-with-color/`、`global-label/` 或 `area-feature/` 目錄）；推送到 `main` 分支自動重建索引。 |
 | **新增或編輯 GeoGuessr 情報卡** | 在 `inter-geo-data/info/*.md` 新增或編寫 Markdown 內容，檢查 `targets` 與 `priority`。 |
 | **新增或更新二進位向量邊界** | 將 FlatGeobuf 放至 `inter-geo-data/data/`（遵循 `COUNTRY.fgb` 或 `{parent}/{child}.fgb` 命名規範）。 |
 | **調整相機手勢、縮放或平移邏輯** | 修改 `src/components/WorldMap.tsx`，必要時調整 `src/map/geo.ts`。 |

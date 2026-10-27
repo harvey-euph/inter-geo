@@ -42,12 +42,6 @@ export function normalizeDataPath(rawPath: string): string {
   if (p.startsWith('layers/fill-region/') && !p.startsWith('layers/fill-region-with-color/')) {
     p = p.replace(/^layers\/fill-region\//, 'layers/fill-region-with-color/');
   }
-  if (p.startsWith('layers/area-label/distinctive-letters.csv')) {
-    return 'layers/global-label/distinctive-letters.csv';
-  }
-  if (p.startsWith('layers/area-label/street-words.csv')) {
-    return 'layers/global-label/street-words.csv';
-  }
   if (p.startsWith('layers/') && !p.includes('/', 7)) {
     const fn = p.slice(7);
     const camelToKebab: Record<string, string> = {
@@ -73,7 +67,6 @@ export function normalizeDataPath(rawPath: string): string {
       'poles.csv',
       'road-markings.csv'
     ];
-    const extObjectFiles = ['taiwan-power-poles.csv'];
     const globalLabelFiles = [
       'country-code.csv',
       'currency.csv',
@@ -82,11 +75,10 @@ export function normalizeDataPath(rawPath: string): string {
       'distinctive-letters.csv',
       'street-words.csv'
     ];
-    const areaLabelFiles = ['india-scripts.csv', 'pedestrian-crossing.csv'];
+    const areaFeatureFiles = ['taiwan-power-poles.csv', 'india-scripts.csv', 'pedestrian-crossing.csv'];
     if (fillRegionFiles.includes(canonicalFn)) return `layers/fill-region-with-color/${canonicalFn}`;
-    if (extObjectFiles.includes(canonicalFn)) return `layers/ext-object/${canonicalFn}`;
     if (globalLabelFiles.includes(canonicalFn)) return `layers/global-label/${canonicalFn}`;
-    if (areaLabelFiles.includes(canonicalFn)) return `layers/area-label/${canonicalFn}`;
+    if (areaFeatureFiles.includes(canonicalFn)) return `layers/area-feature/${canonicalFn}`;
   }
   return p;
 }

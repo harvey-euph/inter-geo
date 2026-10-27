@@ -43,7 +43,7 @@ export interface RegisteredCsvLayer {
   /** Layer type */
   type: CsvLayerType;
   /** Layer category group for accordion UI */
-  group: 'fill-region' | 'fill-region-with-color' | 'ext-object' | 'global-label' | 'area-label';
+  group: 'fill-region' | 'fill-region-with-color' | 'global-label' | 'area-feature';
   /** Display order */
   order: number;
   /** Loading timing ('on-demand' or 'init') */

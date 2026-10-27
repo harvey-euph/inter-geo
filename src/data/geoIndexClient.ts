@@ -25,7 +25,7 @@ export interface LayerMeta {
   nameEn: string;
   shortBadge: string | null;
   type: string;
-  group: 'fill-region' | 'fill-region-with-color' | 'ext-object' | 'global-label' | 'area-label';
+  group: 'fill-region' | 'fill-region-with-color' | 'global-label' | 'area-feature';
   order: number;
   accentColor: string | null;
   defaultColor: string | null;
@@ -47,9 +47,8 @@ export interface LayersIndex {
   totalLayers: number;
   groups: {
     fillRegion: LayerMeta[];
-    extObject: LayerMeta[];
     globalLabel: LayerMeta[];
-    areaLabel: LayerMeta[];
+    areaFeature: LayerMeta[];
   };
   layers: LayerMeta[];
   byFilename: Record<string, LayerMeta>;
@@ -221,7 +220,7 @@ export async function loadLayersIndex(): Promise<LayersIndex> {
         return {
           files: [],
           totalLayers: 0,
-          groups: { fillRegion: [], extObject: [], globalLabel: [], areaLabel: [] },
+          groups: { fillRegion: [], globalLabel: [], areaFeature: [] },
           layers: [],
           byFilename: {},
           byId: {}

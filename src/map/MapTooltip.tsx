@@ -306,7 +306,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               </span>
             )}
           </div>
-          {activeRegionalFilters.has('eu-pedestrian-crossing') &&
+          {(activeRegionalFilters.has('eu-pedestrian-crossing') || activeRegionalFilters.has('pedestrian-crossing')) &&
             (() => {
               const cSign = getCrossingSign(hoveredL2Subdivision.iso2);
               if (!cSign) return null;
@@ -455,7 +455,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             const filteredStubs = allStubs.filter((s) => matchesCardTagFilter(s.tags));
             return renderStubsPreview(filteredStubs.length > 0 ? filteredStubs : allStubs, hoveredCountry.keyHints);
           })()}
-          {activeRegionalFilters.has('eu-pedestrian-crossing') &&
+          {(activeRegionalFilters.has('eu-pedestrian-crossing') || activeRegionalFilters.has('pedestrian-crossing')) &&
             (() => {
               const cSign = getCrossingSign(hoveredCountry.iso2);
               if (!cSign) return null;

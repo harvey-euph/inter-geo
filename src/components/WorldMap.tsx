@@ -166,6 +166,25 @@ function getMidpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
+// ==========================================
+// VIEWPORT EXPOSURE & EXPANSION CONFIGURATION
+// ==========================================
+/**
+ * 國家 L2 子區域（州/省/都道府縣）展開之視窗曝光率門檻。
+ * 數值越大代表需要 zoom in 放大越靠近才會展開（預設 0.2）。
+ */
+export const COUNTRY_L2_EXPANSION_THRESHOLD = 0.2;
+
+/**
+ * L2 父級展開 L3（市/區/町/村）之視窗曝光率門檻（預設 0.2）。
+ */
+export const SUBDIVISION_L3_EXPANSION_THRESHOLD = 0.2;
+
+/**
+ * 國家 BBox 在螢幕上的最短邊實體像素下限（像素小於此值視為過窄/過遠，不予展開）。
+ */
+export const COUNTRY_MIN_SCREEN_DIMENSION = 65;
+
 function getBBoxScreenAreaRatio(
   bbox: [number, number, number, number],
   k: number,
@@ -218,6 +237,7 @@ interface WorldMapProps {
   onSelectRoad?: (road: RoadPathData | null, options?: MapSelectOptions) => void;
   detailPanelWidth?: number;
   detailPanelFullWidth?: boolean;
+  onOceanClick?: () => void;
 }
 
 export const WorldMap: React.FC<WorldMapProps> = ({
@@ -248,7 +268,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   selectedRoad,
   onSelectRoad,
   detailPanelWidth = 420,
-  detailPanelFullWidth = false
+  detailPanelFullWidth = false,
+  onOceanClick
 }) => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -603,7 +624,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     let cancelled = false;
     const activeExtLayerIds = Array.from(activeRegionalFilters).filter((id) => {
       const layer = getCsvLayerById(id);
-      return layer && (layer.type === 'ExtObject' || layer.meta.group === 'ext-object' || layer.meta.fgb);
+      return layer && (layer.type === 'ExtObject' || layer.meta.group === 'area-feature' || layer.meta.fgb);
     });
 
     if (activeExtLayerIds.length === 0) {
@@ -657,13 +678,27 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       } catch {
         // fallback
       }
+
+      // Geometric solidity: compares actual polygon land area vs AABB rectangle area to discount ocean expanses
+      let solidity = 1.0;
+      try {
+        const landArea = Math.abs(pathGenerator.area(feature));
+        const bboxArea = Math.max(1, (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]));
+        if (landArea > 0 && Number.isFinite(landArea)) {
+          solidity = Math.min(1.0, Math.max(0.02, landArea / bboxArea));
+        }
+      } catch {
+        // fallback
+      }
+
       return {
         path2D,
         bbox,
         countryMeta,
         id: feature.id,
         name: feature.properties?.name || 'Unknown',
-        centroid
+        centroid,
+        solidity
       };
     });
   }, [features, pathGenerator]);
@@ -993,18 +1028,46 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     return getBBoxScreenAreaRatio(bbox, k, x, y, w, h);
   }, []);
 
+  /**
+   * Evaluates whether a country is zoomed in enough to expand its L2 subdivisions.
+   * Uses zero-hardcoded geometric solidity (land area / bbox area) to discount ocean voids
+   * (e.g. US with Alaska/Hawaii, JP with Okinawa) and enforces a minimum physical pixel dimension.
+   */
+  const isCountryExpandedByExposure = useCallback(
+    (iso2: string, countryBox: [number, number, number, number]) => {
+      const baseRatio = getBBoxScreenRatio(countryBox);
+      if (baseRatio <= 0.01) return false;
+
+      const { k } = transformRef.current;
+      const boxW = (countryBox[2] - countryBox[0]) * k;
+      const boxH = (countryBox[3] - countryBox[1]) * k;
+      // If the country's narrowest axis is physically too thin on the screen, do not expand yet
+      if (Math.min(boxW, boxH) < COUNTRY_MIN_SCREEN_DIMENSION) return false;
+
+      // Geometric solidity correction factor:
+      // Compares actual polygon land area vs AABB rectangle area to discount ocean expanses
+      // (e.g. US with Alaska/Hawaii ~20% solidity, JP with Okinawa ~17.5% solidity).
+      const solidity = countryPathMap.get(iso2)?.solidity ?? 0.6;
+      const correctionFactor = Math.sqrt(Math.max(0.12, Math.min(1.0, solidity)));
+      const effectiveRatio = baseRatio * correctionFactor;
+
+      return effectiveRatio > COUNTRY_L2_EXPANSION_THRESHOLD;
+    },
+    [getBBoxScreenRatio, countryPathMap]
+  );
+
   const getHoverExpansionSignature = useCallback(() => {
     const country = hoveredCountryRef.current;
     const sub = hoveredL2SubdivisionRef.current;
     const hoveredIso2 = country?.iso2 || sub?.iso2;
     const countryBox = hoveredIso2 && countryBBoxesRef.current[hoveredIso2];
-    const countryExpanded = !!countryBox && getBBoxScreenRatio(countryBox) > 0.2;
+    const countryExpanded = !!countryBox && !!hoveredIso2 && isCountryExpandedByExposure(hoveredIso2, countryBox);
     const subPath = sub && l2PathsByCountryRef.current[sub.iso2]?.find(
       (item) => String(item.id) === String(sub.id)
     );
-    const l3Expanded = !!subPath && getBBoxScreenRatio(subPath.bbox) > 0.2;
+    const l3Expanded = !!subPath && getBBoxScreenRatio(subPath.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD;
     return `${hoveredIso2 || ''}:${countryExpanded}|${sub?.iso2 || ''}:${sub?.id || ''}:${l3Expanded}`;
-  }, [getBBoxScreenRatio]);
+  }, [getBBoxScreenRatio, isCountryExpandedByExposure]);
 
   const getActiveLayerHoverTargets = useCallback(() => {
     const activeFilters = Array.from(activeRegionalFiltersRef.current)
@@ -1092,16 +1155,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const l2HoveredIso2 = hoveredL2?.iso2;
     const countryBoxIso2 = hoveredIso2 || l2HoveredIso2;
     const countryBox = countryBoxIso2 && countryBBoxesRef.current[countryBoxIso2];
-    if (hoveredIso2 && countryBox && getBBoxScreenRatio(countryBox) > 0.2) expanded.add(hoveredIso2);
-    if (l2HoveredIso2 && countryBox && getBBoxScreenRatio(countryBox) > 0.2) expanded.add(l2HoveredIso2);
+    if (hoveredIso2 && countryBox && isCountryExpandedByExposure(hoveredIso2, countryBox)) expanded.add(hoveredIso2);
+    if (l2HoveredIso2 && countryBox && isCountryExpandedByExposure(l2HoveredIso2, countryBox)) expanded.add(l2HoveredIso2);
     if (hoveredL2) {
       const sub = l2PathsByCountryRef.current[hoveredL2.iso2]?.find(
         (item) => String(item.id) === String(hoveredL2.id)
       );
-      if (sub && getBBoxScreenRatio(sub.bbox) > 0.2) expanded.add(hoveredL2.iso2);
+      if (sub && getBBoxScreenRatio(sub.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD) expanded.add(hoveredL2.iso2);
     }
     return expanded;
-  }, [getBBoxScreenRatio, getActiveLayerHoverTargets]);
+  }, [getBBoxScreenRatio, isCountryExpandedByExposure, getActiveLayerHoverTargets]);
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1447,6 +1510,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         onSelectCountry(null);
         if (onSelectMunicipality) onSelectMunicipality(null);
         requestRender();
+        onOceanClick?.();
         return;
       }
 
@@ -1511,6 +1575,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onSelectCountry,
       onSelectSubdivision,
       onSelectMunicipality,
+      onOceanClick,
       getFeatureAtPoint,
       loadL3PackForSubdivision,
       requestRender
@@ -1734,7 +1799,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
         const isPinnedSub = selectedL2SubdivisionRef.current?.iso2 === sub.iso2 &&
           String(selectedL2SubdivisionRef.current.id) === String(sub.id);
-        if (visibleBBoxArea / visibleArea > 0.2 || isPinnedSub) {
+        if (visibleBBoxArea / visibleArea > SUBDIVISION_L3_EXPANSION_THRESHOLD || isPinnedSub) {
           hoveredL3ParentRef.current = {
             iso2: sub.iso2,
             id: sub.id,
@@ -1744,10 +1809,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             path2D: sub.path2D
           };
         }
-        if (visibleBBoxArea / visibleArea <= 0.2) {
+        if (visibleBBoxArea / visibleArea <= SUBDIVISION_L3_EXPANSION_THRESHOLD) {
           hoveredL3ParentRef.current = null;
         }
-        if (visibleBBoxArea / visibleArea > 0.2 || isPinnedSub) {
+        if (visibleBBoxArea / visibleArea > SUBDIVISION_L3_EXPANSION_THRESHOLD || isPinnedSub) {
           loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
         }
         if (

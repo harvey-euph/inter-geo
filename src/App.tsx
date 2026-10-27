@@ -81,7 +81,9 @@ export function App() {
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
     initialCsvLayer?.type === 'Image' ? effectiveLayerCandidate : null
   );
-  const isExtObject = initialCsvLayer?.type === 'ExtObject' || initialCsvLayer?.group === 'ext-object';
+  const isExtObject =
+    initialCsvLayer?.type === 'ExtObject' ||
+    initialCsvLayer?.group === 'area-feature';
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
     () =>
       new Set(
@@ -89,7 +91,7 @@ export function App() {
           (id) =>
             !!getNationwideLayerById(id) ||
             getCsvLayerById(id)?.type === 'ExtObject' ||
-            getCsvLayerById(id)?.meta.group === 'ext-object' ||
+            getCsvLayerById(id)?.meta.group === 'area-feature' ||
             (isExtObject && id === effectiveLayerCandidate)
         )
       )
@@ -216,6 +218,13 @@ export function App() {
   const handleToggleTextFilter = useCallback((filterId: string) => {
     // Activating a text filter closes the image filter
     setActiveInternationalImageFilter(null);
+    setActiveRegionalFilters((rPrev) => {
+      if (!rPrev.has('eu-pedestrian-crossing') && !rPrev.has('pedestrian-crossing')) return rPrev;
+      const next = new Set(rPrev);
+      next.delete('eu-pedestrian-crossing');
+      next.delete('pedestrian-crossing');
+      return next;
+    });
     setActiveTextFilters((prev) => {
       const next = new Set(prev);
       if (next.has(filterId)) {
@@ -234,17 +243,80 @@ export function App() {
 
   const handleToggleInternationalImageFilter = useCallback((filterId: string) => {
     setActiveInternationalImageFilter((prev) => {
-      if (prev === filterId) {
+      const isSameOrAlias =
+        prev === filterId ||
+        ((prev === 'eu-pedestrian-crossing' || prev === 'pedestrian-crossing') &&
+          (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing'));
+
+      if (isSameOrAlias) {
+        setActiveRegionalFilters((rPrev) => {
+          if (!rPrev.has('eu-pedestrian-crossing') && !rPrev.has('pedestrian-crossing')) return rPrev;
+          const next = new Set(rPrev);
+          next.delete('eu-pedestrian-crossing');
+          next.delete('pedestrian-crossing');
+          return next;
+        });
         return null;
       } else {
         // Activating an image filter closes all text filters!
         setActiveTextFilters(new Set());
+        if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
+          setActiveRegionalFilters((rPrev) => {
+            const next = new Set(rPrev);
+            next.add('eu-pedestrian-crossing');
+            next.add('pedestrian-crossing');
+            return next;
+          });
+        }
         return filterId;
       }
     });
   }, []);
 
   const handleToggleRegionalFilter = useCallback((filterId: string) => {
+    if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
+      const isCurrentlyActive =
+        activeRegionalFilters.has('eu-pedestrian-crossing') ||
+        activeRegionalFilters.has('pedestrian-crossing') ||
+        activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+        activeInternationalImageFilter === 'pedestrian-crossing';
+
+      if (isCurrentlyActive) {
+        setActiveRegionalFilters((prev) => {
+          const next = new Set(prev);
+          next.delete('eu-pedestrian-crossing');
+          next.delete('pedestrian-crossing');
+          return next;
+        });
+        setActiveInternationalImageFilter(null);
+      } else {
+        setActiveRegionalFilters((prev) => {
+          const next = new Set(prev);
+          next.add('eu-pedestrian-crossing');
+          next.add('pedestrian-crossing');
+          return next;
+        });
+        setActiveInternationalImageFilter('pedestrian-crossing');
+
+        const csvLayer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
+        const csvGoto = csvLayer?.meta?.goto || csvLayer?.goto || 'lat=50&lon=16&ratio=4';
+        if (csvGoto) {
+          try {
+            const p = new URLSearchParams(csvGoto);
+            const lat = Number(p.get('lat'));
+            const lon = Number(p.get('lon'));
+            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return;
+    }
+
     const targetDef = getNationwideLayerById(filterId);
     const turningOn = !activeRegionalFilters.has(filterId);
     setActiveRegionalFilters((prev) => {
@@ -275,7 +347,7 @@ export function App() {
       }
       return next;
     });
-    if (!turningOn || !targetDef) return;
+    if (!turningOn) return;
 
     const csvLayer = getCsvLayerById(filterId);
     if (csvLayer) {
@@ -337,16 +409,18 @@ export function App() {
       return;
     }
 
-    if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
-      focusMapRef.current?.({ kind: 'bbox', boxes: targetDef.customBBoxes });
-    } else if (targetDef.customBBox) {
-      focusMapRef.current?.({ kind: 'bbox', boxes: [targetDef.customBBox] });
-    } else {
-      const iso =
-        targetDef.countryIso2 || (targetDef.targetIso2 !== '*' ? targetDef.targetIso2 : '');
-      if (iso) focusMapRef.current?.({ kind: 'country', iso2: iso });
+    if (targetDef) {
+      if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
+        focusMapRef.current?.({ kind: 'bbox', boxes: targetDef.customBBoxes });
+      } else if (targetDef.customBBox) {
+        focusMapRef.current?.({ kind: 'bbox', boxes: [targetDef.customBBox] });
+      } else {
+        const iso =
+          targetDef.countryIso2 || (targetDef.targetIso2 !== '*' ? targetDef.targetIso2 : '');
+        if (iso) focusMapRef.current?.({ kind: 'country', iso2: iso });
+      }
     }
-  }, [activeRegionalFilters]);
+  }, [activeRegionalFilters, activeInternationalImageFilter]);
 
   const handleResetAllFilters = useCallback(() => {
     setActiveFilterId('base');
@@ -440,6 +514,13 @@ export function App() {
       }
     }
   }, [activeWindow, isFilterExpanded, bringToFront]);
+
+  // Single click on empty ocean space closes both floating windows
+  const handleOceanClick = useCallback(() => {
+    setIsFilterExpanded(false);
+    setIsInfoSettingsExpanded(false);
+    setActiveWindow(null);
+  }, []);
 
   // Keyboard shortcut: ESC to close frontmost window or active modal
   useEffect(() => {
@@ -626,6 +707,7 @@ export function App() {
             onToggleInterstates={handleToggleInterstates}
             showNumberedRoutes={showNumberedRoutes}
             onToggleNumberedRoutes={handleToggleNumberedRoutes}
+            onOceanClick={handleOceanClick}
           />
         </section>
 

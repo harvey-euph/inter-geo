@@ -33,6 +33,7 @@ export interface CountryPathData {
   id: string;
   name: string;
   centroid: [number, number];
+  solidity?: number;
 }
 
 export interface L2SubdivisionPathData {

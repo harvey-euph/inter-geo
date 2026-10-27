@@ -87,7 +87,9 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   // Image overlay (pedestrian crossing) state
   const isImageActive = Boolean(
     activeInternationalImageFilter === 'pedestrian-crossing' ||
-    activeInternationalImageFilter === 'eu-pedestrian-crossing'
+    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
+    activeRegionalFilters?.has('eu-pedestrian-crossing') ||
+    activeRegionalFilters?.has('pedestrian-crossing')
   );
   const isImageDimmed = dimmedImageFilters.has('pedestrian-crossing');
   const showImagePill = isImageActive || isImageDimmed;
@@ -110,11 +112,13 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
     const list: string[] = [];
     if (activeRegionalFilters) {
       for (const id of activeRegionalFilters) {
-        list.push(id);
+        if (id !== 'eu-pedestrian-crossing' && id !== 'pedestrian-crossing') {
+          list.push(id);
+        }
       }
     }
     for (const id of dimmedRegionalFilters) {
-      if (!list.includes(id)) {
+      if (id !== 'eu-pedestrian-crossing' && id !== 'pedestrian-crossing' && !list.includes(id)) {
         list.push(id);
       }
     }
