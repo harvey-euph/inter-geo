@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, queryInfoStubs } from '../info/infoRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
+import { GoogleMapsEmbed } from './GoogleMapsEmbed';
+import { isGoogleMapsEmbedToken } from '../utils/googleMapsEmbed';
 import type { InfoCard, InfoItem, InfoQuery, InfoStub } from '../types/info';
 import {
   getInfoTagPreferences,
@@ -63,6 +65,11 @@ const renderInlineMarkdown = (
       if (imgMatch) {
         const rawAlt = imgMatch[1].trim();
         const src = imgMatch[2].trim();
+
+        if (isGoogleMapsEmbedToken(rawAlt, src)) {
+          return <GoogleMapsEmbed key={idx} alt={rawAlt} src={src} />;
+        }
+
         const [altText, sizeParam] = rawAlt.includes('|')
           ? rawAlt.split('|').map((s) => s.trim())
           : [rawAlt, undefined];
@@ -143,7 +150,13 @@ const renderInlineMarkdown = (
     if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
       const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (match) {
-        const href = match[2];
+        const linkText = match[1].trim();
+        const href = match[2].trim();
+
+        if (/^(?:embed:(?:map|streetview|sv|gmap)|embed)$/i.test(linkText)) {
+          return <GoogleMapsEmbed key={idx} alt={linkText} src={href} />;
+        }
+
         if (href.toLowerCase().startsWith('country:')) {
           let countryName = href.slice('country:'.length);
           try {
@@ -205,38 +218,47 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
     card.imagePosition || (imageDims?.isBanner ? 'top' : 'left');
   const isSideImage = hasCardImage && (effectivePosition === 'left' || effectivePosition === 'right');
 
+  const isEmbedImage = Boolean(card.image && isGoogleMapsEmbedToken(card.imageAlt, card.image));
   const cardImageNode =
-    hasCardImage && imageDims ? (
-      <div
-        style={{
-          width: imageDims.width,
-          height: imageDims.height,
-          minWidth: typeof imageDims.width === 'number' ? imageDims.width : undefined,
-          maxWidth: '100%',
-          borderRadius: 8,
-          backgroundColor: 'rgba(2, 6, 23, 0.85)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          padding: 6,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-          marginBottom: effectivePosition === 'top' ? 10 : 0
-        }}
-      >
-        <img
-          src={resolveInfoImageUrl(card.image || '')}
-          alt={card.imageAlt || card.title}
-          loading="lazy"
-          style={{
-            width: '100%',
-            height: '100%',
-            maxHeight: imageDims.maxHeight,
-            objectFit: 'contain',
-            display: 'block'
-          }}
+    hasCardImage && (isEmbedImage || imageDims) ? (
+      isEmbedImage ? (
+        <GoogleMapsEmbed
+          alt={card.imageAlt}
+          src={card.image || ''}
+          style={{ marginBottom: effectivePosition === 'top' ? 10 : 0 }}
         />
-      </div>
+      ) : (
+        <div
+          style={{
+            width: imageDims!.width,
+            height: imageDims!.height,
+            minWidth: typeof imageDims!.width === 'number' ? imageDims!.width : undefined,
+            maxWidth: '100%',
+            borderRadius: 8,
+            backgroundColor: 'rgba(2, 6, 23, 0.85)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            padding: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            marginBottom: effectivePosition === 'top' ? 10 : 0
+          }}
+        >
+          <img
+            src={resolveInfoImageUrl(card.image || '')}
+            alt={card.imageAlt || card.title}
+            loading="lazy"
+            style={{
+              width: '100%',
+              height: '100%',
+              maxHeight: imageDims!.maxHeight,
+              objectFit: 'contain',
+              display: 'block'
+            }}
+          />
+        </div>
+      )
     ) : null;
 
   const bulletListNode = (

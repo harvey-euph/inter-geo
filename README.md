@@ -11,8 +11,8 @@ Inter-Geo 是一個專為地理探索、實境觀察與 GeoGuessr 競技研判�
 - [3. 架構設計與資料流 (Architecture & Data Flow)](#3-架構設計與資料流-architecture--data-flow)
 - [4. 渲染管線與效能優化 (Rendering Pipeline & Optimization)](#4-渲染管線與效能優化-rendering-pipeline--optimization)
 - [5. 空間資料生命週期與無限階層下鑽 (LOD & Unlimited Hierarchy)](#5-空間資料生命週期與無限階層下鑽-lod--unlimited-hierarchy)
-- [6. 動態圖層體系與 CSV 註冊中心 (Layer System & CSV Registry)](#6-動態圖層體系與-csv-註冊中心-layer-system--csv-registry)
-- [7. Markdown 情報卡與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)](#7-markdown-情報卡與-infotip-懸停模式-info-dossiers--infotip-modes)
+- [6. 動態圖層體系與前端註冊中心 (Layer System & CSV Registry)](#6-動態圖層體系與前端註冊中心-layer-system--csv-registry)
+- [7. Markdown 情報卡渲染架構與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)](#7-markdown-情報卡渲染架構與-infotip-懸停模式-info-dossiers--infotip-modes)
 - [8. 專案目錄導覽 (Repository Directory Reference)](#8-專案目錄導覽-repository-directory-reference)
 - [9. 開發任務切入指引 (Where to Start by Task)](#9-開發任務切入指引-where-to-start-by-task)
 - [10. 本機開發與建置命令 (Development & Build Workflows)](#10-本機開發與建置命令-development--build-workflows)
@@ -213,85 +213,63 @@ flowchart LR
 
 ---
 
-## 6. 動態圖層體系與 CSV 註冊中心 (Layer System & CSV Registry)
+## 6. 動態圖層體系與前端註冊中心 (Layer System & CSV Registry)
 
-系統將圖層統一抽象為 **Layer**，並於 `inter-geo-data/layers/*.csv` 透過頭部 Directives 聲明：
+系統將圖層統一抽象為 **Layer**。圖層數據的 CSV 規範、Directives 標頭宣告與資料庫結構，請參見資料庫手冊 [inter-geo-data/README.md#3-csv-圖層撰寫規範與-directive-體系-csv-layer-directives](file:///home/harvey/inter-geo-data/README.md#3-csv-圖層撰寫規範與-directive-體系-csv-layer-directives)。
 
-```csv
-// @id: driving-side
-// @nameZh: 行駛方向
-// @nameEn: Driving Side
-// @shortBadge: 🚦 方向
-// @group: fill-region
-// @type: FillWithColor
-// @default-color: #1e2430
-// @order: 8
-// @descriptionZh: 全球各國道路通行方向（靠左行駛 #f59e0b 與靠右行駛 #3b82f6，無街景或未收錄 #1e2430）制度分布
-// @legend: #f59e0b: 靠左行駛 (Left-hand Drive)
-// @legend: #3b82f6: 靠右行駛 (Right-hand Drive)
-// @legend: #1e2430: 無街景或未收錄
-region-id,value,label
-JP,#f59e0b,靠左
-GB,#f59e0b,靠左
-TW,#3b82f6,靠右
-US,#3b82f6,靠右
-```
+前端應用庫透過下列模組實現動態圖層解析、著色與互動：
 
-### 3 大圖層分類群組 (`LayerBar.tsx`)
+- **動態 CSV 註冊中心 (`src/layers/csvLayerRegistry.ts`)**：從遠端快取 `layers-index.json`，在使用者選取圖層時下載對應 CSV 並解析為區域數值映射表。
+- **3 大圖層分類群組介面 (`src/components/LayerBar.tsx`)**：
+  | 群組代號 | 名稱 | 選取邏輯 | 適用場景與圖層範例 |
+  | --- | --- | --- | --- |
+  | `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
+  | `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
+  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、南亞各邦書寫字母 |
 
-| 群組代號 | 名稱 | 選取邏輯 | 適用場景與圖層範例 |
-| --- | --- | --- | --- |
-| `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
-| `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
-| `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、南亞各邦書寫字母 |
+- **雙色道路標線渲染管線 (`renderLayers.ts`)**：
+  道路邊界線與中央分向線顏色採用標準格式：`#邊線色:#中線色`（例如 `#f1f5f9:#f59e0b` 代表外側白邊線 + 中央黃線）。渲染引擎檢測到 `:` 分隔符時，自動切換至專屬的雙層筆刷光柵化。
 
-### 雙色道路標線標準 (Double-Color Road Markings)
+- **通用區域代碼正規化器 (`src/layers/assignableRegions.ts`)**：
+  提供 `normalizeRegionKeys(rawId, defaultIso2)` 通用函式：
+  - 支援分向分隔符自動轉換：`JP::26` $\leftrightarrow$ `JP-26` $\leftrightarrow$ `26`。
+  - 支援數值位數補零：`JP-01` $\leftrightarrow$ `JP-1` $\leftrightarrow$ `01` $\leftrightarrow$ `1`。
+  - 支援跨國通用命名空間：若指定 `defaultIso2 = 'US'`，輸入 `CA` 自動生成 `['CA', 'US::CA', 'US-CA']`。
+  - 支援特殊地理格網（如台灣電力座標 `TP-H`）。
 
-道路邊界線與中央分向線顏色採用標準格式：`#邊線色:#中線色`（例如 `#f1f5f9:#f59e0b` 代表外側白邊線 + 中央黃線）。渲染引擎檢測到 `:` 分隔符時，自動切換至專屬的雙層筆刷光柵化。
-
-### 通用區域代碼正規化 (`src/layers/assignableRegions.ts`)
-
-提供 `normalizeRegionKeys(rawId, defaultIso2)` 通用函式：
-- 支援分向分隔符自動轉換：`JP::26` $\leftrightarrow$ `JP-26` $\leftrightarrow$ `26`。
-- 支援數值位數補零：`JP-01` $\leftrightarrow$ `JP-1` $\leftrightarrow$ `01` $\leftrightarrow$ `1`。
-- 支援跨國通用命名空間：若指定 `defaultIso2 = 'US'`，輸入 `CA` 自動生成 `['CA', 'US::CA', 'US-CA']`。
-- 支援特殊地理格網（如台灣電力座標 `TP-H`）。
-
-### 動態圖例元件 (`MapLegend.tsx`)
-
-地圖左上方配置可自由收合與展開的動態圖例卡片：
-- 展開時清楚展示當前著色圖層之色塊與說明文字；在 Base 模式下顯示友善的情境提示。
-- 當啟用全域標籤或區域專屬標籤時，自動同步列出已疊加的藥丸徽章。
-- 內建 `min-width` 與平滑過渡動畫，避免卡片切換時寬度劇烈跳動。
+- **動態圖例元件 (`MapLegend.tsx`)**：
+  地圖左上方配置可自由收合與展開的動態圖例卡片：
+  - 展開時清楚展示當前著色圖層之色塊與說明文字；在 Base 模式下顯示友善的情境提示。
+  - 當啟用全域標籤或區域專屬標籤時，自動同步列出已疊加的藥丸徽章。
+  - 內建 `min-width` 與平滑過渡動畫，避免卡片切換時寬度劇烈跳動。
 
 ---
 
-## 7. Markdown 情報卡與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)
+## 7. Markdown 情報卡渲染架構與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)
 
-情資文章統一撰寫於 `inter-geo-data/info/*.md`，每張卡片皆包含標準元數據：
+情資文章統一由內容庫 `inter-geo-data/info/*.md` 集中維護。關於情報卡元數據欄位、Markdown 正文語法與 Google Maps / Street View 撰寫指南，請參閱 [inter-geo-data/README.md#4-markdown-實戰情報卡撰寫指南-info-card-authoring-guide](file:///home/harvey/inter-geo-data/README.md#4-markdown-實戰情報卡撰寫指南-info-card-authoring-guide)。
 
-```markdown
-# 日本 (Japan)
-- id: country-jp
-- targets: JP
-- priority: 1
-- icon: 🇯🇵
-- accent: #38bdf8
-- tags: 東亞, 靠左行駛, 官方街景
-- type: country
-- display: true
+前端應用庫透過下列架構實現極速載入、豐富互動與彈性呈現：
 
-- **關鍵線索**: 靠左行駛 (Left Drive) + Low Cam 低視角鏡頭。
-- **車牌特徵**: 普通車白底綠字，輕型車（Kei Car）黃底黑字。
-- **電線桿**: 桿底常見黃黑相間防撞警示斜紋套管。
-```
-
-### 優先級排序與按需讀取
+### 優先級排序與按需讀取架構 (`infoRegistry.ts`)
 
 - **優先級定義 (`priority`)**：數值由 `0` 至 `139` 升冪排序（預設 `140`），數字越小優先度越高。
-- **即時按需載入 (`infoRegistry.ts`)**：比對 `info-targets.json` 索引以 $O(1)$ 速度命中目標，僅在使用者點擊或懸停時才抓取對應 Markdown 全文，支援請求合併與記憶體快取。
+- **即時按需載入**：比對 `info-targets.json` 索引以 $O(1)$ 速度命中目標，僅在使用者點擊或懸停時才抓取對應 Markdown 全文，支援請求合併與記憶體快取。
 
-### 4 種 Infotip 懸停提示卡模式
+### 結構化 Markdown 渲染組件 (`MarkdownInfoCard.tsx`)
+
+- **排版引擎**：支援粗體強調、全形括號主題強調標籤 `【...】`、國家快速跳轉按鈕、等比縮放圖示與二級縮排清單。
+- **卡片狀態管理**：支援標題點擊展開/收合切換，並自動對應卡片之自訂 Accent 主色邊框與光暈陰影。
+
+### Google Maps Embed API 整合組件 (`GoogleMapsEmbed.tsx` & `googleMapsEmbed.ts`)
+
+- **API 金鑰管理**：透過 Vite 環境變數 `VITE_GOOGLE_MAPS_API_KEY` 於 `.env` 中安全注入（前端公開使用，並透過 Google Cloud Console 配置 HTTP Referrer 白名單限制）。
+- **Markdown Token 智慧解析**：支援經緯度座標、完整 Google Maps / Street View 網址、自訂標題、視角角度（`heading` / `pitch` / `fov` / `zoom`）與地名搜尋。
+- **事件隔離設計 (Event Bubbling Isolation)**：地圖容器阻斷 `click` 事件冒泡，使用者於地圖中拖曳視角、縮放或點擊時，絕不誤觸父層卡片的收合機制。
+- **自適應固定比例與高度**：預設採用 16:9 (`16 / 9`) 固定黃金比例依照 Info Card 當前寬度動態自適應高度（當使用者拖曳抽屜寬度或全寬展開時，畫面即時等比例縮放不變形）；亦支援以 `4:3`、`16:10` 等自訂比例或 `h=<數值>` 固定像素高度覆蓋。
+- **外部直達按鈕**：右上角配置「在 Google 地圖開啟 ↗」獨立按鈕，並於 API 金鑰未配置時提供友善的 Fallback 介面。
+
+### 4 種 Infotip 懸停提示卡模式 (`MapTooltip.tsx`)
 
 使用者可點擊頂部導航列按鈕即時切換地圖 Tooltip 的呈現方式，設定會自動持久化至 `localStorage`：
 
@@ -316,6 +294,8 @@ US,#3b82f6,靠右
 | `src/components/InfoSettingsWindow.tsx` | 浮動情報設定面板、3 軌標籤規劃板（必含/必不含/預設）、游標物理跟隨拖曳、即時預覽 |
 | `src/components/CountryDetailPanel.tsx` | 點擊物件後彈出的情報抽屜、Markdown 卡片輪播與分頁 |
 | `src/components/MarkdownInfoCard.tsx` | 結構化 Markdown 渲染組件，支援強調文字與自訂標籤樣式 |
+| `src/components/GoogleMapsEmbed.tsx` | Google Maps Embed API 互動地圖與街景嵌入組件 |
+| `src/utils/googleMapsEmbed.ts` | 地圖嵌入參數解析器、網址特徵萃取與 Embed URL 構造器 |
 | `src/map/MapLegend.tsx` | 地圖左上方動態圖例卡片，支援展開/收合、多圖層徽章同步 |
 | `src/map/MapTooltip.tsx` | 地圖懸停浮動提示卡，支援 4 種使用者自訂顯示模式 |
 | `src/map/MapControls.tsx` | 地圖右下方縮放控制按鈕群（放大、縮小、視角重設） |
@@ -337,6 +317,9 @@ US,#3b82f6,靠右
 | `public/globe.svg` | 應用程式 Favicon 向量圖標 |
 
 ### 空間資料內容庫 (`/home/harvey/inter-geo-data`)
+
+> [!NOTE]
+> 空間圖資、CSV 圖層結構與情報卡之詳細規範請直接參閱 [inter-geo-data/README.md](file:///home/harvey/inter-geo-data/README.md)。
 
 | 檔案 / 目錄路徑 | 系統職責 |
 | --- | --- |
@@ -395,6 +378,6 @@ npm run preview
 ### 資料內容庫 (`inter-geo-data`)
 
 當在 `inter-geo-data` 中編修圖資、CSV 圖層或 Markdown 情報卡時：
-1. 本機可手動執行 `node scripts/build-indexes.mjs` 預覽生成之 `dist-index/`。
-2. 提交並推送（`git commit` & `git push`）至遠端 `main` 分支。
-3. GitHub Actions 將自動觸發並於 ~30 秒內重新發布 `index` 分支，前端應用程式刷新頁面即可立即套用最新資料，無需重新打包前端專案！
+1. 本機可執行 `npm run build:index` 預覽生成之 `dist-index/`。
+2. 提交並推送（`git commit` & `git push`）至遠端 `main` 分支後，GitHub Actions 將自動重新發布 `index` 分支。
+3. 詳細的圖資規範與編譯機制請參見 [inter-geo-data/README.md](file:///home/harvey/inter-geo-data/README.md)。
