@@ -1507,8 +1507,19 @@
   box-shadow: var(--shadow-soft);
   min-width: 190px;
   max-width: 280px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
+}
+
+.filter-legend-card::-webkit-scrollbar {
+  width: 4px;
+}
+
+.filter-legend-card::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 .filter-legend-card.with-filter-bar {

@@ -23,32 +23,42 @@ export interface TextLayerDef {
   getText: (country: CountryData) => string | null;
 }
 
+import { getAllCentroidsSync } from './geoIndexClient';
+
 /**
  * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
  * Corrects geometric centroids distorted by far-off polar islands or overseas territories.
+ * Dynamically proxies centroids loaded from countries-index.json.
  */
-export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = {
-  US: [228, 382], // Contiguous 48 States mainland
-  CA: [222, 311], // Southern populous Canada
-  FR: [506, 354], // Metropolitan France (excluding French Guiana/Reunion)
-  NO: [524, 285], // Mainland Norway (excluding Svalbard)
-  ES: [490, 379], // Iberian Peninsula (excluding Canary Islands)
-  PT: [478, 380], // Mainland Portugal (excluding Azores/Madeira)
-  NL: [515, 329], // European Netherlands (excluding Caribbean islands)
-  DK: [526, 311], // Mainland Denmark
-  NZ: [979, 625], // North & South Island
-  MY: [783, 490], // Peninsular Malaysia
-  RU: [661, 301], // Central/European Russia
-  GB: [494, 321], // Great Britain
-  JP: [883, 391], // Honshu
-  IT: [535, 371], // Italian Peninsula
-  GR: [561, 382], // Mainland Greece
-  CL: [303, 599], // Central Chile
-  AR: [319, 604], // Central Argentina
-  BR: [367, 539], // Central Brazil
-  AU: [869, 572], // Central Australia
-  ZA: [568, 584]  // South Africa
-};
+export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = new Proxy(
+  {},
+  {
+    get(_target, prop: string) {
+      const dynamic = getAllCentroidsSync();
+      if (dynamic && dynamic[prop]) return dynamic[prop];
+      return undefined;
+    },
+    has(_target, prop: string) {
+      const dynamic = getAllCentroidsSync();
+      return !!dynamic && prop in dynamic;
+    },
+    ownKeys() {
+      const dynamic = getAllCentroidsSync();
+      return dynamic ? Object.keys(dynamic) : [];
+    },
+    getOwnPropertyDescriptor(_target, prop: string) {
+      const dynamic = getAllCentroidsSync();
+      if (dynamic && prop in dynamic) {
+        return {
+          enumerable: true,
+          configurable: true,
+          value: dynamic[prop]
+        };
+      }
+      return undefined;
+    }
+  }
+);
 
 /**
  * Dynamically builds `GLOBAL_TEXT_LAYERS` from all `International` + `Text` layers

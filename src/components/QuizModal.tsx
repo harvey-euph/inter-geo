@@ -35,7 +35,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 3,
     clueTitle: '電線桿底部有黑黃相間斜斑馬紋',
     clueDetails: '水泥電線桿底部貼滿了黃黑斜條紋防撞警示貼紙，且招牌全為繁體中文，機車密度極高。',
-    categoryTag: '🪵 電線桿特徵',
+    categoryTag: '💈 電線桿特徵',
     correctCountryIso2: 'TW',
     optionsIso2: ['TW', 'JP', 'KR', 'TH'],
     explanation: '台灣 (Taiwan) 的電線桿底部標準配備為黃黑斜紋防撞漆/貼紙，搭配繁體中文門牌與招牌！'
@@ -53,7 +53,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 5,
     clueTitle: '方形混凝土梯子桿 (Ladder Holes Pole)',
     clueDetails: '筆直的水泥電線桿上排列著整齊貫通的長方形孔洞，防撞柱為白色帶紅色整圈橫帶，文字充滿了 ł, ą, ę 等字母。',
-    categoryTag: '🪵 電線桿特徵',
+    categoryTag: '💈 電線桿特徵',
     correctCountryIso2: 'PL',
     optionsIso2: ['PL', 'CZ', 'RO', 'HU'],
     explanation: '波蘭 (Poland) 的標誌性特徵為佈滿長方形孔洞的混凝土梯子桿，以及紅圈橫切的紅白防撞柱！'
@@ -71,7 +71,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 7,
     clueTitle: '車牌前白後黃，且靠左行駛',
     clueDetails: '路上所有車輛前方為白色長牌、後方為黃色長牌，城鎮充滿紅磚聯排住宅，地面常劃設 LOOK LEFT。',
-    categoryTag: '🪪 車牌特徵',
+    categoryTag: '🚘 車牌特徵',
     correctCountryIso2: 'GB',
     optionsIso2: ['GB', 'IE', 'AU', 'NL'],
     explanation: '英國 (United Kingdom) 的經典特徵就是「前白後黃」車牌，愛爾蘭後方則是白牌！'

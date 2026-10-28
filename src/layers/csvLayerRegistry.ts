@@ -338,6 +338,66 @@ export function getCsvSubdivisionValue(
 }
 
 /**
+ * Looks up an L2 subdivision's full row in a Nationwide CSV layer.
+ */
+export function getCsvSubdivisionRow(
+  layerId: string,
+  sub: {
+    id?: string | number;
+    code?: string;
+    postal?: string;
+    name?: string;
+    nameEn?: string;
+    nameZh?: string;
+  }
+): CsvLayerKVRow | undefined {
+  const layer = getCsvLayerById(layerId);
+  if (!layer || !layer.data) return undefined;
+
+  const candidates = [
+    sub.code,
+    sub.postal,
+    sub.id !== undefined ? String(sub.id) : undefined,
+    sub.nameEn,
+    sub.name,
+    sub.nameZh
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const row = getCsvLayerRow(layerId, raw);
+    if (row !== undefined) return row;
+  }
+  return undefined;
+}
+
+/**
+ * Returns the pure numeric code for a subdivision, stripping any regional prefix abbreviation.
+ */
+export function getCsvSubdivisionCode(
+  layerId: string,
+  sub: {
+    id?: string | number;
+    code?: string;
+    postal?: string;
+    name?: string;
+    nameEn?: string;
+    nameZh?: string;
+  }
+): string | null {
+  const row = getCsvSubdivisionRow(layerId, sub);
+  if (row) {
+    const raw = row.attributes?.code || row.value || '';
+    if (raw) {
+      return raw.includes('·') ? raw.split('·').pop()!.trim() : raw.trim();
+    }
+  }
+  const rawVal = getCsvSubdivisionValue(layerId, sub);
+  if (!rawVal) return null;
+  return rawVal.includes('·') ? rawVal.split('·').pop()!.trim() : rawVal.trim();
+}
+
+/**
  * Exports a plain `Record<string, string>` dictionary for a given CSV layer ID.
  */
 export function getCsvLayerRecord(layerId: string): Record<string, string> {

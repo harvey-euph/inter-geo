@@ -1,5 +1,4 @@
 import {
-  gridObjectId,
   localFromSubdivisionCode,
   namespaceAliasForTarget,
   numericNamespaceIds,
@@ -251,18 +250,41 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
     }
   }
 
-  // Generic target ID or Taipower grid targets (e.g. 'TW-TP-H', 'TW-TP', 'TAIPOWER-GRID')
-  const targetId = query.targetId || query.taipowerLetter;
-  if (targetId) {
-    const tid = targetId.trim();
+  // Generic target ID
+  if (query.targetId) {
+    const tid = query.targetId.trim();
     const upper = tid.toUpperCase();
     candidateKeys.push({ key: tid, weight: 40 });
-    candidateKeys.push({ key: upper, weight: 40 });
-    candidateKeys.push({ key: gridObjectId(upper), weight: 40 });
-    candidateKeys.push({ key: `TW-powerpoles::${upper}`, weight: 40 });
+    if (upper !== tid) {
+      candidateKeys.push({ key: upper, weight: 40 });
+    }
+    // If target contains namespace separator '::' (e.g. 'TW-powerpoles::A', 'JP::13')
+    if (upper.includes('::')) {
+      const [ns, local] = upper.split('::');
+      candidateKeys.push({ key: `${ns}::${local}`, weight: 40 });
+      if (ns === 'TW-POWERPOLES' || ns === 'TW-TP') {
+        candidateKeys.push({ key: `TW-powerpoles::${local}`, weight: 40 });
+        candidateKeys.push({ key: `TW-TP-${local}`, weight: 35 });
+        candidateKeys.push({ key: 'TW-powerpoles', weight: 30 });
+        candidateKeys.push({ key: 'TW-TP', weight: 25 });
+        candidateKeys.push({ key: 'TAIPOWER-GRID', weight: 25 });
+      }
+    } else {
+      const alias = namespaceAliasForTarget(upper);
+      if (alias) {
+        candidateKeys.push({ key: alias, weight: 38 });
+      }
+    }
+  }
+
+  // Explicit Taipower grid target
+  if (query.taipowerLetter) {
+    const letter = query.taipowerLetter.trim().toUpperCase();
+    const cleanLetter = letter.includes('::') ? letter.split('::').pop()! : letter;
+    candidateKeys.push({ key: `TW-powerpoles::${cleanLetter}`, weight: 40 });
+    candidateKeys.push({ key: `TW-TP-${cleanLetter}`, weight: 35 });
+    candidateKeys.push({ key: `TP-${cleanLetter}`, weight: 35 });
     candidateKeys.push({ key: 'TW-powerpoles', weight: 30 });
-    candidateKeys.push({ key: `TW-TP-${upper}`, weight: 35 });
-    candidateKeys.push({ key: `TP-${upper}`, weight: 35 });
     candidateKeys.push({ key: 'TW-TP', weight: 25 });
     candidateKeys.push({ key: 'TAIPOWER-GRID', weight: 25 });
   }

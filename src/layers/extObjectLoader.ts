@@ -50,23 +50,26 @@ export async function loadExtObjectLayerFeatures(
         await loadOnDemandCsvLayer(layerId);
       }
 
+      if (csvLayer.type !== 'ExtObject' && !csvLayer.meta.fgb && !(csvLayer as unknown as Record<string, unknown>).fgb) {
+        return [];
+      }
+
       let fgbRelPath =
         csvLayer.meta.fgb ||
         ((csvLayer as unknown as Record<string, unknown>).fgb as string | undefined);
 
-      if (!fgbRelPath) {
+      if (!fgbRelPath && csvLayer.type === 'ExtObject') {
         // Resolve from object tag in rows or targetKeys using index
         const sampleTag =
           csvLayer.data?.rows?.[0]?.regionId ||
-          csvLayer.meta.targetKeys?.[0] ||
-          csvLayer.id;
-        if (sampleTag) {
+          csvLayer.meta.targetKeys?.[0];
+        if (sampleTag && sampleTag.includes('::')) {
           fgbRelPath = (await resolveExtObjectFile(sampleTag)) || undefined;
         }
       }
 
       if (!fgbRelPath) {
-        console.warn(`[extObjectLoader] Unable to resolve FGB path for layer "${layerId}"`);
+        // Administrative subdivision ExtObject layers use l2ByCountry geometries rather than standalone FGB
         return [];
       }
 

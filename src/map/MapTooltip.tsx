@@ -4,6 +4,7 @@ import { getRoadSystemMeta, type RoadPathData } from '../data/roadsMeta';
 import { getCrossingSign } from '../data/pedestrianCrossing';
 import { isCapitalSubdivision } from '../data/capitalSubdivisions';
 import { getDataUrl } from '../data/dataSource';
+import { getCsvLayerById, getCsvSubdivisionCode } from '../layers/csvLayerRegistry';
 import { queryInfoStubs } from '../info/infoRegistry';
 import { matchesCardTagFilter } from '../info/infoTagPreferences';
 import {
@@ -13,7 +14,7 @@ import {
   INFOTIP_MODE_OPTIONS,
   type InfotipDisplayMode
 } from '../info/infotipPreferences';
-import { gridObjectId, roadObjectId, subdivisionObjectId } from '../objects/objectId';
+import { roadObjectId, subdivisionObjectId } from '../objects/objectId';
 import type { CountryData } from '../types/geo';
 import type { L2SubdivisionDetail, MunicipalityDetail } from '../types/lod';
 import type { InfoStub } from '../types/info';
@@ -217,12 +218,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             <span className="tooltip-badge" style={{ color: hoveredExtFeature.color, fontFamily: 'monospace', fontWeight: 700 }}>
               {hoveredExtFeature.id}
             </span>
-            {hoveredExtFeature.attributes?.examplePoleCode && (
-              <span className="tooltip-badge" style={{ color: '#fbbf24', fontFamily: 'monospace', fontWeight: 700 }}>
-                電桿範例: {hoveredExtFeature.attributes.examplePoleCode}
-              </span>
-            )}
-            <span className="tooltip-badge">{hoveredExtFeature.objectTag || gridObjectId(hoveredExtFeature.id)}</span>
+            <span className="tooltip-badge">{hoveredExtFeature.objectTag || hoveredExtFeature.id}</span>
           </div>
           {hoveredExtFeature.attributes?.subdivisions && (
             <div style={{ marginTop: 4, fontSize: 11, color: '#cbd5e1' }}>
@@ -235,7 +231,14 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             </div>
           )}
           {renderStubsPreview(
-            queryInfoStubs({ targetId: hoveredExtFeature.id, taipowerLetter: hoveredExtFeature.id })
+            queryInfoStubs(
+              hoveredExtFeature.objectTag?.startsWith('TW-powerpoles::') || hoveredExtFeature.layerId === 'taiwan-power-poles'
+                ? {
+                    targetId: hoveredExtFeature.objectTag || `TW-powerpoles::${hoveredExtFeature.id}`,
+                    taipowerLetter: hoveredExtFeature.id.includes('::') ? hoveredExtFeature.id.split('::').pop() : hoveredExtFeature.id
+                  }
+                : { targetId: hoveredExtFeature.objectTag || hoveredExtFeature.id }
+            )
           )}
         </>
       )}
@@ -352,6 +355,45 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               </div>
             )}
           {(() => {
+            const activeLayers = Array.from(activeRegionalFilters)
+              .map((id) => getCsvLayerById(id))
+              .filter(
+                (l): l is NonNullable<typeof l> =>
+                  !!l &&
+                  l.rangeKind === 'Nationwide' &&
+                  (l.type === 'ExtObject' || l.type === 'Text') &&
+                  l.id !== 'taiwan-power-poles' &&
+                  !l.meta.fgb
+              );
+            for (const layer of activeLayers) {
+              const code = getCsvSubdivisionCode(layer.id, hoveredL2Subdivision);
+              if (code) {
+                return (
+                  <div
+                    key={layer.id}
+                    style={{
+                      marginTop: 6,
+                      paddingTop: 6,
+                      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 12
+                    }}
+                  >
+                    <span style={{ color: layer.accentColor || '#10b981', fontWeight: 600 }}>
+                      {layer.shortBadge || layer.nameZh}:
+                    </span>
+                    <span style={{ fontFamily: 'ui-monospace, "JetBrains Mono", monospace', fontWeight: 800 }}>
+                      {code}
+                    </span>
+                  </div>
+                );
+              }
+            }
+            return null;
+          })()}
+          {(() => {
             const allStubs = queryInfoStubs({
               countryIso2: hoveredL2Subdivision.iso2,
               subdivisionCode: hoveredL2Subdivision.code,
@@ -454,6 +496,45 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
             const allStubs = queryInfoStubs({ countryIso2: hoveredCountry.iso2 });
             const filteredStubs = allStubs.filter((s) => matchesCardTagFilter(s.tags));
             return renderStubsPreview(filteredStubs.length > 0 ? filteredStubs : allStubs, hoveredCountry.keyHints);
+          })()}
+          {(() => {
+            const activeLayers = Array.from(activeRegionalFilters)
+              .map((id) => getCsvLayerById(id))
+              .filter(
+                (l): l is NonNullable<typeof l> =>
+                  !!l &&
+                  l.rangeKind === 'Nationwide' &&
+                  (l.type === 'ExtObject' || l.type === 'Text') &&
+                  l.id !== 'taiwan-power-poles' &&
+                  !l.meta.fgb
+              );
+            for (const layer of activeLayers) {
+              const val = layer.data?.valueMap.get(hoveredCountry.iso2.toUpperCase());
+              if (val) {
+                return (
+                  <div
+                    key={layer.id}
+                    style={{
+                      marginTop: 6,
+                      paddingTop: 6,
+                      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 12
+                    }}
+                  >
+                    <span style={{ color: layer.accentColor || '#38bdf8', fontWeight: 600 }}>
+                      {layer.shortBadge || layer.nameZh}：
+                    </span>
+                    <span style={{ color: '#ffffff', fontFamily: 'monospace', fontWeight: 700 }}>
+                      {val}
+                    </span>
+                  </div>
+                );
+              }
+            }
+            return null;
           })()}
           {(activeRegionalFilters.has('eu-pedestrian-crossing') || activeRegionalFilters.has('pedestrian-crossing')) &&
             (() => {

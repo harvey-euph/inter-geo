@@ -4,6 +4,7 @@ import type { LayerDefinition } from '../../data/layers';
 import type { RoadPathData } from '../../data/roadsMeta';
 import { isCapitalSubdivision } from '../../data/capitalSubdivisions';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
+import { getDataUrl } from '../../data/dataSource';
 import {
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_LAYERS_BY_ID,
@@ -11,7 +12,7 @@ import {
 } from '../../data/globalLayers';
 import {
   getRegisteredCsvLayers,
-  getCsvSubdivisionValue,
+  getCsvSubdivisionCode,
   getCsvLayerById
 } from '../../layers/csvLayerRegistry';
 import { MAP_W } from '../geo';
@@ -84,6 +85,7 @@ export interface RenderContext {
   selectedL2Subdivision: { iso2: string; id: number | string } | null;
   badgeWidthCache: Map<string, number>;
   crossingImages: Map<string, HTMLImageElement>;
+  requestRender?: () => void;
 }
 
 /**
@@ -682,7 +684,10 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
 }
 
 /**
- * Layer 7: Nationwide Domestic Area Codes
+ * Layer 7: Nationwide Domestic Area Codes & Regional Feature Codes
+ *
+ * Renders pure numeric codes enlarged across regions using the same
+ * high-contrast monospace stroke/fill standard styling as Taipower coordinates (Layer 7b).
  */
 export function drawAreaCodeBadges(rc: RenderContext): void {
   const {
@@ -703,15 +708,16 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     hoveredCountry: hoveredC,
     selectedCountry: selectedC,
     hoveredL2Subdivision: hoveredL2,
-    selectedL2Subdivision: selectedL2,
-    badgeWidthCache: widthCache
+    selectedL2Subdivision: selectedL2
   } = rc;
 
   const activeNationwideCsvTextFilters = activeReg
     ? getRegisteredCsvLayers().filter(
         (f) =>
           f.rangeKind === 'Nationwide' &&
-          f.type === 'Text' &&
+          (f.type === 'Text' || f.type === 'ExtObject') &&
+          f.id !== 'taiwan-power-poles' &&
+          !f.meta.fgb &&
           (activeReg.has(f.id) || (f.targetIso2 && activeReg.has(`area-codes-${f.targetIso2}`)))
       )
     : [];
@@ -720,9 +726,6 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
 
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.font = MONO_BADGE_FONT;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
 
   for (const csvFilter of activeNationwideCsvTextFilters) {
     const targetIso2s =
@@ -731,30 +734,16 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
         : [csvFilter.targetIso2];
 
     for (const iso2 of targetIso2s) {
-      if (!expandedL2Countries.has(iso2)) continue;
-      // 1. Check L2 subdivisions of this country
-      const subs = l2ByCountry[iso2];
+      // 1. Check L2 subdivisions of this country (only if country is expanded to L2)
       let matchedAnySubdivision = false;
-      if (subs && subs.length > 0) {
-        for (let i = 0; i < subs.length; i++) {
-          const sub = subs[i];
-          const badgeText = getCsvSubdivisionValue(csvFilter.id, sub);
-          if (!badgeText) continue;
-          matchedAnySubdivision = true;
-
-          let textWidth = widthCache.get(badgeText);
-          if (textWidth === undefined) {
-            textWidth = ctx.measureText(badgeText).width;
-            widthCache.set(badgeText, textWidth);
-          }
-          const badgeW = Math.round(textWidth + 12);
-          const badgeH = 20;
-
-          for (const copyIdx of visibleCopies) {
-            const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
-            const screenY = sub.centroid[1] * k + y;
-
-            if (screenX < -90 || screenX > vw + 90 || screenY < -30 || screenY > vh + 30) continue;
+      if (expandedL2Countries.has(iso2)) {
+        const subs = l2ByCountry[iso2];
+        if (subs && subs.length > 0) {
+          for (let i = 0; i < subs.length; i++) {
+            const sub = subs[i];
+            const pureCode = getCsvSubdivisionCode(csvFilter.id, sub);
+            if (!pureCode) continue;
+            matchedAnySubdivision = true;
 
             const isSubHovered = !!(
               hoveredL2 &&
@@ -767,77 +756,95 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
               String(selectedL2.id) === String(sub.id)
             );
 
-            const badgeX = Math.round(screenX - badgeW / 2);
-            const badgeY = Math.round(screenY - badgeH / 2);
+            // Standard ExtObject / Taipower-style sizing based on subdivision bounding box
+            const edgeW = (sub.bbox[2] - sub.bbox[0]) * k;
+            const edgeH = (sub.bbox[3] - sub.bbox[1]) * k;
+            const minEdge = Math.min(edgeW, edgeH);
 
-            drawPill(
-              ctx,
-              badgeX,
-              badgeY,
-              badgeW,
-              badgeH,
-              5,
-              isSubSelected,
-              isSubHovered,
-              'rgba(15, 23, 42, 0.90)',
-              csvFilter.accentColor,
-              1.2,
-              1.6
-            );
+            // Allow width to fit multiple numbers if present (e.g. "212, 718, 917" or "11~19")
+            const charRatio = 0.62;
+            const maxWSize = (edgeW * 0.82) / Math.max(1, pureCode.length * charRatio);
+            const maxHSize = edgeH * 0.72;
+            const targetSize = Math.min(maxWSize, maxHSize, minEdge * 0.75);
+            const fontSize = Math.min(100, Math.max(9, targetSize));
 
-            ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : csvFilter.accentColor;
-            ctx.fillText(badgeText, screenX, screenY + 0.5);
+            // When zoomed out too far, skip tiny illegible text to prevent clutter
+            if (fontSize < 10) continue;
+
+            for (const copyIdx of visibleCopies) {
+              const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
+              const screenY = sub.centroid[1] * k + y;
+
+              if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
+
+              ctx.save();
+              ctx.translate(screenX, screenY);
+
+              ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+
+              ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
+              ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.75)';
+              ctx.strokeText(pureCode, 0, 0);
+
+              ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
+              ctx.fillText(pureCode, 0, 0);
+
+              ctx.restore();
+            }
           }
         }
       }
 
-      // 2. If this country has a country-level entry (e.g. LK or BD in Nationwide:IN|LK|BD), draw at country centroid
-      const countryLevelText = csvFilter.data?.valueMap.get(iso2.toUpperCase());
-      if (countryLevelText && !matchedAnySubdivision) {
+      // 2. If this country has a country-level entry, draw at country centroid in the same style
+      const rawCountryText = csvFilter.data?.valueMap.get(iso2.toUpperCase());
+      if (rawCountryText && !matchedAnySubdivision) {
+        const countryText = rawCountryText.includes('·')
+          ? rawCountryText.split('·').pop()!.trim()
+          : rawCountryText.trim();
         const cItem = countryPathMap.get(iso2.toUpperCase());
         const override = COUNTRY_LABEL_CENTROIDS[iso2.toUpperCase()];
         const centroid = override || cItem?.centroid;
         if (!centroid) continue;
 
-        let textWidth = widthCache.get(countryLevelText);
-        if (textWidth === undefined) {
-          textWidth = ctx.measureText(countryLevelText).width;
-          widthCache.set(countryLevelText, textWidth);
-        }
-        const badgeW = Math.round(textWidth + 12);
-        const badgeH = 20;
+        const cBbox = cItem?.bbox;
+        const edgeW = cBbox ? (cBbox[2] - cBbox[0]) * k : 120;
+        const edgeH = cBbox ? (cBbox[3] - cBbox[1]) * k : 120;
+        const maxWSize = (edgeW * 0.82) / Math.max(1, countryText.length * 0.62);
+        const maxHSize = edgeH * 0.72;
+        const fontSize = Math.min(80, Math.max(10, Math.min(maxWSize, maxHSize)));
+        if (fontSize < 10) continue;
 
         for (const copyIdx of visibleCopies) {
           const screenX = (centroid[0] + copyIdx * MAP_W) * k + x;
           const screenY = centroid[1] * k + y;
 
-          if (screenX < -90 || screenX > vw + 90 || screenY < -30 || screenY > vh + 30) continue;
+          if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
 
           const isCountryHovered = !!(hoveredC && hoveredC.iso2 === iso2);
           const isLayerCountryHovered = layerHoveredCountries.has(iso2);
           const isCountrySelected = !!(selectedC && selectedC.iso2 === iso2);
 
-          const badgeX = Math.round(screenX - badgeW / 2);
-          const badgeY = Math.round(screenY - badgeH / 2);
+          ctx.save();
+          ctx.translate(screenX, screenY);
+          ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
 
-          drawPill(
-            ctx,
-            badgeX,
-            badgeY,
-            badgeW,
-            badgeH,
-            5,
-            isCountrySelected,
-            isCountryHovered || isLayerCountryHovered,
-            'rgba(15, 23, 42, 0.90)',
-            csvFilter.accentColor,
-            1.2,
-            1.6
-          );
+          ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
+          ctx.strokeStyle =
+            isCountryHovered || isLayerCountryHovered
+              ? 'rgba(15, 23, 42, 0.95)'
+              : 'rgba(15, 23, 42, 0.75)';
+          ctx.strokeText(countryText, 0, 0);
 
           ctx.fillStyle =
-            isCountrySelected || isCountryHovered || isLayerCountryHovered ? '#ffffff' : csvFilter.accentColor;
-          ctx.fillText(countryLevelText, screenX, screenY + 0.5);
+            isCountrySelected || isCountryHovered || isLayerCountryHovered
+              ? '#ffffff'
+              : (csvFilter.accentColor || '#10b981');
+          ctx.fillText(countryText, 0, 0);
+          ctx.restore();
         }
       }
     }
@@ -890,7 +897,18 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
     const signMeta = getCrossingSign(cMeta.iso2);
     if (!signMeta) continue;
 
-    const img = crossingImages.get(cMeta.iso2);
+    let img = crossingImages.get(cMeta.iso2);
+    if (!img && signMeta.imagePath) {
+      img = new Image();
+      img.src = getDataUrl(signMeta.imagePath);
+      img.onload = () => {
+        rc.requestRender?.();
+      };
+      img.onerror = (e) => {
+        console.warn(`[CrossingSigns] Failed to load image for ${cMeta.iso2} from ${img!.src}`, e);
+      };
+      crossingImages.set(cMeta.iso2, img);
+    }
     if (!img || !img.complete || img.naturalWidth === 0) continue;
 
     const override = COUNTRY_LABEL_CENTROIDS[cMeta.iso2];

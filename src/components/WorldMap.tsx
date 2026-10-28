@@ -262,7 +262,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   initialFocusTarget,
   showRoads: showRoadsProp,
   showInterstates: showInterstatesProp,
+  onToggleInterstates,
   showNumberedRoutes: showNumberedRoutesProp,
+  onToggleNumberedRoutes,
   selectedRoad,
   onSelectRoad,
   detailPanelWidth = 420,
@@ -330,7 +332,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     signature: '',
     countries: new Set<string>(),
     expandedCountries: new Set<string>(),
-    subdivisions: new Set<string>()
+    subdivisions: new Set<string>(),
+    countryLevelTargets: new Set<string>()
   });
 
   // ExtObject features hover state
@@ -622,7 +625,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     let cancelled = false;
     const activeExtLayerIds = Array.from(activeRegionalFilters).filter((id) => {
       const layer = getCsvLayerById(id);
-      return layer && (layer.type === 'ExtObject' || layer.meta.group === 'area-feature' || layer.meta.fgb);
+      return layer && (layer.type === 'ExtObject' || !!layer.meta.fgb);
     });
 
     if (activeExtLayerIds.length === 0) {
@@ -1054,19 +1057,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [getBBoxScreenRatio, countryPathMap]
   );
 
-  const getHoverExpansionSignature = useCallback(() => {
-    const country = hoveredCountryRef.current;
-    const sub = hoveredL2SubdivisionRef.current;
-    const hoveredIso2 = country?.iso2 || sub?.iso2;
-    const countryBox = hoveredIso2 && countryBBoxesRef.current[hoveredIso2];
-    const countryExpanded = !!countryBox && !!hoveredIso2 && isCountryExpandedByExposure(hoveredIso2, countryBox);
-    const subPath = sub && l2PathsByCountryRef.current[sub.iso2]?.find(
-      (item) => String(item.id) === String(sub.id)
-    );
-    const l3Expanded = !!subPath && getBBoxScreenRatio(subPath.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD;
-    return `${hoveredIso2 || ''}:${countryExpanded}|${sub?.iso2 || ''}:${sub?.id || ''}:${l3Expanded}`;
-  }, [getBBoxScreenRatio, isCountryExpandedByExposure]);
-
   const getActiveLayerHoverTargets = useCallback(() => {
     const activeFilters = Array.from(activeRegionalFiltersRef.current)
       .map((id) => getCsvLayerById(id))
@@ -1074,7 +1064,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         !!filter && filter.rangeKind === 'Nationwide'
       );
     const areaCodeCountries = COUNTRIES_WITH_AREA_CODES.filter((iso2) =>
-      activeRegionalFiltersRef.current.has(`area-codes-${iso2}`)
+      activeRegionalFiltersRef.current.has(`area-codes-${iso2}`) ||
+      activeRegionalFiltersRef.current.has(`${iso2.toLowerCase()}-area-codes`) ||
+      activeRegionalFiltersRef.current.has(`${iso2.toLowerCase()}-ddd-codes`)
     );
     const hasCapitalLayer = activeRegionalFiltersRef.current.has('nationwide-capital');
     const signature = activeFilters
@@ -1100,13 +1092,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const countries = new Set<string>();
     const expandedCountries = new Set<string>();
     const subdivisions = new Set<string>();
+    const countryLevelTargets = new Set<string>();
+
     if (areaCodeCountries.length) {
       for (const iso2 of areaCodeCountries) {
         countries.add(iso2);
         const subs = l2PathsByCountryRef.current[iso2];
         if (!subs?.length) continue;
         expandedCountries.add(iso2);
-        for (const sub of subs) subdivisions.add(`${iso2}:${String(sub.id)}`);
+        for (const sub of subs) {
+          subdivisions.add(`${iso2}:${String(sub.id)}`);
+          if (sub.code) subdivisions.add(`${iso2}:${String(sub.code)}`);
+        }
       }
     }
     if (hasCapitalLayer) {
@@ -1116,7 +1113,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (!subs?.length) continue;
         expandedCountries.add(iso2);
         for (const sub of subs) {
-          if (isCapitalSubdivision(iso2, sub)) subdivisions.add(`${iso2}:${String(sub.id)}`);
+          if (isCapitalSubdivision(iso2, sub)) {
+            subdivisions.add(`${iso2}:${String(sub.id)}`);
+            if (sub.code) subdivisions.add(`${iso2}:${String(sub.code)}`);
+          }
         }
       }
     }
@@ -1124,42 +1124,112 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       for (const iso2 of filter.targetIso2s) {
         countries.add(iso2);
         const subs = l2PathsByCountryRef.current[iso2];
-        if (subs?.length) expandedCountries.add(iso2);
-        if (!filter.loaded || !subs) continue;
-        for (const sub of subs) {
-          if (getCsvSubdivisionValue(filter.id, sub) !== null) {
-            subdivisions.add(`${iso2}:${String(sub.id)}`);
+        const hasSubTargetsInKeys =
+          filter.meta.targetKeys?.some((k) => k.startsWith(`${iso2}::`)) ?? false;
+
+        let hasSubTargetsInRows = false;
+        if (filter.loaded && subs) {
+          for (const sub of subs) {
+            if (getCsvSubdivisionValue(filter.id, sub) !== null) {
+              subdivisions.add(`${iso2}:${String(sub.id)}`);
+              if (sub.code) subdivisions.add(`${iso2}:${String(sub.code)}`);
+              hasSubTargetsInRows = true;
+            }
+          }
+        }
+
+        const targetsSubdivisions = hasSubTargetsInRows || hasSubTargetsInKeys;
+        if (targetsSubdivisions) {
+          expandedCountries.add(iso2);
+        } else {
+          // Layer targets iso2 strictly at country level (XX). Enforce "Layer 最重要": no child sub-regions XX::YY
+          const hasCountryTarget =
+            filter.meta.targetKeys?.includes(iso2) ||
+            filter.data?.valueMap.has(iso2.toUpperCase()) ||
+            filter.data?.rowMap.has(iso2.toUpperCase()) ||
+            filter.targetIso2s.includes(iso2);
+          if (hasCountryTarget) {
+            countryLevelTargets.add(iso2);
           }
         }
       }
     }
 
-    activeLayerHoverTargetsRef.current = { signature, countries, expandedCountries, subdivisions };
+    activeLayerHoverTargetsRef.current = { signature, countries, expandedCountries, subdivisions, countryLevelTargets };
     return activeLayerHoverTargetsRef.current;
   }, []);
 
+  const getHoverExpansionSignature = useCallback(() => {
+    const country = hoveredCountryRef.current;
+    const sub = hoveredL2SubdivisionRef.current;
+    const hoveredIso2 = country?.iso2 || sub?.iso2;
+    const countryBox = hoveredIso2 && countryBBoxesRef.current[hoveredIso2];
+    const { countryLevelTargets, subdivisions } = getActiveLayerHoverTargets();
+    const isCountryL1Pinned = !!hoveredIso2 && countryLevelTargets.has(hoveredIso2);
+    const countryExpanded = !isCountryL1Pinned && !!countryBox && !!hoveredIso2 && isCountryExpandedByExposure(hoveredIso2, countryBox);
+    const isSubTarget = !!sub && (
+      subdivisions.has(`${sub.iso2}:${String(sub.id)}`) ||
+      (!!sub.code && subdivisions.has(`${sub.iso2}:${String(sub.code)}`))
+    );
+    const subPath = !isSubTarget && sub && l2PathsByCountryRef.current[sub.iso2]?.find(
+      (item) => String(item.id) === String(sub.id)
+    );
+    const l3Expanded = !isSubTarget && !!subPath && getBBoxScreenRatio(subPath.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD;
+    return `${hoveredIso2 || ''}:${countryExpanded}|${sub?.iso2 || ''}:${sub?.id || ''}:${l3Expanded}`;
+  }, [getBBoxScreenRatio, isCountryExpandedByExposure, getActiveLayerHoverTargets]);
+
   const getExpandedL2Countries = useCallback(() => {
+    const { expandedCountries, countryLevelTargets, subdivisions } = getActiveLayerHoverTargets();
     const expanded = new Set<string>();
     [
-      selectedCountryRef.current?.iso2,
       selectedL2SubdivisionRef.current?.iso2,
       selectedMunicipalityRef.current?.iso2,
       activeL3ParentRef.current?.iso2,
       hoveredL3ParentRef.current?.iso2
     ].forEach((iso2) => iso2 && expanded.add(iso2));
-    for (const iso2 of getActiveLayerHoverTargets().expandedCountries) expanded.add(iso2);
+
+    if (selectedCountryRef.current?.iso2 && !countryLevelTargets.has(selectedCountryRef.current.iso2)) {
+      expanded.add(selectedCountryRef.current.iso2);
+    }
+
+    for (const iso2 of expandedCountries) expanded.add(iso2);
+
     const hoveredL2 = hoveredL2SubdivisionRef.current;
     const hoveredIso2 = hoveredCountryRef.current?.iso2;
     const l2HoveredIso2 = hoveredL2?.iso2;
     const countryBoxIso2 = hoveredIso2 || l2HoveredIso2;
     const countryBox = countryBoxIso2 && countryBBoxesRef.current[countryBoxIso2];
-    if (hoveredIso2 && countryBox && isCountryExpandedByExposure(hoveredIso2, countryBox)) expanded.add(hoveredIso2);
-    if (l2HoveredIso2 && countryBox && isCountryExpandedByExposure(l2HoveredIso2, countryBox)) expanded.add(l2HoveredIso2);
+
+    // Exposure-based expansion only for countries NOT pinned to country level (XX) by active layers
+    if (
+      hoveredIso2 &&
+      countryBox &&
+      !countryLevelTargets.has(hoveredIso2) &&
+      isCountryExpandedByExposure(hoveredIso2, countryBox)
+    ) {
+      expanded.add(hoveredIso2);
+    }
+    if (
+      l2HoveredIso2 &&
+      countryBox &&
+      !countryLevelTargets.has(l2HoveredIso2) &&
+      isCountryExpandedByExposure(l2HoveredIso2, countryBox)
+    ) {
+      expanded.add(l2HoveredIso2);
+    }
+
     if (hoveredL2) {
-      const sub = l2PathsByCountryRef.current[hoveredL2.iso2]?.find(
-        (item) => String(item.id) === String(hoveredL2.id)
-      );
-      if (sub && getBBoxScreenRatio(sub.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD) expanded.add(hoveredL2.iso2);
+      const isSubTarget =
+        subdivisions.has(`${hoveredL2.iso2}:${String(hoveredL2.id)}`) ||
+        (!!hoveredL2.code && subdivisions.has(`${hoveredL2.iso2}:${String(hoveredL2.code)}`));
+      if (!isSubTarget) {
+        const sub = l2PathsByCountryRef.current[hoveredL2.iso2]?.find(
+          (item) => String(item.id) === String(hoveredL2.id)
+        );
+        if (sub && getBBoxScreenRatio(sub.bbox) > SUBDIVISION_L3_EXPANSION_THRESHOLD) {
+          expanded.add(hoveredL2.iso2);
+        }
+      }
     }
     return expanded;
   }, [getBBoxScreenRatio, isCountryExpandedByExposure, getActiveLayerHoverTargets]);
@@ -1247,7 +1317,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       hoveredL2Subdivision: hoveredL2SubdivisionRef.current,
       selectedL2Subdivision: selectedL2SubdivisionRef.current,
       badgeWidthCache: badgeWidthCacheRef.current,
-      crossingImages: crossingImagesRef.current
+      crossingImages: crossingImagesRef.current,
+      requestRender
     };
 
     drawWorldCopyLayers(rc);
@@ -1263,7 +1334,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     isAnyRoadActive,
     isCountryRoadClassActive,
     getActiveLayerHoverTargets,
-    getExpandedL2Countries
+    getExpandedL2Countries,
+    requestRender
   ]);
 
   useEffect(() => {
@@ -1539,15 +1611,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const sub = hit.data;
         const selObj = { iso2: sub.iso2, id: sub.id };
         selectedL2SubdivisionRef.current = selObj;
-        loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
-        activeL3ParentRef.current = {
-          iso2: sub.iso2,
-          id: sub.id,
-          name: sub.name,
-          code: sub.code,
-          bbox: sub.bbox,
-          path2D: sub.path2D
-        };
+        const activeHoverTargets = getActiveLayerHoverTargets();
+        const isSubTargetOfActiveLayer =
+          activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.id)}`) ||
+          (!!sub.code && activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.code)}`));
+        if (!isSubTargetOfActiveLayer) {
+          loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+          activeL3ParentRef.current = {
+            iso2: sub.iso2,
+            id: sub.id,
+            name: sub.name,
+            code: sub.code,
+            bbox: sub.bbox,
+            path2D: sub.path2D
+          };
+        } else {
+          activeL3ParentRef.current = null;
+        }
         if (onSelectSubdivision) {
           onSelectSubdivision(toL2Detail(sub));
         }
@@ -1576,7 +1656,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       onOceanClick,
       getFeatureAtPoint,
       loadL3PackForSubdivision,
-      requestRender
+      requestRender,
+      getActiveLayerHoverTargets
     ]
   );
 
@@ -1795,9 +1876,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             Math.max(0, Math.min(w, right) - Math.max(0, left)) *
             Math.max(0, Math.min(h, bottom) - Math.max(0, top)));
         }
+        const activeHoverTargets = getActiveLayerHoverTargets();
+        const isSubTargetOfActiveLayer =
+          activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.id)}`) ||
+          (!!sub.code && activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.code)}`));
         const isPinnedSub = selectedL2SubdivisionRef.current?.iso2 === sub.iso2 &&
           String(selectedL2SubdivisionRef.current.id) === String(sub.id);
-        if (visibleBBoxArea / visibleArea > SUBDIVISION_L3_EXPANSION_THRESHOLD || isPinnedSub) {
+        if (!isSubTargetOfActiveLayer && (visibleBBoxArea / visibleArea > SUBDIVISION_L3_EXPANSION_THRESHOLD || isPinnedSub)) {
           hoveredL3ParentRef.current = {
             iso2: sub.iso2,
             id: sub.id,
@@ -1806,12 +1891,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             bbox: sub.bbox,
             path2D: sub.path2D
           };
-        }
-        if (visibleBBoxArea / visibleArea <= SUBDIVISION_L3_EXPANSION_THRESHOLD) {
-          hoveredL3ParentRef.current = null;
-        }
-        if (visibleBBoxArea / visibleArea > SUBDIVISION_L3_EXPANSION_THRESHOLD || isPinnedSub) {
           loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+        } else {
+          hoveredL3ParentRef.current = null;
         }
         if (
           hoveredL2SubdivisionRef.current?.iso2 !== sub.iso2 ||
@@ -1835,7 +1917,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       placeTooltip(clientX, clientY);
       hoverExpansionSignatureRef.current = getHoverExpansionSignature();
     },
-    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, getHoverClientPoint]
+    [getFeatureAtPoint, clearHover, applyHover, requestRender, placeTooltip, loadL3PackForSubdivision, getHoverExpansionSignature, getHoverClientPoint, getActiveLayerHoverTargets]
   );
 
   useEffect(() => {
@@ -2250,33 +2332,46 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       activeRegionalFilters.has('pedestrian-crossing');
     if (!isCrossingActive) return;
 
-    const layer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
-    if (layer && !layer.loaded) {
-      void loadOnDemandCsvLayer(layer.id).then(() => requestRender());
-    }
+    let cancelled = false;
 
-    let hasUnloaded = false;
-    const entries = layer?.data?.rows?.length
-      ? layer.data.rows.map((r) => [r.regionId, r.value || r.attributes.image] as [string, string])
-      : Object.entries(EUROPEAN_CROSSING_SIGNS).map(([k, v]) => [k, v.imagePath] as [string, string]);
-
-    for (const [iso2, imagePath] of entries) {
-      if (!crossingImagesRef.current.has(iso2)) {
-        const img = new Image();
-        img.src = getDataUrl(imagePath);
-        img.onload = () => {
-          requestRender();
-        };
-        img.onerror = (e) => {
-          console.warn(`[CrossingSigns] Failed to load image for ${iso2} from ${img.src}`, e);
-        };
-        crossingImagesRef.current.set(iso2, img);
-        hasUnloaded = true;
+    const preloadImages = async () => {
+      const layer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
+      if (layer && !layer.loaded) {
+        await loadOnDemandCsvLayer(layer.id);
       }
-    }
-    if (!hasUnloaded) {
-      requestRender();
-    }
+      if (cancelled) return;
+
+      const loadedLayer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
+      const entries = loadedLayer?.data?.rows?.length
+        ? loadedLayer.data.rows.map((r) => [r.regionId, r.value || r.attributes.image] as [string, string])
+        : Object.entries(EUROPEAN_CROSSING_SIGNS).map(([k, v]) => [k, v.imagePath] as [string, string]);
+
+      let hasUnloaded = false;
+      for (const [iso2, imagePath] of entries) {
+        if (!imagePath) continue;
+        if (!crossingImagesRef.current.has(iso2)) {
+          const img = new Image();
+          img.src = getDataUrl(imagePath);
+          img.onload = () => {
+            if (!cancelled) requestRender();
+          };
+          img.onerror = (e) => {
+            console.warn(`[CrossingSigns] Failed to load image for ${iso2} from ${img.src}`, e);
+          };
+          crossingImagesRef.current.set(iso2, img);
+          hasUnloaded = true;
+        }
+      }
+      if (!hasUnloaded) {
+        requestRender();
+      }
+    };
+
+    void preloadImages();
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeInternationalImageFilter, activeRegionalFilters, requestRender]);
 
   useEffect(() => {
@@ -2322,18 +2417,26 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const subs = l2PathsByCountryRef.current[selectedSubdivision.iso2];
     const sub = subs?.find((s) => String(s.id) === String(selectedSubdivision.id));
     if (sub) {
-      loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
-      activeL3ParentRef.current = {
-        iso2: sub.iso2,
-        id: sub.id,
-        name: sub.name,
-        code: sub.code,
-        bbox: sub.bbox,
-        path2D: sub.path2D
-      };
+      const activeHoverTargets = getActiveLayerHoverTargets();
+      const isSubTargetOfActiveLayer =
+        activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.id)}`) ||
+        (!!sub.code && activeHoverTargets.subdivisions.has(`${sub.iso2}:${String(sub.code)}`));
+      if (!isSubTargetOfActiveLayer) {
+        loadL3PackForSubdivision(sub.iso2, sub.code, sub.name, sub.id);
+        activeL3ParentRef.current = {
+          iso2: sub.iso2,
+          id: sub.id,
+          name: sub.name,
+          code: sub.code,
+          bbox: sub.bbox,
+          path2D: sub.path2D
+        };
+      } else {
+        activeL3ParentRef.current = null;
+      }
       requestRender();
     }
-  }, [selectedSubdivision, selectedMunicipality, loadL3PackForSubdivision, requestRender, canTrackHover, getHoverClientPoint]);
+  }, [selectedSubdivision, selectedMunicipality, loadL3PackForSubdivision, requestRender, canTrackHover, getHoverClientPoint, getActiveLayerHoverTargets]);
 
   useEffect(() => {
     showRoadsRef.current = showRoads;
@@ -2569,7 +2672,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               }
             }
           } catch (err) {
-            console.warn(`[L2] Failed to preload /data/l2/${iso2}.fgb:`, err);
+            console.warn(`[L2] Failed to preload data/${iso2}.fgb:`, err);
           }
         }
       };
@@ -2676,7 +2779,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             requestRender();
           }
         } catch (err) {
-          console.warn(`[Roads] Failed to load /data/roads/${iso2}.fgb:`, err);
+          console.warn(`[Roads] Failed to load data/${iso2}-roads.fgb:`, err);
         } finally {
           inFlightRoadFetchesRef.current.delete(iso2);
         }
@@ -3162,6 +3265,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         activeInternationalImageFilter={activeInternationalImageFilter}
         isL2RegionMode={lodLevel !== 'L1'}
         activeRegionalFilters={activeRegionalFilters}
+        showInterstates={showInterstates}
+        onToggleInterstates={onToggleInterstates}
+        showNumberedRoutes={showNumberedRoutes}
+        onToggleNumberedRoutes={onToggleNumberedRoutes}
         onToggleTextFilter={onToggleTextFilter}
         onToggleInternationalImageFilter={onToggleInternationalImageFilter}
         onToggleRegionalFilter={onToggleRegionalFilter}

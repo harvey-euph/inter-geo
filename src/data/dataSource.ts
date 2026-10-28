@@ -14,94 +14,8 @@ export const DATA_BRANCH = 'main';
 export const INDEX_BRANCH = 'index';
 
 /**
- * Normalizes legacy asset paths to the new inter-geo-data file structure:
- * - data/countries-110m.fgb -> data/COUNTRY.fgb
- * - data/l2/XX.fgb -> data/XX.fgb
- * - data/l3/XX/YY.fgb -> data/XX/YY.fgb
- * - data/roads/XX.fgb -> data/XX-roads.fgb
- * - public/layers/... -> layers/...
- * - public/info/... -> info/...
- * - public/images/... -> images/...
- */
-export function normalizeDataPath(rawPath: string): string {
-  let p = rawPath.replace(/^\/+/, '');
-  p = p.replace(/^public\//, '');
-
-  if (p === 'data/countries-110m.fgb' || p === 'countries-110m.fgb') {
-    return 'data/COUNTRY.fgb';
-  }
-  if (p.startsWith('data/l2/')) {
-    return p.replace(/^data\/l2\//, 'data/');
-  }
-  if (p.startsWith('data/l3/')) {
-    return p.replace(/^data\/l3\//, 'data/');
-  }
-  if (p.startsWith('data/roads/')) {
-    return p.replace(/^data\/roads\/([A-Za-z0-9_-]+)\.fgb$/, 'data/$1-roads.fgb');
-  }
-  if (p.startsWith('layers/fill-region/') && !p.startsWith('layers/fill-region-with-color/')) {
-    p = p.replace(/^layers\/fill-region\//, 'layers/fill-region-with-color/');
-  }
-  if (p.startsWith('layers/') && !p.includes('/', 7)) {
-    const fn = p.slice(7);
-    const camelToKebab: Record<string, string> = {
-      drivingside: 'driving-side',
-      platetype: 'plate-type',
-      roadmarkings: 'road-markings',
-      countrycode: 'country-code',
-      distinctiveletters: 'distinctive-letters',
-      indiascripts: 'india-scripts',
-      streetwords: 'street-words',
-      taiwanpowerpoles: 'taiwan-power-poles',
-      pedestriancrossing: 'pedestrian-crossing',
-      eupedestriancrossing: 'pedestrian-crossing'
-    };
-    const baseKey = fn.replace(/\.csv$/, '').toLowerCase().replace(/[-_]/g, '');
-    const canonicalFn = (camelToKebab[baseKey] || fn.replace(/\.csv$/, '')) + '.csv';
-
-    const fillRegionFiles = [
-      'base.csv',
-      'coverage.csv',
-      'driving-side.csv',
-      'plate-type.csv',
-      'poles.csv',
-      'road-markings.csv'
-    ];
-    const globalLabelFiles = [
-      'country-code.csv',
-      'currency.csv',
-      'flags.csv',
-      'tld.csv',
-      'distinctive-letters.csv',
-      'street-words.csv'
-    ];
-    const areaFeatureFiles = [
-      'taiwan-power-poles.csv',
-      'india-scripts.csv',
-      'pedestrian-crossing.csv',
-      'br-ddd-codes.csv',
-      'jp-area-codes.csv',
-      'au-area-codes.csv',
-      'fr-area-codes.csv',
-      'ru-area-codes.csv',
-      'th-area-codes.csv',
-      'id-area-codes.csv',
-      'mx-area-codes.csv',
-      'ar-area-codes.csv',
-      'gb-area-codes.csv',
-      'us-area-codes.csv'
-    ];
-    if (fillRegionFiles.includes(canonicalFn)) return `layers/fill-region-with-color/${canonicalFn}`;
-    if (globalLabelFiles.includes(canonicalFn)) return `layers/global-label/${canonicalFn}`;
-    if (areaFeatureFiles.includes(canonicalFn) || canonicalFn.endsWith('-area-codes.csv') || canonicalFn === 'br-ddd-codes.csv') {
-      return `layers/area-feature/${canonicalFn}`;
-    }
-  }
-  return p;
-}
-
-/**
- * Returns full URL to an asset in inter-geo-data main branch
+ * Returns full URL to an asset in inter-geo-data.
+ * Any path provided must be exact; legacy or invalid paths are not rewritten.
  * e.g. getDataUrl('data/COUNTRY.fgb')
  *   -> 'https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads/main/data/COUNTRY.fgb'
  */
@@ -109,9 +23,8 @@ export function getDataUrl(relativePath: string, branch = DATA_BRANCH): string {
   if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
     return relativePath;
   }
-  const normalized = normalizeDataPath(relativePath);
   const cleanBase = DATA_RAW_BASE.replace(/\/+$/, '');
-  const cleanPath = normalized.replace(/^\/+/, '');
+  const cleanPath = relativePath.replace(/^\/+/, '');
   return `${cleanBase}/${branch}/${cleanPath}`;
 }
 
