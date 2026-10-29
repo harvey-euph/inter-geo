@@ -252,6 +252,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             }}
             loading="lazy"
             allowFullScreen
+            allow="accelerometer; gyroscope"
             referrerPolicy="no-referrer-when-downgrade"
             title={displayTitle}
           />
