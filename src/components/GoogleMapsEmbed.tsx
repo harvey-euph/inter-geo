@@ -34,7 +34,54 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
 
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setUserLocked(!isLocked);
+    const nextLocked = !isLocked;
+    setUserLocked(nextLocked);
+
+    if (nextLocked) {
+      // Build markdown snippet for easy copying and tuning
+      const parts: string[] = [config.mode];
+      if (config.showHeader) parts.push('header');
+      parts.push('lock');
+      if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
+        parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+      }
+      if (config.height) {
+        parts.push(`h=${config.height}`);
+      }
+      const { top, right, bottom, left } = config.crop;
+      if (top || right || bottom || left) {
+        parts.push(`crop=${top},${right},${bottom},${left}`);
+      }
+      if (config.params.heading) parts.push(`heading=${config.params.heading}`);
+      if (config.params.pitch) parts.push(`pitch=${config.params.pitch}`);
+      if (config.params.fov) parts.push(`fov=${config.params.fov}`);
+      if (config.params.zoom) parts.push(`zoom=${config.params.zoom}`);
+      if (config.title) parts.push(config.title);
+
+      const targetSrc = config.params.location || config.params.center || config.params.q || src;
+      const snippet = `![${parts.join('|')}](${targetSrc})`;
+
+      // Print structured parameters and copy-ready snippet to developer console
+      console.group(
+        `%c🔒 [GoogleMapsEmbed Locked] ${displayTitle}`,
+        'color: #38bdf8; font-weight: bold; font-size: 12px;'
+      );
+      console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
+      console.log(snippet);
+      console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
+        mode: config.mode,
+        title: config.title,
+        locked: true,
+        crop: config.crop,
+        aspectRatio: config.aspectRatio,
+        height: config.height,
+        ...config.params,
+        rawAlt: alt,
+        rawSrc: src,
+        externalUrl: config.externalUrl
+      });
+      console.groupEnd();
+    }
   };
 
   const embedUrl = useMemo(() => {
