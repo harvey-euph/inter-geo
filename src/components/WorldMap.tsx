@@ -228,9 +228,7 @@ interface WorldMapProps {
   initialFocusTarget?: string;
   showRoads?: boolean;
   showInterstates?: boolean;
-  onToggleInterstates?: () => void;
   showNumberedRoutes?: boolean;
-  onToggleNumberedRoutes?: () => void;
   selectedRoad?: RoadPathData | null;
   onSelectRoad?: (road: RoadPathData | null, options?: MapSelectOptions) => void;
   detailPanelWidth?: number;
@@ -262,9 +260,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   initialFocusTarget,
   showRoads: showRoadsProp,
   showInterstates: showInterstatesProp,
-  onToggleInterstates,
   showNumberedRoutes: showNumberedRoutesProp,
-  onToggleNumberedRoutes,
   selectedRoad,
   onSelectRoad,
   detailPanelWidth = 420,
@@ -847,23 +843,42 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       if (!set) return false;
 
       for (const id of set) {
+        if (upper === 'US') {
+          if (roadClass === 'Interstate' && (id === 'us-interstates' || id === 'roads-highways')) return true;
+          if (
+            roadClass === 'Federal' &&
+            (id === 'us-numbered-highways' || id === 'us-highways' || id === 'us-numbered-routes' || id === 'roads-numbered')
+          ) {
+            return true;
+          }
+        }
+
+        const csvLayer = getCsvLayerById(id);
+        if (csvLayer?.meta.fgb?.includes(`${upper}-roads.fgb`)) {
+          if (roadClass === 'Interstate' && id.includes('interstate')) return true;
+          if (roadClass === 'Federal' && (id.includes('highway') || id.includes('route'))) return true;
+        }
+
         const def = getNationwideLayerById(id);
         if (!def || def.layerType !== 'roads' || def.roadClass !== roadClass) continue;
         const owner = (def.countryIso2 || def.targetIso2 || '').toUpperCase();
         if (owner === upper) return true;
       }
 
-      // Legacy US toggles, kept so the unwired showRoads buttons still work if they are connected.
       if (upper === 'US') {
         if (
           roadClass === 'Interstate' &&
-          (set.has('us-interstates') || (showRoadsRef.current && showInterstatesRef.current))
+          (set.has('us-interstates') || set.has('roads-highways') || (showRoadsRef.current && showInterstatesRef.current))
         ) {
           return true;
         }
         if (
           roadClass === 'Federal' &&
-          (set.has('us-numbered-routes') || (showRoadsRef.current && showNumberedRoutesRef.current))
+          (set.has('us-numbered-highways') ||
+            set.has('us-highways') ||
+            set.has('us-numbered-routes') ||
+            set.has('roads-numbered') ||
+            (showRoadsRef.current && showNumberedRoutesRef.current))
         ) {
           return true;
         }
@@ -885,9 +900,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const set = activeRegionalFiltersRef.current;
     if (set) {
       for (const id of set) {
+        if (
+          id === 'us-interstates' ||
+          id === 'us-numbered-highways' ||
+          id === 'us-highways' ||
+          id === 'us-numbered-routes' ||
+          id === 'roads-highways' ||
+          id === 'roads-numbered'
+        ) {
+          return true;
+        }
+        const csvLayer = getCsvLayerById(id);
+        if (csvLayer?.meta.fgb?.includes('-roads.fgb')) return true;
         const def = getNationwideLayerById(id);
         if (def?.layerType === 'roads') return true;
-        if (id === 'us-interstates' || id === 'us-numbered-routes') return true;
       }
     }
     return showRoadsRef.current && (showInterstatesRef.current || showNumberedRoutesRef.current);
@@ -3271,10 +3297,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         activeInternationalImageFilter={activeInternationalImageFilter}
         isL2RegionMode={lodLevel !== 'L1'}
         activeRegionalFilters={activeRegionalFilters}
-        showInterstates={showInterstates}
-        onToggleInterstates={onToggleInterstates}
-        showNumberedRoutes={showNumberedRoutes}
-        onToggleNumberedRoutes={onToggleNumberedRoutes}
         onToggleTextFilter={onToggleTextFilter}
         onToggleInternationalImageFilter={onToggleInternationalImageFilter}
         onToggleRegionalFilter={onToggleRegionalFilter}

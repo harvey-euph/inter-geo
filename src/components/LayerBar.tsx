@@ -27,10 +27,6 @@ export interface LayerBarProps {
   activeRegionalFilters: Set<string>;
   onToggleRegionalFilter: (filterId: string) => void;
   visibleRegionalFilters?: NationwideLayerDef[];
-  showInterstates?: boolean;
-  onToggleInterstates?: () => void;
-  showNumberedRoutes?: boolean;
-  onToggleNumberedRoutes?: () => void;
   onResetAll: () => void;
   isExpanded: boolean;
   onCollapse: () => void;
@@ -48,10 +44,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   activeInternationalImageFilter,
   activeRegionalFilters,
   onToggleRegionalFilter,
-  showInterstates = false,
-  onToggleInterstates,
-  showNumberedRoutes = false,
-  onToggleNumberedRoutes,
   onResetAll,
   isExpanded,
   onCollapse,
@@ -108,7 +100,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
     for (const f of allCsvLayers) {
       const g = (f.meta.group as string) || (f.group as string) || '';
-      if (g === 'fill-region' || g === 'fill-region-with-color' || f.type === 'FillWithColor') {
+      if (g === 'fill-region' || g === 'fill-region-with-color') {
         fillRegion.push({
           id: f.id,
           nameZh: f.nameZh,
@@ -222,26 +214,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
       goto?: string;
       checked: boolean;
       onToggle: () => void;
-    }> = [
-      {
-        id: 'roads-highways',
-        nameZh: '國道 / 主要高速公路網',
-        nameEn: 'National Highways & Interstates',
-        shortBadge: '🛣️ 國道',
-        descriptionZh: '全球主要高速公路與美國州際公路路網',
-        checked: showInterstates,
-        onToggle: () => onToggleInterstates?.()
-      },
-      {
-        id: 'roads-numbered',
-        nameZh: '省道 / 編號道路',
-        nameEn: 'Numbered Routes',
-        shortBadge: '🛤️ 省道',
-        descriptionZh: '各國一級編號道路與省道系統',
-        checked: showNumberedRoutes,
-        onToggle: () => onToggleNumberedRoutes?.()
-      }
-    ];
+    }> = [];
 
     for (const layer of categorized.areaFeature) {
       const isEuCrossing = layer.id === 'eu-pedestrian-crossing' || layer.id === 'pedestrian-crossing';
@@ -263,15 +236,11 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
     return list.filter(matchesSearch);
   }, [
-    showInterstates,
-    showNumberedRoutes,
     categorized.areaFeature,
     activeRegionalFilters,
     activeTextFilters,
     isEuCrossingActive,
     matchesSearch,
-    onToggleInterstates,
-    onToggleNumberedRoutes,
     handleToggleLabel
   ]);
 
@@ -280,8 +249,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
   // Active counts for header
   const activeAreaFeatureCount =
-    (showInterstates ? 1 : 0) +
-    (showNumberedRoutes ? 1 : 0) +
     categorized.areaFeature.filter((f) =>
       (f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing')
         ? isEuCrossingActive

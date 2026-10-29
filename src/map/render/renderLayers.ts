@@ -473,24 +473,80 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         const showFed = isCountryRoadClassActive(iso2, 'Federal');
         const showInter = isCountryRoadClassActive(iso2, 'Interstate');
 
-        // 4a. Primary / Federal Routes (Gold / Amber, 1.0px spiderweb mesh)
+        // 4a. Primary / Federal Routes (1D FillWithColor, 1.0px spiderweb mesh)
         if (showFed) {
-          ctx.strokeStyle = '#fbbf24';
           ctx.lineWidth = 1.0 / k;
           ctx.globalAlpha = 0.75;
           ctx.lineCap = 'butt';
           ctx.lineJoin = 'miter';
-          ctx.stroke(bundle.usRoutesPath2D);
+
+          const fedLayer = getCsvLayerById('us-numbered-highways') || getCsvLayerById('us-highways');
+          const valMap = fedLayer?.data?.valueMap;
+          const defaultColor = fedLayer?.accentColor || fedLayer?.defaultColor || '#fbbf24';
+
+          if (!valMap || valMap.size === 0) {
+            ctx.strokeStyle = defaultColor;
+            ctx.stroke(bundle.usRoutesPath2D);
+          } else {
+            const colorGroups = new Map<string, Path2D>();
+            for (let i = 0; i < bundle.roads.length; i++) {
+              const r = bundle.roads[i];
+              if (r.class !== 'Federal') continue;
+              const color =
+                valMap.get(r.name) ||
+                valMap.get(r.name.toUpperCase()) ||
+                valMap.get(r.number) ||
+                defaultColor;
+              let p2d = colorGroups.get(color);
+              if (!p2d) {
+                p2d = new Path2D();
+                colorGroups.set(color, p2d);
+              }
+              p2d.addPath(r.path2D);
+            }
+            for (const [color, p2d] of colorGroups) {
+              ctx.strokeStyle = color;
+              ctx.stroke(p2d);
+            }
+          }
         }
 
-        // 4b. Interstates / Expressways (Sky Blue, 1.6px arterial corridors)
+        // 4b. Interstates / Expressways (1D FillWithColor, 1.6px arterial corridors)
         if (showInter) {
-          ctx.strokeStyle = MAP_COLORS.selected;
           ctx.lineWidth = 1.6 / k;
           ctx.globalAlpha = 0.92;
           ctx.lineCap = 'butt';
           ctx.lineJoin = 'miter';
-          ctx.stroke(bundle.interstatesPath2D);
+
+          const interLayer = getCsvLayerById('us-interstates');
+          const valMap = interLayer?.data?.valueMap;
+          const defaultColor = interLayer?.accentColor || interLayer?.defaultColor || MAP_COLORS.selected;
+
+          if (!valMap || valMap.size === 0) {
+            ctx.strokeStyle = defaultColor;
+            ctx.stroke(bundle.interstatesPath2D);
+          } else {
+            const colorGroups = new Map<string, Path2D>();
+            for (let i = 0; i < bundle.roads.length; i++) {
+              const r = bundle.roads[i];
+              if (r.class !== 'Interstate') continue;
+              const color =
+                valMap.get(r.name) ||
+                valMap.get(r.name.toUpperCase()) ||
+                valMap.get(r.number) ||
+                defaultColor;
+              let p2d = colorGroups.get(color);
+              if (!p2d) {
+                p2d = new Path2D();
+                colorGroups.set(color, p2d);
+              }
+              p2d.addPath(r.path2D);
+            }
+            for (const [color, p2d] of colorGroups) {
+              ctx.strokeStyle = color;
+              ctx.stroke(p2d);
+            }
+          }
         }
         ctx.globalAlpha = 1.0;
       }

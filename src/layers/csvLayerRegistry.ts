@@ -72,11 +72,18 @@ export interface RegisteredCsvLayer {
 function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
   // Extract target ISO-2 codes automatically from targetKeys if present
   const targetIso2Set = new Set<string>();
+  if (lm.fgb) {
+    const roadMatch = lm.fgb.match(/\/([A-Z]{2})-roads\.fgb/i);
+    if (roadMatch) targetIso2Set.add(roadMatch[1].toUpperCase());
+  }
+  if (lm.id.startsWith('us-')) {
+    targetIso2Set.add('US');
+  }
   if (lm.targetKeys) {
     for (const key of lm.targetKeys) {
       if (key.includes('::')) {
         targetIso2Set.add(key.split('::')[0].toUpperCase());
-      } else if (key.includes('-')) {
+      } else if (key.includes('-') && !key.startsWith('I-')) {
         targetIso2Set.add(key.split('-')[0].toUpperCase());
       } else if (/^[A-Z]{2}$/i.test(key)) {
         targetIso2Set.add(key.toUpperCase());

@@ -89,17 +89,25 @@ export function App() {
   );
   const isAreaFeature =
     initialCsvLayer?.group === 'area-feature' ||
+    initialCsvLayer?.meta.group === 'area-feature' ||
     initialCsvLayer?.type === 'ExtObject';
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
     () =>
       new Set(
-        initialLayerIds.filter(
-          (id) =>
-            !!getNationwideLayerById(id) ||
-            getCsvLayerById(id)?.meta.group === 'area-feature' ||
-            getCsvLayerById(id)?.type === 'ExtObject' ||
-            (isAreaFeature && id === effectiveLayerCandidate)
-        )
+        initialLayerIds
+          .map((id) => {
+            if (id === 'roads-highways') return 'us-interstates';
+            if (id === 'roads-numbered') return 'us-numbered-highways';
+            return id;
+          })
+          .filter(
+            (id) =>
+              !!getNationwideLayerById(id) ||
+              getCsvLayerById(id)?.meta.group === 'area-feature' ||
+              getCsvLayerById(id)?.group === 'area-feature' ||
+              getCsvLayerById(id)?.type === 'ExtObject' ||
+              (isAreaFeature && id === effectiveLayerCandidate)
+          )
       )
   );
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
@@ -114,12 +122,8 @@ export function App() {
   const [selectedRoad, setSelectedRoad] = useState<RoadPathData | null>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(420);
   const [detailPanelFullWidth, setDetailPanelFullWidth] = useState(false);
-  const [showInterstates, setShowInterstates] = useState<boolean>(
-    () => effectiveLayerCandidate === 'roads-highways'
-  );
-  const [showNumberedRoutes, setShowNumberedRoutes] = useState<boolean>(
-    () => effectiveLayerCandidate === 'roads-numbered'
-  );
+  const showInterstates = activeRegionalFilters.has('us-interstates') || activeRegionalFilters.has('roads-highways');
+  const showNumberedRoutes = activeRegionalFilters.has('us-numbered-highways') || activeRegionalFilters.has('roads-numbered');
   const showRoads = showInterstates || showNumberedRoutes;
   const [isQuizOpen, setIsQuizOpen] = useState(false);
 
@@ -199,26 +203,6 @@ export function App() {
         focusMapRef.current?.({ kind: 'road', bbox: road.bbox });
       }
     }
-  }, []);
-
-  const handleToggleInterstates = useCallback(() => {
-    setShowInterstates((prev) => {
-      const next = !prev;
-      if (!next) {
-        setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
-      }
-      return next;
-    });
-  }, []);
-
-  const handleToggleNumberedRoutes = useCallback(() => {
-    setShowNumberedRoutes((prev) => {
-      const next = !prev;
-      if (!next) {
-        setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
-      }
-      return next;
-    });
   }, []);
 
   const handleToggleTextFilter = useCallback((filterId: string) => {
@@ -329,7 +313,11 @@ export function App() {
       const next = new Set(prev);
       if (next.has(filterId)) {
         next.delete(filterId);
-        if (targetDef?.layerType === 'roads') {
+        if (filterId === 'us-interstates' || filterId === 'roads-highways') {
+          setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
+        } else if (filterId === 'us-numbered-highways' || filterId === 'roads-numbered') {
+          setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
+        } else if (targetDef?.layerType === 'roads') {
           setSelectedRoad((r) => {
             if (!r) return null;
             const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
@@ -635,10 +623,6 @@ export function App() {
             activeRegionalFilters={activeRegionalFilters}
             onToggleRegionalFilter={handleToggleRegionalFilter}
             visibleRegionalFilters={visibleRegionalFilters}
-            showInterstates={showInterstates}
-            onToggleInterstates={() => setShowInterstates((prev) => !prev)}
-            showNumberedRoutes={showNumberedRoutes}
-            onToggleNumberedRoutes={() => setShowNumberedRoutes((prev) => !prev)}
             onResetAll={handleResetAllFilters}
             isExpanded={isFilterExpanded}
             onCollapse={handleCollapseFilter}
@@ -686,9 +670,7 @@ export function App() {
             initialFocusTarget={initialFocusTarget}
             showRoads={showRoads}
             showInterstates={showInterstates}
-            onToggleInterstates={handleToggleInterstates}
             showNumberedRoutes={showNumberedRoutes}
-            onToggleNumberedRoutes={handleToggleNumberedRoutes}
             onOceanClick={handleOceanClick}
           />
         </section>

@@ -314,6 +314,8 @@ export function parseLayerDataCsv(
       const isHeader =
         normFirst === 'regionid' ||
         normFirst === 'region' ||
+        normFirst === 'roadid' ||
+        normFirst === 'road' ||
         normFirst === 'iso2' ||
         normFirst === 'id' ||
         normFirst === 'key' ||
@@ -334,6 +336,8 @@ export function parseLayerDataCsv(
           if (
             normCol === 'regionid' ||
             normCol === 'region' ||
+            normCol === 'roadid' ||
+            normCol === 'road' ||
             normCol === 'iso2' ||
             normCol === 'subdivision' ||
             normCol === 'state'
@@ -428,6 +432,11 @@ export function parseLayerDataCsv(
       attributes
     };
     rows.push(row);
+
+    valueMap.set(rawRegionId, rawValue);
+    valueMap.set(rawRegionId.toUpperCase(), rawValue);
+    rowMap.set(rawRegionId, row);
+    rowMap.set(rawRegionId.toUpperCase(), row);
 
     const normalizedKeys = assignableList.normalizeId(rawRegionId);
     for (const k of normalizedKeys) {

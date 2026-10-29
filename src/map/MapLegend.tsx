@@ -12,10 +12,6 @@ export interface MapLegendProps {
   activeInternationalImageFilter?: string | null;
   isL2RegionMode?: boolean;
   activeRegionalFilters?: Set<string>;
-  showInterstates?: boolean;
-  onToggleInterstates?: () => void;
-  showNumberedRoutes?: boolean;
-  onToggleNumberedRoutes?: () => void;
   onToggleTextFilter?: (filterId: string) => void;
   onToggleInternationalImageFilter?: (filterId: string) => void;
   onToggleRegionalFilter?: (filterId: string) => void;
@@ -38,10 +34,6 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   activeTextFilters,
   activeInternationalImageFilter,
   activeRegionalFilters,
-  showInterstates = false,
-  onToggleInterstates,
-  showNumberedRoutes = false,
-  onToggleNumberedRoutes,
   onToggleTextFilter,
   onToggleInternationalImageFilter,
   onToggleRegionalFilter
@@ -51,7 +43,6 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   // Dimmed / commented-out tags that remain in the legend until collapsed
   const [dimmedTextFilters, setDimmedTextFilters] = useState<Set<string>>(new Set());
   const [dimmedRegionalFilters, setDimmedRegionalFilters] = useState<Set<string>>(new Set());
-  const [dimmedRoadFilters, setDimmedRoadFilters] = useState<Set<string>>(new Set());
 
   // Prune dimmed tags whenever legend is collapsed (收縮)
   const handleToggleCollapse = useCallback(() => {
@@ -60,7 +51,6 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
       if (next) {
         setDimmedTextFilters(new Set());
         setDimmedRegionalFilters(new Set());
-        setDimmedRoadFilters(new Set());
       }
       return next;
     });
@@ -105,59 +95,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
   const areaFeatureList = useMemo<AreaFeatureLegendItem[]>(() => {
     const items: AreaFeatureLegendItem[] = [];
 
-    // 1. National Highways & Interstates
-    const isInterstatesActive = Boolean(showInterstates);
-    const isInterstatesDimmed = dimmedRoadFilters.has('roads-highways');
-    if (isInterstatesActive || isInterstatesDimmed) {
-      items.push({
-        id: 'roads-highways',
-        nameZh: '國道 / 主要高速公路網',
-        shortBadge: '🛣️ 國道',
-        accentColor: '#ef4444',
-        isActive: isInterstatesActive,
-        onToggle: () => {
-          onToggleInterstates?.();
-          if (isInterstatesActive) {
-            setDimmedRoadFilters((prev) => new Set(prev).add('roads-highways'));
-          } else {
-            setDimmedRoadFilters((prev) => {
-              const next = new Set(prev);
-              next.delete('roads-highways');
-              return next;
-            });
-          }
-        },
-        legend: [{ key: 'highway', color: '#ef4444', labelZh: '國道 / 主要高速公路' }]
-      });
-    }
-
-    // 2. Numbered Routes / Provincial Roads
-    const isNumberedActive = Boolean(showNumberedRoutes);
-    const isNumberedDimmed = dimmedRoadFilters.has('roads-numbered');
-    if (isNumberedActive || isNumberedDimmed) {
-      items.push({
-        id: 'roads-numbered',
-        nameZh: '省道 / 編號道路',
-        shortBadge: '🛤️ 省道',
-        accentColor: '#3b82f6',
-        isActive: isNumberedActive,
-        onToggle: () => {
-          onToggleNumberedRoutes?.();
-          if (isNumberedActive) {
-            setDimmedRoadFilters((prev) => new Set(prev).add('roads-numbered'));
-          } else {
-            setDimmedRoadFilters((prev) => {
-              const next = new Set(prev);
-              next.delete('roads-numbered');
-              return next;
-            });
-          }
-        },
-        legend: [{ key: 'numbered', color: '#3b82f6', labelZh: '省道 / 一級編號道路' }]
-      });
-    }
-
-    // 3. European Pedestrian Crossing Signs
+    // 1. European Pedestrian Crossing Signs
     const isCrossingActive = Boolean(
       activeInternationalImageFilter === 'pedestrian-crossing' ||
       activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
@@ -267,14 +205,9 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
 
     return items;
   }, [
-    showInterstates,
-    showNumberedRoutes,
     activeInternationalImageFilter,
     activeRegionalFilters,
     dimmedRegionalFilters,
-    dimmedRoadFilters,
-    onToggleInterstates,
-    onToggleNumberedRoutes,
     onToggleInternationalImageFilter,
     onToggleRegionalFilter
   ]);
