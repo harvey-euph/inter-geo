@@ -234,7 +234,13 @@ flowchart LR
   | --- | --- | --- | --- |
   | `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
   | `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
-  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、各國境內電話區碼 |
+  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：美國州際公路網 (`us-interstates`)、美國編號國道 (`us-numbered-highways`)、台灣電力座標系統 (`taiwan-power-poles`)、歐洲行人過路標誌、各國境內電話區碼 |
+
+- **1D 向量路網著色與渲染管線 (`renderLayers.ts`)**：
+  系統將公路路網從前端寫死邏輯徹底解耦為標準 CSV 圖層：
+  - **獨立開關控制**：將美國高速公路細分為「州際公路 (`us-interstates.csv`)」與「編號國道 (`us-numbered-highways.csv`)」兩個獨立 CSV，用戶可依戰術需求單獨或同時開啟。
+  - **動態色彩批次分組**：渲染引擎 Layer 4 讀取 CSV 的 `valueMap`，依每條公路所定義之色碼（支援統一色碼或每條公路自訂色碼，含 8 碼 Hex 透明度）動態組裝專屬的 `Path2D` 批次組，一次光柵化筆刷繪製，兼顧極速 120 FPS 幀率與彈性著色。
+  - **動態圖例對齊**：圖例完全由 CSV 宣告之 `// @legend:` 標頭自動生成，徹底消除前端寫死的假圖例。
 
 - **雙色道路標線渲染管線 (`renderLayers.ts`)**：
   道路邊界線與中央分向線顏色採用標準格式：`#邊線色:#中線色`（例如 `#f1f5f9:#f59e0b` 代表外側白邊線 + 中央黃線）。渲染引擎檢測到 `:` 分隔符時，自動切換至專屬的雙層筆刷光柵化。
