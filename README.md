@@ -263,11 +263,14 @@ flowchart LR
 
 ### Google Maps Embed API 整合組件 (`GoogleMapsEmbed.tsx` & `googleMapsEmbed.ts`)
 
-- **API 金鑰管理**：透過 Vite 環境變數 `VITE_GOOGLE_MAPS_API_KEY` 於 `.env` 中安全注入（前端公開使用，並透過 Google Cloud Console 配置 HTTP Referrer 白名單限制）。
+- **API 金鑰管理**：透過 Vite 環境變數 `VITE_GOOGLE_MAPS_API_KEY` 於 `.env` 中安全注入（前端公開使用，並透過 Google Cloud Console 配置 HTTP Referrer 白名單限制；內建公開 fallback key）。
 - **Markdown Token 智慧解析**：支援經緯度座標、完整 Google Maps / Street View 網址、自訂標題、視角角度（`heading` / `pitch` / `fov` / `zoom`）與地名搜尋。
-- **事件隔離設計 (Event Bubbling Isolation)**：地圖容器阻斷 `click` 事件冒泡，使用者於地圖中拖曳視角、縮放或點擊時，絕不誤觸父層卡片的收合機制。
 - **自適應固定比例與高度**：預設採用 16:9 (`16 / 9`) 固定黃金比例依照 Info Card 當前寬度動態自適應高度（當使用者拖曳抽屜寬度或全寬展開時，畫面即時等比例縮放不變形）；亦支援以 `4:3`、`16:10` 等自訂比例或 `h=<數值>` 固定像素高度覆蓋。
-- **外部直達按鈕**：右上角配置「在 Google 地圖開啟 ↗」獨立按鈕，並於 API 金鑰未配置時提供友善的 Fallback 介面。
+- **純淨視圖裁切 (Cropping)**：支援 `clean`（自動裁切右側 56px 隱藏 Google 羅盤、動作追蹤與縮放控制按鈕）以及 `crop=...`、`crop-r=...`、`crop-b=...` 方向性裁切，利用容器 `overflow: hidden` 與 iframe 負位移精準裁除版權與 UI 遮擋。
+- **視窗動態鎖定/解鎖切換 (Interactive Lock Toggle)**：支援 `lock` / `static` / `freeze` 選項作為預設初始狀態。鎖定時透過 CSS `pointer-events: none` 阻絕拖曳與縮放，滑鼠滾輪瀏覽卡片流暢不卡死；懸停時浮現 `🔒 已鎖定` 按鈕，使用者可隨時**點擊即時解鎖**切換為 `🔓 已解鎖` 進行 360 度互動探索，並可再次點擊隨時重新鎖定。
+- **事件隔離設計 (Event Bubbling Isolation)**：地圖容器阻斷 `click` 事件冒泡，使用者於地圖中拖曳視角、縮放或點擊時，絕不誤觸父層卡片的收合機制。
+- **外部直達按鈕**：右上角配置「在 Google 地圖開啟 ↗」獨立按鈕，即使在鎖定模式下亦能點擊跳轉至官方頁面進行全景探索。
+- **完整選項規範與語法**：請參閱資料庫手冊 [inter-geo-data/README.md#5-支援選項參數完整總覽以--分隔](file:///home/harvey/inter-geo-data/README.md#5-支援選項參數完整總覽以--分隔)。
 
 ### 4 種 Infotip 懸停提示卡模式 (`MapTooltip.tsx`)
 

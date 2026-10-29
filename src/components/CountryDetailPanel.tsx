@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { CountryData } from '../types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
@@ -40,6 +40,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 }) => {
   const drawerRef = useRef<HTMLElement>(null);
   const resizeRef = useRef<{ pointerId: number; right: number } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwiping = useRef(false);
@@ -85,6 +86,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     if (panelFullWidth || !drawerRef.current) return;
     e.preventDefault();
     e.stopPropagation();
+    setIsResizing(true);
     resizeRef.current = {
       pointerId: e.pointerId,
       right: drawerRef.current.getBoundingClientRect().right
@@ -106,6 +108,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
     if (resizeRef.current?.pointerId !== e.pointerId) return;
     e.stopPropagation();
     resizeRef.current = null;
+    setIsResizing(false);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -128,7 +131,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
   const drawerProps = {
     ref: drawerRef,
-    className: `country-drawer${panelFullWidth ? ' full-width' : ''}`,
+    className: `country-drawer${panelFullWidth ? ' full-width' : ''}${isResizing ? ' is-resizing' : ''}`,
     onPointerDown: handlePointerDown,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
@@ -142,7 +145,7 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
 
   const resizeHandle = !panelFullWidth && (
     <div
-      className="drawer-resize-handle"
+      className={`drawer-resize-handle${isResizing ? ' is-resizing' : ''}`}
       role="separator"
       aria-label="拖曳調整 Object 資訊面板寬度"
       aria-orientation="vertical"

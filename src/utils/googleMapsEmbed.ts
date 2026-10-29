@@ -1,9 +1,19 @@
+export interface CropConfig {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface ParsedEmbedConfig {
   mode: 'streetview' | 'place' | 'view' | 'directions' | 'search';
   params: Record<string, string>;
   title?: string;
   height?: number;
   aspectRatio: string;
+  crop: CropConfig;
+  locked: boolean;
+  showHeader: boolean;
   externalUrl: string;
 }
 
@@ -52,6 +62,9 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   let customTitle: string | undefined;
   let customHeight: number | undefined;
   let customRatio = '16 / 9';
+  let isLocked = false;
+  let showHeader = false;
+  const crop: CropConfig = { top: 0, right: 0, bottom: 0, left: 0 };
   const extraParams: Record<string, string> = {};
 
   for (const part of altParts) {
@@ -66,6 +79,62 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       explicitMode = 'directions';
     } else if (lower === 'search') {
       explicitMode = 'search';
+    } else if (
+      lower === 'header' ||
+      lower === 'show-header' ||
+      lower === 'bar' ||
+      lower === 'toolbar' ||
+      lower === 'with-header'
+    ) {
+      showHeader = true;
+    } else if (lower === 'no-header' || lower === 'no-bar' || lower === 'hide-header') {
+      showHeader = false;
+    } else if (
+      lower === 'lock' ||
+      lower === 'locked' ||
+      lower === 'static' ||
+      lower === 'freeze' ||
+      lower === 'frozen' ||
+      lower === 'readonly' ||
+      lower === 'no-drag' ||
+      lower === 'no-pan' ||
+      lower === 'lock=true' ||
+      lower === 'interactive=false'
+    ) {
+      isLocked = true;
+    } else if (lower === 'clean' || lower === 'crop') {
+      crop.right = 56;
+    } else if (/^crop=(.+)$/i.test(part)) {
+      const val = part.slice(5).trim();
+      if (val.includes(',')) {
+        const nums = val.split(',').map((s) => Number(s.trim().replace(/px/i, '')) || 0);
+        if (nums.length === 4) {
+          crop.top = Math.max(0, nums[0]);
+          crop.right = Math.max(0, nums[1]);
+          crop.bottom = Math.max(0, nums[2]);
+          crop.left = Math.max(0, nums[3]);
+        } else if (nums.length === 2) {
+          crop.top = Math.max(0, nums[0]);
+          crop.bottom = Math.max(0, nums[0]);
+          crop.right = Math.max(0, nums[1]);
+          crop.left = Math.max(0, nums[1]);
+        }
+      } else {
+        const num = Number(val.replace(/px/i, '')) || 0;
+        crop.right = Math.max(0, num);
+      }
+    } else if (/^crop-(?:r|right)=(\d+)(?:px)?$/i.test(part)) {
+      const m = part.match(/^crop-(?:r|right)=(\d+)(?:px)?$/i);
+      if (m) crop.right = Number(m[1]);
+    } else if (/^crop-(?:b|bottom)=(\d+)(?:px)?$/i.test(part)) {
+      const m = part.match(/^crop-(?:b|bottom)=(\d+)(?:px)?$/i);
+      if (m) crop.bottom = Number(m[1]);
+    } else if (/^crop-(?:t|top)=(\d+)(?:px)?$/i.test(part)) {
+      const m = part.match(/^crop-(?:t|top)=(\d+)(?:px)?$/i);
+      if (m) crop.top = Number(m[1]);
+    } else if (/^crop-(?:l|left)=(\d+)(?:px)?$/i.test(part)) {
+      const m = part.match(/^crop-(?:l|left)=(\d+)(?:px)?$/i);
+      if (m) crop.left = Number(m[1]);
     } else if (/^(?:h|height)=(\d+)(?:px)?$/i.test(part)) {
       const match = part.match(/^(?:h|height)=(\d+)(?:px)?$/i);
       if (match) customHeight = Math.max(160, Math.min(600, Number(match[1])));
@@ -91,7 +160,36 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       extraParams.zoom = part.split('=')[1];
     } else if (/^title=(.+)$/i.test(part)) {
       customTitle = part.slice(6).trim();
-    } else if (!part.includes('=') && !['streetview', 'sv', 'map', 'view', 'place', 'gmap', 'embed'].includes(lower)) {
+    } else if (
+      !part.includes('=') &&
+      ![
+        'streetview',
+        'sv',
+        'map',
+        'view',
+        'place',
+        'gmap',
+        'embed',
+        'clean',
+        'crop',
+        'lock',
+        'locked',
+        'static',
+        'freeze',
+        'frozen',
+        'readonly',
+        'no-drag',
+        'no-pan',
+        'header',
+        'show-header',
+        'bar',
+        'toolbar',
+        'with-header',
+        'no-header',
+        'no-bar',
+        'hide-header'
+      ].includes(lower)
+    ) {
       customTitle = part;
     }
   }
@@ -254,6 +352,9 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
     title: customTitle,
     height: customHeight,
     aspectRatio: customRatio,
+    crop,
+    locked: isLocked,
+    showHeader,
     externalUrl
   };
 }
