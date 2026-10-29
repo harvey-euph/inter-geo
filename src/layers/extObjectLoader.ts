@@ -50,7 +50,12 @@ export async function loadExtObjectLayerFeatures(
         await loadOnDemandCsvLayer(layerId);
       }
 
-      if (csvLayer.type !== 'ExtObject' && !csvLayer.meta.fgb && !(csvLayer as unknown as Record<string, unknown>).fgb) {
+      if (
+        csvLayer.type !== 'ExtObject' &&
+        csvLayer.type !== 'TextWithStyle' &&
+        !csvLayer.meta.fgb &&
+        !(csvLayer as unknown as Record<string, unknown>).fgb
+      ) {
         return [];
       }
 
@@ -58,7 +63,7 @@ export async function loadExtObjectLayerFeatures(
         csvLayer.meta.fgb ||
         ((csvLayer as unknown as Record<string, unknown>).fgb as string | undefined);
 
-      if (!fgbRelPath && csvLayer.type === 'ExtObject') {
+      if (!fgbRelPath && (csvLayer.type === 'ExtObject' || csvLayer.type === 'TextWithStyle')) {
         // Resolve from object tag in rows or targetKeys using index
         const sampleTag =
           csvLayer.data?.rows?.[0]?.regionId ||

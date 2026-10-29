@@ -224,7 +224,7 @@ const MapLegendComponent: React.FC<MapLegendProps> = ({
         legend = csvLayer.legend;
       } else if (id === 'nationwide-capital') {
         legend = [{ key: 'capital', color: '#f59e0b', labelZh: '首都所在行政區' }];
-      } else if (csvLayer?.type === 'ExtObject' || id.includes('area-codes') || id.includes('ddd-codes')) {
+      } else if (csvLayer?.type === 'ExtObject' || csvLayer?.type === 'TextWithStyle' || id.includes('area-codes') || id.includes('ddd-codes')) {
         legend = [{ key: id, color: accentColor, labelZh: `${nameZh}` }];
       } else if (csvLayer?.data?.rows?.length) {
         const seenColors = new Set<string>();

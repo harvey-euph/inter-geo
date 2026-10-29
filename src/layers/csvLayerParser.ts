@@ -4,7 +4,19 @@ import {
 } from './assignableRegions';
 
 export type CsvLoadedTiming = 'init' | 'on-demand';
-export type CsvLayerType = 'FillWithColor' | 'Text' | 'Image' | 'Special' | 'ExtObject';
+export type CsvLayerType = 'FillWithColor' | 'TextWithStyle' | 'Text' | 'Image' | 'Special' | 'ExtObject';
+
+export interface ParsedTextStyle {
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  fontSize?: number;
+  fontWeight?: string;
+  fontFamily?: string;
+  padding?: [number, number];
+  rawStyle?: string;
+}
 
 export interface CsvLayerMetadata {
   id?: string;
@@ -19,6 +31,7 @@ export interface CsvLayerMetadata {
   loadedTiming?: CsvLoadedTiming;
   order?: number;
   defaultColor?: string;
+  defaultStyle?: string;
   goto?: string;
   group?: string;
   legend?: Array<{ key: string; color: string; labelZh: string }>;
@@ -34,8 +47,8 @@ export interface CsvLayerMetadata {
 export interface CsvLayerStub {
   id: string;
   path: string;
-  loadedTiming: CsvLoadedTiming;
-  effectiveRange: string;
+  loadedTiming?: CsvLoadedTiming;
+  effectiveRange?: string;
   type: CsvLayerType;
   order?: number;
   meta: CsvLayerMetadata;
@@ -44,19 +57,19 @@ export interface CsvLayerStub {
 export interface CsvLayerRegistryEntry {
   /** Derived or explicit unique layer ID */
   id: string;
-  /** When the CSV data should be loaded ('init' at startup or 'on-demand' when activated) */
+  /** When the CSV data should be loaded (always 'on-demand') */
   loadedTiming: CsvLoadedTiming;
-  /** Raw Effective Range string (e.g. 'International' or 'Nationwide:JP') */
-  effectiveRange: string;
+  /** Optional Raw Effective Range string if defined */
+  effectiveRange?: string;
   /** Parsed range kind: 'International' or 'Nationwide' */
   rangeKind: 'International' | 'Nationwide';
   /** Target ISO-2 country code ('*' for International, or e.g. 'JP', 'TW', 'US') */
   targetIso2: string;
-  /** Target ISO-2 country code list (supports multi-country Nationwide layers like 'Nationwide:IN|LK|BD') */
+  /** Target ISO-2 country code list */
   targetIso2s: string[];
   /** Resolved assignable region list for validating and normalizing region-ids */
   assignableList: AssignableRegionList;
-  /** Public URL path to the CSV file (e.g. 'layers/country-code.csv') */
+  /** Public URL path to the CSV file (e.g. 'layers/global-label/country-code.csv') */
   path: string;
   /** Layer visualization type */
   type: CsvLayerType;
@@ -69,7 +82,13 @@ export interface CsvLayerKVRow {
   regionId: string;
   /** Value (color hex/rgba, text string, image path, or special payload) */
   value: string;
-  /** Optional 3rd column label/note for legend or tooltip */
+  /** Text string if TextWithStyle */
+  text?: string;
+  /** Optional custom or inherited style description */
+  style?: string;
+  /** Parsed CSS style properties */
+  parsedStyle?: ParsedTextStyle;
+  /** Optional label/note for legend or tooltip */
   label?: string;
   /** All parsed column attributes as a key-value dictionary */
   attributes: Record<string, string>;
@@ -138,9 +157,84 @@ function parseLoadedTiming(raw: string): CsvLoadedTiming {
 export function parseLayerType(raw: string): CsvLayerType {
   const norm = raw.trim().toLowerCase();
   if (norm === 'fillwithcolor' || norm === 'fillcolor' || norm === 'fill' || norm === 'color') return 'FillWithColor';
-  if (norm === 'text' || norm === 'label' || norm === 'badge') return 'Text';
+  if (
+    norm === 'textwithstyle' ||
+    norm === 'text' ||
+    norm === 'extobject' ||
+    norm === 'badge' ||
+    norm === 'label'
+  ) {
+    return 'TextWithStyle';
+  }
   if (norm === 'image' || norm === 'icon' || norm === 'img') return 'Image';
   return 'Special';
+}
+
+/**
+ * Parses CSS-like style declarations or preset keyword into structured style properties.
+ */
+export function parseCssStyle(rawStyle?: string, fallbackPreset?: string): ParsedTextStyle {
+  const result: ParsedTextStyle = { rawStyle: rawStyle || fallbackPreset };
+  const str = (rawStyle || fallbackPreset || '').trim();
+  if (!str || str === 'plain') {
+    return result;
+  }
+
+  // Presets
+  if (str === 'badge') {
+    result.backgroundColor = 'rgba(15, 23, 42, 0.78)';
+    result.borderColor = 'rgba(16, 185, 129, 0.5)';
+    result.borderRadius = 4;
+    result.fontWeight = 'bold';
+    result.fontSize = 13;
+    result.color = '#10b981';
+    return result;
+  }
+
+  if (str === 'grid-letter') {
+    result.fontWeight = '800';
+    result.fontSize = 24;
+    result.color = '#ffffff';
+    return result;
+  }
+
+  // Single hex/color shorthand (e.g. #0ea5e9 or #10b981)
+  if (/^#(?:[0-9a-fA-F]{3,8})$/.test(str)) {
+    result.color = str;
+    return result;
+  }
+
+  // Parse CSS-like declarations: `color: #fff; background: #000; border-radius: 4px;`
+  const declarations = str.split(';').map((s) => s.trim()).filter(Boolean);
+  for (const decl of declarations) {
+    const colonIdx = decl.indexOf(':');
+    if (colonIdx === -1) continue;
+    const prop = decl.slice(0, colonIdx).trim().toLowerCase();
+    const val = decl.slice(colonIdx + 1).trim();
+
+    if (prop === 'color') {
+      result.color = val;
+    } else if (prop === 'background' || prop === 'background-color') {
+      result.backgroundColor = val;
+    } else if (prop === 'border-color') {
+      result.borderColor = val;
+    } else if (prop === 'border') {
+      const colorMatch = val.match(/#(?:[0-9a-fA-F]{3,8})|rgba?\([^)]+\)|[a-zA-Z]+/);
+      if (colorMatch) result.borderColor = colorMatch[0];
+    } else if (prop === 'border-radius') {
+      const num = parseInt(val, 10);
+      if (!isNaN(num)) result.borderRadius = num;
+    } else if (prop === 'font-size') {
+      const num = parseInt(val, 10);
+      if (!isNaN(num)) result.fontSize = num;
+    } else if (prop === 'font-weight') {
+      result.fontWeight = val;
+    } else if (prop === 'font-family') {
+      result.fontFamily = val;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -164,6 +258,7 @@ export function parseLayerDataCsv(
   let columns: string[] = [];
   let regionIdCol = 0;
   let valueCol = 1;
+  let styleCol = -1;
   let labelCol = 2;
   let hasCheckedHeader = false;
 
@@ -183,6 +278,7 @@ export function parseLayerDataCsv(
         else if (key === 'shortBadge') meta.shortBadge = val;
         else if (key === 'accentColor') meta.accentColor = val;
         else if (key === 'default-color' || key === 'defaultcolor') meta.defaultColor = val;
+        else if (key === 'defaultStyle' || key === 'default-style') meta.defaultStyle = val;
         else if (key === 'goto') meta.goto = val;
         else if (key === 'group') meta.group = val;
         else if (key === 'fgb') meta.fgb = val;
@@ -274,6 +370,8 @@ export function parseLayerDataCsv(
               regionIdCol = cIdx;
               foundRegionCol = true;
             }
+          } else if (normCol === 'style') {
+            styleCol = cIdx;
           } else if (
             normCol === 'label' ||
             normCol === 'namezh' ||
@@ -316,9 +414,16 @@ export function parseLayerDataCsv(
       invalidRegionIds.push(rawRegionId);
     }
 
+    const rawStyle = attributes.style || (styleCol !== -1 ? (cells[styleCol] || '').replace(/^"|"$/g, '').trim() : undefined) || meta.defaultStyle;
+    const parsedStyle = parseCssStyle(rawStyle, meta.defaultStyle);
+    const rowText = attributes.text || rawValue;
+
     const row: CsvLayerKVRow = {
       regionId: rawRegionId,
       value: rawValue,
+      text: rowText,
+      style: rawStyle,
+      parsedStyle,
       label: rawLabel || undefined,
       attributes
     };

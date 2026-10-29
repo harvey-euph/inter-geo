@@ -587,7 +587,7 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
   if (rc.activeRegionalFilters) {
     for (const id of rc.activeRegionalFilters) {
       const l = getCsvLayerById(id);
-      if (l && l.type === 'Text' && l.rangeKind === 'International') {
+      if (l && (l.type === 'Text' || l.type === 'TextWithStyle') && l.rangeKind === 'International') {
         allActiveText.add(id);
       }
     }
@@ -715,7 +715,7 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
     ? getRegisteredCsvLayers().filter(
         (f) =>
           f.rangeKind === 'Nationwide' &&
-          (f.type === 'Text' || f.type === 'ExtObject') &&
+          (f.type === 'Text' || f.type === 'TextWithStyle' || f.type === 'ExtObject') &&
           f.id !== 'taiwan-power-poles' &&
           !f.meta.fgb &&
           (activeReg.has(f.id) || (f.targetIso2 && activeReg.has(`area-codes-${f.targetIso2}`)))

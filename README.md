@@ -219,13 +219,22 @@ flowchart LR
 
 前端應用庫透過下列模組實現動態圖層解析、著色與互動：
 
+- **FGBObject 空間物件與裝飾模型 (`@type`)**：
+  CSV 的首欄永遠代表目標 `FGBObject`（2D 國家/行政區面、1D 公路網線、0D 單點散點），並透過 `@type` 決定在其幾何上套用的渲染器：
+  - `FillWithColor`：於 2D/1D/0D 物件填色（支援 `#RRGGBB`、8 碼帶透明度 Hex `#RRGGBBAA`、雙色標線 `#邊線:#中線`、或 `rgba(...)`）。
+  - `TextWithStyle`：於物件位置標註文字，支援 CSS 樣式描述字串或預設風格關鍵字（`badge` 徽章、`grid-letter` 大型加粗描邊字母、`plain` 純文字）。
+  - `Image`：於物件位置標註 SVG/WebP 圖檔。
+- **純目錄驅動與 On-demand 按需載入**：
+  圖層分類群組直接由資料庫目錄結構判定（`layers/fill-region-with-color/` $\rightarrow$ `fill-region`、`layers/global-label/` $\rightarrow$ `global-label`、`layers/area-feature/` $\rightarrow$ `area-feature`），毋需在 CSV 中重複維護 `@group`；所有圖層皆採 On-demand 按需下載解析，無須宣告 `@loadedTiming`。
+- **純 `@goto` 相機導航驅動**：
+  相機定位與觀看範圍統一由圖層聲明的 `@goto: lat=...&lon=...&ratio=...` 全權決定；無 `@goto` 之圖層切換時保持相機現狀，杜絕突兀跳動。
 - **動態 CSV 註冊中心 (`src/layers/csvLayerRegistry.ts`)**：從遠端快取 `layers-index.json`，在使用者選取圖層時下載對應 CSV 並解析為區域數值映射表。
 - **3 大圖層分類群組介面 (`src/components/LayerBar.tsx`)**：
   | 群組代號 | 名稱 | 選取邏輯 | 適用場景與圖層範例 |
   | --- | --- | --- | --- |
   | `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
   | `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
-  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、南亞各邦書寫字母 |
+  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：國道/主要高速公路網、省道/編號道路系統、台灣電力座標系統、歐洲行人過路標誌、各國境內電話區碼 |
 
 - **雙色道路標線渲染管線 (`renderLayers.ts`)**：
   道路邊界線與中央分向線顏色採用標準格式：`#邊線色:#中線色`（例如 `#f1f5f9:#f59e0b` 代表外側白邊線 + 中央黃線）。渲染引擎檢測到 `:` 分隔符時，自動切換至專屬的雙層筆刷光柵化。

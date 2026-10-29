@@ -76,23 +76,29 @@ export function App() {
     initialCsvLayer?.group === 'fill-region-with-color';
   const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'base');
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
-    () => new Set(initialCsvLayer?.type === 'Text' ? [effectiveLayerCandidate] : [])
+    () =>
+      new Set(
+        (initialCsvLayer?.type === 'Text' || initialCsvLayer?.type === 'TextWithStyle') &&
+        initialCsvLayer?.group === 'global-label'
+          ? [effectiveLayerCandidate]
+          : []
+      )
   );
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
     initialCsvLayer?.type === 'Image' ? effectiveLayerCandidate : null
   );
-  const isExtObject =
-    initialCsvLayer?.type === 'ExtObject' ||
-    initialCsvLayer?.group === 'area-feature';
+  const isAreaFeature =
+    initialCsvLayer?.group === 'area-feature' ||
+    initialCsvLayer?.type === 'ExtObject';
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
     () =>
       new Set(
         initialLayerIds.filter(
           (id) =>
             !!getNationwideLayerById(id) ||
-            getCsvLayerById(id)?.type === 'ExtObject' ||
             getCsvLayerById(id)?.meta.group === 'area-feature' ||
-            (isExtObject && id === effectiveLayerCandidate)
+            getCsvLayerById(id)?.type === 'ExtObject' ||
+            (isAreaFeature && id === effectiveLayerCandidate)
         )
       )
   );
@@ -373,39 +379,15 @@ export function App() {
         return;
       }
 
-      // If not loaded yet, fetch and apply any @goto or @focusTarget defined in CSV
+      // If not loaded yet, fetch and apply any @goto defined in CSV
       if (!csvLayer.loaded) {
         void loadOnDemandCsvLayer(csvLayer.id).then((loaded: RegisteredCsvLayer | undefined) => {
           const freshGoto = loaded?.meta?.goto || loaded?.goto || loaded?.data?.meta?.goto;
           if (freshGoto && applyGoto(freshGoto)) return;
-
-          const freshFocusTarget = loaded?.meta?.focusTarget || loaded?.focusTarget || loaded?.data?.meta?.focusTarget;
-          if (freshFocusTarget) {
-            const [iso2, ...namespace] = freshFocusTarget.split('::').map((part: string) => part.trim());
-            if (iso2 && namespace.length > 0) {
-              focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
-            } else if (iso2) {
-              focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
-            }
-          }
         });
       }
 
-      // 2. Explicit @focusTarget directive
-      const csvFocusTarget = csvLayer.meta?.focusTarget || csvLayer.focusTarget;
-      if (csvFocusTarget) {
-        const [iso2, ...namespace] = csvFocusTarget.split('::').map((part: string) => part.trim());
-        if (iso2 && namespace.length > 0) {
-          focusMapRef.current?.({ kind: 'subdivision', iso2: iso2.toUpperCase(), id: namespace[0], force: true });
-          return;
-        }
-        if (iso2) {
-          focusMapRef.current?.({ kind: 'country', iso2: iso2.toUpperCase(), force: true });
-          return;
-        }
-      }
-
-      // For CSV layers without @goto or @focusTarget, do not jump camera
+      // For CSV layers without @goto, do not jump camera
       return;
     }
 

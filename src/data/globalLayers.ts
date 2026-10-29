@@ -65,7 +65,7 @@ export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = new Pro
  * registered from CSV files in `/layers/`.
  */
 export const GLOBAL_TEXT_LAYERS: TextLayerDef[] = getRegisteredCsvLayers()
-  .filter((f) => f.rangeKind === 'International' && f.type === 'Text')
+  .filter((f) => f.rangeKind === 'International' && (f.type === 'Text' || f.type === 'TextWithStyle'))
   .map((f) => ({
     id: f.id,
     nameZh: f.nameZh,
@@ -83,7 +83,7 @@ export const GLOBAL_TEXT_LAYERS_BY_ID = new Map<string, TextLayerDef>(
 if (typeof window !== 'undefined') {
   onLayersIndexLoaded(() => {
     for (const f of getRegisteredCsvLayers()) {
-      if (f.rangeKind === 'International' && f.type === 'Text') {
+      if (f.rangeKind === 'International' && (f.type === 'Text' || f.type === 'TextWithStyle')) {
         const def: TextLayerDef = {
           id: f.id,
           nameZh: f.nameZh,
@@ -106,7 +106,7 @@ export function getGlobalTextLayerById(id: string): TextLayerDef | undefined {
   const existing = GLOBAL_TEXT_LAYERS_BY_ID.get(id);
   if (existing) return existing;
   const csvF = getCsvLayerById(id);
-  if (csvF && csvF.type === 'Text') {
+  if (csvF && (csvF.type === 'Text' || csvF.type === 'TextWithStyle')) {
     const dynamicDef: TextLayerDef = {
       id: csvF.id,
       nameZh: csvF.nameZh,

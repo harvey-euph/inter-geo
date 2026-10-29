@@ -2,7 +2,6 @@ import { getDataUrl } from '../data/dataSource';
 import { loadLayersIndex, type LayerMeta } from '../data/geoIndexClient';
 import {
   getAssignableRegionList,
-  parseEffectiveRange,
   type AssignableRegionList
 } from './assignableRegions';
 import {
@@ -28,10 +27,12 @@ export interface RegisteredCsvLayer {
   accentColor: string;
   /** Default layer color if specified */
   defaultColor?: string;
+  /** Default text style if specified (CSS string or preset) */
+  defaultStyle?: string;
   /** Description in Traditional Chinese */
   descriptionZh: string;
-  /** Raw effective range string (e.g. 'International', 'Nationwide:IN|LK|BD') */
-  effectiveRange: string;
+  /** Optional effective range string (derived or legacy) */
+  effectiveRange?: string;
   /** Range kind */
   rangeKind: 'International' | 'Nationwide';
   /** Primary target ISO-2 code or '*' */
@@ -69,11 +70,27 @@ export interface RegisteredCsvLayer {
 }
 
 function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
-  const effectiveRange = lm.effectiveRange || 'International';
-  const { kind: rangeKind, targetIso2, targetIso2s } = parseEffectiveRange(effectiveRange);
-  const assignableList = getAssignableRegionList(effectiveRange);
+  // Extract target ISO-2 codes automatically from targetKeys if present
+  const targetIso2Set = new Set<string>();
+  if (lm.targetKeys) {
+    for (const key of lm.targetKeys) {
+      if (key.includes('::')) {
+        targetIso2Set.add(key.split('::')[0].toUpperCase());
+      } else if (key.includes('-')) {
+        targetIso2Set.add(key.split('-')[0].toUpperCase());
+      } else if (/^[A-Z]{2}$/i.test(key)) {
+        targetIso2Set.add(key.toUpperCase());
+      }
+    }
+  }
+  const targetIso2s = Array.from(targetIso2Set);
+  const targetIso2 = targetIso2s.length === 1 ? targetIso2s[0] : (targetIso2s.length > 0 ? targetIso2s[0] : '*');
   const rawGroup = lm.group || 'global-label';
   const group = rawGroup === 'fill-region-with-color' ? 'fill-region' : rawGroup;
+  const rangeKind = group === 'global-label' || targetIso2s.length > 5 || targetIso2s.length === 0 ? 'International' : 'Nationwide';
+  const effectiveRange = lm.effectiveRange || (rangeKind === 'Nationwide' && targetIso2 !== '*' ? `Nationwide:${targetIso2s.join('|')}` : 'International');
+  const assignableList = getAssignableRegionList(effectiveRange);
+  const layerType = (lm.type as CsvLayerType) || (group === 'fill-region' ? 'FillWithColor' : 'TextWithStyle');
 
   return {
     id: lm.id,
@@ -83,13 +100,14 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     shortBadge: lm.shortBadge || lm.nameZh,
     accentColor: lm.accentColor || '#38bdf8',
     defaultColor: lm.defaultColor || undefined,
-    descriptionZh: lm.descriptionZh || `${lm.nameZh} (${effectiveRange})`,
+    defaultStyle: lm.defaultStyle || undefined,
+    descriptionZh: lm.descriptionZh || lm.nameZh,
     effectiveRange,
     rangeKind,
     targetIso2,
     targetIso2s,
     assignableList,
-    type: (lm.type as CsvLayerType) || 'Text',
+    type: layerType,
     group,
     order: lm.order ?? 999,
     loadedTiming: lm.loadedTiming || 'on-demand',
@@ -108,9 +126,10 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
       shortBadge: lm.shortBadge || undefined,
       accentColor: lm.accentColor || undefined,
       defaultColor: lm.defaultColor || undefined,
+      defaultStyle: lm.defaultStyle || undefined,
       descriptionZh: lm.descriptionZh || undefined,
       effectiveRange,
-      type: (lm.type as CsvLayerType) || 'Text',
+      type: layerType,
       group: lm.group,
       order: lm.order,
       goto: lm.goto || undefined,
@@ -442,7 +461,7 @@ export async function loadOnDemandCsvLayer(
       const rawCsv = await res.text();
       const parsed = parseLayerDataCsv(rawCsv, layer.effectiveRange);
 
-      if (parsed.invalidRegionIds.length > 0) {
+      if (layer.effectiveRange && layer.effectiveRange !== 'International' && parsed.invalidRegionIds.length > 0) {
         console.warn(
           `[CSV Layer] "${layer.path}" contains region-ids outside assignable list "${layer.assignableList.rangeKey}":`,
           parsed.invalidRegionIds

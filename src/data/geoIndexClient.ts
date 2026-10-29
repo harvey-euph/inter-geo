@@ -87,10 +87,11 @@ export interface LayerMeta {
   order: number;
   accentColor: string | null;
   defaultColor: string | null;
+  defaultStyle?: string | null;
   descriptionZh: string | null;
-  effectiveRange: string | null;
-  loadedTiming: string;
-  focusTarget: string | null;
+  effectiveRange?: string | null;
+  loadedTiming?: string | null;
+  focusTarget?: string | null;
   goto: string | null;
   legend?: Array<{ key: string; color: string; labelZh: string }> | null;
   fgb?: string | null;

@@ -117,7 +117,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
           descriptionZh: f.descriptionZh,
           goto: f.goto
         });
-      } else if (g === 'global-label' || (f.rangeKind === 'International' && f.type === 'Text' && g !== 'area-feature')) {
+      } else if (g === 'global-label' || (f.rangeKind === 'International' && (f.type === 'Text' || f.type === 'TextWithStyle') && g !== 'area-feature')) {
         globalLabel.push(f);
       } else {
         areaFeature.push(f);

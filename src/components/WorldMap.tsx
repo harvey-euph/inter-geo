@@ -625,7 +625,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     let cancelled = false;
     const activeExtLayerIds = Array.from(activeRegionalFilters).filter((id) => {
       const layer = getCsvLayerById(id);
-      return layer && (layer.type === 'ExtObject' || !!layer.meta.fgb);
+      return (
+        layer &&
+        (layer.type === 'ExtObject' ||
+          layer.id === 'taiwan-power-poles' ||
+          !!layer.meta.fgb ||
+          layer.meta.targetKeys?.some((k) => k.includes('::')))
+      );
     });
 
     if (activeExtLayerIds.length === 0) {
