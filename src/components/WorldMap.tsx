@@ -1442,13 +1442,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const currentY = startY + (targetY - startY) * eased;
 
         transformRef.current = { k: currentK, x: currentX, y: currentY };
-        renderCanvas();
+        renderCanvasRef.current();
         if (canTrackHover()) hoverExpansionCheckRef.current();
 
         if (progress < 1) {
           animRafId.current = requestAnimationFrame(step);
         } else {
           animRafId.current = null;
+          renderCanvasRef.current();
+          requestRender();
           if (canTrackHover()) {
             const point = getHoverClientPoint();
             hoverUpdateRef.current(point.x, point.y);
@@ -1459,7 +1461,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       animRafId.current = requestAnimationFrame(step);
     },
-    [renderCanvas, canTrackHover, getHoverClientPoint]
+    [canTrackHover, getHoverClientPoint, requestRender]
   );
 
   // Helper to fetch an individual L3 regional partition pack (decoded in background worker)
@@ -2072,7 +2074,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
-          renderCanvas();
+          renderCanvasRef.current();
           if (!hasFinePointerRef.current && centerCursorEnabledRef.current) {
             const point = getHoverClientPoint();
             hoverUpdateRef.current(point.x, point.y, true);
@@ -2119,7 +2121,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
-          renderCanvas();
+          renderCanvasRef.current();
           if (!hasFinePointerRef.current && centerCursorEnabledRef.current) {
             const point = getHoverClientPoint();
             hoverUpdateRef.current(point.x, point.y, true);
@@ -2982,13 +2984,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
       }
 
+      transformRef.current.k = initialK;
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
       const initialLOD = getLODLevel(initialK);
       syncAllViewports(initialK, initialX, initialY, vw, vh);
       setLodLevel(initialLOD);
       lodLevelRef.current = initialLOD;
-      renderCanvas();
+      renderCanvasRef.current();
       requestRender();
     }
   }, [wrapX, clampY, renderCanvas, requestRender, syncAllViewports, projection]);
