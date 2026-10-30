@@ -47,8 +47,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       const parts: string[] = [config.mode];
       if (config.showHeader) parts.push('header');
       parts.push('lock');
-      if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
+      if (config.isVertical) {
+        parts.push('vertical');
+      } else if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
         parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+      }
+      if (config.width) {
+        parts.push(`w=${config.width}`);
       }
       if (config.height) {
         parts.push(`h=${config.height}`);
@@ -169,7 +174,8 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       style={{
         display: 'block',
         width: '100%',
-        margin: '8px 0',
+        maxWidth: config.isVertical ? (config.width ? `${config.width}px` : '340px') : undefined,
+        margin: config.isVertical ? '8px auto' : '8px 0',
         borderRadius: 8,
         overflow: 'hidden',
         backgroundColor: 'rgba(2, 6, 23, 0.92)',
@@ -295,7 +301,11 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             height: config.height ? `${config.height}px` : 'auto',
             aspectRatio: config.height ? undefined : config.aspectRatio,
             minHeight: config.height ? undefined : 160,
-            maxHeight: config.height ? undefined : 'min(75vh, 600px)',
+            maxHeight: config.height
+              ? undefined
+              : config.isVertical
+              ? 'min(82vh, 680px)'
+              : 'min(75vh, 600px)',
             overflow: 'hidden',
             backgroundColor: '#020617',
             cursor: isLocked ? 'default' : undefined,

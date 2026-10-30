@@ -25,7 +25,9 @@ export interface ParsedEmbedConfig {
   params: Record<string, string>;
   title?: string;
   height?: number;
+  width?: number;
   aspectRatio: string;
+  isVertical: boolean;
   crop: CropConfig;
   locked: boolean;
   showHeader: boolean;
@@ -52,8 +54,8 @@ export function isGoogleMapsEmbedToken(rawAlt?: string, rawSrc?: string): boolea
   const altLower = (rawAlt || '').trim().toLowerCase();
   const srcLower = (rawSrc || '').trim().toLowerCase();
 
-  // Keyword at start of alt: map, streetview, sv, gmap, view, place, search, directions, route
-  const hasMapKeywordInAlt = /^(?:map|streetview|sv|street-view|gmap|googlemap|google-map|embed:(?:map|streetview|sv|gmap)|place|view|search|directions|route)(?:[|:]|$)/i.test(altLower);
+  // Keyword at start of alt: map, streetview, sv, gmap, view, place, search, directions, route, vertical, portrait
+  const hasMapKeywordInAlt = /^(?:map|streetview|sv|street-view|gmap|googlemap|google-map|embed:(?:map|streetview|sv|gmap)|place|view|search|directions|route|vertical|portrait)(?:[|:]|$)/i.test(altLower);
 
   // Source is a Google Maps URL
   const isGoogleMapsUrl =
@@ -76,7 +78,9 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   let explicitMode: 'streetview' | 'place' | 'view' | 'directions' | 'search' | null = null;
   let customTitle: string | undefined;
   let customHeight: number | undefined;
+  let customWidth: number | undefined;
   let customRatio = '16 / 9';
+  let isVertical = false;
   let isLocked = false;
   let showHeader = false;
   const crop: CropConfig = { ...DEFAULT_CROP };
@@ -170,6 +174,22 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
     } else if (/^crop-(?:l|left)=(\d+)(?:px)?$/i.test(part)) {
       const m = part.match(/^crop-(?:l|left)=(\d+)(?:px)?$/i);
       if (m) crop.left = Number(m[1]);
+    } else if (
+      lower === 'vertical' ||
+      lower === 'portrait' ||
+      lower === '9:16' ||
+      lower === '9/16' ||
+      lower === 'v' ||
+      lower === 'vertical-16:9' ||
+      lower === 'vertical:16:9' ||
+      lower === '16:9-v' ||
+      lower === 'vertical=true'
+    ) {
+      isVertical = true;
+      customRatio = '9 / 16';
+    } else if (/^(?:w|width)=(\d+)(?:px)?$/i.test(part)) {
+      const match = part.match(/^(?:w|width)=(\d+)(?:px)?$/i);
+      if (match) customWidth = Math.max(160, Math.min(800, Number(match[1])));
     } else if (/^(?:h|height)=(\d+)(?:px)?$/i.test(part)) {
       const match = part.match(/^(?:h|height)=(\d+)(?:px)?$/i);
       if (match) customHeight = Math.max(160, Math.min(600, Number(match[1])));
@@ -184,7 +204,13 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
         part.match(/^(\d+(?:\.\d+)?)[/:](\d+(?:\.\d+)?)$/);
       if (match && Number(match[2]) > 0) {
         customRatio = `${match[1]} / ${match[2]}`;
+        if (Number(match[1]) < Number(match[2])) {
+          isVertical = true;
+        }
       }
+    } else if (/^(?:ratio|aspect)=(?:vertical|portrait|v|9:16|9\/16)$/i.test(part)) {
+      isVertical = true;
+      customRatio = '9 / 16';
     } else if (/^(?:heading|head)=(\d+(?:\.\d+)?)$/i.test(part)) {
       extraParams.heading = part.split('=')[1];
     } else if (/^pitch=(-?\d+(?:\.\d+)?)$/i.test(part)) {
@@ -246,7 +272,16 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
         'with-header',
         'no-header',
         'no-bar',
-        'hide-header'
+        'hide-header',
+        'vertical',
+        'portrait',
+        'v',
+        '9:16',
+        '9/16',
+        'vertical-16:9',
+        'vertical:16:9',
+        '16:9-v',
+        'vertical=true'
       ].includes(lower)
     ) {
       customTitle = part;
@@ -469,7 +504,9 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
     params,
     title: customTitle,
     height: customHeight,
+    width: customWidth,
     aspectRatio: customRatio,
+    isVertical,
     crop,
     locked: isLocked,
     showHeader,
