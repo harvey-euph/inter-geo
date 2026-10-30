@@ -502,7 +502,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
                 p2d = new Path2D();
                 colorGroups.set(color, p2d);
               }
-              p2d.addPath(r.path2D);
+              if (r.path2D) {
+                p2d.addPath(r.path2D);
+              }
             }
             for (const [color, p2d] of colorGroups) {
               ctx.strokeStyle = color;
@@ -540,7 +542,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
                 p2d = new Path2D();
                 colorGroups.set(color, p2d);
               }
-              p2d.addPath(r.path2D);
+              if (r.path2D) {
+                p2d.addPath(r.path2D);
+              }
             }
             for (const [color, p2d] of colorGroups) {
               ctx.strokeStyle = color;

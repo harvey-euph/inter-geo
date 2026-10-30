@@ -14,16 +14,10 @@ import {
 import {
   getCsvLayerById,
   loadOnDemandCsvLayer,
+  onLayersIndexLoaded,
   type RegisteredCsvLayer
 } from './layers/csvLayerRegistry';
 import './App.css';
-
-if (typeof window !== 'undefined') {
-  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-  if (navigation?.type === 'reload' && window.location.search) {
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.hash}`);
-  }
-}
 
 const CountryDetailPanel = lazy(() =>
   import('./components/CountryDetailPanel').then((m) => ({ default: m.CountryDetailPanel }))
@@ -33,83 +27,86 @@ const QuizModal = lazy(() =>
 );
 
 export function App() {
-  const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
   const [initialLayerParam] = useState(() => new URLSearchParams(window.location.search).get('layer')?.trim() || '');
-  const effectiveLayerCandidate = initialLayerParam || initialTargetParam;
-  const initialCsvLayer = effectiveLayerCandidate ? getCsvLayerById(effectiveLayerCandidate) : undefined;
-  const initialNationwideLayer = effectiveLayerCandidate ? getNationwideLayerById(effectiveLayerCandidate) : undefined;
-  const isBaseLayer = effectiveLayerCandidate === 'base' || effectiveLayerCandidate === 'none';
-  const isInitialLayer = !!initialCsvLayer || !!initialNationwideLayer || isBaseLayer;
-  const initialLayerIds = initialNationwideLayer ? [effectiveLayerCandidate] : [];
-  const initialTarget = isInitialLayer && !initialLayerParam ? '' : initialTargetParam;
-  const [initialFocusTarget] = useState(() => {
-    for (const id of initialLayerIds) {
-      const csvFocus = getCsvLayerById(id)?.meta.focusTarget;
-      if (csvFocus) return csvFocus;
-      const layer = getNationwideLayerById(id);
-      if (layer?.targetIso2 && layer.targetIso2 !== '*') return layer.targetIso2;
-    }
-    return '';
-  });
-  const initialTargetParts = initialTarget.split('::');
+  const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
+
+  // 1. if (layer)
+  const initialCsvLayer = initialLayerParam ? getCsvLayerById(initialLayerParam) : undefined;
+  const initialNationwideLayer = initialLayerParam ? getNationwideLayerById(initialLayerParam) : undefined;
+  const isBaseLayer = initialLayerParam === 'base' || initialLayerParam === 'none';
+  const layerHasGoto = Boolean(initialCsvLayer?.goto || initialCsvLayer?.meta?.goto);
+
+  // If layer.@goto exists, it navigates camera and returns (target is bypassed)
+  const initialTarget = layerHasGoto ? '' : initialTargetParam;
+  const initialTargetSeparator = initialTarget.includes('::')
+    ? '::'
+    : (initialTarget.includes('-') && !findCountry(initialTarget) ? '-' : null);
+  const initialTargetParts = initialTargetSeparator
+    ? initialTarget.split(initialTargetSeparator)
+    : (initialTarget ? [initialTarget] : []);
+
   const initialCountry = initialTargetParts.length >= 1 ? findCountry(initialTargetParts[0]) || null : null;
   const initialSubdivision: L2SubdivisionDetail | null =
-    initialTargetParts.length === 2 && initialCountry
+    initialTargetParts.length >= 2 && initialCountry
       ? {
-          id: initialTargetParts[1],
+          id: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
           iso2: initialCountry.iso2,
-          name: initialTargetParts[1],
-          nameEn: initialTargetParts[1],
-          nameZh: initialTargetParts[1],
+          name: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
+          nameEn: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
+          nameZh: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
           typeEn: '一級行政區',
-          code: initialTargetParts[1],
-          postal: initialTargetParts[1],
+          code: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
+          postal: initialTargetParts.slice(1).join(initialTargetSeparator || '::').trim(),
           countryName: initialCountry.name,
           countryNameZh: initialCountry.nameZh,
           countryFlag: initialCountry.flag
         }
       : null;
+
   const isFillRegion =
     isBaseLayer ||
-    initialCsvLayer?.type === 'FillWithColor' ||
+    (initialCsvLayer?.type === 'FillWithColor' && initialCsvLayer?.group !== 'area-feature') ||
     initialCsvLayer?.group === 'fill-region' ||
     initialCsvLayer?.group === 'fill-region-with-color';
-  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? effectiveLayerCandidate : 'base');
+  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? initialLayerParam : 'base');
+
+  const isGlobalLabel =
+    (initialCsvLayer?.type === 'Text' || initialCsvLayer?.type === 'TextWithStyle') &&
+    initialCsvLayer?.group === 'global-label';
   const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
-    () =>
-      new Set(
-        (initialCsvLayer?.type === 'Text' || initialCsvLayer?.type === 'TextWithStyle') &&
-        initialCsvLayer?.group === 'global-label'
-          ? [effectiveLayerCandidate]
-          : []
-      )
+    () => new Set(isGlobalLabel ? [initialLayerParam] : [])
   );
+
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
-    initialCsvLayer?.type === 'Image' ? effectiveLayerCandidate : null
+    initialCsvLayer?.type === 'Image' ? initialLayerParam : null
   );
+
   const isAreaFeature =
     initialCsvLayer?.group === 'area-feature' ||
     initialCsvLayer?.meta.group === 'area-feature' ||
-    initialCsvLayer?.type === 'ExtObject';
+    initialCsvLayer?.type === 'ExtObject' ||
+    !!initialNationwideLayer ||
+    (initialCsvLayer?.type === 'Image' && (initialLayerParam === 'pedestrian-crossing' || initialLayerParam === 'eu-pedestrian-crossing'));
+
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
-    () =>
-      new Set(
-        initialLayerIds
-          .map((id) => {
-            if (id === 'roads-highways') return 'us-interstates';
-            if (id === 'roads-numbered') return 'us-numbered-highways';
-            return id;
-          })
-          .filter(
-            (id) =>
-              !!getNationwideLayerById(id) ||
-              getCsvLayerById(id)?.meta.group === 'area-feature' ||
-              getCsvLayerById(id)?.group === 'area-feature' ||
-              getCsvLayerById(id)?.type === 'ExtObject' ||
-              (isAreaFeature && id === effectiveLayerCandidate)
-          )
-      )
+    () => {
+      const set = new Set<string>();
+      if (isAreaFeature && initialLayerParam) {
+        if (initialLayerParam === 'roads-highways' || initialLayerParam === 'us-interstates') {
+          set.add('us-interstates');
+        } else if (initialLayerParam === 'roads-numbered' || initialLayerParam === 'us-numbered-highways') {
+          set.add('us-numbered-highways');
+        } else if (initialLayerParam === 'pedestrian-crossing' || initialLayerParam === 'eu-pedestrian-crossing') {
+          set.add('eu-pedestrian-crossing');
+          set.add('pedestrian-crossing');
+        } else {
+          set.add(initialLayerParam);
+        }
+      }
+      return set;
+    }
   );
+
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(
@@ -129,6 +126,120 @@ export function App() {
 
   const zoomToSubdivisionRef = useRef<((iso2: string, id: string | number) => void) | null>(null);
   const focusMapRef = useRef<((target: MapFocusTarget) => void) | null>(null);
+  const initialFocusTarget = '';
+  const startupDispatchedRef = useRef(false);
+
+  const activateLayerById = useCallback((layerId: string) => {
+    if (!layerId) return;
+    const csvLayer = getCsvLayerById(layerId);
+    const isBase = layerId === 'base' || layerId === 'none';
+
+    if (
+      isBase ||
+      (csvLayer?.type === 'FillWithColor' && csvLayer?.group !== 'area-feature') ||
+      csvLayer?.group === 'fill-region' ||
+      csvLayer?.group === 'fill-region-with-color'
+    ) {
+      setActiveFilterId(layerId);
+    } else if (
+      (csvLayer?.type === 'Text' || csvLayer?.type === 'TextWithStyle') &&
+      csvLayer?.group === 'global-label'
+    ) {
+      setActiveTextFilters(new Set([layerId]));
+    } else if (csvLayer?.type === 'Image') {
+      setActiveInternationalImageFilter(layerId);
+      if (layerId === 'pedestrian-crossing' || layerId === 'eu-pedestrian-crossing') {
+        setActiveRegionalFilters((prev) => {
+          const next = new Set(prev);
+          next.add('eu-pedestrian-crossing');
+          next.add('pedestrian-crossing');
+          return next;
+        });
+      }
+    } else {
+      setActiveRegionalFilters((prev) => {
+        const next = new Set(prev);
+        if (layerId === 'roads-highways' || layerId === 'us-interstates') {
+          next.add('us-interstates');
+        } else if (layerId === 'roads-numbered' || layerId === 'us-numbered-highways') {
+          next.add('us-numbered-highways');
+        } else if (layerId === 'pedestrian-crossing' || layerId === 'eu-pedestrian-crossing') {
+          next.add('eu-pedestrian-crossing');
+          next.add('pedestrian-crossing');
+        } else {
+          next.add(layerId);
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  // URL startup rules dispatcher:
+  // if (layer) {
+  //     layer.active();
+  //     if (layer.@goto) {
+  //         goto(layer.@goto);
+  //         return;
+  //     }
+  // }
+  // if (target) {
+  //     goto(target.bbox);
+  //     target.infocard.open();
+  //     return;
+  // }
+  // goto(remaining tags);
+  useEffect(() => {
+    if (startupDispatchedRef.current) return;
+
+    const dispatchUrlRules = () => {
+      if (startupDispatchedRef.current) return;
+      const params = new URLSearchParams(window.location.search);
+      const layerParam = params.get('layer')?.trim();
+      const targetParam = params.get('target')?.trim();
+
+      if (layerParam) {
+        activateLayerById(layerParam);
+        const csvLayer = getCsvLayerById(layerParam);
+        const layerGoto = csvLayer?.goto || csvLayer?.meta?.goto;
+        if (layerGoto) {
+          try {
+            const p = new URLSearchParams(layerGoto);
+            const lat = Number(p.get('lat'));
+            const lon = Number(p.get('lon'));
+            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio, force: true });
+              startupDispatchedRef.current = true;
+              return;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (targetParam) {
+        startupDispatchedRef.current = true;
+        return;
+      }
+
+      const latParam = Number(params.get('lat'));
+      const lonParam = Number(params.get('lon'));
+      const ratioParam = params.has('ratio') ? Number(params.get('ratio')) : undefined;
+      if (Number.isFinite(latParam) && Number.isFinite(lonParam)) {
+        focusMapRef.current?.({ kind: 'coordinates', lat: latParam, lon: lonParam, ratio: ratioParam });
+      }
+      startupDispatchedRef.current = true;
+    };
+
+    dispatchUrlRules();
+
+    return onLayersIndexLoaded(() => {
+      if (!startupDispatchedRef.current) {
+        dispatchUrlRules();
+      }
+    });
+  }, [activateLayerById]);
 
   useEffect(() => {
     const visualViewport = window.visualViewport;
@@ -160,6 +271,15 @@ export function App() {
       if (options?.focus !== false) {
         focusMapRef.current?.({ kind: 'country', iso2: country.iso2 });
       }
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('target', country.iso2);
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    } else if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('target');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
   }, []);
 
@@ -172,6 +292,15 @@ export function App() {
       if (options?.focus !== false) {
         focusMapRef.current?.({ kind: 'subdivision', iso2: sub.iso2, id: sub.id });
       }
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('target', `${sub.iso2}::${sub.id}`);
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    } else if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('target');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
   }, []);
 
@@ -217,7 +346,8 @@ export function App() {
     });
     setActiveTextFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(filterId)) {
+      const isActivating = !next.has(filterId);
+      if (!isActivating) {
         next.delete(filterId);
       } else {
         // Enforce max 4 concurrent text filters
@@ -226,6 +356,18 @@ export function App() {
           next.delete(first);
         }
         next.add(filterId);
+      }
+
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (isActivating) {
+          url.searchParams.set('layer', filterId);
+        } else if (next.size > 0) {
+          url.searchParams.set('layer', Array.from(next)[0]);
+        } else {
+          url.searchParams.delete('layer');
+        }
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
       }
       return next;
     });
@@ -238,6 +380,7 @@ export function App() {
         ((prev === 'eu-pedestrian-crossing' || prev === 'pedestrian-crossing') &&
           (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing'));
 
+      let nextFilter: string | null;
       if (isSameOrAlias) {
         setActiveRegionalFilters((rPrev) => {
           if (!rPrev.has('eu-pedestrian-crossing') && !rPrev.has('pedestrian-crossing')) return rPrev;
@@ -246,7 +389,7 @@ export function App() {
           next.delete('pedestrian-crossing');
           return next;
         });
-        return null;
+        nextFilter = null;
       } else {
         // Activating an image filter closes all text filters!
         setActiveTextFilters(new Set());
@@ -258,8 +401,19 @@ export function App() {
             return next;
           });
         }
-        return filterId;
+        nextFilter = filterId;
       }
+
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (nextFilter) {
+          url.searchParams.set('layer', nextFilter);
+        } else {
+          url.searchParams.delete('layer');
+        }
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+      return nextFilter;
     });
   }, []);
 
@@ -270,6 +424,16 @@ export function App() {
         activeRegionalFilters.has('pedestrian-crossing') ||
         activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
         activeInternationalImageFilter === 'pedestrian-crossing';
+
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (!isCurrentlyActive) {
+          url.searchParams.set('layer', 'pedestrian-crossing');
+        } else {
+          url.searchParams.delete('layer');
+        }
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
 
       if (isCurrentlyActive) {
         setActiveRegionalFilters((prev) => {
@@ -309,6 +473,17 @@ export function App() {
 
     const targetDef = getNationwideLayerById(filterId);
     const turningOn = !activeRegionalFilters.has(filterId);
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (turningOn) {
+        url.searchParams.set('layer', filterId);
+      } else {
+        url.searchParams.delete('layer');
+      }
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+
     setActiveRegionalFilters((prev) => {
       const next = new Set(prev);
       if (next.has(filterId)) {
@@ -397,6 +572,11 @@ export function App() {
     setActiveTextFilters(new Set());
     setActiveInternationalImageFilter(null);
     setActiveRegionalFilters(new Set());
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('layer');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -404,10 +584,24 @@ export function App() {
     setSelectedSubdivision(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('target');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   const handleSelectFilter = useCallback((filterId: string) => {
     setActiveFilterId(filterId);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (filterId && filterId !== 'base' && filterId !== 'none') {
+        url.searchParams.set('layer', filterId);
+      } else {
+        url.searchParams.delete('layer');
+      }
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   const [activeWindow, setActiveWindow] = useState<'layer' | 'info' | null>(null);

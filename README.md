@@ -258,6 +258,42 @@ flowchart LR
   - 當啟用全域標籤或區域專屬標籤時，自動同步列出已疊加的藥丸徽章。
   - 內建 `min-width` 與平滑過渡動畫，避免卡片切換時寬度劇烈跳動。
 
+### URL 狀態同步、轉跳與重新整理規則 (URL Routing & Reload Protocol)
+
+系統採用嚴格且明確的三級階層調度協定處理網址解析、深層連結（Deep Linking）與頁面重整（Reload/F5）：
+
+```typescript
+if (layer) {
+    layer.active();
+    if (layer.@goto) {
+        goto(layer.@goto);
+        return;
+    }
+}
+if (target) {
+    goto(target.bbox);
+    target.infocard.open();
+    return;
+}
+goto(remaining tags);
+```
+
+1. **第一優先級：圖層啟用與 `@goto` 導航 (`if (layer)`)**：
+   - 若 URL 包含 `layer={layerId}`，系統即時啟用該圖層（區塊著色、全域標籤或區域特徵）。
+   - 若該圖層聲明了相機跳轉指令 `@goto: lat=...&lon=...&ratio=...`（例如歐洲行人號誌），相機鏡頭**立刻飛往指定之座標與縮放比例，並終止後續相機流程 (`return`)**。此時即使帶有 `target` 亦不覆蓋視角。
+   - 若圖層未定義 `@goto`（例如行駛方向 `driving-side`），則圖層保持啟用狀態，並向下穿透評估第 2 步。
+2. **第二優先級：目標幾何框選與情報卡開闔 (`if (target)`)**：
+   - 若 URL 包含 `target={iso2}` 或 `target={iso2}::{id}`（例如 `target=JP`、`target=US::CA`）：
+     - 相機平滑滑行並框選居中於目標之幾何邊界外框 (`goto(target.bbox)`)。
+     - 同時展開該國或行政區之實戰情報卡側邊欄 (`target.infocard.open()`)。
+     - 導航完成後**終止後續相機流程 (`return`)**。
+3. **第三優先級：剩餘座標標籤定位 (`goto(remaining tags)`)**：
+   - 當前兩項未觸發鏡頭導航時，系統自 URL 讀取使用者先前拖曳平移保留之 `lat`、`lon`、`ratio` 標籤並直接復原視野。
+   - 若無任何座標參數，則回退至全球世界地圖全景。
+4. **雙向狀態保持與零資料遺失**：
+   - 切換圖層、選取目標、關閉情報卡面板、以及在地圖畫布上平移縮放時，網址列參數均以 `replaceState` 實時雙向對齊。
+   - 瀏覽器重新整理（F5）時絕不洗白現有參數，完美維持工作區與戰術視角。
+
 ---
 
 ## 7. Markdown 情報卡渲染架構與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)

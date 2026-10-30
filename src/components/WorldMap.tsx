@@ -593,7 +593,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const center = projection.invert?.([mapX, mapY]);
     if (!center || !center.every(Number.isFinite)) return;
 
-    url.search = '';
     url.searchParams.set('lat', center[1].toFixed(5));
     url.searchParams.set('lon', center[0].toFixed(5));
     url.searchParams.set('ratio', k.toFixed(3));
@@ -2861,23 +2860,65 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       const kMin = vh / MAP_H;
       const params = new URLSearchParams(window.location.search);
-      const hasPrimaryTarget = params.has('target');
-      const ratioParam = Number(params.get('ratio'));
-      const initialK = !hasPrimaryTarget && params.has('ratio') && Number.isFinite(ratioParam)
-        ? Math.max(kMin, Math.min(MAX_ZOOM_K, ratioParam))
-        : Math.max(kMin, 1.0);
-      transformRef.current.k = initialK;
+      const layerParam = params.get('layer')?.trim();
+      const csvLayer = layerParam ? getCsvLayerById(layerParam) : undefined;
+      const layerGoto = csvLayer?.goto || csvLayer?.meta?.goto;
+      const hasPrimaryTarget = Boolean(params.get('target')?.trim());
 
-      const latParam = Number(params.get('lat'));
-      const lonParam = Number(params.get('lon'));
-      const hasCenter = !hasPrimaryTarget && params.has('lat') && params.has('lon') &&
-        Number.isFinite(latParam) && Number.isFinite(lonParam) &&
-        Math.abs(latParam) <= 85.05112878 && Math.abs(lonParam) <= 180;
-      const projectedCenter = hasCenter ? projection([lonParam, latParam]) : null;
-      const centerX = projectedCenter?.[0] ?? MAP_W / 2;
-      const centerY = projectedCenter?.[1] ?? MAP_H / 2;
-      const initialX = wrapX(vw / 2 - centerX * initialK, initialK);
-      const initialY = clampY(vh / 2 - centerY * initialK, initialK, vh);
+      let initialK = Math.max(kMin, 1.0);
+      let initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);
+      let initialY = clampY(vh / 2 - (MAP_H / 2) * initialK, initialK, vh);
+
+      if (layerGoto) {
+        try {
+          const lp = new URLSearchParams(layerGoto);
+          const gRatio = lp.has('ratio') ? Number(lp.get('ratio')) : NaN;
+          const gLat = Number(lp.get('lat'));
+          const gLon = Number(lp.get('lon'));
+          if (Number.isFinite(gRatio)) {
+            initialK = Math.max(kMin, Math.min(MAX_ZOOM_K, gRatio));
+          }
+          if (
+            Number.isFinite(gLat) &&
+            Number.isFinite(gLon) &&
+            Math.abs(gLat) <= 85.05112878 &&
+            Math.abs(gLon) <= 180
+          ) {
+            const projected = projection([gLon, gLat]);
+            if (projected) {
+              initialX = wrapX(vw / 2 - projected[0] * initialK, initialK);
+              initialY = clampY(vh / 2 - projected[1] * initialK, initialK, vh);
+            }
+          }
+          initialTargetHandledRef.current = true;
+        } catch {
+          // ignore
+        }
+      } else if (hasPrimaryTarget) {
+        // Target framing will run in initialTarget effect
+      } else {
+        // goto(remaining tags): lat, lon, ratio
+        const ratioParam = Number(params.get('ratio'));
+        if (params.has('ratio') && Number.isFinite(ratioParam)) {
+          initialK = Math.max(kMin, Math.min(MAX_ZOOM_K, ratioParam));
+        }
+        const latParam = Number(params.get('lat'));
+        const lonParam = Number(params.get('lon'));
+        if (
+          params.has('lat') &&
+          params.has('lon') &&
+          Number.isFinite(latParam) &&
+          Number.isFinite(lonParam) &&
+          Math.abs(latParam) <= 85.05112878 &&
+          Math.abs(lonParam) <= 180
+        ) {
+          const projected = projection([lonParam, latParam]);
+          if (projected) {
+            initialX = wrapX(vw / 2 - projected[0] * initialK, initialK);
+            initialY = clampY(vh / 2 - projected[1] * initialK, initialK, vh);
+          }
+        }
+      }
 
       transformRef.current.x = initialX;
       transformRef.current.y = initialY;
