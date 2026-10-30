@@ -167,7 +167,7 @@ async function main() {
           iso2: c.iso2,
           parentName: c.name,
           parentCode: c.iso2,
-          file: `/data/l3/${c.iso2}/${c.iso2}.fgb`,
+          file: `data/${c.iso2}/${c.iso2}.fgb`,
           subdivisionCount: l3Features.length,
           bbox
         }

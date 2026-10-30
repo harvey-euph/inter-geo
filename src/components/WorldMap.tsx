@@ -1467,13 +1467,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   // Helper to fetch an individual L3 regional partition pack (decoded in background worker)
   const fetchL3Pack = useCallback(
     async (filePath: string) => {
-      if (loadedL3PacksRef.current.has(filePath) || inFlightL3PacksRef.current.has(filePath)) {
+      const normalizedPath = filePath.replace(/^\/?data\/l3\//, 'data/').replace(/^\/+/, '');
+      if (
+        loadedL3PacksRef.current.has(normalizedPath) ||
+        loadedL3PacksRef.current.has(filePath) ||
+        inFlightL3PacksRef.current.has(normalizedPath) ||
+        inFlightL3PacksRef.current.has(filePath)
+      ) {
         return;
       }
+      inFlightL3PacksRef.current.add(normalizedPath);
       inFlightL3PacksRef.current.add(filePath);
 
       try {
-        const { features: decoded } = await decodeGeo(getDataUrl(filePath), 'l3');
+        const { features: decoded } = await decodeGeo(getDataUrl(normalizedPath), 'l3');
         const paths: L3SubdivisionPathData[] = [];
 
         for (let i = 0; i < decoded.length; i++) {
@@ -1519,11 +1526,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         }
 
         loadedL3PacksRef.current.add(filePath);
+        loadedL3PacksRef.current.add(normalizedPath);
         requestRender();
       } catch (err) {
-        console.warn(`[L3] Failed to load pack ${filePath}:`, err);
+        console.warn(`[L3] Failed to load pack ${normalizedPath}:`, err);
       } finally {
         inFlightL3PacksRef.current.delete(filePath);
+        inFlightL3PacksRef.current.delete(normalizedPath);
       }
     },
     [requestRender]
@@ -1563,6 +1572,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             break;
           }
         }
+      }
+
+      if (partitionFile) {
+        partitionFile = partitionFile.replace(/^\/?data\/l3\//, 'data/').replace(/^\/+/, '');
       }
 
       if (

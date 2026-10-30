@@ -238,6 +238,9 @@ export async function loadDataIndex(): Promise<DataIndex> {
           for (const country of data.l3Manifest) {
             cachedL3PartitionsByCountry[country.iso2] = country.partitions;
             for (const p of country.partitions) {
+              if (p.file) {
+                p.file = p.file.replace(/^\/?data\/l3\//, 'data/').replace(/^\/+/, '');
+              }
               const iso = country.iso2;
               cachedL3PartitionsByKey[`${iso}:${p.key}`] = p;
               cachedL3PartitionsByKey[`${iso}:${normKey(p.key)}`] = p;

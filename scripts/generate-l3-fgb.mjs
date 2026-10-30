@@ -283,7 +283,7 @@ async function processJapan() {
       iso2: 'JP',
       parentName: group.prefName,
       parentCode: prefKey,
-      file: `/data/l3/JP/${prefKey}.fgb`,
+      file: `data/JP/${prefKey}.fgb`,
       subdivisionCount: finalFeatures.length,
       bbox: {
         minX: Math.round(pMinX),
@@ -453,7 +453,7 @@ async function processFrance() {
       iso2: 'FR',
       parentName: group.regionMeta.nameZh,
       parentCode: regCode,
-      file: `/data/l3/FR/${fileName}`,
+      file: `data/FR/${fileName}`,
       subdivisionCount: group.departments.length,
       bbox: {
         minX: Math.max(0, Math.round(pMinX) - 5),
@@ -627,7 +627,7 @@ async function processItaly() {
       iso2: 'IT',
       parentName: group.regionMeta.nameZh,
       parentCode: regCode,
-      file: `/data/l3/IT/${fileName}`,
+      file: `data/IT/${fileName}`,
       subdivisionCount: group.provinces.length,
       bbox: {
         minX: Math.max(0, Math.round(pMinX) - 5),
@@ -846,7 +846,7 @@ async function processSpain() {
       iso2: 'ES',
       parentName: group.regionMeta.nameZh,
       parentCode: regCode,
-      file: `/data/l3/ES/${fileName}`,
+      file: `data/ES/${fileName}`,
       subdivisionCount: group.provinces.length,
       bbox: {
         minX: Math.max(0, Math.round(pMinX) - 5),
@@ -1043,7 +1043,7 @@ async function processUK() {
       iso2: 'GB',
       parentName: group.countryMeta.nameZh,
       parentCode: cCode,
-      file: `/data/l3/GB/${fileName}`,
+      file: `data/GB/${fileName}`,
       subdivisionCount: group.subdivisions.length,
       bbox: {
         minX: Math.max(0, Math.round(pMinX) - 5),
@@ -1254,7 +1254,7 @@ async function processCountry(meta) {
       iso2: iso2,
       parentName: group.parentName,
       parentCode: targetCode,
-      file: `/data/l3/${iso2}/${safeFilename}.fgb`,
+      file: `data/${iso2}/${safeFilename}.fgb`,
       subdivisionCount: group.features.length,
       bbox: {
         minX: Math.round(pMinX),

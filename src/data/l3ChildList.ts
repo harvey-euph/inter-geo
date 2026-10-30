@@ -44,20 +44,21 @@ export function loadL3Children(
   const partition: L3PartitionMeta | undefined = findL3Partition(iso2, parts);
   if (!partition) return Promise.resolve([]);
 
-  const cached = loadedByFile.get(partition.file);
+  const normalizedFile = partition.file.replace(/^\/?data\/l3\//, 'data/').replace(/^\/+/, '');
+  const cached = loadedByFile.get(normalizedFile);
   if (cached) return cached;
 
-  const pending = decodeGeo(getDataUrl(partition.file), 'l3')
+  const pending = decodeGeo(getDataUrl(normalizedFile), 'l3')
     .then((result) => {
       const rows = result.features.map((feature) => toChild(feature.props || {}, iso2));
       rows.sort((a, b) => childLabel(a).localeCompare(childLabel(b), 'zh-Hant'));
       return rows;
     })
     .catch((err) => {
-      loadedByFile.delete(partition.file);
+      loadedByFile.delete(normalizedFile);
       throw err;
     });
 
-  loadedByFile.set(partition.file, pending);
+  loadedByFile.set(normalizedFile, pending);
   return pending;
 }
