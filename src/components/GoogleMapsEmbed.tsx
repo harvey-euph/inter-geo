@@ -48,7 +48,17 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       if (config.showHeader) parts.push('header');
       parts.push('lock');
       if (config.isVertical) {
-        parts.push('vertical');
+        if (config.aspectRatio === '4 / 5') {
+          parts.push('vertical');
+        } else if (config.aspectRatio === '9 / 16') {
+          parts.push('9:16');
+        } else if (config.aspectRatio === '3 / 4') {
+          parts.push('3:4');
+        } else if (config.aspectRatio === '2 / 3') {
+          parts.push('2:3');
+        } else {
+          parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+        }
       } else if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
         parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
       }
@@ -304,7 +314,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             maxHeight: config.height
               ? undefined
               : config.isVertical
-              ? 'min(82vh, 680px)'
+              ? 'min(75vh, 520px)'
               : 'min(75vh, 600px)',
             overflow: 'hidden',
             backgroundColor: '#020617',

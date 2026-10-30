@@ -74,7 +74,8 @@ export function isGoogleMapsEmbedToken(rawAlt?: string, rawSrc?: string): boolea
  * Parses markdown options and input URL/coordinates into Embed API parameters
  */
 export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): ParsedEmbedConfig {
-  const altParts = (rawAlt || '').split(/[|:]/).map((s) => s.trim()).filter(Boolean);
+  const rawClean = (rawAlt || '').replace(/^embed:/i, '');
+  const altParts = rawClean.split('|').map((s) => s.trim()).filter(Boolean);
   let explicitMode: 'streetview' | 'place' | 'view' | 'directions' | 'search' | null = null;
   let customTitle: string | undefined;
   let customHeight: number | undefined;
@@ -177,16 +178,29 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
     } else if (
       lower === 'vertical' ||
       lower === 'portrait' ||
-      lower === '9:16' ||
-      lower === '9/16' ||
       lower === 'v' ||
-      lower === 'vertical-16:9' ||
-      lower === 'vertical:16:9' ||
-      lower === '16:9-v' ||
+      lower === '4:5' ||
+      lower === '4/5' ||
+      lower === 'vertical-4:5' ||
       lower === 'vertical=true'
     ) {
       isVertical = true;
+      customRatio = '4 / 5';
+    } else if (
+      lower === '9:16' ||
+      lower === '9/16' ||
+      lower === 'vertical-16:9' ||
+      lower === 'vertical:16:9' ||
+      lower === '16:9-v'
+    ) {
+      isVertical = true;
       customRatio = '9 / 16';
+    } else if (lower === '3:4' || lower === '3/4') {
+      isVertical = true;
+      customRatio = '3 / 4';
+    } else if (lower === '2:3' || lower === '2/3') {
+      isVertical = true;
+      customRatio = '2 / 3';
     } else if (/^(?:w|width)=(\d+)(?:px)?$/i.test(part)) {
       const match = part.match(/^(?:w|width)=(\d+)(?:px)?$/i);
       if (match) customWidth = Math.max(160, Math.min(800, Number(match[1])));
@@ -208,9 +222,18 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
           isVertical = true;
         }
       }
-    } else if (/^(?:ratio|aspect)=(?:vertical|portrait|v|9:16|9\/16)$/i.test(part)) {
+    } else if (/^(?:ratio|aspect)=(?:vertical|portrait|v|4:5|4\/5)$/i.test(part)) {
+      isVertical = true;
+      customRatio = '4 / 5';
+    } else if (/^(?:ratio|aspect)=(?:9:16|9\/16|16:9-v)$/i.test(part)) {
       isVertical = true;
       customRatio = '9 / 16';
+    } else if (/^(?:ratio|aspect)=(?:3:4|3\/4)$/i.test(part)) {
+      isVertical = true;
+      customRatio = '3 / 4';
+    } else if (/^(?:ratio|aspect)=(?:2:3|2\/3)$/i.test(part)) {
+      isVertical = true;
+      customRatio = '2 / 3';
     } else if (/^(?:heading|head)=(\d+(?:\.\d+)?)$/i.test(part)) {
       extraParams.heading = part.split('=')[1];
     } else if (/^pitch=(-?\d+(?:\.\d+)?)$/i.test(part)) {
@@ -239,6 +262,8 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       extraParams.q = part.split('=')[1].trim();
     } else if (
       !part.includes('=') &&
+      !/^\d+[/:]\d+$/.test(part) &&
+      !/^\d+(?:px)?$/i.test(part) &&
       ![
         'streetview',
         'sv',
@@ -276,8 +301,15 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
         'vertical',
         'portrait',
         'v',
+        '4:5',
+        '4/5',
+        '3:4',
+        '3/4',
+        '2:3',
+        '2/3',
         '9:16',
         '9/16',
+        'vertical-4:5',
         'vertical-16:9',
         'vertical:16:9',
         '16:9-v',
