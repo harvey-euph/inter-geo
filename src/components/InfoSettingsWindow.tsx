@@ -4,10 +4,7 @@ import {
   X,
   Check,
   Ban,
-  Sparkles,
-  ChevronUp,
-  ChevronDown,
-  GripVertical
+  Sparkles
 } from 'lucide-react';
 import { FloatingWindow } from './FloatingWindow';
 import {
@@ -227,14 +224,26 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
 
     const onPointerUp = () => {
       const current = dragStateRef.current;
-      if (current && current.isDragging && current.hoveredZone) {
-        const { tag, fromZone, hoveredZone } = current;
-        if (hoveredZone !== fromZone) {
-          if (hoveredZone === 'include') {
+      if (current) {
+        if (current.isDragging && current.hoveredZone) {
+          const { tag, fromZone, hoveredZone } = current;
+          if (hoveredZone !== fromZone) {
+            if (hoveredZone === 'include') {
+              moveTagToInclude(tag);
+            } else if (hoveredZone === 'exclude') {
+              moveTagToExclude(tag);
+            } else if (hoveredZone === 'default') {
+              moveTagToDefault(tag);
+            }
+          }
+        } else if (!current.isDragging) {
+          // Click cycle: DEFAULT -> MUST -> IGNORE -> DEFAULT
+          const { tag, fromZone } = current;
+          if (fromZone === 'default') {
             moveTagToInclude(tag);
-          } else if (hoveredZone === 'exclude') {
+          } else if (fromZone === 'include') {
             moveTagToExclude(tag);
-          } else if (hoveredZone === 'default') {
+          } else if (fromZone === 'exclude') {
             moveTagToDefault(tag);
           }
         }
@@ -318,9 +327,8 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
                             key={tag}
                             className={`info-draggable-tag-pill is-include ${isPicked ? 'is-picked-up' : ''}`}
                             onPointerDown={(e) => handleTagPointerDown(tag, 'include', e)}
-                            title="拖曳移動，或點擊 ✕ 放回預設"
+                            title="點擊移至 IGNORE，或點擊 ✕ 放回預設"
                           >
-                            <GripVertical size={11} className="drag-grip-icon" />
                             <span className="tag-name">{tag}</span>
                             <button
                               type="button"
@@ -378,9 +386,8 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
                             key={tag}
                             className={`info-draggable-tag-pill is-exclude ${isPicked ? 'is-picked-up' : ''}`}
                             onPointerDown={(e) => handleTagPointerDown(tag, 'exclude', e)}
-                            title="拖曳移動，或點擊 ✕ 放回預設"
+                            title="點擊放回 DEFAULT"
                           >
-                            <GripVertical size={11} className="drag-grip-icon" />
                             <span className="tag-name">{tag}</span>
                             <button
                               type="button"
@@ -428,35 +435,9 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
                           key={tag}
                           className={`info-draggable-tag-pill is-default ${isPicked ? 'is-picked-up' : ''}`}
                           onPointerDown={(e) => handleTagPointerDown(tag, 'default', e)}
-                          title="拖曳至上方包含或排除，或點擊快捷按鈕"
+                          title="點擊移至 MUST (強制包含)"
                         >
-                          <GripVertical size={11} className="drag-grip-icon" />
                           <span className="tag-name">{tag}</span>
-
-                          <div className="tag-quick-actions">
-                            <button
-                              type="button"
-                              className="tag-quick-btn to-include"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveTagToInclude(tag);
-                              }}
-                              title="移至 must included (強制包含)"
-                            >
-                              <ChevronUp size={11} />
-                            </button>
-                            <button
-                              type="button"
-                              className="tag-quick-btn to-exclude"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveTagToExclude(tag);
-                              }}
-                              title="移至 must not included (強制排除)"
-                            >
-                              <ChevronDown size={11} />
-                            </button>
-                          </div>
                         </div>
                       );
                     })}
@@ -518,7 +499,6 @@ export const InfoSettingsWindow: React.FC<InfoSettingsWindowProps> = React.memo(
             }}
           >
             <span className="ghost-glow-aura" />
-            <GripVertical size={11} className="drag-grip-icon" />
             <span className="tag-name">{dragState.tag}</span>
             {dragState.hoveredZone === 'include' && (
               <span className="ghost-badge to-include">

@@ -2585,18 +2585,19 @@ span.confused-country-btn {
 .info-draggable-tag-pill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
+  gap: 4px;
+  padding: 3px 8px;
   border-radius: 6px;
   font-size: 11px;
   user-select: none;
   touch-action: none;
-  cursor: grab;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 
 .info-draggable-tag-pill:active {
-  cursor: grabbing;
+  cursor: pointer;
+  transform: scale(0.97);
 }
 
 .info-draggable-tag-pill .drag-grip-icon {
