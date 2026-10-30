@@ -3149,24 +3149,4 @@ span.confused-country-btn {
   color: #ffffff;
 }
 
-.google-maps-log-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.google-maps-log-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f1f5f9;
-}
-
 

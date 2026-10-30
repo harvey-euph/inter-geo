@@ -10,8 +10,7 @@ import {
   Route,
   Sliders,
   Copy,
-  Check,
-  Terminal
+  Check
 } from 'lucide-react';
 import {
   parseGoogleMapsEmbedConfig,
@@ -276,24 +275,6 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       'color: #38bdf8; font-weight: bold; font-size: 12px;'
     );
     console.log('%c📋 Markdown Snippet (直接複製貼上):', 'color: #a5f3fc; font-weight: bold;');
-    console.log(snippet);
-    console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
-      heading: liveHeading,
-      pitch: livePitch,
-      fov: liveFov,
-      zoom: liveZoom
-    });
-    console.groupEnd();
-  };
-
-  const handlePrintConsole = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const snippet = buildCurrentSnippet(isLocked);
-    console.group(
-      `%c🕹️ [GoogleMapsEmbed Live Parameters] ${displayTitle}`,
-      'color: #38bdf8; font-weight: bold; font-size: 12px;'
-    );
-    console.log('%c📋 Markdown Snippet:', 'color: #a5f3fc; font-weight: bold;');
     console.log(snippet);
     console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
       heading: liveHeading,
@@ -601,10 +582,10 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLiveHeading(h => Math.round(((h - 1 + 360) % 360) * 10) / 10)}
-                    title="方位 -1°"
+                    onClick={() => setLiveHeading(h => Math.round(((h - 0.5 + 360) % 360) * 10) / 10)}
+                    title="方位 -0.5°"
                   >
-                    -1°
+                    -0.5°
                   </button>
                   <input
                     type="range"
@@ -618,15 +599,15 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLiveHeading(h => Math.round(((h + 1) % 360) * 10) / 10)}
-                    title="方位 +1°"
+                    onClick={() => setLiveHeading(h => Math.round(((h + 0.5) % 360) * 10) / 10)}
+                    title="方位 +0.5°"
                   >
-                    +1°
+                    +0.5°
                   </button>
                 </div>
               </div>
 
-              {/* Pitch Slider with -1° and +1° at the two ends */}
+              {/* Pitch Slider with -0.5° and +0.5° at the two ends */}
               <div className="google-maps-tuning-row">
                 <div className="google-maps-tuning-label">
                   <span>仰角俯視 (Pitch)</span>
@@ -636,10 +617,10 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 1) * 10) / 10))}
-                    title="仰角 -1°"
+                    onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 0.5) * 10) / 10))}
+                    title="仰角 -0.5°"
                   >
-                    -1°
+                    -0.5°
                   </button>
                   <input
                     type="range"
@@ -653,15 +634,15 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 1) * 10) / 10))}
-                    title="仰角 +1°"
+                    onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 0.5) * 10) / 10))}
+                    title="仰角 +0.5°"
                   >
-                    +1°
+                    +0.5°
                   </button>
                 </div>
               </div>
 
-              {/* FOV Slider with -1° and +1° at the two ends */}
+              {/* FOV Slider with -0.5° and +0.5° at the two ends */}
               <div className="google-maps-tuning-row">
                 <div className="google-maps-tuning-label">
                   <span>視野縮放 (FOV 焦距)</span>
@@ -671,10 +652,10 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLiveFov(f => Math.max(15, Math.round((f - 1) * 10) / 10))}
-                    title="視野 -1° (放大特寫)"
+                    onClick={() => setLiveFov(f => Math.max(15, Math.round((f - 0.5) * 10) / 10))}
+                    title="視野 -0.5° (放大特寫)"
                   >
-                    -1°
+                    -0.5°
                   </button>
                   <input
                     type="range"
@@ -688,10 +669,10 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <button
                     type="button"
                     className="google-maps-step-btn"
-                    onClick={() => setLiveFov(f => Math.min(120, Math.round((f + 1) * 10) / 10))}
-                    title="視野 +1° (廣角縮小)"
+                    onClick={() => setLiveFov(f => Math.min(120, Math.round((f + 0.5) * 10) / 10))}
+                    title="視野 +0.5° (廣角縮小)"
                   >
-                    +1°
+                    +0.5°
                   </button>
                 </div>
               </div>
@@ -739,15 +720,6 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             <span className="google-maps-snippet-code" title={buildCurrentSnippet(isLocked)}>
               {buildCurrentSnippet(isLocked)}
             </span>
-            <button
-              type="button"
-              className="google-maps-log-btn"
-              onClick={handlePrintConsole}
-              title="在瀏覽器 Console (F12) 印出當前參數物件"
-            >
-              <Terminal size={11} />
-              <span>Console</span>
-            </button>
             <button
               type="button"
               className="google-maps-copy-btn"
