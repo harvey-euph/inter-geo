@@ -22,81 +22,68 @@ export const INFO_CATEGORIES: InfoCategoryDef[] = [
     matchTags: []
   },
   {
-    id: 'basics',
-    nameZh: '基礎必備',
-    nameEn: 'Basics',
-    icon: '⭐',
-    descriptionZh: '各國最核心速查情報、基礎國情、通行方向、車牌特徵與經典秒殺線索',
-    matchTags: ['basics', '基礎', '基礎必備', '基礎線索', '核心識別', '國情總覽']
+    id: 'geoguessr',
+    nameZh: 'Geoguessr',
+    nameEn: 'Geoguessr',
+    icon: '🎯',
+    descriptionZh: '街景拍攝車特徵、號誌護柱與各國獨特外觀識別等趣味地理小知識',
+    matchTags: ['Geoguessr', 'geoguessr', 'car-meta', 'basics']
+  },
+  {
+    id: 'language',
+    nameZh: '語言文字',
+    nameEn: 'Language',
+    icon: '🔤',
+    descriptionZh: '各國官方語言、特殊文字字母、字系與特色街名詞彙',
+    matchTags: ['Language', 'language']
+  },
+  {
+    id: 'infrastructure',
+    nameZh: '基礎建設',
+    nameEn: 'Infrastructure',
+    icon: '🛣️',
+    descriptionZh: '公路網格、編號系統、交通標誌、護柱與基礎設施工程',
+    matchTags: ['Infrastructure', 'infrastructure']
   },
   {
     id: 'ski',
-    nameZh: '滑雪與豪雪',
-    nameEn: 'Ski & Snow',
+    nameZh: '滑雪休閒',
+    nameEn: 'Ski-resort',
     icon: '⛷️',
-    descriptionZh: '雪山、滑雪場、豪雪地帶、防暴風雪標記 (矢羽)、防雪屋頂、除雪設備與冬季地景',
-    matchTags: ['ski', '滑雪', '滑雪場', '豪雪', '豪雪地帶', '冬季', '雪山', '積雪', 'snow', 'winter', '滑雪與雪景']
+    descriptionZh: '滑雪勝地、雪場分布、豪雪地帶與冬季雪景地貌',
+    matchTags: ['Ski-resort', 'ski-resort', 'ski', 'Ski']
+  },
+  {
+    id: 'travel',
+    nameZh: '旅行景點',
+    nameEn: 'Travel',
+    icon: '✈️',
+    descriptionZh: '風景名勝、知名景點、探索靈感與地標速查',
+    matchTags: ['Travel', 'travel']
   },
   {
     id: 'culture',
     nameZh: '文化歷史',
-    nameEn: 'Culture & History',
+    nameEn: 'Culture',
     icon: '🏛️',
-    descriptionZh: '飲食文化、歷史背景、宗教建築、移民史與在地生活習俗',
-    matchTags: ['culture', '文化', '歷史', '飲食', '歷史淵源', '民俗', '美食歷史', '文化歷史', '寺社佛閣']
-  },
-  {
-    id: 'infrastructure',
-    nameZh: '道路與設施',
-    nameEn: 'Infrastructure',
-    icon: '🛣️',
-    descriptionZh: '交通標誌、行人告示、電線桿、防撞桿、護柱 (Bollard) 與公路網格',
-    matchTags: [
-      'infrastructure',
-      '設施',
-      '道路',
-      '交通標誌',
-      '電線桿',
-      '護柱',
-      'bollards',
-      '公路系統',
-      '標線',
-      '道路設施',
-      '斑馬線',
-      '行人告示'
-    ]
-  },
-  {
-    id: 'car-meta',
-    nameZh: '街景車特徵',
-    nameEn: 'Car Meta',
-    icon: '🚙',
-    descriptionZh: '涉水喉 (Snorkel)、車頂架、黑膠帶、護衛警車、低鏡頭 (Low Cam) 等特殊車載配備',
-    matchTags: ['car-meta', '街景車', '設備特徵', '車頂架', '涉水喉', '黑膠帶', '護衛車', 'low_cam', 'meta']
-  },
-  {
-    id: 'language',
-    nameZh: '語言與文字',
-    nameEn: 'Language & Scripts',
-    icon: '🔤',
-    descriptionZh: '特定字母、文字字系 (西里爾/阿拉伯/印度系等)、路牌特色詞彙 (Street Words)',
-    matchTags: ['language', '語言', '文字', '字系', '特徵字母', '街道名詞', '印度文字', '語言文字']
+    descriptionZh: '飲食習俗、民俗文化、移民歷史與人文背景小知識',
+    matchTags: ['Culture', 'culture']
   },
   {
     id: 'nature',
-    nameZh: '自然與地形',
-    nameEn: 'Nature & Landscape',
+    nameZh: '自然地景',
+    nameEn: 'Nature',
     icon: '🌲',
-    descriptionZh: '山脈地理、土壤植被、乾燥荒漠、赤道仰角與自然景觀風貌',
-    matchTags: ['nature', '地形', '自然', '地理', '氣候', '山脈', '植被', '荒漠', '自然地景']
+    descriptionZh: '地形山脈、氣候特徵、乾燥荒漠與自然景觀風貌',
+    matchTags: ['Nature', 'nature']
   },
   {
     id: 'admin',
-    nameZh: '行政與代碼',
-    nameEn: 'Admin & Codes',
+    nameZh: '行政體系',
+    nameEn: 'Admin',
     icon: '🗺️',
-    descriptionZh: '行政區劃、都道府縣、邦省縮寫、郵遞區號、市外局番與官方代碼',
-    matchTags: ['admin', '地方行政', '行政區', '市外局番', '地方車牌', '首府', '日本都道府縣']
+    descriptionZh: '行政劃分體系、郵遞區號、電話區碼與編碼規則',
+    matchTags: ['Admin', 'admin']
   }
 ];
 
@@ -124,7 +111,13 @@ let currentPreferences: InfoTagPreferences = (() => {
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        activeCategory: typeof parsed.activeCategory === 'string' ? parsed.activeCategory : 'all',
+        activeCategory:
+          typeof parsed.activeCategory === 'string' &&
+          INFO_CATEGORIES.some((c) => c.id === parsed.activeCategory)
+            ? parsed.activeCategory
+            : parsed.activeCategory === 'basics' || parsed.activeCategory === 'car-meta'
+              ? 'geoguessr'
+              : 'all',
         includeTags: Array.isArray(parsed.includeTags) ? parsed.includeTags : [],
         excludeTags: Array.isArray(parsed.excludeTags) ? parsed.excludeTags : []
       };
