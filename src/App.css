@@ -2914,7 +2914,7 @@ span.confused-country-btn {
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 10;
+  z-index: 20;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2929,6 +2929,17 @@ span.confused-country-btn {
   opacity: 0;
   pointer-events: auto;
   transition: opacity 0.2s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Locked gesture overlay: allows touch & wheel to scroll parent container smoothly */
+.google-maps-locked-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  touch-action: pan-y;
+  pointer-events: auto;
+  background-color: transparent;
+  cursor: default;
 }
 
 .google-maps-embed-container:hover .google-maps-float-link {

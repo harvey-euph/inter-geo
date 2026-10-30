@@ -299,6 +299,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
         margin: config.isVertical ? '8px auto' : '8px 0',
         borderRadius: 8,
         overflow: 'hidden',
+        touchAction: isLocked ? 'pan-y' : 'auto',
         backgroundColor: 'rgba(2, 6, 23, 0.92)',
         border: '1px solid rgba(255, 255, 255, 0.16)',
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45)',
@@ -455,6 +456,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               ? 'min(75vh, 520px)'
               : 'min(75vh, 600px)',
             overflow: 'hidden',
+            touchAction: isLocked ? 'pan-y' : 'auto',
             backgroundColor: '#020617',
             cursor: isLocked ? 'default' : undefined,
             userSelect: isLocked ? 'none' : undefined
@@ -481,6 +483,19 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             referrerPolicy="no-referrer-when-downgrade"
             title={displayTitle}
           />
+
+          {/* Transparent gesture overlay when locked: enables native touch & wheel scrolling to scroll parent info card */}
+          {isLocked && (
+            <div
+              className="google-maps-locked-overlay"
+              onWheel={(e) => {
+                const scrollParent = e.currentTarget.closest('.drawer-content') || document.documentElement;
+                if (scrollParent) {
+                  scrollParent.scrollTop += e.deltaY;
+                }
+              }}
+            />
+          )}
 
           {/* Floating overlays when top bar is hidden: 0px layout impact, hover-triggered toggle */}
           {!config.showHeader && (
