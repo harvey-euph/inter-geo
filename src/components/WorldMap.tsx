@@ -590,8 +590,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const hasActiveGoto = useMemo(() => {
     const list = getActiveLayersList(
       activeFilterId,
-      activeTextFilters,
-      activeInternationalImageFilter,
+      activeTextFilters || new Set<string>(),
+      activeInternationalImageFilter ?? null,
       activeRegionalFilters
     );
     return checkAnyLayerHasGoto(list);

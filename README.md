@@ -442,9 +442,33 @@ npm run build
 npm run preview
 ```
 
+### 免開 Vite 之 Nginx 正式部署模式 (Production Nginx Server)
+
+專案根目錄內建免 Root/Sudo 權限之自包含 Nginx 配置檔 (`nginx.conf`)，可直接在背景運行服務：
+
+```bash
+# 1. 建置前端正式靜態產物至 dist/ (若已有 dist 則可直接啟動)
+npm run build
+
+# 2. 啟動 Nginx (自動以非特權端口 8080 運行)
+npm run nginx:start
+
+# 3. 重新載入 Nginx 配置
+npm run nginx:reload
+
+# 4. 停止 Nginx
+npm run nginx:stop
+```
+
+- **網頁進入點**：`http://localhost:8080/inter-geo/`（造訪 `http://localhost:8080/` 自動 302 跳轉）
+- **空間與圖層資料端點 (`@geo-data`)**：
+  - `http://localhost:8080/inter-geo/@geo-data/index/` $\rightarrow$ 映射本機 `/home/harvey/inter-geo-data/dist-index/`
+  - `http://localhost:8080/inter-geo/@geo-data/main/` $\rightarrow$ 映射本機 `/home/harvey/inter-geo-data/`
+  - 支援 FlatGeobuf (`.fgb`) 二進位空間串流 (`Accept-Ranges: bytes`)、Markdown (`.md`)、CSV (`.csv`)、SVG 與全域 CORS，本機編修即刻生效。
+
 ### 資料內容庫 (`inter-geo-data`)
 
 當在 `inter-geo-data` 中編修圖資、CSV 圖層或 Markdown 情報卡時：
 1. 本機可執行 `npm run build:index` 預覽生成之 `dist-index/`。
 2. 提交並推送（`git commit` & `git push`）至遠端 `main` 分支後，GitHub Actions 將自動重新發布 `index` 分支。
-3. 詳細的圖資規範與編譯機制請參見 [inter-geo-data/README.md](file:///home/harvey/inter-geo-data/README.md)。
+3. 詳細的圖資規範與編譯機制請參見 [inter-geo-data/README.md](https://github.com/harvey-euph/inter-geo-data/blob/main/README.md)。

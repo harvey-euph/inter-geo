@@ -6,9 +6,16 @@
 
 export const DATA_RAW_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DATA_BASE_URL) ||
-  (typeof import.meta !== 'undefined' && import.meta.env?.DEV
+  (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.startsWith('10.') ||
+    window.location.hostname.endsWith('.local'))
     ? '/inter-geo/@geo-data'
-    : 'https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads');
+    : (typeof import.meta !== 'undefined' && import.meta.env?.DEV
+      ? '/inter-geo/@geo-data'
+      : 'https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads'));
 
 export const DATA_BRANCH = 'main';
 export const INDEX_BRANCH = 'index';
