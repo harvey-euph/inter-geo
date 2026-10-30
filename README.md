@@ -258,18 +258,26 @@ flowchart LR
   - 當啟用全域標籤或區域專屬標籤時，自動同步列出已疊加的藥丸徽章。
   - 內建 `min-width` 與平滑過渡動畫，避免卡片切換時寬度劇烈跳動。
 
-### URL 狀態同步、轉跳與重新整理規則 (URL Routing & Reload Protocol)
+### 多層 URL 狀態同步、轉跳與重新整理規則 (Multi-Layer URL Routing & Reload Protocol)
 
-系統採用嚴格且明確的三級階層調度協定處理網址解析、深層連結（Deep Linking）與頁面重整（Reload/F5）：
+系統採用嚴格且明確的多層圖層循環解析與優先級調度協定處理網址解析、深層連結（Deep Linking）與頁面重整（Reload/F5）：
 
 ```typescript
-if (layer) {
-    layer.active();
-    if (layer.@goto) {
-        goto(layer.@goto);
-        return;
-    }
+// 整理所有 URL 中的 layer= 放進 layers 清單:
+bool filled_with_color = false;
+bool gone = false;
+for (Layer layer : layers) {
+    if (layer.type == FillWithColor) {
+        if (filled_with_color) continue;
+        layer.active();
+        filled_with_color = true;
+    } else if (layer.@goto) {
+        if (gone) continue;
+        layer.active();
+        gone = true;
+    } else layer.active();
 }
+if (gone) return;
 if (target) {
     goto(target.bbox);
     target.infocard.open();
@@ -278,21 +286,26 @@ if (target) {
 goto(remaining tags);
 ```
 
-1. **第一優先級：圖層啟用與 `@goto` 導航 (`if (layer)`)**：
-   - 若 URL 包含 `layer={layerId}`，系統即時啟用該圖層（區塊著色、全域標籤或區域特徵）。
-   - 若該圖層聲明了相機跳轉指令 `@goto: lat=...&lon=...&ratio=...`（例如歐洲行人號誌），相機鏡頭**立刻飛往指定之座標與縮放比例，並終止後續相機流程 (`return`)**。此時即使帶有 `target` 亦不覆蓋視角。
-   - 若圖層未定義 `@goto`（例如行駛方向 `driving-side`），則圖層保持啟用狀態，並向下穿透評估第 2 步。
-2. **第二優先級：目標幾何框選與情報卡開闔 (`if (target)`)**：
-   - 若 URL 包含 `target={iso2}` 或 `target={iso2}::{id}`（例如 `target=JP`、`target=US::CA`）：
-     - 相機平滑滑行並框選居中於目標之幾何邊界外框 (`goto(target.bbox)`)。
-     - 同時展開該國或行政區之實戰情報卡側邊欄 (`target.infocard.open()`)。
-     - 導航完成後**終止後續相機流程 (`return`)**。
-3. **第三優先級：剩餘座標標籤定位 (`goto(remaining tags)`)**：
-   - 當前兩項未觸發鏡頭導航時，系統自 URL 讀取使用者先前拖曳平移保留之 `lat`、`lon`、`ratio` 標籤並直接復原視野。
-   - 若無任何座標參數，則回退至全球世界地圖全景。
-4. **雙向狀態保持與零資料遺失**：
-   - 切換圖層、選取目標、關閉情報卡面板、以及在地圖畫布上平移縮放時，網址列參數均以 `replaceState` 實時雙向對齊。
-   - 瀏覽器重新整理（F5）時絕不洗白現有參數，完美維持工作區與戰術視角。
+#### 1. 啟動與網址載入規則
+1. **多層圖層聚合 (`layers`)**：
+   - 收集 URL 中所有 `layer=` 參數（支援重複宣告 `?layer=a&layer=b` 或逗號分隔 `?layer=a,b`）。
+   - **單一 2D 區塊著色限制 (`FillWithColor`)**：遍歷各圖層，首個 `FillWithColor` 類別圖層（如 `driving-side`）被啟用並鎖定 `filled_with_color = true`；後續出現之 `FillWithColor` 圖層自動忽略，維持單選互斥性。
+   - **單一相機跳轉優先級 (`layer.@goto`)**：首個聲明了 `@goto` 導航指令的圖層（如歐洲行人標誌）被啟用並鎖定 `gone = true`，記錄其相機視角；後續帶有 `@goto` 之圖層跳過以避免視角衝突。
+   - **其餘特徵圖層 (`else layer.active()`)**：無 `@goto` 且非 2D 填色之圖層（全域文字標籤、公路路網等）全數並行啟用。
+2. **三級相機導航裁決**：
+   - `if (gone) return;`：若有圖層觸發了 `@goto` 導航，鏡頭即刻導航至該圖層之視角並**中斷後續相機流程 (`return`)**，此時不框選目標幾何亦不打開情報卡。
+   - `if (target) { goto(target.bbox); target.infocard.open(); return; }`：若無 `@goto` 且網址指定了 `target`（如 `target=JP` 或 `target=US::CA`），相機框選目標幾何並展開實戰情報卡。
+   - `goto(remaining tags)`：若前兩者皆未觸發，相機依據 URL 中保留之 `lat`、`lon`、`ratio` 定位；若無則顯示世界全貌。
+
+#### 2. 操作時的 URL 實時更新
+在使用者操作地圖與介面時，URL 查詢參數透過 `replaceState` 實時雙向對齊：
+1. **`layer` 列出所有開啟中的圖層**：所有當前啟用的圖層（底圖、標籤、區域特徵）一律依序條列於網址中（例如 `?layer=driving-side&layer=flags&layer=us-interstates`）。
+2. **`target` 與情報卡連動**：當使用者開啟國家或行政區情報卡時，網址自動附帶 `target={id}`；關閉情報卡時自動清除 `target`。
+3. **無 `@goto` 時記錄視角座標**：若當前開啟的所有圖層中**沒有任何圖層具備 `@goto`**，地圖平移縮放時即時記錄當下之座標與縮放比例（`&lat=...&lon=...&ratio=...`）；一旦開啟了任何具備 `@goto` 的圖層，座標與 ratio 標籤自動自 URL 隱藏清理。
+
+#### 3. 瀏覽器重新整理 (Reload / F5)
+- 當使用者按下重新整理時，系統**自動丟棄 `lat`、`lon` 與 `ratio`，僅保留當前的 `layers` 與 `target`**。
+- 重新載入時重新依循上述啟動三級裁決流程還原圖層與目標視角，避免殘留陳舊視角坐標干擾。
 
 ---
 

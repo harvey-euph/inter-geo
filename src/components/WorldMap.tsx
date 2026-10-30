@@ -36,6 +36,13 @@ import {
   isLayersIndexLoaded,
   onLayersIndexLoaded
 } from '../layers/csvLayerRegistry';
+import {
+  parseLayersFromUrl,
+  isLayerFillColor,
+  getLayerGoto,
+  checkAnyLayerHasGoto,
+  getActiveLayersList
+} from '../layers/layerUrlUtils';
 import { loadExtObjectLayerFeatures } from '../layers/extObjectLoader';
 import { normalizeRegionKeys } from '../layers/assignableRegions';
 import {
@@ -580,10 +587,32 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const projection = useMemo(() => createProjection(), []);
   const pathGenerator = useMemo(() => createPathGenerator(projection), [projection]);
 
+  const hasActiveGoto = useMemo(() => {
+    const list = getActiveLayersList(
+      activeFilterId,
+      activeTextFilters,
+      activeInternationalImageFilter,
+      activeRegionalFilters
+    );
+    return checkAnyLayerHasGoto(list);
+  }, [activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters]);
+
   const syncViewToUrl = useCallback(() => {
     if (typeof window === 'undefined') return;
     if (initialTarget && !initialTargetHandledRef.current) return;
-    const url = new URL(window.location.href);
+
+    // Rule 3: If any open layer has @goto, lat/lon/ratio must not be saved
+    if (hasActiveGoto) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('lat') || url.searchParams.has('lon') || url.searchParams.has('ratio')) {
+        url.searchParams.delete('lat');
+        url.searchParams.delete('lon');
+        url.searchParams.delete('ratio');
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+      return;
+    }
+
     const { k, x, y } = transformRef.current;
     const { vh, remainingW, centerX } = getRemainingVisibleArea(false);
     if (remainingW <= 0 || vh <= 0 || k <= 0) return;
@@ -593,11 +622,20 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const center = projection.invert?.([mapX, mapY]);
     if (!center || !center.every(Number.isFinite)) return;
 
+    const url = new URL(window.location.href);
     url.searchParams.set('lat', center[1].toFixed(5));
     url.searchParams.set('lon', center[0].toFixed(5));
     url.searchParams.set('ratio', k.toFixed(3));
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [projection, initialTarget, getRemainingVisibleArea]);
+  }, [projection, initialTarget, getRemainingVisibleArea, hasActiveGoto]);
+
+  const prevHasActiveGotoRef = useRef(hasActiveGoto);
+  useEffect(() => {
+    if (prevHasActiveGotoRef.current && !hasActiveGoto) {
+      syncViewToUrl();
+    }
+    prevHasActiveGotoRef.current = hasActiveGoto;
+  }, [hasActiveGoto, syncViewToUrl]);
 
   const scheduleViewUrlSync = useCallback(() => {
     if (viewUrlSyncTimerRef.current !== null) window.clearTimeout(viewUrlSyncTimerRef.current);
@@ -2860,10 +2898,25 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
       const kMin = vh / MAP_H;
       const params = new URLSearchParams(window.location.search);
-      const layerParam = params.get('layer')?.trim();
-      const csvLayer = layerParam ? getCsvLayerById(layerParam) : undefined;
-      const layerGoto = csvLayer?.goto || csvLayer?.meta?.goto;
-      const hasPrimaryTarget = Boolean(params.get('target')?.trim());
+      const layers = parseLayersFromUrl(params);
+      let filledWithColor = false;
+      let gone = false;
+      let layerGoto: string | undefined;
+
+      for (const layerId of layers) {
+        const isFill = isLayerFillColor(layerId);
+        const g = getLayerGoto(layerId);
+        if (isFill) {
+          if (filledWithColor) continue;
+          filledWithColor = true;
+        } else if (g) {
+          if (gone) continue;
+          gone = true;
+          layerGoto = g;
+        }
+      }
+
+      const hasPrimaryTarget = !gone && Boolean(params.get('target')?.trim());
 
       let initialK = Math.max(kMin, 1.0);
       let initialX = wrapX(vw / 2 - (MAP_W / 2) * initialK, initialK);

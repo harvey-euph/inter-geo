@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
 import { InfoSettingsWindow } from './components/InfoSettingsWindow';
@@ -17,7 +17,31 @@ import {
   onLayersIndexLoaded,
   type RegisteredCsvLayer
 } from './layers/csvLayerRegistry';
+import {
+  parseLayersFromUrl,
+  isLayerFillColor,
+  getLayerGoto,
+  checkAnyLayerHasGoto,
+  getActiveLayersList
+} from './layers/layerUrlUtils';
 import './App.css';
+
+// Reload: 把座標 & ratio 丟棄，只留下 layers 和 target
+if (typeof window !== 'undefined') {
+  const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  const isReload =
+    nav?.type === 'reload' ||
+    (window.performance && (window.performance as unknown as { navigation?: { type?: number } }).navigation?.type === 1);
+  if (isReload) {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('lat') || url.searchParams.has('lon') || url.searchParams.has('ratio')) {
+      url.searchParams.delete('lat');
+      url.searchParams.delete('lon');
+      url.searchParams.delete('ratio');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }
+}
 
 const CountryDetailPanel = lazy(() =>
   import('./components/CountryDetailPanel').then((m) => ({ default: m.CountryDetailPanel }))
@@ -27,17 +51,96 @@ const QuizModal = lazy(() =>
 );
 
 export function App() {
-  const [initialLayerParam] = useState(() => new URLSearchParams(window.location.search).get('layer')?.trim() || '');
+  const [initialLayers] = useState(() => parseLayersFromUrl(new URLSearchParams(window.location.search)));
   const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
 
-  // 1. if (layer)
-  const initialCsvLayer = initialLayerParam ? getCsvLayerById(initialLayerParam) : undefined;
-  const initialNationwideLayer = initialLayerParam ? getNationwideLayerById(initialLayerParam) : undefined;
-  const isBaseLayer = initialLayerParam === 'base' || initialLayerParam === 'none';
-  const layerHasGoto = Boolean(initialCsvLayer?.goto || initialCsvLayer?.meta?.goto);
+  // 整理所有 layer= 放進 layers:
+  // bool filled_with_color = false;
+  // bool gone = false;
+  // for (Layer layer : layers) {
+  //     if (layer.type == FillWithColor) {
+  //         if (filled_with_color) continue;
+  //         layer.active();
+  //         filled_with_color = true;
+  //     } else if (layer.@goto) {
+  //         if (gone) continue;
+  //         layer.active();
+  //         gone = true;
+  //     } else layer.active();
+  // }
+  // if (gone) return;
+  // if (target) {
+  //     goto(target.bbox);
+  //     target.infocard.open();
+  //     return;
+  // }
+  // goto(remaining tags);
+  const initialResolved = useMemo(() => {
+    let filledWithColor = false;
+    let gone = false;
+    let gotoQuery: string | null = null;
+    let filterId = 'base';
+    const textFilters = new Set<string>();
+    let imageFilter: string | null = null;
+    const regionalFilters = new Set<string>();
 
-  // If layer.@goto exists, it navigates camera and returns (target is bypassed)
-  const initialTarget = layerHasGoto ? '' : initialTargetParam;
+    const activateItem = (id: string) => {
+      const csv = getCsvLayerById(id);
+      if (
+        (csv?.type === 'Text' || csv?.type === 'TextWithStyle') &&
+        csv?.group === 'global-label'
+      ) {
+        textFilters.add(id);
+      } else if (csv?.type === 'Image') {
+        imageFilter = id;
+        if (id === 'pedestrian-crossing' || id === 'eu-pedestrian-crossing') {
+          regionalFilters.add('eu-pedestrian-crossing');
+          regionalFilters.add('pedestrian-crossing');
+        }
+      } else {
+        if (id === 'roads-highways' || id === 'us-interstates') {
+          regionalFilters.add('us-interstates');
+        } else if (id === 'roads-numbered' || id === 'us-numbered-highways') {
+          regionalFilters.add('us-numbered-highways');
+        } else if (id === 'pedestrian-crossing' || id === 'eu-pedestrian-crossing') {
+          regionalFilters.add('eu-pedestrian-crossing');
+          regionalFilters.add('pedestrian-crossing');
+        } else {
+          regionalFilters.add(id);
+        }
+      }
+    };
+
+    for (const layerId of initialLayers) {
+      const isFill = isLayerFillColor(layerId);
+      const layerGoto = getLayerGoto(layerId);
+
+      if (isFill) {
+        if (filledWithColor) continue;
+        filterId = layerId;
+        filledWithColor = true;
+      } else if (layerGoto) {
+        if (gone) continue;
+        activateItem(layerId);
+        gone = true;
+        gotoQuery = layerGoto;
+      } else {
+        activateItem(layerId);
+      }
+    }
+
+    return {
+      filterId,
+      textFilters,
+      imageFilter,
+      regionalFilters,
+      gone,
+      gotoQuery
+    };
+  }, [initialLayers]);
+
+  // if (gone) return; (target is bypassed)
+  const initialTarget = initialResolved.gone ? '' : initialTargetParam;
   const initialTargetSeparator = initialTarget.includes('::')
     ? '::'
     : (initialTarget.includes('-') && !findCountry(initialTarget) ? '-' : null);
@@ -63,48 +166,13 @@ export function App() {
         }
       : null;
 
-  const isFillRegion =
-    isBaseLayer ||
-    (initialCsvLayer?.type === 'FillWithColor' && initialCsvLayer?.group !== 'area-feature') ||
-    initialCsvLayer?.group === 'fill-region' ||
-    initialCsvLayer?.group === 'fill-region-with-color';
-  const [activeFilterId, setActiveFilterId] = useState<string>(isFillRegion ? initialLayerParam : 'base');
-
-  const isGlobalLabel =
-    (initialCsvLayer?.type === 'Text' || initialCsvLayer?.type === 'TextWithStyle') &&
-    initialCsvLayer?.group === 'global-label';
-  const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(
-    () => new Set(isGlobalLabel ? [initialLayerParam] : [])
-  );
-
+  const [activeFilterId, setActiveFilterId] = useState<string>(initialResolved.filterId);
+  const [activeTextFilters, setActiveTextFilters] = useState<Set<string>>(() => initialResolved.textFilters);
   const [activeInternationalImageFilter, setActiveInternationalImageFilter] = useState<string | null>(
-    initialCsvLayer?.type === 'Image' ? initialLayerParam : null
+    initialResolved.imageFilter
   );
-
-  const isAreaFeature =
-    initialCsvLayer?.group === 'area-feature' ||
-    initialCsvLayer?.meta.group === 'area-feature' ||
-    initialCsvLayer?.type === 'ExtObject' ||
-    !!initialNationwideLayer ||
-    (initialCsvLayer?.type === 'Image' && (initialLayerParam === 'pedestrian-crossing' || initialLayerParam === 'eu-pedestrian-crossing'));
-
   const [activeRegionalFilters, setActiveRegionalFilters] = useState<Set<string>>(
-    () => {
-      const set = new Set<string>();
-      if (isAreaFeature && initialLayerParam) {
-        if (initialLayerParam === 'roads-highways' || initialLayerParam === 'us-interstates') {
-          set.add('us-interstates');
-        } else if (initialLayerParam === 'roads-numbered' || initialLayerParam === 'us-numbered-highways') {
-          set.add('us-numbered-highways');
-        } else if (initialLayerParam === 'pedestrian-crossing' || initialLayerParam === 'eu-pedestrian-crossing') {
-          set.add('eu-pedestrian-crossing');
-          set.add('pedestrian-crossing');
-        } else {
-          set.add(initialLayerParam);
-        }
-      }
-      return set;
-    }
+    () => initialResolved.regionalFilters
   );
 
   const [visibleRegionalFilters, setVisibleRegionalFilters] = useState<NationwideLayerDef[]>([]);
@@ -129,64 +197,9 @@ export function App() {
   const initialFocusTarget = '';
   const startupDispatchedRef = useRef(false);
 
-  const activateLayerById = useCallback((layerId: string) => {
-    if (!layerId) return;
-    const csvLayer = getCsvLayerById(layerId);
-    const isBase = layerId === 'base' || layerId === 'none';
-
-    if (
-      isBase ||
-      (csvLayer?.type === 'FillWithColor' && csvLayer?.group !== 'area-feature') ||
-      csvLayer?.group === 'fill-region' ||
-      csvLayer?.group === 'fill-region-with-color'
-    ) {
-      setActiveFilterId(layerId);
-    } else if (
-      (csvLayer?.type === 'Text' || csvLayer?.type === 'TextWithStyle') &&
-      csvLayer?.group === 'global-label'
-    ) {
-      setActiveTextFilters(new Set([layerId]));
-    } else if (csvLayer?.type === 'Image') {
-      setActiveInternationalImageFilter(layerId);
-      if (layerId === 'pedestrian-crossing' || layerId === 'eu-pedestrian-crossing') {
-        setActiveRegionalFilters((prev) => {
-          const next = new Set(prev);
-          next.add('eu-pedestrian-crossing');
-          next.add('pedestrian-crossing');
-          return next;
-        });
-      }
-    } else {
-      setActiveRegionalFilters((prev) => {
-        const next = new Set(prev);
-        if (layerId === 'roads-highways' || layerId === 'us-interstates') {
-          next.add('us-interstates');
-        } else if (layerId === 'roads-numbered' || layerId === 'us-numbered-highways') {
-          next.add('us-numbered-highways');
-        } else if (layerId === 'pedestrian-crossing' || layerId === 'eu-pedestrian-crossing') {
-          next.add('eu-pedestrian-crossing');
-          next.add('pedestrian-crossing');
-        } else {
-          next.add(layerId);
-        }
-        return next;
-      });
-    }
-  }, []);
-
   // URL startup rules dispatcher:
-  // if (layer) {
-  //     layer.active();
-  //     if (layer.@goto) {
-  //         goto(layer.@goto);
-  //         return;
-  //     }
-  // }
-  // if (target) {
-  //     goto(target.bbox);
-  //     target.infocard.open();
-  //     return;
-  // }
+  // if (gone) return;
+  // if (target) { goto(target.bbox); target.infocard.open(); return; }
   // goto(remaining tags);
   useEffect(() => {
     if (startupDispatchedRef.current) return;
@@ -194,27 +207,39 @@ export function App() {
     const dispatchUrlRules = () => {
       if (startupDispatchedRef.current) return;
       const params = new URLSearchParams(window.location.search);
-      const layerParam = params.get('layer')?.trim();
+      const layers = parseLayersFromUrl(params);
       const targetParam = params.get('target')?.trim();
 
-      if (layerParam) {
-        activateLayerById(layerParam);
-        const csvLayer = getCsvLayerById(layerParam);
-        const layerGoto = csvLayer?.goto || csvLayer?.meta?.goto;
-        if (layerGoto) {
-          try {
-            const p = new URLSearchParams(layerGoto);
-            const lat = Number(p.get('lat'));
-            const lon = Number(p.get('lon'));
-            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
-            if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio, force: true });
-              startupDispatchedRef.current = true;
-              return;
-            }
-          } catch {
-            // ignore
+      let filledWithColor = false;
+      let gone = false;
+      let gotoQuery: string | null = null;
+
+      for (const layerId of layers) {
+        const isFill = isLayerFillColor(layerId);
+        const layerGoto = getLayerGoto(layerId);
+        if (isFill) {
+          if (filledWithColor) continue;
+          filledWithColor = true;
+        } else if (layerGoto) {
+          if (gone) continue;
+          gone = true;
+          gotoQuery = layerGoto;
+        }
+      }
+
+      if (gone && gotoQuery) {
+        try {
+          const p = new URLSearchParams(gotoQuery);
+          const lat = Number(p.get('lat'));
+          const lon = Number(p.get('lon'));
+          const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio, force: true });
+            startupDispatchedRef.current = true;
+            return;
           }
+        } catch {
+          // ignore
         }
       }
 
@@ -239,7 +264,51 @@ export function App() {
         dispatchUrlRules();
       }
     });
-  }, [activateLayerById]);
+  }, []);
+
+  // URL 實時同步中央調度器:
+  // 1. layer 列出所有開啟中的
+  // 2. info card 如果開啟，就要帶上 target=
+  // 3. 如果開啟的 layer 沒有任何 goto，就記錄當下座標 & ratio
+  const syncAppUrl = useCallback(
+    (
+      layersList: string[],
+      targetStr: string | null
+    ) => {
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+
+      // 1. layer 列出所有開啟中的
+      url.searchParams.delete('layer');
+      for (const l of layersList) {
+        url.searchParams.append('layer', l);
+      }
+
+      // 2. info card 如果開啟，就要帶上 target=
+      if (targetStr) {
+        url.searchParams.set('target', targetStr);
+      } else {
+        url.searchParams.delete('target');
+      }
+
+      // 3. 如果開啟的 layer 沒有任何 goto，就記錄當下座標 & ratio (由 WorldMap syncViewToUrl 維護；若有 goto 則清理)
+      const hasGoto = checkAnyLayerHasGoto(layersList);
+      if (hasGoto) {
+        url.searchParams.delete('lat');
+        url.searchParams.delete('lon');
+        url.searchParams.delete('ratio');
+      }
+
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    },
+    []
+  );
+
+  const getTargetStr = useCallback((country: CountryData | null, sub: L2SubdivisionDetail | null) => {
+    if (sub) return `${sub.iso2}::${sub.id}`;
+    if (country) return country.iso2;
+    return null;
+  }, []);
 
   useEffect(() => {
     const visualViewport = window.visualViewport;
@@ -271,17 +340,11 @@ export function App() {
       if (options?.focus !== false) {
         focusMapRef.current?.({ kind: 'country', iso2: country.iso2 });
       }
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('target', country.iso2);
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      }
-    } else if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('target');
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
-  }, []);
+    const targetStr = country ? country.iso2 : null;
+    const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters);
+    syncAppUrl(activeLayers, targetStr);
+  }, [activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters, syncAppUrl]);
 
   const handleSelectSubdivision = useCallback((sub: L2SubdivisionDetail | null, options?: MapSelectOptions) => {
     setSelectedSubdivision(sub);
@@ -292,17 +355,11 @@ export function App() {
       if (options?.focus !== false) {
         focusMapRef.current?.({ kind: 'subdivision', iso2: sub.iso2, id: sub.id });
       }
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('target', `${sub.iso2}::${sub.id}`);
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      }
-    } else if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('target');
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
-  }, []);
+    const targetStr = sub ? `${sub.iso2}::${sub.id}` : null;
+    const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters);
+    syncAppUrl(activeLayers, targetStr);
+  }, [activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters, syncAppUrl]);
 
   const handleSelectMunicipality = useCallback((muni: MunicipalityDetail | null, options?: MapSelectOptions) => {
     setSelectedMunicipality(muni);
@@ -358,20 +415,12 @@ export function App() {
         next.add(filterId);
       }
 
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        if (isActivating) {
-          url.searchParams.set('layer', filterId);
-        } else if (next.size > 0) {
-          url.searchParams.set('layer', Array.from(next)[0]);
-        } else {
-          url.searchParams.delete('layer');
-        }
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      }
+      const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+      const activeLayers = getActiveLayersList(activeFilterId, next, null, activeRegionalFilters);
+      syncAppUrl(activeLayers, targetStr);
       return next;
     });
-  }, []);
+  }, [selectedCountry, selectedSubdivision, getTargetStr, activeFilterId, activeRegionalFilters, syncAppUrl]);
 
   const handleToggleInternationalImageFilter = useCallback((filterId: string) => {
     setActiveInternationalImageFilter((prev) => {
@@ -381,76 +430,64 @@ export function App() {
           (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing'));
 
       let nextFilter: string | null;
+      let nextReg = activeRegionalFilters;
+      let nextText = activeTextFilters;
+
       if (isSameOrAlias) {
-        setActiveRegionalFilters((rPrev) => {
-          if (!rPrev.has('eu-pedestrian-crossing') && !rPrev.has('pedestrian-crossing')) return rPrev;
-          const next = new Set(rPrev);
-          next.delete('eu-pedestrian-crossing');
-          next.delete('pedestrian-crossing');
-          return next;
-        });
+        if (activeRegionalFilters.has('eu-pedestrian-crossing') || activeRegionalFilters.has('pedestrian-crossing')) {
+          const nr = new Set(activeRegionalFilters);
+          nr.delete('eu-pedestrian-crossing');
+          nr.delete('pedestrian-crossing');
+          setActiveRegionalFilters(nr);
+          nextReg = nr;
+        }
         nextFilter = null;
       } else {
         // Activating an image filter closes all text filters!
         setActiveTextFilters(new Set());
+        nextText = new Set();
         if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
-          setActiveRegionalFilters((rPrev) => {
-            const next = new Set(rPrev);
-            next.add('eu-pedestrian-crossing');
-            next.add('pedestrian-crossing');
-            return next;
-          });
+          const nr = new Set(activeRegionalFilters);
+          nr.add('eu-pedestrian-crossing');
+          nr.add('pedestrian-crossing');
+          setActiveRegionalFilters(nr);
+          nextReg = nr;
         }
         nextFilter = filterId;
       }
 
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        if (nextFilter) {
-          url.searchParams.set('layer', nextFilter);
-        } else {
-          url.searchParams.delete('layer');
-        }
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      }
+      const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+      const activeLayers = getActiveLayersList(activeFilterId, nextText, nextFilter, nextReg);
+      syncAppUrl(activeLayers, targetStr);
       return nextFilter;
     });
-  }, []);
+  }, [activeRegionalFilters, activeTextFilters, selectedCountry, selectedSubdivision, getTargetStr, activeFilterId, syncAppUrl]);
 
   const handleToggleRegionalFilter = useCallback((filterId: string) => {
+    let nextReg: Set<string>;
+
     if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
+      let nextImg: string | null;
       const isCurrentlyActive =
         activeRegionalFilters.has('eu-pedestrian-crossing') ||
         activeRegionalFilters.has('pedestrian-crossing') ||
         activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
         activeInternationalImageFilter === 'pedestrian-crossing';
 
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        if (!isCurrentlyActive) {
-          url.searchParams.set('layer', 'pedestrian-crossing');
-        } else {
-          url.searchParams.delete('layer');
-        }
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      }
-
       if (isCurrentlyActive) {
-        setActiveRegionalFilters((prev) => {
-          const next = new Set(prev);
-          next.delete('eu-pedestrian-crossing');
-          next.delete('pedestrian-crossing');
-          return next;
-        });
+        nextReg = new Set(activeRegionalFilters);
+        nextReg.delete('eu-pedestrian-crossing');
+        nextReg.delete('pedestrian-crossing');
+        setActiveRegionalFilters(nextReg);
         setActiveInternationalImageFilter(null);
+        nextImg = null;
       } else {
-        setActiveRegionalFilters((prev) => {
-          const next = new Set(prev);
-          next.add('eu-pedestrian-crossing');
-          next.add('pedestrian-crossing');
-          return next;
-        });
+        nextReg = new Set(activeRegionalFilters);
+        nextReg.add('eu-pedestrian-crossing');
+        nextReg.add('pedestrian-crossing');
+        setActiveRegionalFilters(nextReg);
         setActiveInternationalImageFilter('pedestrian-crossing');
+        nextImg = 'pedestrian-crossing';
 
         const csvLayer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
         const csvGoto = csvLayer?.meta?.goto || csvLayer?.goto || 'lat=50&lon=16&ratio=4';
@@ -468,54 +505,51 @@ export function App() {
           }
         }
       }
+
+      const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+      const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, nextImg, nextReg);
+      syncAppUrl(activeLayers, targetStr);
       return;
     }
 
     const targetDef = getNationwideLayerById(filterId);
     const turningOn = !activeRegionalFilters.has(filterId);
 
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (turningOn) {
-        url.searchParams.set('layer', filterId);
-      } else {
-        url.searchParams.delete('layer');
+    nextReg = new Set(activeRegionalFilters);
+    if (nextReg.has(filterId)) {
+      nextReg.delete(filterId);
+      if (filterId === 'us-interstates' || filterId === 'roads-highways') {
+        setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
+      } else if (filterId === 'us-numbered-highways' || filterId === 'roads-numbered') {
+        setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
+      } else if (targetDef?.layerType === 'roads') {
+        setSelectedRoad((r) => {
+          if (!r) return null;
+          const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
+          if (r.iso2 === targetDef.countryIso2 && rClass === targetDef.roadClass) {
+            return null;
+          }
+          return r;
+        });
       }
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
-
-    setActiveRegionalFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(filterId)) {
-        next.delete(filterId);
-        if (filterId === 'us-interstates' || filterId === 'roads-highways') {
-          setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
-        } else if (filterId === 'us-numbered-highways' || filterId === 'roads-numbered') {
-          setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
-        } else if (targetDef?.layerType === 'roads') {
-          setSelectedRoad((r) => {
-            if (!r) return null;
-            const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
-            if (r.iso2 === targetDef.countryIso2 && rClass === targetDef.roadClass) {
-              return null;
-            }
-            return r;
-          });
-        }
-      } else {
-        // Single-select within 'coloring' layerType
-        if (targetDef?.layerType === 'coloring') {
-          for (const existingId of Array.from(next)) {
-            const existingDef = getNationwideLayerById(existingId);
-            if (existingDef?.layerType === 'coloring') {
-              next.delete(existingId);
-            }
+    } else {
+      // Single-select within 'coloring' layerType
+      if (targetDef?.layerType === 'coloring') {
+        for (const existingId of Array.from(nextReg)) {
+          const existingDef = getNationwideLayerById(existingId);
+          if (existingDef?.layerType === 'coloring') {
+            nextReg.delete(existingId);
           }
         }
-        next.add(filterId);
       }
-      return next;
-    });
+      nextReg.add(filterId);
+    }
+    setActiveRegionalFilters(nextReg);
+
+    const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+    const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, activeInternationalImageFilter, nextReg);
+    syncAppUrl(activeLayers, targetStr);
+
     if (!turningOn) return;
 
     const csvLayer = getCsvLayerById(filterId);
@@ -565,44 +599,32 @@ export function App() {
         if (iso) focusMapRef.current?.({ kind: 'country', iso2: iso });
       }
     }
-  }, [activeRegionalFilters, activeInternationalImageFilter]);
+  }, [activeRegionalFilters, activeInternationalImageFilter, activeFilterId, activeTextFilters, selectedCountry, selectedSubdivision, getTargetStr, syncAppUrl]);
 
   const handleResetAllFilters = useCallback(() => {
     setActiveFilterId('base');
     setActiveTextFilters(new Set());
     setActiveInternationalImageFilter(null);
     setActiveRegionalFilters(new Set());
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('layer');
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
-  }, []);
+    const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+    syncAppUrl([], targetStr);
+  }, [selectedCountry, selectedSubdivision, getTargetStr, syncAppUrl]);
 
   const handleClosePanel = useCallback(() => {
     setSelectedCountry(null);
     setSelectedSubdivision(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('target');
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
-  }, []);
+    const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters);
+    syncAppUrl(activeLayers, null);
+  }, [activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters, syncAppUrl]);
 
   const handleSelectFilter = useCallback((filterId: string) => {
     setActiveFilterId(filterId);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (filterId && filterId !== 'base' && filterId !== 'none') {
-        url.searchParams.set('layer', filterId);
-      } else {
-        url.searchParams.delete('layer');
-      }
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
-  }, []);
+    const targetStr = getTargetStr(selectedCountry, selectedSubdivision);
+    const activeLayers = getActiveLayersList(filterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters);
+    syncAppUrl(activeLayers, targetStr);
+  }, [selectedCountry, selectedSubdivision, getTargetStr, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters, syncAppUrl]);
 
   const [activeWindow, setActiveWindow] = useState<'layer' | 'info' | null>(null);
   const [layerZIndex, setLayerZIndex] = useState(35);
