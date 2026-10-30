@@ -5,6 +5,21 @@ export interface CropConfig {
   left: number;
 }
 
+/**
+ * Default optimal crop configuration for Google Maps Embed API.
+ * Accurately clips:
+ * - top: 67px (Google search/header card)
+ * - right: 58px (Compass, motion tracking, Street View zoom controls)
+ * - bottom: 50px (Google logo, terms, keyboard shortcuts bar)
+ * - left: 0px
+ */
+export const DEFAULT_CROP: CropConfig = {
+  top: 67,
+  right: 58,
+  bottom: 50,
+  left: 0
+};
+
 export interface ParsedEmbedConfig {
   mode: 'streetview' | 'place' | 'view' | 'directions' | 'search';
   params: Record<string, string>;
@@ -64,7 +79,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   let customRatio = '16 / 9';
   let isLocked = false;
   let showHeader = false;
-  const crop: CropConfig = { top: 0, right: 0, bottom: 0, left: 0 };
+  const crop: CropConfig = { ...DEFAULT_CROP };
   const extraParams: Record<string, string> = {};
 
   for (const part of altParts) {
@@ -102,11 +117,31 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       lower === 'interactive=false'
     ) {
       isLocked = true;
+    } else if (
+      lower === 'no-crop' ||
+      lower === 'uncropped' ||
+      lower === 'crop=none' ||
+      lower === 'crop=0' ||
+      lower === 'raw'
+    ) {
+      crop.top = 0;
+      crop.right = 0;
+      crop.bottom = 0;
+      crop.left = 0;
     } else if (lower === 'clean' || lower === 'crop') {
-      crop.right = 56;
+      crop.top = DEFAULT_CROP.top;
+      crop.right = DEFAULT_CROP.right;
+      crop.bottom = DEFAULT_CROP.bottom;
+      crop.left = DEFAULT_CROP.left;
     } else if (/^crop=(.+)$/i.test(part)) {
       const val = part.slice(5).trim();
-      if (val.includes(',')) {
+      const valLower = val.toLowerCase();
+      if (valLower === 'none' || valLower === '0' || valLower === 'false' || valLower === 'off') {
+        crop.top = 0;
+        crop.right = 0;
+        crop.bottom = 0;
+        crop.left = 0;
+      } else if (val.includes(',')) {
         const nums = val.split(',').map((s) => Number(s.trim().replace(/px/i, '')) || 0);
         if (nums.length === 4) {
           crop.top = Math.max(0, nums[0]);

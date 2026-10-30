@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { ExternalLink, Compass, MapPin, AlertCircle, Lock, Unlock } from 'lucide-react';
-import { parseGoogleMapsEmbedConfig, buildEmbedUrl, getGoogleMapsApiKey } from '../utils/googleMapsEmbed';
+import {
+  parseGoogleMapsEmbedConfig,
+  buildEmbedUrl,
+  getGoogleMapsApiKey,
+  DEFAULT_CROP
+} from '../utils/googleMapsEmbed';
 
 export interface GoogleMapsEmbedProps {
   alt?: string;
@@ -49,8 +54,18 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
         parts.push(`h=${config.height}`);
       }
       const { top, right, bottom, left } = config.crop;
-      if (top || right || bottom || left) {
-        parts.push(`crop=${top},${right},${bottom},${left}`);
+      const isDefaultCrop =
+        top === DEFAULT_CROP.top &&
+        right === DEFAULT_CROP.right &&
+        bottom === DEFAULT_CROP.bottom &&
+        left === DEFAULT_CROP.left;
+
+      if (!isDefaultCrop) {
+        if (top === 0 && right === 0 && bottom === 0 && left === 0) {
+          parts.push('no-crop');
+        } else {
+          parts.push(`crop=${top},${right},${bottom},${left}`);
+        }
       }
       if (config.params.heading) parts.push(`heading=${config.params.heading}`);
       if (config.params.pitch) parts.push(`pitch=${config.params.pitch}`);
