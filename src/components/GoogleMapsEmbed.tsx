@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ExternalLink, Compass, MapPin, AlertCircle, Lock, Unlock } from 'lucide-react';
+import { ExternalLink, Compass, MapPin, AlertCircle, Lock, Unlock, Search, Route } from 'lucide-react';
 import {
   parseGoogleMapsEmbedConfig,
   buildEmbedUrl,
@@ -71,9 +71,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       if (config.params.pitch) parts.push(`pitch=${config.params.pitch}`);
       if (config.params.fov) parts.push(`fov=${config.params.fov}`);
       if (config.params.zoom) parts.push(`zoom=${config.params.zoom}`);
+      if (config.params.mode && config.mode === 'directions') parts.push(`mode=${config.params.mode}`);
       if (config.title) parts.push(config.title);
 
-      const targetSrc = config.params.location || config.params.center || config.params.q || src;
+      const targetSrc =
+        config.mode === 'directions' && config.params.origin && config.params.destination
+          ? `${config.params.origin} -> ${config.params.destination}`
+          : config.params.location || config.params.center || config.params.q || src;
       const snippet = `![${parts.join('|')}](${targetSrc})`;
 
       // Print structured parameters and copy-ready snippet to developer console
@@ -103,9 +107,57 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     return buildEmbedUrl(config, apiKey);
   }, [config, apiKey]);
 
-  const isStreetView = config.mode === 'streetview';
-  const badgeLabel = isStreetView ? 'Google 街景' : 'Google 地圖';
-  const displayTitle = config.title || config.params.location || config.params.q || config.params.center || badgeLabel;
+  const badgeInfo = useMemo(() => {
+    switch (config.mode) {
+      case 'streetview':
+        return {
+          label: 'Google 街景',
+          color: '#38bdf8',
+          bg: 'rgba(56, 189, 248, 0.2)',
+          border: 'rgba(56, 189, 248, 0.35)',
+          icon: <Compass size={12} />
+        };
+      case 'view':
+        return {
+          label: 'Google 俯視圖',
+          color: '#34d399',
+          bg: 'rgba(52, 211, 153, 0.2)',
+          border: 'rgba(52, 211, 153, 0.35)',
+          icon: <MapPin size={12} />
+        };
+      case 'search':
+        return {
+          label: 'Google 搜尋',
+          color: '#a78bfa',
+          bg: 'rgba(167, 139, 250, 0.2)',
+          border: 'rgba(167, 139, 250, 0.35)',
+          icon: <Search size={12} />
+        };
+      case 'directions':
+        return {
+          label: 'Google 導航路線',
+          color: '#f43f5e',
+          bg: 'rgba(244, 63, 94, 0.2)',
+          border: 'rgba(244, 63, 94, 0.35)',
+          icon: <Route size={12} />
+        };
+      case 'place':
+      default:
+        return {
+          label: 'Google 地標',
+          color: '#fbbf24',
+          bg: 'rgba(251, 191, 36, 0.2)',
+          border: 'rgba(251, 191, 36, 0.35)',
+          icon: <MapPin size={12} />
+        };
+    }
+  }, [config.mode]);
+
+  const displayTitle =
+    config.title ||
+    (config.mode === 'directions' && config.params.origin && config.params.destination
+      ? `${config.params.origin} → ${config.params.destination}`
+      : config.params.location || config.params.q || config.params.center || badgeInfo.label);
 
   return (
     <div
@@ -150,13 +202,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 borderRadius: 4,
                 fontSize: 11,
                 fontWeight: 600,
-                backgroundColor: isStreetView ? 'rgba(56, 189, 248, 0.2)' : 'rgba(251, 191, 36, 0.2)',
-                color: isStreetView ? '#38bdf8' : '#fbbf24',
-                border: `1px solid ${isStreetView ? 'rgba(56, 189, 248, 0.35)' : 'rgba(251, 191, 36, 0.35)'}`
+                backgroundColor: badgeInfo.bg,
+                color: badgeInfo.color,
+                border: `1px solid ${badgeInfo.border}`
               }}
             >
-              {isStreetView ? <Compass size={12} /> : <MapPin size={12} />}
-              {badgeLabel}
+              {badgeInfo.icon}
+              {badgeInfo.label}
             </span>
             <button
               type="button"

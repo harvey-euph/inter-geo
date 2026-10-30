@@ -52,8 +52,8 @@ export function isGoogleMapsEmbedToken(rawAlt?: string, rawSrc?: string): boolea
   const altLower = (rawAlt || '').trim().toLowerCase();
   const srcLower = (rawSrc || '').trim().toLowerCase();
 
-  // Keyword at start of alt: map, streetview, sv, gmap, view, place
-  const hasMapKeywordInAlt = /^(?:map|streetview|sv|street-view|gmap|googlemap|google-map|embed:(?:map|streetview|sv|gmap)|place|view)(?:[|:]|$)/i.test(altLower);
+  // Keyword at start of alt: map, streetview, sv, gmap, view, place, search, directions, route
+  const hasMapKeywordInAlt = /^(?:map|streetview|sv|street-view|gmap|googlemap|google-map|embed:(?:map|streetview|sv|gmap)|place|view|search|directions|route)(?:[|:]|$)/i.test(altLower);
 
   // Source is a Google Maps URL
   const isGoogleMapsUrl =
@@ -63,7 +63,7 @@ export function isGoogleMapsEmbedToken(rawAlt?: string, rawSrc?: string): boolea
     srcLower.includes('maps.app.goo.gl');
 
   // Explicit scheme like streetview:... or map:...
-  const hasMapScheme = /^(?:streetview|sv|map|gmap|place):/i.test(srcLower);
+  const hasMapScheme = /^(?:streetview|sv|map|gmap|place|search|directions|route):/i.test(srcLower);
 
   return hasMapKeywordInAlt || isGoogleMapsUrl || hasMapScheme;
 }
@@ -195,18 +195,42 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       extraParams.zoom = part.split('=')[1];
     } else if (/^title=(.+)$/i.test(part)) {
       customTitle = part.slice(6).trim();
+    } else if (/^(?:travelmode|travel_mode|transit_mode)=(.*)$/i.test(part)) {
+      extraParams.mode = part.split('=')[1].trim();
+    } else if (/^mode=(transit|driving|walking|bicycling|flying)$/i.test(part)) {
+      extraParams.mode = part.split('=')[1].trim();
+    } else if (/^(?:origin|from)=(.*)$/i.test(part)) {
+      extraParams.origin = part.split('=')[1].trim();
+    } else if (/^(?:destination|dest|to)=(.*)$/i.test(part)) {
+      extraParams.destination = part.split('=')[1].trim();
+    } else if (/^waypoints=(.*)$/i.test(part)) {
+      extraParams.waypoints = part.split('=')[1].trim();
+    } else if (/^avoid=(.*)$/i.test(part)) {
+      extraParams.avoid = part.split('=')[1].trim();
+    } else if (/^maptype=(roadmap|satellite)$/i.test(part)) {
+      extraParams.maptype = part.split('=')[1].trim();
+    } else if (/^q=(.*)$/i.test(part)) {
+      extraParams.q = part.split('=')[1].trim();
     } else if (
       !part.includes('=') &&
       ![
         'streetview',
         'sv',
+        'street-view',
+        'pano',
         'map',
         'view',
         'place',
+        'landmark',
+        'directions',
+        'route',
+        'search',
         'gmap',
         'embed',
         'clean',
         'crop',
+        'no-crop',
+        'uncropped',
         'lock',
         'locked',
         'static',
@@ -230,12 +254,12 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   }
 
   let src = (rawSrc || '').trim();
-  // Strip schemes like streetview: or map:
-  src = src.replace(/^(?:streetview|sv|map|gmap|place):/i, '').trim();
+  // Strip schemes like streetview: or map: or directions: or search:
+  src = src.replace(/^(?:streetview|sv|map|gmap|place|directions|search|route):/i, '').trim();
 
   let mode: 'streetview' | 'place' | 'view' | 'directions' | 'search' = explicitMode || 'streetview';
   const params: Record<string, string> = { ...extraParams };
-  let externalUrl: string;
+  let externalUrl = '';
 
   // Case 1: Standard or StreetView Google Maps URL
   if (
@@ -246,6 +270,19 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   ) {
     externalUrl = src;
 
+    // Check for directions in URL: e.g. /maps/dir/Origin/Destination
+    const dirMatch = src.match(/\/maps\/dir\/([^/?#]+)\/([^/?#]+)/);
+    if (dirMatch) {
+      mode = 'directions';
+      try {
+        params.origin = decodeURIComponent(dirMatch[1].replace(/\+/g, ' '));
+        params.destination = decodeURIComponent(dirMatch[2].replace(/\+/g, ' '));
+      } catch {
+        params.origin = dirMatch[1];
+        params.destination = dirMatch[2];
+      }
+    }
+
     // Check for coordinates in URL like @51.1283,71.4305 or @51.1283,71.4305,3a,75y,120h,90t
     const atMatch = src.match(/@(-?\d+\.\d+),(-?\d+\.\d+)(?:,([^/?#]+))?/);
     const isStreetViewUrl =
@@ -254,7 +291,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       src.includes('cbll=') ||
       src.includes('!1e1');
 
-    if (atMatch) {
+    if (atMatch && !dirMatch) {
       const lat = atMatch[1];
       const lng = atMatch[2];
       const tail = atMatch[3] || '';
@@ -285,7 +322,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
 
     // Check for place name in URL
     const placeMatch = src.match(/\/place\/([^/@?#]+)/);
-    if (placeMatch && (!atMatch || explicitMode === 'place')) {
+    if (placeMatch && (!atMatch || explicitMode === 'place') && !dirMatch) {
       mode = 'place';
       try {
         params.q = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
@@ -296,7 +333,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
 
     // Check for search query
     const searchMatch = src.match(/\/search\/([^/@?#]+)/);
-    if (searchMatch) {
+    if (searchMatch && !dirMatch) {
       mode = 'search';
       try {
         params.q = decodeURIComponent(searchMatch[1].replace(/\+/g, ' '));
@@ -315,6 +352,14 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
     })();
 
     if (urlObj) {
+      if (urlObj.searchParams.get('origin')) {
+        mode = 'directions';
+        params.origin = urlObj.searchParams.get('origin')!;
+      }
+      if (urlObj.searchParams.get('destination')) {
+        mode = 'directions';
+        params.destination = urlObj.searchParams.get('destination')!;
+      }
       if (urlObj.searchParams.get('q')) {
         params.q = urlObj.searchParams.get('q')!;
       }
@@ -336,41 +381,79 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
 
       if (mode === 'streetview') {
         params.location = coords;
-        externalUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${coords}${
-          params.heading ? `&heading=${params.heading}` : ''
-        }${params.pitch ? `&pitch=${params.pitch}` : ''}`;
       } else if (mode === 'view') {
         params.center = coords;
         if (!params.zoom) params.zoom = '15';
-        externalUrl = `https://www.google.com/maps/@${coords},${params.zoom || '15'}z`;
       } else {
-        // Default place
         params.q = coords;
-        externalUrl = `https://www.google.com/maps/search/?api=1&query=${coords}`;
       }
     } else if (
       src.includes('=') &&
-      (src.startsWith('location=') || src.startsWith('q=') || src.startsWith('center='))
+      (src.includes('origin=') ||
+        src.includes('destination=') ||
+        src.startsWith('location=') ||
+        src.startsWith('q=') ||
+        src.startsWith('center='))
     ) {
       // Key-value param string
       const searchParams = new URLSearchParams(src);
       searchParams.forEach((val, key) => {
         params[key] = val;
       });
-      if (params.location) mode = 'streetview';
-      else if (params.center) mode = 'view';
-      else if (params.q) mode = explicitMode || 'place';
-
-      externalUrl = params.location
-        ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${params.location}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-            params.q || params.center || ''
-          )}`;
+      if (params.origin && params.destination) {
+        mode = 'directions';
+      } else if (params.location) {
+        mode = 'streetview';
+      } else if (params.center) {
+        mode = 'view';
+      } else if (params.q) {
+        mode = explicitMode || 'place';
+      }
     } else {
-      // Freeform place name: e.g. "Baiterek, Astana"
-      mode = 'place';
-      params.q = src;
-      externalUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(src)}`;
+      // Check for route string like "Origin -> Destination" or "Origin to Destination"
+      const routeMatch = src.match(/^(.+?)\s*(?:->|-->|\s+to\s+|至|到)\s*(.+)$/i);
+      if (explicitMode === 'directions' || (routeMatch && (src.includes('->') || src.includes('-->')))) {
+        mode = 'directions';
+        if (routeMatch) {
+          if (!params.origin) params.origin = routeMatch[1].trim();
+          if (!params.destination) params.destination = routeMatch[2].trim();
+        } else if (!params.origin) {
+          params.origin = src;
+        }
+      } else if (explicitMode === 'search') {
+        mode = 'search';
+        params.q = src;
+      } else if (explicitMode === 'view') {
+        mode = 'view';
+        params.center = src;
+        if (!params.zoom) params.zoom = '15';
+      } else {
+        // Freeform place name: e.g. "Baiterek, Astana"
+        mode = explicitMode || 'place';
+        params.q = src;
+      }
+    }
+  }
+
+  // Construct externalUrl if not already set
+  if (!externalUrl) {
+    if (mode === 'streetview') {
+      externalUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${params.location || ''}${
+        params.heading ? `&heading=${params.heading}` : ''
+      }${params.pitch ? `&pitch=${params.pitch}` : ''}`;
+    } else if (mode === 'view') {
+      externalUrl = `https://www.google.com/maps/@${params.center || ''},${params.zoom || '15'}z`;
+    } else if (mode === 'directions') {
+      externalUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+        params.origin || ''
+      )}&destination=${encodeURIComponent(params.destination || '')}${
+        params.mode ? `&travelmode=${encodeURIComponent(params.mode)}` : ''
+      }`;
+    } else {
+      // place or search
+      externalUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        params.q || ''
+      )}`;
     }
   }
 
