@@ -1,10 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import { ExternalLink, Compass, MapPin, AlertCircle, Lock, Unlock, Search, Route } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import {
+  ExternalLink,
+  Compass,
+  MapPin,
+  AlertCircle,
+  Lock,
+  Unlock,
+  Search,
+  Route,
+  Sliders,
+  Copy,
+  Check,
+  Terminal
+} from 'lucide-react';
 import {
   parseGoogleMapsEmbedConfig,
   buildEmbedUrl,
   getGoogleMapsApiKey,
-  DEFAULT_CROP
+  DEFAULT_CROP,
+  type ParsedEmbedConfig
 } from '../utils/googleMapsEmbed';
 
 export interface GoogleMapsEmbedProps {
@@ -37,90 +51,68 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
 
   const isLocked = userLocked ?? config.locked;
 
-  const toggleLock = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nextLocked = !isLocked;
-    setUserLocked(nextLocked);
+  // Real-time tuning state
+  const initialHeading = config.params.heading ? parseFloat(config.params.heading) : 0;
+  const initialPitch = config.params.pitch ? parseFloat(config.params.pitch) : 0;
+  const initialFov = config.params.fov ? parseFloat(config.params.fov) : 90;
+  const initialZoom = config.params.zoom ? parseFloat(config.params.zoom) : 13;
 
-    if (nextLocked) {
-      // Build markdown snippet for easy copying and tuning
-      const parts: string[] = [config.mode];
-      if (config.showHeader) parts.push('header');
-      parts.push('lock');
-      if (config.isVertical) {
-        if (config.aspectRatio === '4 / 5') {
-          parts.push('vertical');
-        } else if (config.aspectRatio === '9 / 16') {
-          parts.push('9:16');
-        } else if (config.aspectRatio === '3 / 4') {
-          parts.push('3:4');
-        } else if (config.aspectRatio === '2 / 3') {
-          parts.push('2:3');
-        } else {
-          parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
-        }
-      } else if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
-        parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
-      }
-      if (config.width) {
-        parts.push(`w=${config.width}`);
-      }
-      if (config.height) {
-        parts.push(`h=${config.height}`);
-      }
-      const { top, right, bottom, left } = config.crop;
-      const isDefaultCrop =
-        top === DEFAULT_CROP.top &&
-        right === DEFAULT_CROP.right &&
-        bottom === DEFAULT_CROP.bottom &&
-        left === DEFAULT_CROP.left;
+  const [liveHeading, setLiveHeading] = useState<number>(initialHeading);
+  const [livePitch, setLivePitch] = useState<number>(initialPitch);
+  const [liveFov, setLiveFov] = useState<number>(initialFov);
+  const [liveZoom, setLiveZoom] = useState<number>(initialZoom);
+  const [showTuning, setShowTuning] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-      if (!isDefaultCrop) {
-        if (top === 0 && right === 0 && bottom === 0 && left === 0) {
-          parts.push('no-crop');
-        } else {
-          parts.push(`crop=${top},${right},${bottom},${left}`);
-        }
-      }
-      if (config.params.heading) parts.push(`heading=${config.params.heading}`);
-      if (config.params.pitch) parts.push(`pitch=${config.params.pitch}`);
-      if (config.params.fov) parts.push(`fov=${config.params.fov}`);
-      if (config.params.zoom) parts.push(`zoom=${config.params.zoom}`);
-      if (config.params.mode && config.mode === 'directions') parts.push(`mode=${config.params.mode}`);
-      if (config.title) parts.push(config.title);
+  // Sync if config prop changes during render
+  const [prevConfig, setPrevConfig] = useState(config);
+  if (config !== prevConfig) {
+    setPrevConfig(config);
+    setLiveHeading(config.params.heading ? parseFloat(config.params.heading) : 0);
+    setLivePitch(config.params.pitch ? parseFloat(config.params.pitch) : 0);
+    setLiveFov(config.params.fov ? parseFloat(config.params.fov) : 90);
+    setLiveZoom(config.params.zoom ? parseFloat(config.params.zoom) : 13);
+  }
 
-      const targetSrc =
-        config.mode === 'directions' && config.params.origin && config.params.destination
-          ? `${config.params.origin} -> ${config.params.destination}`
-          : config.params.location || config.params.center || config.params.q || src;
-      const snippet = `![${parts.join('|')}](${targetSrc})`;
+  // Debounced params for the iframe to avoid rapid reloads during slider drag
+  const [debouncedParams, setDebouncedParams] = useState({
+    heading: initialHeading,
+    pitch: initialPitch,
+    fov: initialFov,
+    zoom: initialZoom
+  });
 
-      // Print structured parameters and copy-ready snippet to developer console
-      console.group(
-        `%c🔒 [GoogleMapsEmbed Locked] ${displayTitle}`,
-        'color: #38bdf8; font-weight: bold; font-size: 12px;'
-      );
-      console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
-      console.log(snippet);
-      console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
-        mode: config.mode,
-        title: config.title,
-        locked: true,
-        crop: config.crop,
-        aspectRatio: config.aspectRatio,
-        height: config.height,
-        ...config.params,
-        rawAlt: alt,
-        rawSrc: src,
-        externalUrl: config.externalUrl
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedParams({
+        heading: liveHeading,
+        pitch: livePitch,
+        fov: liveFov,
+        zoom: liveZoom
       });
-      console.groupEnd();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [liveHeading, livePitch, liveFov, liveZoom]);
+
+  const activeConfig = useMemo<ParsedEmbedConfig>(() => {
+    if (!showTuning) return config;
+    const nextParams = { ...config.params };
+    if (config.mode === 'streetview') {
+      nextParams.heading = String(Math.round(debouncedParams.heading * 10) / 10);
+      nextParams.pitch = String(Math.round(debouncedParams.pitch * 10) / 10);
+      nextParams.fov = String(Math.round(debouncedParams.fov * 10) / 10);
+    } else if (config.mode === 'view') {
+      nextParams.zoom = String(Math.round(debouncedParams.zoom));
     }
-  };
+    return {
+      ...config,
+      params: nextParams
+    };
+  }, [config, showTuning, debouncedParams]);
 
   const embedUrl = useMemo(() => {
-    return buildEmbedUrl(config, apiKey);
-  }, [config, apiKey]);
+    return buildEmbedUrl(activeConfig, apiKey);
+  }, [activeConfig, apiKey]);
 
   const badgeInfo = useMemo(() => {
     switch (config.mode) {
@@ -173,6 +165,144 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     (config.mode === 'directions' && config.params.origin && config.params.destination
       ? `${config.params.origin} → ${config.params.destination}`
       : config.params.location || config.params.q || config.params.center || badgeInfo.label);
+
+  const buildCurrentSnippet = (isCurrentlyLocked: boolean) => {
+    const parts: string[] = [config.mode];
+    if (config.showHeader) parts.push('header');
+    if (isCurrentlyLocked) parts.push('lock');
+
+    if (config.isVertical) {
+      if (config.aspectRatio === '4 / 5') {
+        parts.push('vertical');
+      } else if (config.aspectRatio === '9 / 16') {
+        parts.push('9:16');
+      } else if (config.aspectRatio === '3 / 4') {
+        parts.push('3:4');
+      } else if (config.aspectRatio === '2 / 3') {
+        parts.push('2:3');
+      } else {
+        parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+      }
+    } else if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
+      parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+    }
+    if (config.width) {
+      parts.push(`w=${config.width}`);
+    }
+    if (config.height) {
+      parts.push(`h=${config.height}`);
+    }
+    const { top, right, bottom, left } = config.crop;
+    const isDefaultCrop =
+      top === DEFAULT_CROP.top &&
+      right === DEFAULT_CROP.right &&
+      bottom === DEFAULT_CROP.bottom &&
+      left === DEFAULT_CROP.left;
+
+    if (!isDefaultCrop) {
+      if (top === 0 && right === 0 && bottom === 0 && left === 0) {
+        parts.push('no-crop');
+      } else {
+        parts.push(`crop=${top},${right},${bottom},${left}`);
+      }
+    }
+
+    if (config.mode === 'streetview') {
+      const curHeading = showTuning ? liveHeading : (config.params.heading ? parseFloat(config.params.heading) : undefined);
+      const curPitch = showTuning ? livePitch : (config.params.pitch ? parseFloat(config.params.pitch) : undefined);
+      const curFov = showTuning ? liveFov : (config.params.fov ? parseFloat(config.params.fov) : undefined);
+
+      if (curHeading !== undefined) parts.push(`heading=${Math.round(curHeading * 10) / 10}`);
+      if (curPitch !== undefined && curPitch !== 0) parts.push(`pitch=${Math.round(curPitch * 10) / 10}`);
+      if (curFov !== undefined && curFov !== 90) parts.push(`fov=${Math.round(curFov * 10) / 10}`);
+    } else if (config.mode === 'view') {
+      const curZoom = showTuning ? liveZoom : (config.params.zoom ? parseFloat(config.params.zoom) : undefined);
+      if (curZoom !== undefined) parts.push(`zoom=${Math.round(curZoom)}`);
+    }
+
+    if (config.params.mode && config.mode === 'directions') parts.push(`mode=${config.params.mode}`);
+    if (config.title) parts.push(config.title);
+
+    const targetSrc =
+      config.mode === 'directions' && config.params.origin && config.params.destination
+        ? `${config.params.origin} -> ${config.params.destination}`
+        : config.params.location || config.params.center || config.params.q || src;
+
+    return `![${parts.join('|')}](${targetSrc})`;
+  };
+
+  const toggleLock = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextLocked = !isLocked;
+    setUserLocked(nextLocked);
+
+    if (nextLocked) {
+      const snippet = buildCurrentSnippet(true);
+      // Print structured parameters and copy-ready snippet to developer console
+      console.group(
+        `%c🔒 [GoogleMapsEmbed Locked] ${displayTitle}`,
+        'color: #38bdf8; font-weight: bold; font-size: 12px;'
+      );
+      console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
+      console.log(snippet);
+      console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
+        mode: config.mode,
+        title: config.title,
+        locked: true,
+        crop: config.crop,
+        aspectRatio: config.aspectRatio,
+        height: config.height,
+        heading: showTuning ? liveHeading : config.params.heading,
+        pitch: showTuning ? livePitch : config.params.pitch,
+        fov: showTuning ? liveFov : config.params.fov,
+        zoom: showTuning ? liveZoom : config.params.zoom,
+        rawAlt: alt,
+        rawSrc: src,
+        externalUrl: config.externalUrl
+      });
+      console.groupEnd();
+    }
+  };
+
+  const handleCopySnippet = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const snippet = buildCurrentSnippet(isLocked);
+    navigator.clipboard.writeText(snippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+
+    console.group(
+      `%c📋 [GoogleMapsEmbed Snippet Copied] ${displayTitle}`,
+      'color: #38bdf8; font-weight: bold; font-size: 12px;'
+    );
+    console.log('%c📋 Markdown Snippet (直接複製貼上):', 'color: #a5f3fc; font-weight: bold;');
+    console.log(snippet);
+    console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
+      heading: liveHeading,
+      pitch: livePitch,
+      fov: liveFov,
+      zoom: liveZoom
+    });
+    console.groupEnd();
+  };
+
+  const handlePrintConsole = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const snippet = buildCurrentSnippet(isLocked);
+    console.group(
+      `%c🕹️ [GoogleMapsEmbed Live Parameters] ${displayTitle}`,
+      'color: #38bdf8; font-weight: bold; font-size: 12px;'
+    );
+    console.log('%c📋 Markdown Snippet:', 'color: #a5f3fc; font-weight: bold;');
+    console.log(snippet);
+    console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
+      heading: liveHeading,
+      pitch: livePitch,
+      fov: liveFov,
+      zoom: liveZoom
+    });
+    console.groupEnd();
+  };
 
   return (
     <div
@@ -248,6 +378,33 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
               <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
             </button>
+            {(config.mode === 'streetview' || config.mode === 'view') && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTuning(!showTuning);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  backgroundColor: showTuning ? 'rgba(56, 189, 248, 0.25)' : 'rgba(148, 163, 184, 0.15)',
+                  color: showTuning ? '#38bdf8' : '#94a3b8',
+                  border: `1px solid ${showTuning ? 'rgba(56, 189, 248, 0.45)' : 'rgba(148, 163, 184, 0.25)'}`,
+                  transition: 'all 0.15s ease'
+                }}
+                title="開啟微調面板，可看著畫面滑動調整方位 (Heading)、仰角 (Pitch) 與視野 (FOV)"
+              >
+                <Sliders size={10} />
+                <span>{showTuning ? '收起微調' : '微調'}</span>
+              </button>
+            )}
             <span
               style={{
                 fontWeight: 500,
@@ -356,6 +513,20 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 {isLocked ? <Lock size={11} /> : <Unlock size={11} />}
                 <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
               </button>
+              {(config.mode === 'streetview' || config.mode === 'view') && (
+                <button
+                  type="button"
+                  className={`google-maps-tune-btn ${showTuning ? 'is-active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTuning(!showTuning);
+                  }}
+                  title="開啟微調面板，即時滑動調整方位 (Heading)、仰角 (Pitch) 與視野 (FOV)"
+                >
+                  <Sliders size={11} />
+                  <span>{showTuning ? '收起微調' : '微調'}</span>
+                </button>
+              )}
               {config.externalUrl && (
                 <a
                   className="google-maps-float-link"
@@ -409,6 +580,142 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               <ExternalLink size={13} />
             </a>
           )}
+        </div>
+      )}
+
+      {/* Interactive Tuning Panel */}
+      {showTuning && (config.mode === 'streetview' || config.mode === 'view') && (
+        <div
+          className="google-maps-tuning-panel"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {config.mode === 'streetview' && (
+            <>
+              {/* Heading Slider */}
+              <div className="google-maps-tuning-row">
+                <div className="google-maps-tuning-label">
+                  <span>方位旋轉 (Heading)</span>
+                  <b>{Math.round(liveHeading * 10) / 10}°</b>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={0.5}
+                  value={liveHeading}
+                  onChange={(e) => setLiveHeading(parseFloat(e.target.value))}
+                  className="google-maps-tuning-slider"
+                />
+                <div className="google-maps-tuning-presets">
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(0)}>北 (0°)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(90)}>東 (90°)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(180)}>南 (180°)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(270)}>西 (270°)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(h => Math.round(((h - 15 + 360) % 360) * 10) / 10)}>-15°</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(h => Math.round(((h + 15) % 360) * 10) / 10)}>+15°</button>
+                </div>
+              </div>
+
+              {/* Pitch Slider */}
+              <div className="google-maps-tuning-row">
+                <div className="google-maps-tuning-label">
+                  <span>仰角俯視 (Pitch)</span>
+                  <b>{livePitch > 0 ? '+' : ''}{Math.round(livePitch * 10) / 10}°</b>
+                </div>
+                <input
+                  type="range"
+                  min={-90}
+                  max={90}
+                  step={0.5}
+                  value={livePitch}
+                  onChange={(e) => setLivePitch(parseFloat(e.target.value))}
+                  className="google-maps-tuning-slider"
+                />
+                <div className="google-maps-tuning-presets">
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(-30)}>-30° (低頭)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(0)}>0° (平視)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(15)}>+15° (微仰)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(30)}>+30° (仰望)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 5) * 10) / 10))}>-5°</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 5) * 10) / 10))}>+5°</button>
+                </div>
+              </div>
+
+              {/* FOV Slider */}
+              <div className="google-maps-tuning-row">
+                <div className="google-maps-tuning-label">
+                  <span>視野縮放 (FOV 焦距)</span>
+                  <b>{Math.round(liveFov * 10) / 10}°</b>
+                </div>
+                <input
+                  type="range"
+                  min={15}
+                  max={120}
+                  step={0.5}
+                  value={liveFov}
+                  onChange={(e) => setLiveFov(parseFloat(e.target.value))}
+                  className="google-maps-tuning-slider"
+                />
+                <div className="google-maps-tuning-presets">
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(25)}>25° (特寫望遠)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(50)}>50° (望遠)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(75)}>75° (中焦)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(90)}>90° (預設廣角)</button>
+                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(110)}>110° (超廣角)</button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {config.mode === 'view' && (
+            <div className="google-maps-tuning-row">
+              <div className="google-maps-tuning-label">
+                <span>縮放層級 (Zoom Level)</span>
+                <b>{Math.round(liveZoom)}</b>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={21}
+                step={1}
+                value={liveZoom}
+                onChange={(e) => setLiveZoom(parseInt(e.target.value, 10))}
+                className="google-maps-tuning-slider"
+              />
+              <div className="google-maps-tuning-presets">
+                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(5)}>5 (國家)</button>
+                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(10)}>10 (大都會區)</button>
+                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(13)}>13 (市中心/景區)</button>
+                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(16)}>16 (街道巷弄)</button>
+                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(19)}>19 (建築特寫)</button>
+              </div>
+            </div>
+          )}
+
+          {/* Live Markdown Snippet Box */}
+          <div className="google-maps-snippet-box">
+            <span className="google-maps-snippet-code" title={buildCurrentSnippet(isLocked)}>
+              {buildCurrentSnippet(isLocked)}
+            </span>
+            <button
+              type="button"
+              className="google-maps-log-btn"
+              onClick={handlePrintConsole}
+              title="在瀏覽器 Console (F12) 印出當前參數物件"
+            >
+              <Terminal size={11} />
+              <span>Console</span>
+            </button>
+            <button
+              type="button"
+              className="google-maps-copy-btn"
+              onClick={handleCopySnippet}
+              title="複製此 Markdown 語法"
+            >
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+              <span>{copied ? '已複製!' : '複製語法'}</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
