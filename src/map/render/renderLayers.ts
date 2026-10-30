@@ -163,9 +163,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       if (!item.path2D) continue;
 
       const iso2 = item.countryMeta?.iso2;
+      const hasL2Data = !!(iso2 && combinedByCountry[iso2] && l2ByCountry[iso2]?.length);
       const isCountryL2Region = !!iso2 && expandedL2Countries.has(iso2);
-      // In L2/L3 region mode, skip countries that have L2 subdivision datasets loaded
-      if (iso2 && expandedL2Countries.has(iso2)) continue;
+      // In L2/L3 region mode, skip countries ONLY if their L2 subdivision dataset is actually loaded and ready
+      if (isCountryL2Region && hasL2Data) continue;
 
       // Viewport culling
       const bbox = (useHighRes && iso2 && countryBBoxes[iso2]) || item.bbox;
@@ -186,10 +187,13 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       const screenH = (maxY - minY) * k;
       if (!isSelected && !isHovered && screenW < 1.5 && screenH < 1.5) continue;
 
+      const cMeta =
+        item.countryMeta ||
+        makeUnknownCountry(String(item.id || ''), iso2 || '', item.name, item.name);
+      const layerFillColor = activeFilter.getColor(cMeta) || MAP_COLORS.defaultFill;
+
       let fillWithColor: string | CanvasGradient;
-      if (isSelected) {
-        fillWithColor = MAP_COLORS.selected;
-      } else if (isHovered) {
+      if (isHovered) {
         fillWithColor = MAP_COLORS.hovered;
       } else if (
         (activeFilter.id === 'roadLines' ||
@@ -199,10 +203,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       ) {
         fillWithColor = MAP_COLORS.defaultFill;
       } else {
-        const cMeta =
-          item.countryMeta ||
-          makeUnknownCountry(String(item.id || ''), iso2 || '', item.name, item.name);
-        fillWithColor = activeFilter.getColor(cMeta) || MAP_COLORS.defaultFill;
+        fillWithColor = layerFillColor;
       }
 
       const renderPath = (useHighRes && iso2 && dissolvedByCountry[iso2]) || item.path2D;
@@ -225,6 +226,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       } else {
         ctx.fillStyle = fillWithColor;
         ctx.fill(renderPath);
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.34)';
+          ctx.fill(renderPath);
+        }
       }
 
       // At regional zoom (k >= 1.8), stroke individual country boundary
@@ -308,8 +313,15 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           const defaultFill = isRoadFilter
             ? MAP_COLORS.defaultFill
             : (cMeta && activeFilter.getColor(cMeta)) || MAP_COLORS.defaultFill;
-          ctx.fillStyle = isParentSelected ? 'rgba(59, 130, 246, 0.34)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.16)' : defaultFill;
+          ctx.fillStyle = defaultFill;
           ctx.fill(countryCombined);
+          if (isParentSelected) {
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.34)';
+            ctx.fill(countryCombined);
+          } else if (isSiblingHovered) {
+            ctx.fillStyle = 'rgba(251, 146, 60, 0.16)';
+            ctx.fill(countryCombined);
+          }
 
           // 2. Stroke all subdivision borders of this country in 1 draw call (Thin internal boundaries: 0.6 / k)
           ctx.strokeStyle = isParentSelected ? 'rgba(96, 165, 250, 0.75)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';
