@@ -3069,35 +3069,42 @@ span.confused-country-btn {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-.google-maps-tuning-slider {
-  width: 100%;
-  accent-color: #38bdf8;
-  cursor: pointer;
-  height: 4px;
-}
-
-.google-maps-tuning-presets {
+.google-maps-tuning-control {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
+  align-items: center;
+  gap: 8px;
 }
 
-.google-maps-preset-btn {
-  padding: 1px 6px;
+.google-maps-step-btn {
+  padding: 2px 7px;
   border-radius: 4px;
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: #cbd5e1;
   cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
   transition: all 0.12s ease;
 }
 
-.google-maps-preset-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: rgba(56, 189, 248, 0.4);
+.google-maps-step-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.5);
   color: #38bdf8;
+}
+
+.google-maps-step-btn:active {
+  transform: scale(0.95);
+}
+
+.google-maps-tuning-slider {
+  flex: 1;
+  accent-color: #38bdf8;
+  cursor: pointer;
+  height: 4px;
 }
 
 .google-maps-snippet-box {

@@ -591,77 +591,108 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
         >
           {config.mode === 'streetview' && (
             <>
-              {/* Heading Slider */}
+              {/* Heading Slider with -1° and +1° at the two ends */}
               <div className="google-maps-tuning-row">
                 <div className="google-maps-tuning-label">
                   <span>方位旋轉 (Heading)</span>
                   <b>{Math.round(liveHeading * 10) / 10}°</b>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={360}
-                  step={0.5}
-                  value={liveHeading}
-                  onChange={(e) => setLiveHeading(parseFloat(e.target.value))}
-                  className="google-maps-tuning-slider"
-                />
-                <div className="google-maps-tuning-presets">
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(0)}>北 (0°)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(90)}>東 (90°)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(180)}>南 (180°)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(270)}>西 (270°)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(h => Math.round(((h - 15 + 360) % 360) * 10) / 10)}>-15°</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveHeading(h => Math.round(((h + 15) % 360) * 10) / 10)}>+15°</button>
+                <div className="google-maps-tuning-control">
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLiveHeading(h => Math.round(((h - 1 + 360) % 360) * 10) / 10)}
+                    title="方位 -1°"
+                  >
+                    -1°
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={0.5}
+                    value={liveHeading}
+                    onChange={(e) => setLiveHeading(parseFloat(e.target.value))}
+                    className="google-maps-tuning-slider"
+                  />
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLiveHeading(h => Math.round(((h + 1) % 360) * 10) / 10)}
+                    title="方位 +1°"
+                  >
+                    +1°
+                  </button>
                 </div>
               </div>
 
-              {/* Pitch Slider */}
+              {/* Pitch Slider with -1° and +1° at the two ends */}
               <div className="google-maps-tuning-row">
                 <div className="google-maps-tuning-label">
                   <span>仰角俯視 (Pitch)</span>
                   <b>{livePitch > 0 ? '+' : ''}{Math.round(livePitch * 10) / 10}°</b>
                 </div>
-                <input
-                  type="range"
-                  min={-90}
-                  max={90}
-                  step={0.5}
-                  value={livePitch}
-                  onChange={(e) => setLivePitch(parseFloat(e.target.value))}
-                  className="google-maps-tuning-slider"
-                />
-                <div className="google-maps-tuning-presets">
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(-30)}>-30° (低頭)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(0)}>0° (平視)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(15)}>+15° (微仰)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(30)}>+30° (仰望)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 5) * 10) / 10))}>-5°</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 5) * 10) / 10))}>+5°</button>
+                <div className="google-maps-tuning-control">
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 1) * 10) / 10))}
+                    title="仰角 -1°"
+                  >
+                    -1°
+                  </button>
+                  <input
+                    type="range"
+                    min={-90}
+                    max={90}
+                    step={0.5}
+                    value={livePitch}
+                    onChange={(e) => setLivePitch(parseFloat(e.target.value))}
+                    className="google-maps-tuning-slider"
+                  />
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 1) * 10) / 10))}
+                    title="仰角 +1°"
+                  >
+                    +1°
+                  </button>
                 </div>
               </div>
 
-              {/* FOV Slider */}
+              {/* FOV Slider with -1° and +1° at the two ends */}
               <div className="google-maps-tuning-row">
                 <div className="google-maps-tuning-label">
                   <span>視野縮放 (FOV 焦距)</span>
                   <b>{Math.round(liveFov * 10) / 10}°</b>
                 </div>
-                <input
-                  type="range"
-                  min={15}
-                  max={120}
-                  step={0.5}
-                  value={liveFov}
-                  onChange={(e) => setLiveFov(parseFloat(e.target.value))}
-                  className="google-maps-tuning-slider"
-                />
-                <div className="google-maps-tuning-presets">
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(25)}>25° (特寫望遠)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(50)}>50° (望遠)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(75)}>75° (中焦)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(90)}>90° (預設廣角)</button>
-                  <button type="button" className="google-maps-preset-btn" onClick={() => setLiveFov(110)}>110° (超廣角)</button>
+                <div className="google-maps-tuning-control">
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLiveFov(f => Math.max(15, Math.round((f - 1) * 10) / 10))}
+                    title="視野 -1° (放大特寫)"
+                  >
+                    -1°
+                  </button>
+                  <input
+                    type="range"
+                    min={15}
+                    max={120}
+                    step={0.5}
+                    value={liveFov}
+                    onChange={(e) => setLiveFov(parseFloat(e.target.value))}
+                    className="google-maps-tuning-slider"
+                  />
+                  <button
+                    type="button"
+                    className="google-maps-step-btn"
+                    onClick={() => setLiveFov(f => Math.min(120, Math.round((f + 1) * 10) / 10))}
+                    title="視野 +1° (廣角縮小)"
+                  >
+                    +1°
+                  </button>
                 </div>
               </div>
             </>
@@ -673,21 +704,32 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 <span>縮放層級 (Zoom Level)</span>
                 <b>{Math.round(liveZoom)}</b>
               </div>
-              <input
-                type="range"
-                min={1}
-                max={21}
-                step={1}
-                value={liveZoom}
-                onChange={(e) => setLiveZoom(parseInt(e.target.value, 10))}
-                className="google-maps-tuning-slider"
-              />
-              <div className="google-maps-tuning-presets">
-                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(5)}>5 (國家)</button>
-                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(10)}>10 (大都會區)</button>
-                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(13)}>13 (市中心/景區)</button>
-                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(16)}>16 (街道巷弄)</button>
-                <button type="button" className="google-maps-preset-btn" onClick={() => setLiveZoom(19)}>19 (建築特寫)</button>
+              <div className="google-maps-tuning-control">
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => setLiveZoom(z => Math.max(1, z - 1))}
+                  title="縮放 -1"
+                >
+                  -1
+                </button>
+                <input
+                  type="range"
+                  min={1}
+                  max={21}
+                  step={1}
+                  value={liveZoom}
+                  onChange={(e) => setLiveZoom(parseInt(e.target.value, 10))}
+                  className="google-maps-tuning-slider"
+                />
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => setLiveZoom(z => Math.min(21, z + 1))}
+                  title="縮放 +1"
+                >
+                  +1
+                </button>
               </div>
             </div>
           )}
