@@ -1407,9 +1407,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     requestRender
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     renderCanvasRef.current = renderCanvas;
-  }, [renderCanvas]);
+  });
 
   useEffect(
     () => () => {
@@ -2444,6 +2444,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   }, [activeInternationalImageFilter, activeRegionalFilters, requestRender]);
 
   useEffect(() => {
+    renderCanvasRef.current();
     requestRender();
     if (countryPathData.length && !hasFinePointerRef.current) {
       requestAnimationFrame(() => {
@@ -2569,6 +2570,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     zoomToSubdivisionRef.current = zoomToSubdivision;
   }, [zoomToSubdivisionRef, zoomToSubdivision]);
 
+  const onSelectSubdivisionRef = useRef(onSelectSubdivision);
+  useLayoutEffect(() => {
+    onSelectSubdivisionRef.current = onSelectSubdivision;
+  }, [onSelectSubdivision]);
+
+  const initialTargetRef = useRef(initialTarget);
+  const initialFocusTargetRef = useRef(initialFocusTarget);
+
+  // Cancel canvas render animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (renderRafIdRef.current !== null) {
+        cancelAnimationFrame(renderRafIdRef.current);
+        renderRafIdRef.current = null;
+      }
+    };
+  }, []);
+
   // Startup loader: show the map as soon as L1 countries finish, then stream all 91 L2 files in Web Workers
   useEffect(() => {
     let isMounted = true;
@@ -2604,7 +2623,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       const CONCURRENCY = 8;
 
       // If initialTarget or initialFocusTarget targets a country, prioritize it at the front of queue
-      const rawTarget = initialTarget || initialFocusTarget || '';
+      const rawTarget = initialTargetRef.current || initialFocusTargetRef.current || '';
       const sepIdx = rawTarget.indexOf('::');
       const priorityIso2 = rawTarget
         ? (sepIdx > 0 ? rawTarget.slice(0, sepIdx) : rawTarget).trim().toUpperCase()
@@ -2692,24 +2711,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               l2CountryDissolvedPathsRef.current[iso2] = new Path2D(dissolvedD);
             }
 
-            if (initialTarget && !initialTargetHandledRef.current) {
-              const separatorIndex = initialTarget.indexOf('::');
+            if (initialTargetRef.current && !initialTargetHandledRef.current) {
+              const separatorIndex = initialTargetRef.current.indexOf('::');
               if (separatorIndex > 0) {
-                const targetIso2 = initialTarget.slice(0, separatorIndex).trim().toUpperCase();
-                const targetId = initialTarget.slice(separatorIndex + 2).trim();
+                const targetIso2 = initialTargetRef.current.slice(0, separatorIndex).trim().toUpperCase();
+                const targetId = initialTargetRef.current.slice(separatorIndex + 2).trim();
                 if (targetIso2 === iso2 && targetId) {
                   const targetSubdivision = findSubdivisionMatch(paths, targetId, iso2);
                   if (targetSubdivision) {
                     initialTargetHandledRef.current = true;
-                    onSelectSubdivision?.(toL2Detail(targetSubdivision), { focus: false });
+                    onSelectSubdivisionRef.current?.(toL2Detail(targetSubdivision), { focus: false });
                     zoomToSubdivisionRefInternal.current(iso2, targetSubdivision.id);
                   }
                 }
               }
             }
 
-            if (initialFocusTarget && !initialFocusTargetHandledRef.current) {
-              const [targetIso2, targetId] = initialFocusTarget.split('::').map((part) => part.trim());
+            if (initialFocusTargetRef.current && !initialFocusTargetHandledRef.current) {
+              const [targetIso2, targetId] = initialFocusTargetRef.current.split('::').map((part) => part.trim());
               if (targetIso2?.toUpperCase() === iso2 && targetId) {
                 const targetSubdivision = findSubdivisionMatch(paths, targetId, iso2);
                 if (targetSubdivision) {
@@ -2755,6 +2774,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         if (!isMounted) return;
         setFeatures(loadedL1);
         setLoading(false);
+        renderCanvasRef.current();
+        requestRender();
         void streamAllL2InBackground();
       } catch (err) {
         console.error('Initial map data loading error:', err);
@@ -2776,21 +2797,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         cancelAnimationFrame(hoverRafId.current);
         hoverRafId.current = null;
       }
-      if (renderRafIdRef.current !== null) {
-        cancelAnimationFrame(renderRafIdRef.current);
-        renderRafIdRef.current = null;
-      }
     };
-  }, [
-    requestRender,
-    initialTarget,
-    onSelectSubdivision,
-    zoomToSubdivisionRef,
-    initialFocusTarget,
-    focusMapRef,
-    getActiveLayerHoverTargets,
-    getHoverClientPoint
-  ]);
+  }, [focusMapRef, getActiveLayerHoverTargets, getHoverClientPoint, requestRender]);
 
   // On-demand loader for visible countries' Road FlatGeobuf datasets (decoded in background worker)
   useEffect(() => {
@@ -2879,6 +2887,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transformRef.current.y = clampY(transformRef.current.y, newK, height);
           transformRef.current.x = wrapX(transformRef.current.x, newK);
           syncAllViewports(newK, transformRef.current.x, transformRef.current.y, width, height);
+          renderCanvasRef.current();
           requestRender();
         }
       }
