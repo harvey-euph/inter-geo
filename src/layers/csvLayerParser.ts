@@ -80,6 +80,10 @@ export interface CsvLayerRegistryEntry {
 export interface CsvLayerKVRow {
   /** Original region-id written in the CSV */
   regionId: string;
+  /** If regionId is a pipe-delimited union (e.g. 'BR::PA|BR::AM'), holds the canonical union group ID */
+  unionGroupId?: string;
+  /** Individual member region IDs when regionId is a pipe-delimited union */
+  unionMembers?: string[];
   /** Value (color hex/rgba, text string, image path, or special payload) */
   value: string;
   /** Text string if TextWithStyle */
@@ -414,8 +418,19 @@ export function parseLayerDataCsv(
       ''
     ).replace(/^"|"$/g, '').trim();
 
-    if (assignableList.validIds.size > 0 && !assignableList.isValid(rawRegionId)) {
-      invalidRegionIds.push(rawRegionId);
+    const unionParts = rawRegionId.includes('|')
+      ? rawRegionId
+          .split('|')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [rawRegionId];
+
+    if (assignableList.validIds.size > 0) {
+      for (const part of unionParts) {
+        if (!assignableList.isValid(part)) {
+          invalidRegionIds.push(part);
+        }
+      }
     }
 
     const rawStyle = attributes.style || (styleCol !== -1 ? (cells[styleCol] || '').replace(/^"|"$/g, '').trim() : undefined) || meta.defaultStyle;
@@ -424,6 +439,8 @@ export function parseLayerDataCsv(
 
     const row: CsvLayerKVRow = {
       regionId: rawRegionId,
+      unionGroupId: unionParts.length > 1 ? rawRegionId : undefined,
+      unionMembers: unionParts.length > 1 ? unionParts : undefined,
       value: rawValue,
       text: rowText,
       style: rawStyle,
@@ -438,13 +455,20 @@ export function parseLayerDataCsv(
     rowMap.set(rawRegionId, row);
     rowMap.set(rawRegionId.toUpperCase(), row);
 
-    const normalizedKeys = assignableList.normalizeId(rawRegionId);
-    for (const k of normalizedKeys) {
-      valueMap.set(k, rawValue);
-      if (rawLabel) {
-        labelMap.set(k, rawLabel);
+    for (const part of unionParts) {
+      valueMap.set(part, rawValue);
+      valueMap.set(part.toUpperCase(), rawValue);
+      rowMap.set(part, row);
+      rowMap.set(part.toUpperCase(), row);
+
+      const normalizedKeys = assignableList.normalizeId(part);
+      for (const k of normalizedKeys) {
+        valueMap.set(k, rawValue);
+        if (rawLabel) {
+          labelMap.set(k, rawLabel);
+        }
+        rowMap.set(k, row);
       }
-      rowMap.set(k, row);
     }
   }
 

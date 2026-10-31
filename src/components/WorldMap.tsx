@@ -2711,6 +2711,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
               paths.push({
                 path2D,
+                d: f.d,
                 bbox,
                 id: (p.id as string | number) || (p.code as string) || (p.name as string) || '',
                 iso2: (p.iso2 as string) || iso2,

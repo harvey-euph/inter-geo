@@ -80,13 +80,15 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     targetIso2Set.add('US');
   }
   if (lm.targetKeys) {
-    for (const key of lm.targetKeys) {
-      if (key.includes('::')) {
-        targetIso2Set.add(key.split('::')[0].toUpperCase());
-      } else if (key.includes('-') && !key.startsWith('I-')) {
-        targetIso2Set.add(key.split('-')[0].toUpperCase());
-      } else if (/^[A-Z]{2}$/i.test(key)) {
-        targetIso2Set.add(key.toUpperCase());
+    for (const rawKey of lm.targetKeys) {
+      for (const key of rawKey.split('|').map((s) => s.trim()).filter(Boolean)) {
+        if (key.includes('::')) {
+          targetIso2Set.add(key.split('::')[0].toUpperCase());
+        } else if (key.includes('-') && !key.startsWith('I-')) {
+          targetIso2Set.add(key.split('-')[0].toUpperCase());
+        } else if (/^[A-Z]{2}$/i.test(key)) {
+          targetIso2Set.add(key.toUpperCase());
+        }
       }
     }
   }
@@ -432,9 +434,12 @@ export function getCsvLayerRecord(layerId: string): Record<string, string> {
   if (!layer || !layer.data) return record;
 
   for (const row of layer.data.rows) {
-    const keys = layer.assignableList.normalizeId(row.regionId);
-    for (const k of keys) {
-      record[k] = row.value;
+    const members = row.unionMembers || [row.regionId];
+    for (const memberId of members) {
+      const keys = layer.assignableList.normalizeId(memberId);
+      for (const k of keys) {
+        record[k] = row.value;
+      }
     }
   }
   return record;

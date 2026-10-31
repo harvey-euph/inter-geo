@@ -17,6 +17,10 @@ import {
 } from '../../layers/csvLayerRegistry';
 import { MAP_W } from '../geo';
 import {
+  getActiveCountryUnionLayout,
+  getCountryUnionLayout
+} from '../unionDissolve';
+import {
   MAP_COLORS,
   MONO_BADGE_FONT,
   inView,
@@ -324,9 +328,10 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           }
 
           // 2. Stroke all subdivision borders of this country in 1 draw call (Thin internal boundaries: 0.6 / k)
+          const unionLayout = getActiveCountryUnionLayout(iso2, l2ByCountry[iso2], activeRegionalFilters);
           ctx.strokeStyle = isParentSelected ? 'rgba(96, 165, 250, 0.75)' : isSiblingHovered ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.22)';
           ctx.lineWidth = 0.6 / k;
-          ctx.stroke(countryCombined);
+          ctx.stroke(unionLayout ? unionLayout.countryBordersPath2D : countryCombined);
 
           // 3. Stroke national boundary with bold crisp black line (National border: 2.2 / k)
           const nationalBorder = dissolvedByCountry[iso2] || countryPathMap.get(iso2)?.path2D;
@@ -342,14 +347,30 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       // 3. Highlight Selected L2 Subdivision on top
       if (selectedL2) {
         const subs = l2ByCountry[selectedL2.iso2];
-        const selSub = subs?.find((s) => String(s.id) === String(selectedL2.id));
-        if (selSub?.path2D) {
+        const unionLayout = getActiveCountryUnionLayout(selectedL2.iso2, subs, activeRegionalFilters);
+        const selGroup = unionLayout?.subIdToGroup.get(String(selectedL2.id));
+        if (selGroup && selGroup.isUnion) {
           ctx.fillStyle = MAP_COLORS.selected;
-          ctx.fill(selSub.path2D);
+          ctx.fill(selGroup.fillPath2D);
+          if (selGroup.internalBorderPath2D) {
+            ctx.strokeStyle = MAP_COLORS.selected;
+            ctx.lineWidth = 1.0 / k;
+            ctx.stroke(selGroup.internalBorderPath2D);
+          }
           ctx.strokeStyle = MAP_COLORS.selected;
           ctx.lineWidth = 1.2 / k;
-          ctx.stroke(selSub.path2D);
-          highlightSelectPaths.push(selSub.path2D);
+          ctx.stroke(selGroup.outerBorderPath2D);
+          highlightSelectPaths.push(selGroup.outerBorderPath2D);
+        } else {
+          const selSub = subs?.find((s) => String(s.id) === String(selectedL2.id));
+          if (selSub?.path2D) {
+            ctx.fillStyle = MAP_COLORS.selected;
+            ctx.fill(selSub.path2D);
+            ctx.strokeStyle = MAP_COLORS.selected;
+            ctx.lineWidth = 1.2 / k;
+            ctx.stroke(selSub.path2D);
+            highlightSelectPaths.push(selSub.path2D);
+          }
         }
       }
 
@@ -359,14 +380,36 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
         (!selectedL2 || hoveredL2.iso2 !== selectedL2.iso2 || String(hoveredL2.id) !== String(selectedL2.id))
       ) {
         const subs = l2ByCountry[hoveredL2.iso2];
-        const hovSub = subs?.find((s) => String(s.id) === String(hoveredL2.id));
-        if (hovSub?.path2D) {
-          ctx.fillStyle = MAP_COLORS.hovered;
-          ctx.fill(hovSub.path2D);
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.4 / k;
-          ctx.stroke(hovSub.path2D);
-          highlightHoverPaths.push(hovSub.path2D);
+        const unionLayout = getActiveCountryUnionLayout(hoveredL2.iso2, subs, activeRegionalFilters);
+        const hovGroup = unionLayout?.subIdToGroup.get(String(hoveredL2.id));
+        if (hovGroup && hovGroup.isUnion) {
+          const isSameAsSelectedGroup =
+            selectedL2 &&
+            selectedL2.iso2 === hoveredL2.iso2 &&
+            hovGroup.memberIdSet.has(String(selectedL2.id));
+          if (!isSameAsSelectedGroup) {
+            ctx.fillStyle = MAP_COLORS.hovered;
+            ctx.fill(hovGroup.fillPath2D);
+            if (hovGroup.internalBorderPath2D) {
+              ctx.strokeStyle = MAP_COLORS.hovered;
+              ctx.lineWidth = 1.0 / k;
+              ctx.stroke(hovGroup.internalBorderPath2D);
+            }
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.4 / k;
+            ctx.stroke(hovGroup.outerBorderPath2D);
+            highlightHoverPaths.push(hovGroup.outerBorderPath2D);
+          }
+        } else {
+          const hovSub = subs?.find((s) => String(s.id) === String(hoveredL2.id));
+          if (hovSub?.path2D) {
+            ctx.fillStyle = MAP_COLORS.hovered;
+            ctx.fill(hovSub.path2D);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.4 / k;
+            ctx.stroke(hovSub.path2D);
+            highlightHoverPaths.push(hovSub.path2D);
+          }
         }
       }
 
@@ -375,6 +418,27 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
       for (const iso2 of expandedL2Countries) {
         const subs = l2ByCountry[iso2];
         if (!subs) continue;
+        const unionLayout = getActiveCountryUnionLayout(iso2, subs, activeRegionalFilters);
+        if (unionLayout) {
+          for (const group of unionLayout.groups) {
+            const isMatched = group.members.some((sub) =>
+              layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`)
+            );
+            if (!isMatched) continue;
+            ctx.fillStyle = MAP_COLORS.hovered;
+            ctx.fill(group.fillPath2D);
+            if (group.internalBorderPath2D) {
+              ctx.strokeStyle = MAP_COLORS.hovered;
+              ctx.lineWidth = 1.0 / k;
+              ctx.stroke(group.internalBorderPath2D);
+            }
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.4 / k;
+            ctx.stroke(group.outerBorderPath2D);
+            highlightHoverPaths.push(group.outerBorderPath2D);
+          }
+          continue;
+        }
         for (const sub of subs) {
           if (!layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`)) continue;
           if (activeRegionalFilters.has('nationwide-capital') && isCapitalSubdivision(iso2, sub)) continue;
@@ -817,44 +881,92 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
       if (expandedL2Countries.has(iso2)) {
         const subs = l2ByCountry[iso2];
         if (subs && subs.length > 0) {
-          for (let i = 0; i < subs.length; i++) {
-            const sub = subs[i];
-            const pureCode = getCsvSubdivisionCode(csvFilter.id, sub);
-            if (!pureCode) continue;
-            matchedAnySubdivision = true;
+          const unionLayout = getCountryUnionLayout(csvFilter.id, iso2, subs);
+          if (unionLayout) {
+            for (let gIdx = 0; gIdx < unionLayout.groups.length; gIdx++) {
+              const group = unionLayout.groups[gIdx];
+              const pureCode = group.code;
+              if (!pureCode) continue;
+              matchedAnySubdivision = true;
 
-            const isSubHovered = !!(
-              hoveredL2 &&
-              hoveredL2.iso2 === sub.iso2 &&
-              (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
-            ) || layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
-            const isSubSelected = !!(
-              selectedL2 &&
-              selectedL2.iso2 === sub.iso2 &&
-              String(selectedL2.id) === String(sub.id)
-            );
+              const isSubHovered =
+                !!(
+                  hoveredL2 &&
+                  hoveredL2.iso2 === iso2 &&
+                  group.memberIdSet.has(String(hoveredL2.id))
+                ) ||
+                group.members.some((m) =>
+                  layerHoveredL2Subdivisions.has(`${iso2}:${String(m.id)}`)
+                );
+              const isSubSelected = !!(
+                selectedL2 &&
+                selectedL2.iso2 === iso2 &&
+                group.memberIdSet.has(String(selectedL2.id))
+              );
 
-            for (const copyIdx of visibleCopies) {
-              const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
-              const screenY = sub.centroid[1] * k + y;
+              for (const copyIdx of visibleCopies) {
+                const screenX = (group.centroid[0] + copyIdx * MAP_W) * k + x;
+                const screenY = group.centroid[1] * k + y;
 
-              if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
+                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
 
-              ctx.save();
-              ctx.translate(screenX, screenY);
+                ctx.save();
+                ctx.translate(screenX, screenY);
 
-              ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
+                ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
 
-              ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
-              ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
-              ctx.strokeText(pureCode, 0, 0);
+                ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
+                ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
+                ctx.strokeText(pureCode, 0, 0);
 
-              ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
-              ctx.fillText(pureCode, 0, 0);
+                ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
+                ctx.fillText(pureCode, 0, 0);
 
-              ctx.restore();
+                ctx.restore();
+              }
+            }
+          } else {
+            for (let i = 0; i < subs.length; i++) {
+              const sub = subs[i];
+              const pureCode = getCsvSubdivisionCode(csvFilter.id, sub);
+              if (!pureCode) continue;
+              matchedAnySubdivision = true;
+
+              const isSubHovered = !!(
+                hoveredL2 &&
+                hoveredL2.iso2 === sub.iso2 &&
+                (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
+              ) || layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
+              const isSubSelected = !!(
+                selectedL2 &&
+                selectedL2.iso2 === sub.iso2 &&
+                String(selectedL2.id) === String(sub.id)
+              );
+
+              for (const copyIdx of visibleCopies) {
+                const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
+                const screenY = sub.centroid[1] * k + y;
+
+                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
+
+                ctx.save();
+                ctx.translate(screenX, screenY);
+
+                ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
+                ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
+                ctx.strokeText(pureCode, 0, 0);
+
+                ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
+                ctx.fillText(pureCode, 0, 0);
+
+                ctx.restore();
+              }
             }
           }
         }

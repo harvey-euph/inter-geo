@@ -38,6 +38,7 @@ export interface CountryPathData {
 
 export interface L2SubdivisionPathData {
   path2D: Path2D;
+  d?: string;
   bbox: [number, number, number, number];
   id: number | string;
   iso2: string;
