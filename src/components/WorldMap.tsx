@@ -892,9 +892,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
         const csvLayer = getCsvLayerById(id);
         if (csvLayer?.meta.fgb?.includes(`${upper}-roads.fgb`)) {
-          if (id === 'us-interstates') {
+          if (id.includes('interstate')) {
             if (roadClass === 'Interstate') return true;
-          } else if (id === 'us-numbered-highways' || id === 'us-highways') {
+          } else if (id.includes('highway') || id.includes('route')) {
             if (roadClass === 'Federal') return true;
           } else {
             return true;

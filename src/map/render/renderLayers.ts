@@ -495,9 +495,9 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           const fedLayer =
             iso2.toUpperCase() === 'US'
               ? getCsvLayerById('us-numbered-highways') || getCsvLayerById('us-highways')
-              : getCsvLayerById(`${iso2.toLowerCase()}-roads`);
+              : getCsvLayerById(`${iso2.toLowerCase()}-highways`);
           const valMap = fedLayer?.data?.valueMap;
-          const defaultColor = '#fbbf24';
+          const defaultColor = fedLayer?.accentColor || fedLayer?.defaultColor || '#fbbf24';
 
           if (!valMap || valMap.size === 0) {
             ctx.strokeStyle = defaultColor;
@@ -535,10 +535,7 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
           ctx.lineCap = 'butt';
           ctx.lineJoin = 'miter';
 
-          const interLayer =
-            iso2.toUpperCase() === 'US'
-              ? getCsvLayerById('us-interstates')
-              : getCsvLayerById(`${iso2.toLowerCase()}-roads`);
+          const interLayer = getCsvLayerById(`${iso2.toLowerCase()}-interstates`);
           const valMap = interLayer?.data?.valueMap;
           const defaultColor = interLayer?.accentColor || interLayer?.defaultColor || MAP_COLORS.selected;
 

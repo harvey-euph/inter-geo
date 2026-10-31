@@ -462,57 +462,6 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
       {/* Card Body with Optional Image Layout & Bullet List */}
       {isExpanded && (
         <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
-          {layerId && layerCtrl.onToggleLayer && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                padding: '8px 12px',
-                marginBottom: 10,
-                borderRadius: 8,
-                backgroundColor: isLayerActive ? `${accent}24` : 'rgba(15, 23, 42, 0.65)',
-                border: `1px solid ${isLayerActive ? accent : `${accent}55`}`
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#f8fafc' }}>
-                  <Layers size={13} style={{ color: accent, flexShrink: 0 }} />
-                  <span>對應區域特徵圖層：{csvLayer?.nameZh || layerId}</span>
-                </div>
-                {csvLayer?.descriptionZh && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
-                    {csvLayer.descriptionZh}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  layerCtrl.onToggleLayer?.(layerId);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '5px 12px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  backgroundColor: isLayerActive ? accent : 'rgba(30, 41, 59, 0.9)',
-                  color: isLayerActive ? '#020617' : '#f8fafc',
-                  border: `1px solid ${accent}`
-                }}
-              >
-                {isLayerActive ? <Check size={13} strokeWidth={3} /> : <Layers size={13} />}
-                <span>{isLayerActive ? '已開啟圖層' : '開啟地圖圖層'}</span>
-              </button>
-            </div>
-          )}
           {card.tags && card.tags.length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
               {card.tags.map((tag, tIdx) => (

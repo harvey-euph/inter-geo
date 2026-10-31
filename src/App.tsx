@@ -527,11 +527,13 @@ export function App() {
         setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
       } else if (filterId === 'us-numbered-highways' || filterId === 'roads-numbered') {
         setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
-      } else if (targetDef?.layerType === 'roads' || filterId.endsWith('-roads')) {
-        const roadIso = targetDef?.countryIso2 || filterId.slice(0, 2).toUpperCase();
+      } else if (targetDef?.layerType === 'roads') {
+        const roadIso = targetDef.countryIso2 || filterId.slice(0, 2).toUpperCase();
+        const roadClass = targetDef.roadClass;
         setSelectedRoad((r) => {
           if (!r) return null;
-          if (r.iso2 === roadIso) {
+          const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
+          if (r.iso2 === roadIso && (!roadClass || rClass === roadClass)) {
             return null;
           }
           return r;

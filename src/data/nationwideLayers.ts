@@ -379,6 +379,11 @@ export const BASE_NATIONWIDE_LAYERS: NationwideLayerDef[] = [
                 ? 'image'
                 : 'text',
         countryIso2: f.fgb?.includes('-roads.fgb') ? f.targetIso2 : undefined,
+        roadClass: f.fgb?.includes('-roads.fgb')
+          ? f.id.includes('interstate')
+            ? 'Interstate'
+            : 'Federal'
+          : undefined,
         descriptionZh: f.descriptionZh
       })
     )
@@ -442,6 +447,11 @@ export function getNationwideLayerById(id: string): NationwideLayerDef | undefin
               ? 'image'
               : 'text',
       countryIso2: csvF.fgb?.includes('-roads.fgb') ? csvF.targetIso2 : undefined,
+      roadClass: csvF.fgb?.includes('-roads.fgb')
+        ? csvF.id.includes('interstate')
+          ? 'Interstate'
+          : 'Federal'
+        : undefined,
       descriptionZh: csvF.descriptionZh
     };
     NATIONWIDE_LAYERS_BY_ID.set(id, dynamicDef);
@@ -489,6 +499,11 @@ export function getNationwideLayersForCountry(iso2: string): NationwideLayerDef[
                 ? 'image'
                 : 'text',
         countryIso2: f.fgb?.includes('-roads.fgb') ? f.targetIso2 : undefined,
+        roadClass: f.fgb?.includes('-roads.fgb')
+          ? f.id.includes('interstate')
+            ? 'Interstate'
+            : 'Federal'
+          : undefined,
         descriptionZh: f.descriptionZh
       })
     );
