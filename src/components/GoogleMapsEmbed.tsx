@@ -58,13 +58,15 @@ const parseSnippetInput = (
     return parseGoogleMapsEmbedConfig(fallbackAlt, trimmed);
   }
 
-  // Case 3: Just the alt pipe string: "streetview|vertical|heading=180|pitch=5|fov=30"
+  // Case 3: Just the alt pipe string: "sv|v|heading=180|pitch=5|fov=30" or "streetview|vertical|..."
   if (
     trimmed.includes('|') ||
     trimmed.startsWith('streetview') ||
+    trimmed.startsWith('sv') ||
     trimmed.startsWith('view') ||
     trimmed.startsWith('place') ||
     trimmed.startsWith('directions') ||
+    trimmed.startsWith('dir') ||
     trimmed.startsWith('search')
   ) {
     return parseGoogleMapsEmbedConfig(trimmed, fallbackSrc);
@@ -223,13 +225,23 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
 
   const buildCurrentSnippet = (isCurrentlyLocked: boolean) => {
     const curConfig = baseConfig;
-    const parts: string[] = [curConfig.mode];
+    const parts: string[] = [];
+
+    // Mode: prioritize shortest alias ('sv', 'dir', etc.)
+    if (curConfig.mode === 'streetview') {
+      parts.push('sv');
+    } else if (curConfig.mode === 'directions') {
+      parts.push('dir');
+    } else {
+      parts.push(curConfig.mode);
+    }
+
     if (curConfig.showHeader) parts.push('header');
     if (isCurrentlyLocked) parts.push('lock');
 
     if (curConfig.isVertical) {
       if (curConfig.aspectRatio === '4 / 5') {
-        parts.push('vertical');
+        parts.push('v');
       } else if (curConfig.aspectRatio === '9 / 16') {
         parts.push('9:16');
       } else if (curConfig.aspectRatio === '3 / 4') {
@@ -273,7 +285,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       if (curFov !== undefined && curFov !== 90) parts.push(`fov=${Math.round(curFov * 10) / 10}`);
     } else if (curConfig.mode === 'view') {
       const curZoom = showTuning ? liveZoom : (curConfig.params.zoom ? parseFloat(curConfig.params.zoom) : undefined);
-      if (curZoom !== undefined) parts.push(`zoom=${Math.round(curZoom)}`);
+      if (curZoom !== undefined) parts.push(`z=${Math.round(curZoom)}`);
     }
 
     if (curConfig.params.mode && curConfig.mode === 'directions') parts.push(`mode=${curConfig.params.mode}`);
@@ -885,6 +897,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 }
               }}
               spellCheck={false}
+              placeholder="![sv|v|heading=...](...)"
               title="可直接編輯或複製此 Markdown 語法（修改後按 Enter 立即套用更新畫面）"
             />
             <button

@@ -95,7 +95,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       explicitMode = 'place';
     } else if (lower === 'view' || lower === 'map' || lower === 'gmap' || lower === 'googlemap') {
       explicitMode = explicitMode || 'view';
-    } else if (lower === 'directions' || lower === 'route') {
+    } else if (lower === 'directions' || lower === 'route' || lower === 'dir') {
       explicitMode = 'directions';
     } else if (lower === 'search') {
       explicitMode = 'search';
@@ -236,7 +236,7 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       customRatio = '2 / 3';
     } else if (/^(?:heading|head)=(\d+(?:\.\d+)?)$/i.test(part)) {
       extraParams.heading = part.split('=')[1];
-    } else if (/^pitch=(-?\d+(?:\.\d+)?)$/i.test(part)) {
+    } else if (/^(?:pitch|p)=(-?\d+(?:\.\d+)?)$/i.test(part)) {
       extraParams.pitch = part.split('=')[1];
     } else if (/^fov=(\d+(?:\.\d+)?)$/i.test(part)) {
       extraParams.fov = part.split('=')[1];
