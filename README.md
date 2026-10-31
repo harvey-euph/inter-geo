@@ -1,427 +1,423 @@
 # Inter-Geo: 現代化互動式地理探索與 GeoGuessr 競技輔助系統
 
-Inter-Geo 是一個專為地理探索、實境觀察與 GeoGuessr 競技研判打造的高效能 Web GIS 向量地圖系統。本專案採用純前端、無伺服器後端之**雙儲存庫解耦架構**，結合 HTML5 Canvas 2D 硬體加速、FlatGeobuf 二進位空間串流、Web Worker 背景解碼，實現了自全球國家輪廓（L1）、一級行政區（L2）至高精度二級行政區（L3+）的無限階層平滑下鑽，並深度整合道路網絡、雙色標線、街景拍攝車特徵與動態 Markdown 情報檔案庫。
+Inter-Geo 是一個專為地理探索、實境觀察與 GeoGuessr 競技研判打造的高效能 Web GIS 向量地圖系統。本專案採用純前端、無伺服器後端之**雙儲存庫解耦架構**，結合 HTML5 Canvas 2D 硬體加速、FlatGeobuf (`.fgb`) 二進位空間串流、Web Worker 背景多線程解碼，實現自全球國家輪廓（L1）、一級行政區（L2）至高精度二級／三級行政區（L3+）的平滑下鑽，並深度整合公路路網、雙色道路標線、街景拍攝車特徵、動態 Markdown 情報檔案庫與內嵌 Google Street View 即時微調器。
 
 ---
 
 ## 目錄 (Table of Contents)
 
 - [1. 專案核心特色 (Key Features)](#1-專案核心特色-key-features)
-- [2. 現代雙儲存庫架構 (Decoupled Multi-Repository Architecture)](#2-現代雙儲存庫架構-decoupled-multi-repository-architecture)
-- [3. 架構設計與資料流 (Architecture & Data Flow)](#3-架構設計與資料流-architecture--data-flow)
-- [4. 渲染管線與效能優化 (Rendering Pipeline & Optimization)](#4-渲染管線與效能優化-rendering-pipeline--optimization)
-- [5. 空間資料生命週期與無限階層下鑽 (LOD & Unlimited Hierarchy)](#5-空間資料生命週期與無限階層下鑽-lod--unlimited-hierarchy)
-- [6. 動態圖層體系與前端註冊中心 (Layer System & CSV Registry)](#6-動態圖層體系與前端註冊中心-layer-system--csv-registry)
-- [7. Markdown 情報卡渲染架構與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)](#7-markdown-情報卡渲染架構與-infotip-懸停模式-info-dossiers--infotip-modes)
-- [8. 專案目錄導覽 (Repository Directory Reference)](#8-專案目錄導覽-repository-directory-reference)
-- [9. 開發任務切入指引 (Where to Start by Task)](#9-開發任務切入指引-where-to-start-by-task)
-- [10. 本機開發與建置命令 (Development & Build Workflows)](#10-本機開發與建置命令-development--build-workflows)
+- [2. 雙儲存庫解耦架構與啟動總覽 (Multi-Repo Architecture & Bootstrap)](#2-雙儲存庫解耦架構與啟動總覽-multi-repo-architecture--bootstrap)
+- [3. 六大核心部件：資料來源、處理過程與呈現方式 (Component Deep Dive)](#3-六大核心部件資料來源處理過程與呈現方式-component-deep-dive)
+  - [3.1 部件一：多層次空間向量幾何 (L1 / L2 / L3+ / Roads FGB)](#31-部件一多層次空間向量幾何-l1--l2--l3--roads-fgb)
+  - [3.2 部件二：CSV 動態圖層系統與外部空間物件 (CSV Layer System)](#32-部件二csv-動態圖層系統與外部空間物件-csv-layer-system)
+  - [3.3 部件三：Canvas 2D 光柵化渲染管線與游標拾取 (Render & Hit-Test Pipeline)](#33-部件三canvas-2d-光柵化渲染管線與游標拾取-render--hit-test-pipeline)
+  - [3.4 部件四：Markdown 實戰情報卡與 3 軌標籤篩選系統 (Info Dossiers & 3-Track Tag Planner)](#34-部件四markdown-實戰情報卡與-3-軌標籤篩選系統-info-dossiers--3-track-tag-planner)
+  - [3.5 部件五：Google Maps / Street View 嵌入引擎與 Dev Mode 微調器](#35-部件五google-maps--street-view-嵌入引擎與-dev-mode-微調器)
+  - [3.6 部件六：地圖 HUD 懸停提示卡 (MapTooltip) 與動態圖例 (MapLegend)](#36-部件六地圖-hud-懸停提示卡-maptooltip-與動態圖例-maplegend)
+- [4. URL 路由同步、深層連結與重整協定 (URL Routing & Reload Protocol)](#4-url-路由同步深層連結與重整協定-url-routing--reload-protocol)
+- [5. 專案目錄與程式碼完整導覽 (Repository Directory Reference)](#5-專案目錄與程式碼完整導覽-repository-directory-reference)
+- [6. 開發任務切入指引 (Where to Start by Task)](#6-開發任務切入指引-where-to-start-by-task)
+- [7. 本機開發、建置與 Nginx 部署流程 (Development & Production Workflows)](#7-本機開發建置與-nginx-部署流程-development--production-workflows)
 
 ---
 
 ## 1. 專案核心特色 (Key Features)
 
-- **現代單一 Canvas 2D 向量引擎**：全系統捨棄肥重且容易引起 DOM Reflow 的 SVG 節點架構，全面收攏至 HTML5 Canvas 2D + `Path2D` 預編譯幾何路徑，在 120Hz/144Hz 螢幕下維持滿幀 120 FPS 的極限流暢度。
-- **純前端解耦雙庫設計**：前端 Web 應用庫 (`inter-geo`) 不含任何重型 GIS 圖資、CSV 數據或 Markdown 文檔；所有空間幾何、圖層與情報卡全數由資料內容庫 (`inter-geo-data`) 集中管理，並透過 GitHub Actions 自動編譯輕量化索引。
-- **多層次幾何 LOD 與視窗動態串流 (Viewport BBox Culling)**：僅下載並解碼當前螢幕可視範圍內的空間多邊形，非可視區 0 記憶體與網路負載。
-- **無限階層分區下鑽與幾何緊密度判定 (Unlimited Hierarchy & Geometric Solidity)**：突破傳統 L1/L2 兩層限制，支援任意深度的行政區下鑽（如美國 3,200+ 郡、日本 1,900+ 市區町村等 276+ 獨立微型分區包）。結合多邊形幾何面積與外框比例算術計算（Geometric Solidity），杜絕狹長或離島國家（如美國含阿拉斯加/夏威夷、日本含沖繩、智利）因海域 BBox 過大而過早展開 L2 的問題。
-- **結構化圖層體系 (Layer System)**：全面統一圖層命名與分類（3 大類別：區塊著色 Fill Region、全域標籤 Global Label、區域特徵 Area Feature），支援雙色道路標線（邊線/中線）、即時著色與動態圖例。
-- **動態情報檔案庫與 3 軌標籤規劃板**：點擊地圖任意物件即可閱讀豐富的 GeoGuessr 判讀情報卡；提供浮動情報設定面板（必含 / 必不含 / 預設三軌拖曳規劃），搭配游標物理跟隨動畫與地圖 Tooltip「線索重點」、「特徵膠囊」、「線索清單」、「極簡名稱」等 4 種顯示模式。
-- **單擊海洋視窗智慧收合 (Ocean Click-to-Dismiss)**：點擊無任何陸地之海洋區域自動收合圖層選擇器與情報設定面板，同時完整保留單擊各國陸地檢視焦點與情資之流暢操作。
-- **無縫換日線橫向世界鏡像 (Continuous World Wrapping)**：支援橫跨經度 180° 國際換日線的連續平移拖曳，消除地圖邊界斷點。
-- **高頻 URL 視角同步**：地圖中心經緯度、縮放比例與啟用圖層即時反映於網址列（`?lat=...&lon=...&ratio=...&layer=...`），方便分享與直接深層連結。
+- **單一 Canvas 2D 向量引擎**：捨棄龐大且易觸發 DOM Reflow 的 SVG 節點樹，全系統收攏至 HTML5 Canvas 2D + `Path2D` 預編譯路徑（[`renderLayers.ts:94-635`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L94-L635)），在 120Hz/144Hz 螢幕維持滿幀流暢度。
+- **純前端雙儲存庫解耦設計**：前端應用庫 (`inter-geo`) 不含任何重型 GIS 圖資、CSV 或 Markdown 文檔；所有空間幾何、圖層與情報全數由資料內容庫 (`inter-geo-data`) 託管，並由 [`build-indexes.mjs`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L1-L676) 自動編譯輕量 JSON 索引。
+- **視窗動態串流與幾何緊密度判定 (Viewport BBox Culling & Solidity)**：僅下載並解碼當前螢幕可視範圍內的空間多邊形（[`WorldMap.tsx:1089-1315`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L1089-L1315)），結合多邊形面積與外框比例計算，避免跨海離島國家（美、日、智利等）過早展開下層幾何。
+- **3 大結構化圖層體系**：全面支援「區塊著色 (`fill-region`)」、「全域標籤 (`global-label`)」與「區域特徵 (`area-feature`)」（[`LayerBar.tsx:39-432`](file:///home/harvey/inter-geo/src/components/LayerBar.tsx#L39-L432)），涵蓋雙色道路標線（`#邊線:#中線`）、1D 公路網著色、0D 座標點與 SVG 號誌圖標。
+- **動態情報檔案庫與 3 軌標籤規劃板**：點擊地圖任意物件即可開啟側邊情報抽屜（[`CountryDetailPanel.tsx:26-426`](file:///home/harvey/inter-geo/src/components/CountryDetailPanel.tsx#L26-L426)）；提供浮動情報設定視窗（[`InfoSettingsWindow.tsx:59-518`](file:///home/harvey/inter-geo/src/components/InfoSettingsWindow.tsx#L59-L518)）進行「必含 / 必不含 / 預設」三軌拖曳過濾。
+- **純淨 Google Street View 嵌入與 Dev Mode 即時微調器**：支援預設裁切官方 UI 雜訊、鎖定狀態下觸控滑動穿透（`touch-action: pan-y`），並在網址加上 `?dev=true` 時啟用 0.5° 步進滑桿、反向縮放條與最簡語法即時雙向編輯框（[`GoogleMapsEmbed.tsx:79-918`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L79-L918)）。
 
 ---
 
-## 2. 現代雙儲存庫架構 (Decoupled Multi-Repository Architecture)
+## 2. 雙儲存庫解耦架構與啟動總覽 (Multi-Repo Architecture & Bootstrap)
 
-為了達到極致的載入效能與維護彈性，本專案由兩個職責清晰的 Git 儲存庫協同運作：
-
-```text
-┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────────────┐
-│         inter-geo (Web 應用程式前端庫)        │       │       inter-geo-data (空間圖資與內容庫)      │
-├──────────────────────────────────────────────┤       ├──────────────────────────────────────────────┤
-│ • 純 React 19 + TypeScript + Vite            │       │ • FlatGeobuf 空間向量 (data/**/*.fgb)        │
-│ • Canvas 2D 幾何投影與光柵化管線              │       │ • CSV 圖層數據庫 (layers/*.csv)              │
-│ • Web Worker 背景二進位解碼                 │       │ • Markdown 實戰情報卡 (info/*.md)            │
-│ • 互動介面、圖層選擇器、動態圖例、情報側邊欄 │       │ • 類別媒體資源 (images/**/*)                 │
-│ • public/ 僅保留最小 web 資源 (globe.svg)    │       │ • 自動化索引編譯 (scripts/build-indexes.mjs) │
-└──────────────────────┬───────────────────────┘       └──────────────────────┬───────────────────────┘
-                       │                                                      │
-                       │             GitHub Actions 自動建置與發布            │
-                       │         ┌────────────────────────────────────┐       │
-                       └─────────┤ 孤立索引分支 (index branch)        │◄──────┘
-                                 │ • data-index.json                  │ (推送 main 時觸發)
-                                 │ • layers-index.json                │
-                                 │ • info-targets.json                │
-                                 │ • images-index.json                │
-                                 └────────────────────────────────────┘
-```
-
-1. **前端應用庫 (`inter-geo`)**：純前端 SPA，負責相機控制、向量繪製、拾取偵測與狀態調度。
-2. **空間資料內容庫 (`inter-geo-data`)**：儲存所有二進位 GIS 幾何（`.fgb`）、CSV 特徵數據（`layers/`）、Markdown 線索卡（`info/`）與圖像資源（`images/`）。
-3. **自動化遠端索引 (`index` 分支)**：當 `inter-geo-data` 的 `main` 分支發生更新時，GitHub Action 自動執行 `scripts/build-indexes.mjs`，抽取所有圖層元數據、空間邊界外框 (BBox) 與情報關聯，生成輕量 JSON 索引並推送到孤立的 `index` 分支。
-4. **前端按需擷取**：前端透過 `src/data/geoIndexClient.ts` 一次性快取遠端索引，並透過 `src/data/dataSource.ts` 僅在需要時下載特定圖資或文章全文。
-
----
-
-## 3. 架構設計與資料流 (Architecture & Data Flow)
-
-系統運行時的資料流動與子系統協同關係如下：
+本系統由前端應用庫 `inter-geo` 與資料內容庫 `inter-geo-data` 協同運作。應用啟動時，前端優先拉取 `index` 分支的輕量索引，隨後依據使用者互動按需串流 `main` 分支的原始檔案：
 
 ```mermaid
 flowchart TD
-  subgraph DataRepo["inter-geo-data 遠端儲存庫"]
-    MAIN["main 分支\n(data/, layers/, info/, images/)"]
-    ACTION["GitHub Action\n(scripts/build-indexes.mjs)"]
-    INDEX["index 分支\n(*-index.json)"]
-    MAIN -->|push| ACTION
-    ACTION -->|自動發布| INDEX
+  subgraph DataRepo["inter-geo-data (資料內容庫)"]
+    RAW_DATA["main 分支原始資產\n• data/**/*.fgb (L1/L2/L3/Roads)\n• layers/**/*.csv (countries + 3 大圖層目錄)\n• info/*.md (各洲與專題情報卡)\n• images/**/* (SVG/WebP 媒體)"]
+    BUILDER["索引編譯器\nscripts/build-indexes.mjs:51-675"]
+    DIST_INDEX["index 分支 / dist-index/\n• index.json (Root Manifest)\n• data-index.json (FGB 路徑與 BBox)\n• layers-index.json (圖層元數據與圖例)\n• info-index.json & info-targets.json\n• countries-index.json & images-index.json"]
+
+    RAW_DATA -->|"npm run build:index\n或 GitHub Actions"| BUILDER
+    BUILDER -->|"輸出輕量 JSON"| DIST_INDEX
   end
 
-  subgraph FrontendClient["inter-geo 前端應用程式"]
-    INDEX_CLIENT["src/data/geoIndexClient.ts\n(索引快取與路徑解析)"]
-    DATA_SOURCE["src/data/dataSource.ts\n(遠端端點 URL 構造器)"]
-    
-    INDEX -->|1. 啟動加載索引清單| INDEX_CLIENT
-    MAIN -->|2. 按需下載原始資源| DATA_SOURCE
+  subgraph FrontendBootstrap["inter-geo 前端啟動與索引初始化"]
+    MAIN_TSX["入口掛載\nsrc/main.tsx:1-20"]
+    APP_INIT["頂層狀態與非同步啟動\nsrc/App.tsx:53-208"]
+    DATA_SOURCE["端點 URL 構造器\nsrc/data/dataSource.ts:29-45\ngetDataUrl() / getIndexUrl()"]
+    GEO_INDEX["遠端索引快取中心\nsrc/data/geoIndexClient.ts:218-560\nloadDataIndex / loadLayersIndex /\nloadInfoTargetsIndex / loadCountriesIndex"]
+    CSV_REG_INIT["CSV 圖層註冊中心初始化\nsrc/layers/csvLayerRegistry.ts:170-248\ninitCsvLayerRegistry()"]
+    INFO_REG_INIT["情報卡倒排索引初始化\nsrc/info/infoRegistry.ts:102-123\ninitInfoIndex()"]
+    COUNTRIES_SYNC["國家基礎資料同步\nsrc/data/countries.ts:17-30\nsyncCountriesArray()"]
 
-    subgraph StateAndRegistries["狀態管理與動態註冊中心"]
-      APP_STATE["src/App.tsx\n(選取物件 / 啟用圖層 / 面板狀態)"]
-      CSV_REG["src/layers/csvLayerRegistry.ts\n(動態 CSV 圖層註冊表)"]
-      INFO_REG["src/info/infoRegistry.ts\n(情報卡快取與優先級調度)"]
-      PREF["src/info/infotipPreferences.ts\n(4 種懸停模式與 localStorage)"]
-    end
-
-    INDEX_CLIENT --> CSV_REG
-    INDEX_CLIENT --> INFO_REG
-    INDEX_CLIENT --> MAP_CONTAINER
-
-    subgraph MapEngine["地圖幾何與渲染核心"]
-      MAP_CONTAINER["src/components/WorldMap.tsx\n(相機矩陣 / 視窗邊界判定 / 動態 LOD)"]
-      WORKER["src/map/geoDecode.worker.ts\n(Web Worker 二進位解碼)"]
-      RENDERER["src/map/render/renderLayers.ts\n(Canvas 2D Path2D 批次光柵化)"]
-      HIT_TEST["src/map/hitTest.ts\n(多邊形與線段游標拾取)"]
-      TOOLTIP["src/map/MapTooltip.tsx\n(懸停提示卡)"]
-      LEGEND["src/map/MapLegend.tsx\n(動態圖例卡片)"]
-    end
-
-    DATA_SOURCE --> WORKER
-    DATA_SOURCE --> CSV_REG
-    DATA_SOURCE --> INFO_REG
-    WORKER -->|傳遞預編譯 Path2D 與邊界| MAP_CONTAINER
-
-    APP_STATE <--> MAP_CONTAINER
-    MAP_CONTAINER --> RENDERER
-    MAP_CONTAINER --> HIT_TEST
-    MAP_CONTAINER --> TOOLTIP
-    MAP_CONTAINER --> LEGEND
-
-    subgraph UIComponents["使用者介面組件"]
-      HEADER["src/components/Header.tsx\n(圖層開關 / 模式切換)"]
-      LAYER_BAR["src/components/LayerBar.tsx\n(3 大類別圖層面板)"]
-      INFO_WINDOW["src/components/InfoSettingsWindow.tsx\n(情報標籤偏好設定面板)"]
-      PANEL["src/components/CountryDetailPanel.tsx\n(物件詳細情報抽屜)"]
-    end
-
-    APP_STATE <--> HEADER
-    APP_STATE <--> LAYER_BAR
-    APP_STATE <--> INFO_WINDOW
-    APP_STATE <--> PANEL
-    PANEL --> INFO_REG
+    MAIN_TSX --> APP_INIT
+    APP_INIT --> CSV_REG_INIT
+    APP_INIT --> INFO_REG_INIT
+    APP_INIT --> GEO_INDEX
+    CSV_REG_INIT --> GEO_INDEX
+    INFO_REG_INIT --> GEO_INDEX
+    GEO_INDEX --> COUNTRIES_SYNC
+    GEO_INDEX --> DATA_SOURCE
   end
+
+  DIST_INDEX -->|"1. 啟動時載入輕量 JSON 索引"| DATA_SOURCE
+  RAW_DATA -.->|"2. 視窗滾動 / 點擊時按需串流"| DATA_SOURCE
 ```
-
-### 狀態歸屬與關注點分離 (State Ownership)
-
-- **React 頂層狀態 (`App.tsx`)**：擁有持久化介面狀態（目前選中的國家/行政區/道路物件、啟用的圖層集合、區域專屬圖層狀態、側邊情報抽屜寬度與展開模式）。
-- **地圖引擎狀態 (`WorldMap.tsx`)**：擁有相機矩陣變換（`transformRef = { k, x, y }`）、指標手勢追蹤、懸停目標暫存與 `requestAnimationFrame` 繪製調度。**拖曳平移與游標移動期間完全旁路 React 生命週期**，消除 Virtual DOM Diffing，確保 120 FPS 高刷新率。
-- **繪圖與拾取嚴格對齊 (`renderLayers.ts` 與 `hitTest.ts`)**：兩者共享相同的投影參數、圖層繪製順序與幾何可視性判定，保證「所見即所選」，杜絕穿透誤觸。
 
 ---
 
-## 4. 渲染管線與效能優化 (Rendering Pipeline & Optimization)
+## 3. 六大核心部件：資料來源、處理過程與呈現方式 (Component Deep Dive)
+
+以下針對系統中每一個核心功能部件，完整說明其 **資料來源 (Data Source)**、**處理過程 (Processing Pipeline)** 與 **呈現方式 (Presentation)**，並標註對應之程式碼 `file:line`。
+
+---
+
+### 3.1 部件一：多層次空間向量幾何 (L1 / L2 / L3+ / Roads FGB)
+
+| 階段 | 內容說明與關鍵程式碼位置 |
+| --- | --- |
+| **1. 資料來源** | • **L1 全球國家邊界**：`inter-geo-data/data/COUNTRY.fgb`（177+ 國多邊形）。<br>• **L2 一級行政區**：`inter-geo-data/data/{iso2}.fgb`（91 國省／州／都道府縣，索引定義於 `data/l2-manifest.json`）。<br>• **L3+ 二級／三級行政區**：`inter-geo-data/data/{iso2}/{sub}.fgb`（276+ 個微型分區包，如 `data/JP/01.fgb`，定義於 `data/l3-manifest.json`）。<br>• **公路路網與外部幾何**：`inter-geo-data/data/{iso2}-roads.fgb` 及 `data/TW-powerpoles.fgb`（定義於 `data/roads-manifest.json`）。<br>• **索引來源**：由 [`scripts/build-indexes.mjs:365-439`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L365-L439) `buildDataIndex()` 彙整輸出為 `dist-index/data-index.json`。 |
+| **2. 處理過程** | 1. **索引查詢**：前端透過 [`geoIndexClient.ts:218-287`](file:///home/harvey/inter-geo/src/data/geoIndexClient.ts#L218-L287) `loadDataIndex()` 取得全庫 FGB 清單與 BBox。<br>2. **LOD 視窗面積與緊密度判定**：[`WorldMap.tsx:193-244`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L193-L244) `getBBoxScreenAreaRatio()` 計算國家／省州 BBox 佔螢幕可視面積比例，超過閾值 `0.2`（[`WorldMap.tsx:181-186`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L181-L186)）時觸發 L2 或 L3 展開。<br>3. **Web Worker 多線程解碼**：[`geoWorkerClient.ts:55-68`](file:///home/harvey/inter-geo/src/map/geoWorkerClient.ts#L55-L68) `decodeGeo()` 將 URL 發送至 4 線程 Worker Pool。Worker 內 [`geoDecode.worker.ts:71-119`](file:///home/harvey/inter-geo/src/map/geoDecode.worker.ts#L71-L119) `decode()` 以 `flatgeobuf.deserialize()` 進行零拷貝二進位串流反序列化，透過 D3 Web Mercator 投影（[`geo.ts:10-22`](file:///home/harvey/inter-geo/src/map/geo.ts#L10-L22)）預先轉為 SVG Path 字串 `d`、計算外框 `bbox` 與質心 `centroid`，回傳主線程。<br>4. **Path2D 實體化與快取**：主線程 [`WorldMap.tsx:2665-2860`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L2665-L2860) 將回傳的 `d` 實例化為原生 `new Path2D(d)` 並存入 `countryPathsRef`、`l2CacheRef`、`l3CacheRef`。 |
+| **3. 呈現方式** | • **Canvas 分層光柵化**：於 [`renderLayers.ts:94-635`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L94-L635) `drawWorldCopyLayers()` 依序繪製 L1 底圖填色、L2 行政區細分線與色彩、Active L3 細部市區町村多邊形，以及固定物理像素線寬（`lineWidth / k`）之公路網。<br>• **側邊欄 L3 清單下鑽**：當選中具備 L3 分區的一級行政區時，[`CountryDetailPanel.tsx:365-372`](file:///home/harvey/inter-geo/src/components/CountryDetailPanel.tsx#L365-L372) 渲染 [`L3ChildPicker.tsx:16-94`](file:///home/harvey/inter-geo/src/components/L3ChildPicker.tsx#L16-L94)，由 [`l3ChildList.ts:47-69`](file:///home/harvey/inter-geo/src/data/l3ChildList.ts#L47-L69) `loadL3ChildrenForSubdivision()` 解碼該省州的 `.fgb` 屬性並列出所有下轄市區町村供點擊定位。 |
+
+```mermaid
+flowchart LR
+  subgraph Source["1. 資料來源 (inter-geo-data)"]
+    FGB_FILES["data/COUNTRY.fgb\ndata/{iso2}.fgb\ndata/{iso2}/{sub}.fgb\ndata/{iso2}-roads.fgb"]
+    DATA_IDX["dist-index/data-index.json\n(scripts/build-indexes.mjs:365)"]
+    FGB_FILES --> DATA_IDX
+  end
+
+  subgraph Process["2. 處理過程 (LOD 判定與 Worker 解碼)"]
+    LOD_CHECK["視窗 BBox 面積比判定\nWorldMap.tsx:181-244\nWorldMap.tsx:1089-1315"]
+    WORKER_POOL["4-Worker 連線池調度\nsrc/map/geoWorkerClient.ts:26-68\ndecodeGeo(url, kind, iso2)"]
+    FGB_DESER["FlatGeobuf 反序列化與投影\nsrc/map/geoDecode.worker.ts:71-119\ndeserialize() + pathGen()"]
+    PATH2D_CACHE["Path2D 建構與記憶體快取\nWorldMap.tsx:2665-2860\ncountryPathsRef / l2CacheRef / l3CacheRef"]
+
+    DATA_IDX --> LOD_CHECK
+    LOD_CHECK -->|"進入可視範圍 & 超過閾值"| WORKER_POOL
+    FGB_FILES -->|"HTTP 二進位串流"| FGB_DESER
+    WORKER_POOL --> FGB_DESER
+    FGB_DESER -->|"DecodeResponse\n(features, d, bbox, centroid)"| PATH2D_CACHE
+  end
+
+  subgraph Render["3. 呈現方式 (Canvas & UI)"]
+    CANVAS_DRAW["Canvas 2D 批次光柵化\nsrc/map/render/renderLayers.ts:94-635\nctx.fill(path2d) / ctx.stroke(path2d)"]
+    L3_PICKER["側邊欄下轄行政區選擇器\nsrc/data/l3ChildList.ts:47-69\nsrc/components/L3ChildPicker.tsx:16-94"]
+
+    PATH2D_CACHE --> CANVAS_DRAW
+    FGB_DESER --> L3_PICKER
+  end
+```
+
+---
+
+### 3.2 部件二：CSV 動態圖層系統與外部空間物件 (CSV Layer System)
+
+| 階段 | 內容說明與關鍵程式碼位置 |
+| --- | --- |
+| **1. 資料來源** | • **國家核心基礎表**：`inter-geo-data/layers/countries.csv`（收錄 180 國 ISO-2、中英文名、國旗、地理分區、街景覆蓋、行駛方向、質心座標等）。<br>• **3 大分類圖層目錄**：<br>  1. `layers/fill-region-with-color/*.csv`（區塊著色，如 `driving-side.csv`, `road-markings.csv`）<br>  2. `layers/global-label/*.csv`（全域標籤，如 `flags.csv`, `calling-code.csv`, `domain-tld.csv`）<br>  3. `layers/area-feature/*.csv`（區域特徵，如 `us-interstates.csv`, `taiwan-power-poles.csv`, `eu-pedestrian-crossing.csv`）<br>• **索引來源**：由 [`scripts/build-indexes.mjs:223-360`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L223-L360) `buildLayersIndex()` 解析所有 CSV 頂部 `// @directive` 標頭，編譯為 `dist-index/layers-index.json`；國家表由 [`build-indexes.mjs:566-582`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L566-L582) 編譯為 `dist-index/countries-index.json`。 |
+| **2. 處理過程** | 1. **圖層清單註冊**：[`csvLayerRegistry.ts:170-248`](file:///home/harvey/inter-geo/src/layers/csvLayerRegistry.ts#L170-L248) `initCsvLayerRegistry()` 讀取 `layers-index.json`，透過 `metaToRegisteredLayer()`（[`csvLayerRegistry.ts:72-151`](file:///home/harvey/inter-geo/src/layers/csvLayerRegistry.ts#L72-L151)）建立圖層目錄樹。<br>2. **On-Demand 按需下載與 CSV 解析**：當使用者啟用某圖層時，[`csvLayerRegistry.ts:446-507`](file:///home/harvey/inter-geo/src/layers/csvLayerRegistry.ts#L446-L507) `loadOnDemandCsvLayer()` 下載對應 `.csv` 並交由 [`csvLayerParser.ts:244-460`](file:///home/harvey/inter-geo/src/layers/csvLayerParser.ts#L244-L460) `parseLayerDataCsv()` 解析。<br>3. **區域代碼正規化**：解析期間呼叫 [`assignableRegions.ts:23-101`](file:///home/harvey/inter-geo/src/layers/assignableRegions.ts#L23-L101) `normalizeRegionKeys()`，將 `JP::01`、`JP-01`、`JP-1`、`01` 等不同寫法雙向展開對齊，寫入 `valueMap` 與 `rowMap`。<br>4. **外部 FGB 幾何綁定 (`@fgb`)**：若圖層宣告了 `// @fgb: data/xxx.fgb`，[`extObjectLoader.ts:30-253`](file:///home/harvey/inter-geo/src/layers/extObjectLoader.ts#L30-L253) `loadExtObjectLayerFeatures()` 會下載該 `.fgb` 並與 CSV 的 `valueMap` / `rowMap` 進行空間屬性 Join，生成 2D 多邊形、1D 線段或 0D 座標標籤之 `ExtFeatureRenderItem[]`。 |
+| **3. 呈現方式** | • **圖層控制面板 (`LayerBar`)**：[`LayerBar.tsx:39-432`](file:///home/harvey/inter-geo/src/components/LayerBar.tsx#L39-L432) 將註冊圖層分為 `fill-region`（Radio 單選）、`global-label`（Checkbox 複選）、`area-feature`（Checkbox 複選）三大折疊群組並支援關鍵字即時過濾。<br>• **多元視覺渲染**：於 [`renderLayers.ts`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts) 根據 `@type` 分發：<br>  - `FillWithColor`：單色填色（[`renderLayers.ts:132-270`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L132-L270)）、雙色道路標線 `#邊線:#中線`（[`renderLayers.ts:200-235`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L200-L235)）、1D 公路網批次著色（[`renderLayers.ts:505-590`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L505-L590)）。<br>  - `TextWithStyle`：繪製藥丸徽章 `badge`、電力網格大字 `grid-letter` 或純文字（[`renderLayers.ts:641-925, 1056-1160`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L641-L925)）。<br>  - `Image`：非同步載入 SVG/WebP 並繪製於質心座標（[`renderLayers.ts:931-1054`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L931-L1054) `drawCrossingSignBadges()`）。 |
+
+```mermaid
+flowchart TD
+  subgraph CSVSource["1. 資料來源 (inter-geo-data/layers/)"]
+    CSV_DIRS["• fill-region-with-color/*.csv\n• global-label/*.csv\n• area-feature/*.csv\n• countries.csv"]
+    LAYERS_IDX["dist-index/layers-index.json\n(scripts/build-indexes.mjs:223-360)"]
+    CSV_DIRS --> LAYERS_IDX
+  end
+
+  subgraph CSVProcess["2. 處理過程 (解析、正規化與空間 Join)"]
+    INIT_REG["註冊表初始化\ncsvLayerRegistry.ts:170-248\ninitCsvLayerRegistry()"]
+    ON_DEMAND["On-Demand 載入器\ncsvLayerRegistry.ts:446-507\nloadOnDemandCsvLayer(layerId)"]
+    CSV_PARSER["Directive 與資料列解析\ncsvLayerParser.ts:244-460\nparseLayerDataCsv() + parseCssStyle()"]
+    NORM_KEYS["區域 ID 正規化展開\nassignableRegions.ts:23-101\nnormalizeRegionKeys(rawId, defaultIso2)"]
+    EXT_LOADER["外部 FGB 幾何載入與屬性 Join\nextObjectLoader.ts:30-253\nloadExtObjectLayerFeatures()"]
+
+    LAYERS_IDX --> INIT_REG
+    INIT_REG --> ON_DEMAND
+    CSV_DIRS -->|"點擊開啟圖層時下載"| CSV_PARSER
+    ON_DEMAND --> CSV_PARSER
+    CSV_PARSER --> NORM_KEYS
+    NORM_KEYS -->|"寫入 valueMap / rowMap"| EXT_LOADER
+  end
+
+  subgraph CSVRender["3. 呈現方式 (UI 與 Canvas 渲染器)"]
+    UI_BAR["3 大分類圖層面板\ncomponents/LayerBar.tsx:39-432\n(Radio 單選 / Checkbox 複選)"]
+    DRAW_FILL["FillWithColor 渲染\nrenderLayers.ts:132-270 (2D 多邊形 & 雙色標線)\nrenderLayers.ts:505-590 (1D 公路批次著色)"]
+    DRAW_TEXT["TextWithStyle 渲染\nrenderLayers.ts:641-925 (全域與區碼徽章)\nrenderLayers.ts:1056-1160 (外部幾何標籤)"]
+    DRAW_IMG["Image 圖標渲染\nrenderLayers.ts:931-1054\ndrawCrossingSignBadges()"]
+
+    INIT_REG --> UI_BAR
+    NORM_KEYS --> DRAW_FILL
+    NORM_KEYS --> DRAW_TEXT
+    NORM_KEYS --> DRAW_IMG
+    EXT_LOADER --> DRAW_FILL
+    EXT_LOADER --> DRAW_TEXT
+  end
+```
+
+---
+
+### 3.3 部件三：Canvas 2D 光柵化渲染管線與游標拾取 (Render & Hit-Test Pipeline)
+
+為了實現 120 FPS 極致流暢度，地圖引擎將「相機矩陣與手勢追蹤」完全留在 `WorldMap.tsx` 的 `useRef` 中，拖曳與縮放期間旁路 React Re-render，並使 `renderLayers.ts` 與 `hitTest.ts` 嚴格對齊：
 
 ```mermaid
 sequenceDiagram
   autonumber
-  participant User as 使用者操作 (滑鼠/觸控)
-  participant WM as WorldMap.tsx (相機中樞)
-  participant Worker as Web Worker (geoDecode)
-  participant Canvas as HTML5 Canvas 2D
-  participant Hit as hitTest.ts (拾取運算)
-  participant UI as React UI (Tooltip/Panel)
+  participant User as 使用者手勢 (滑鼠/觸控/鍵盤)
+  participant WM as WorldMap.tsx (相機與調度中樞)
+  participant Render as renderLayers.ts (Canvas 光柵化)
+  participant Hit as hitTest.ts (幾何碰撞拾取)
+  participant App as App.tsx / CountryDetailPanel.tsx
 
-  User->>WM: 滾輪縮放或拖曳平移
-  WM->>WM: 更新 transformRef，旁路 React State
-  WM->>WM: 計算可視邊界 (Viewport BBox Culling)
-  
-  opt 偵測到新區域進入可視範圍
-    WM->>Worker: 請求解碼 data/{iso2}.fgb 或 data/{parent}/{child}.fgb
-    Worker->>Worker: FlatBuffers 反序列化 + Web Mercator 投影
-    Worker-->>WM: 回傳 Path2D 與邊界盒
+  User->>WM: 拖曳平移 / 滾輪縮放 (WorldMap.tsx:2045-2280)
+  WM->>WM: 更新 transformRef {k, x, y}，計算可視範圍與左右世界鏡像偏移 [-MAP_W, 0, +MAP_W]
+  WM->>Render: requestAnimationFrame -> drawWorldCopyLayers(rc) (renderLayers.ts:94)
+  Render->>Render: Layer 1: L1 全球國家底圖填色與雙色標線描邊 (L100-L275)
+  Render->>Render: Layer 2: L2 一級行政區多邊形填色與細分邊界 (L277-L420)
+  Render->>Render: Layer 3: L3 二級/三級行政區多邊形與高亮外框 (L422-L503)
+  Render->>Render: Layer 4: 1D 公路網與外部 FGB 幾何批次光柵化 (L505-L634)
+  WM->>Render: 繪製上層 HUD 標籤: drawGlobalTextBadges (L641) / drawAreaCodeBadges (L764) / drawCrossingSignBadges (L931) / drawExtFeatureLabels (L1056)
+
+  User->>WM: 游標移動 PointerMove (WorldMap.tsx:2150-2210)
+  WM->>Hit: hitTestMapFeature(params) (hitTest.ts:60-386)
+  Note over Hit: 依反序（上層優先於下層）檢測：<br/>1. 行人標誌圖標框 (L75-L96)<br/>2. 1D 公路線段 isPointInStroke (L98-L162)<br/>3. 外部 FGB 物件 (L164-L212)<br/>4. 展開中之 L3 子行政區 isPointInPath (L214-L265)<br/>5. 展開中之 L2 一級行政區 (L267-L335)<br/>6. L1 國家多邊形 (L337-L384)
+  Hit-->>WM: 回傳命中之 HitFeature (country / subdivision / municipality / road / ext)
+  WM->>WM: 更新懸停高亮描邊與 MapTooltip 座標
+
+  User->>WM: 單擊物件 PointerUp (WorldMap.tsx:2215-2285)
+  alt 點擊無陸地之海洋背景
+    WM->>App: onOceanClick() -> 自動收合 LayerBar 與 InfoSettingsWindow
+  else 點擊國家 / L2 / L3 / 公路
+    WM->>App: onSelectCountry / onSelectSubdivision / onSelectMunicipality / onSelectRoad (App.tsx:334-405)
+    App->>App: 展開 CountryDetailPanel 並同步 URL ?target=...
   end
-
-  WM->>Canvas: requestAnimationFrame -> drawWorldCopyLayers()
-  Canvas->>Canvas: 1. 清空畫布與繪製海洋底色 (#0b0e14)
-  Canvas->>Canvas: 2. 繪製 L1 全球國家輪廓 (依 Active Layer 填色)
-  Canvas->>Canvas: 3. 繪製 L2 一級行政區光暈與邊界
-  Canvas->>Canvas: 4. 展開 Active L3 細部子分區
-  Canvas->>Canvas: 5. 光柵化公路系統 (Path2D 固定物理像素線寬)
-  Canvas->>Canvas: 6. 繪製標籤藥丸 (國旗/國碼/路標圖示)
-
-  User->>WM: 指標懸停 (Pointer Move)
-  WM->>Hit: hitTestMapFeature(x, y, 候選幾何)
-  Hit-->>WM: 回傳命中之 Feature (國家/省州/公路)
-  WM->>UI: 更新懸停節點樣式 (直接推動 DOM 座標，不重繪地圖)
 ```
-
-### 關鍵效能技術
-
-1. **FlatGeobuf 二進位空間串流 (Zero-Copy Deserialization)**：
-   捨棄文字格式的 GeoJSON/TopoJSON，採用 FlatBuffers 架構的二進位 `.fgb` 檔。座標以記憶體對齊的 IEEE 754 浮點數存放，反序列化效能提升 80% 以上，記憶體峰值下降約 70%。
-2. **Web Worker 背景多線程解碼 (`geoDecode.worker.ts`)**：
-   圖資下載、二進位解碼、多邊形幾何投影運算全數移出瀏覽器主線程，主線程專注於繪圖光柵化與使用者手勢響應。
-3. **視窗無關固定線寬 (Window-Fixed Stroke Width)**：
-   公路與國界描邊採用物理螢幕像素換算（`lineWidth / k`），無論地圖放大縮小多少倍，線條永保清晰一致，消除放大時粗重失真。
-4. **多邊形繞向修復 (Winding Order Normalization)**：
-   自動檢測並規範向量外環為順時針、內環為逆時針，避免跨越 180° 經線時出現大西洋破洞或球面反白問題。
 
 ---
 
-## 5. 空間資料生命週期與無限階層下鑽 (LOD & Unlimited Hierarchy)
+### 3.4 部件四：Markdown 實戰情報卡與 3 軌標籤篩選系統 (Info Dossiers & 3-Track Tag Planner)
 
-本系統支援平滑且無層級上限的行政區動態下鑽架構：
+| 階段 | 內容說明與關鍵程式碼位置 |
+| --- | --- |
+| **1. 資料來源** | • **洲別與專題 Markdown 情報庫**：`inter-geo-data/info/*.md`，包含 6 大洲檔案（`europe.md`, `asia.md`, `latin-america.md`, `north-america.md`, `africa.md`, `oceania.md`）與專題檔案（`countries.md`, `japan.md`, `india-states.md`, `pedestrian-crossing.md`, `eu-bollard.md`, `car-meta.md`, `highways.md`, `grok-gen.md`, `local-admin.md`, `taiwan-grid.md`, `russia.md`, `india.md`, `note.md`）。<br>• **索引來源**：由 [`scripts/build-indexes.mjs:51-188`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L51-L188) `buildInfoIndex()` 掃描所有 `# 標題` 與元數據（`id`, `targets`, `priority`, `tags`, `icon`, `accent`, `image`），輸出輕量存根 `dist-index/info-index.json` 與目標倒排索引 `dist-index/info-targets.json`。 |
+| **2. 處理過程** | 1. **倒排索引載入與多候選鍵查詢**：[`infoRegistry.ts:102-123`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts#L102-L123) 載入 `info-targets.json`。當使用者選取國家、省州、市區町村、公路或台電網格時，[`infoRegistry.ts:159-329`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts#L159-L329) `queryInfoStubs(query)` 自動組合候選鍵（如 `JP::01`, `JP-01`, `01`, `HOKKAIDO`），並以 **`priority`（`0 ~ 139` 升冪排序，數字越小越優先，單國專屬卡 `1~40` 置頂、多國比較卡 `100~139` 置底）** 進行嚴格排序（[`infoRegistry.ts:307-312`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts#L307-L312)）。<br>2. **3 軌標籤篩選過濾**：[`infoTagPreferences.ts:257-304`](file:///home/harvey/inter-geo/src/info/infoTagPreferences.ts#L257-L304) `matchesCardTagFilter()` 根據使用者在 [`InfoSettingsWindow.tsx:59-518`](file:///home/harvey/inter-geo/src/components/InfoSettingsWindow.tsx#L59-L518) 設定之 9 大興趣主題分類與「必含 (`includeTags`) / 必不含 (`excludeTags`) / 預設」三軌規則過濾卡片清單。<br>3. **On-Demand 全文下載與解析**：僅當卡片進入可視區時，[`infoRegistry.ts:334-368`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts#L334-L368) `loadInfoCard(stub)` 下載對應 `.md` 檔案（具備 In-Flight Promise 合併與記憶體快取），交由 [`infoParser.ts:267-287`](file:///home/harvey/inter-geo/src/info/infoParser.ts#L267-L287) `parseMarkdownInfo()` 解析雙層條目、粗體標籤與媒體 Token。 |
+| **3. 呈現方式** | • **側邊情報抽屜 (`CountryDetailPanel`)**：[`CountryDetailPanel.tsx:26-426`](file:///home/harvey/inter-geo/src/components/CountryDetailPanel.tsx#L26-L426) 支援拖曳調整欄寬、全螢幕展開、麵包屑導航（國家 › 一級行政區 › 二級行政區）與公路盾牌徽章（[`RoadShieldBadge.tsx:11-94`](file:///home/harvey/inter-geo/src/components/RoadShieldBadge.tsx#L11-L94)）。<br>• **無限滾動與結構化卡片 (`MarkdownInfoCard`)**：[`MarkdownInfoCard.tsx:502-632`](file:///home/harvey/inter-geo/src/components/MarkdownInfoCard.tsx#L502-L632) `MarkdownInfoCards` 以 `IntersectionObserver` 實現滾動分頁載入；單張卡片（[`MarkdownInfoCard.tsx:212-480`](file:///home/harvey/inter-geo/src/components/MarkdownInfoCard.tsx#L212-L480)）渲染主題色光暈邊框、`【...】` 醒目膠囊、可點擊跳轉之國家名稱連結與內嵌圖標／街景。 |
+
+```mermaid
+flowchart TD
+  subgraph InfoSource["1. 資料來源 (inter-geo-data/info/*.md)"]
+    MD_FILES["• 6 大洲情資: europe / asia / latin-america /\n  north-america / africa / oceania.md\n• 專題情資: countries / japan / india-states /\n  pedestrian-crossing / eu-bollard / car-meta /\n  highways / grok-gen / taiwan-grid / russia.md"]
+    INFO_IDX["dist-index/info-targets.json\n(scripts/build-indexes.mjs:51-188)"]
+    MD_FILES --> INFO_IDX
+  end
+
+  subgraph InfoProcess["2. 處理過程 (查詢、排序、標籤過濾與解析)"]
+    QUERY_STUBS["多鍵匹配與 Priority 升冪排序 (0~139)\nsrc/info/infoRegistry.ts:159-329\nqueryInfoStubs(query)"]
+    TAG_FILTER["3 軌標籤與主題分類過濾\nsrc/info/infoTagPreferences.ts:257-304\nmatchesCardTagFilter(tags, prefs)"]
+    LAZY_LOAD["IntersectionObserver 按需抓取全文\nsrc/info/infoRegistry.ts:334-368\nloadInfoCard(stub)"]
+    MD_PARSER["Markdown 結構化 AST 解析\nsrc/info/infoParser.ts:126-287\nparseMarkdownInfo()"]
+
+    INFO_IDX --> QUERY_STUBS
+    QUERY_STUBS --> TAG_FILTER
+    TAG_FILTER --> LAZY_LOAD
+    MD_FILES -->|"首次展開該檔案卡片時下載"| MD_PARSER
+    LAZY_LOAD --> MD_PARSER
+  end
+
+  subgraph InfoRender["3. 呈現方式 (抽屜面板與互動元件)"]
+    TAG_WIN["浮動 3 軌標籤設定視窗\ncomponents/InfoSettingsWindow.tsx:59-518\ncomponents/FloatingWindow.tsx:27-205"]
+    DETAIL_PANEL["側邊情報抽屜與麵包屑\ncomponents/CountryDetailPanel.tsx:26-426"]
+    CARD_VIEW["結構化卡片與內嵌媒體渲染\ncomponents/MarkdownInfoCard.tsx:212-632"]
+
+    TAG_WIN -.->|"即時訂閱更新"| TAG_FILTER
+    MD_PARSER --> CARD_VIEW
+    CARD_VIEW --> DETAIL_PANEL
+  end
+```
+
+---
+
+### 3.5 部件五：Google Maps / Street View 嵌入引擎與 Dev Mode 微調器
+
+| 階段 | 內容說明與關鍵程式碼位置 |
+| --- | --- |
+| **1. 資料來源** | • **Markdown 內嵌語法**：撰寫於 `inter-geo-data/info/*.md` 條目中之 `![sv\|lock\|h=69\|p=-5.5\|fov=34.5](11.9884,8.4832)` 或直接貼入之 Google Maps 瀏覽器完整 URL。<br>• **API 金鑰與開發模式狀態**：環境變數 `VITE_GOOGLE_MAPS_API_KEY`（含公開 Fallback Key，[`googleMapsEmbed.ts:41-51`](file:///home/harvey/inter-geo/src/utils/googleMapsEmbed.ts#L41-L51)）與網址參數 `?dev=true`（[`devMode.ts:9-58`](file:///home/harvey/inter-geo/src/utils/devMode.ts#L9-L58) `useDevMode()`）。 |
+| **2. 處理過程** | 1. **語法識別與參數解析**：[`MarkdownInfoCard.tsx:96-145`](file:///home/harvey/inter-geo/src/components/MarkdownInfoCard.tsx#L96-L145) 呼叫 [`googleMapsEmbed.ts:53-74`](file:///home/harvey/inter-geo/src/utils/googleMapsEmbed.ts#L53-L74) `isGoogleMapsEmbedToken()` 偵測嵌入標記，並透過 [`googleMapsEmbed.ts:76-558`](file:///home/harvey/inter-geo/src/utils/googleMapsEmbed.ts#L76-L558) `parseGoogleMapsEmbedConfig()` 萃取模式（`streetview` / `view` / `place` / `search` / `directions`）、經緯度、視角（`heading`, `pitch`, `fov` 10°~100°）、四邊裁切 `crop`（預設 `67,58,50,0`）與鎖定狀態 `locked`。<br>2. **Embed URL 構造**：[`googleMapsEmbed.ts:560-577`](file:///home/harvey/inter-geo/src/utils/googleMapsEmbed.ts#L560-L577) `buildEmbedUrl()` 組合為官方 `https://www.google.com/maps/embed/v1/...` 網址。<br>3. **最簡語法雙向序列化 (Dev Mode)**：[`GoogleMapsEmbed.tsx:235-305`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L235-L305) 將當前微調參數即時轉為最簡縮寫語法（`streetview` $\rightarrow$ `sv`、`heading` $\rightarrow$ `h`、`pitch` $\rightarrow$ `p`、`crop-v` $\rightarrow$ `v` 等）；使用者於底部輸入框修改語法並按下 `Enter` 時，[`GoogleMapsEmbed.tsx:311-340`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L311-L340) 即時反向解析並重繪畫面。 |
+| **3. 呈現方式** | • **自適應比例與純淨裁切視窗**：[`GoogleMapsEmbed.tsx:555-621`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L555-L621) 以預設 16:9 比例配合負邊距 `margin: -top -right -bottom -left` 隱藏 Google 官方標題卡、羅盤與版權列。<br>• **鎖定狀態觸控滑動穿透**：鎖定時 `iframe` 設為 `pointer-events: none`（[`GoogleMapsEmbed.tsx:598`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L598)），外層覆蓋 `touch-action: pan-y` 透明穿透層（[`GoogleMapsEmbed.tsx:608-617`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L608-L617)），確保手機與觸控板在鎖定街景上可順暢上下滑動整張資訊卡。<br>• **純圖標懸停控制項**：右上角配置純圖標按鈕（[`GoogleMapsEmbed.tsx:623-699`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L623-L699)）：`Lock`/`Unlock`（鎖定切換）、`SlidersHorizontal`（僅 `?dev=true` 顯示之微調開關）、`ExternalLink`（跳出 Google Maps 原生網頁）。<br>• **Dev Mode 微調面板**：[`GoogleMapsEmbed.tsx:702-914`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L702-L914) 提供 `0.5°` 步進之水平／垂直／反向縮放（`zoom = 100 - fov`，範圍 `0 ~ 90`）滑桿、四邊裁切滑桿、可讀寫語法輸入框與純圖標複製按鈕。 |
 
 ```mermaid
 flowchart LR
-  L1["L1 全球國家輪廓\n(data/COUNTRY.fgb)\n• 啟動即時載入\n• 177+ 國邊界"] 
-  -->|縮放進入 L2 閾值| L2["L2 一級行政區\n(data/{iso2}.fgb)\n• 視窗動態載入\n• 91 個街景國家"]
-  -->|縮放進入 L3 閾值\n或懸停特定省州| L3["L3+ 二級/三級行政區\n(data/{parent}/{child}.fgb)\n• 276+ 獨立分區包\n• 單檔 15~150 KB"]
-  
-  ROADS["外加幾何物件\n(data/{iso2}-roads.fgb)\n• 公路網絡 / 電力座標網格\n• 獨立按需串流"] -.-> L2
+  subgraph EmbedInput["1. 資料來源"]
+    TOKEN["Markdown 語法 Token\n![sv|lock|h=69|p=-5.5|fov=34.5](lat,lng)\n或完整 Google Maps URL"]
+    DEV_URL["網址參數 ?dev=true\nsrc/utils/devMode.ts:9-58\nuseDevMode()"]
+  end
+
+  subgraph EmbedProcess["2. 處理過程 (解析與雙向綁定)"]
+    DETECT["Token 識別\nMarkdownInfoCard.tsx:96-145\ngoogleMapsEmbed.ts:53-74"]
+    PARSE_CFG["參數與預設裁切解析\ngoogleMapsEmbed.ts:76-558\nparseGoogleMapsEmbedConfig()\n預設 crop=67,58,50,0"]
+    BUILD_URL["Embed API URL 建構\ngoogleMapsEmbed.ts:560-577\nbuildEmbedUrl()"]
+    SHORT_SYNTAX["最簡語法雙向轉換 (sv/h/p/fov)\nGoogleMapsEmbed.tsx:235-340\n支援輸入框 Enter 即時套用"]
+
+    TOKEN --> DETECT --> PARSE_CFG --> BUILD_URL
+    PARSE_CFG <--> SHORT_SYNTAX
+  end
+
+  subgraph EmbedRender["3. 呈現方式 (GoogleMapsEmbed.tsx)"]
+    VIEWPORT["16:9 純淨裁切視窗 & 觸控穿透層\nGoogleMapsEmbed.tsx:555-621\n鎖定時 pointer-events:none + touch-action:pan-y"]
+    ICON_BTNS["純圖標控制列\nGoogleMapsEmbed.tsx:623-699\n🔒 鎖定 / 🎛️ 微調 (Dev) / ↗ 外部開啟"]
+    TUNE_PANEL["Dev Mode 0.5° 微調面板\nGoogleMapsEmbed.tsx:702-914\n文字項目 對齊 [-] ---bar--- [+]\n(縮放 0~90 = 100 - fov) + 語法讀寫框"]
+
+    BUILD_URL --> VIEWPORT
+    VIEWPORT --> ICON_BTNS
+    DEV_URL -->|"isDev = true"| ICON_BTNS
+    SHORT_SYNTAX <--> TUNE_PANEL
+  end
 ```
 
-1. **L1 根幾何 (`data/COUNTRY.fgb`)**：
-   應用啟動時載入，提供世界底圖與國家輪廓（每筆要素具備 ISO-2 代碼，如 `JP`、`US`、`TW`）。
-2. **L2 動態探索 (`data/{iso2}.fgb`)**：
-   透過 `geoIndexClient.hasCountryL2Sync(iso2)` 查閱 `data-index.json`，在該國進入視窗範圍時動態抓取一級行政區幾何。
-3. **無限階層分區遞迴 (`data/{parent}/{child}.fgb`)**：
-   當某物件在父層幾何內被懸停或選取時，`geoIndexClient.resolveSubdivisionFileSync(parentPath, childId)` 能自動解析下層分區路徑（例如 `data/US/CA.fgb`、`data/JP/13.fgb`）。全系統將 11 個主要大國細切為 276 個微型獨立 `.fgb` 區域包，單檔解析時間僅 ~1ms，頻寬與記憶體節省達 95% 以上。
-4. **黏性父層鎖定 (Sticky Parent Lock)**：
-   當游標進入某一州/省（如加州、德州、巴伐利亞、東京都）時鎖定該父層，在記憶體展開子多邊形。即使游標掠過水體、海灣或邊界縫隙，父層亦保持穩定展開，平滑過渡絕不閃爍跳動。
+---
+
+### 3.6 部件六：地圖 HUD 懸停提示卡 (MapTooltip) 與動態圖例 (MapLegend)
+
+| 部件 | 資料來源 | 處理過程 | 呈現方式 |
+| --- | --- | --- | --- |
+| **懸停提示卡 (`MapTooltip`)** | • `hitTest.ts` 命中的當前懸停物件（國家 / L2 / L3 / 公路 / 外部要素）。<br>• `infoRegistry.ts` 該區域的情報卡 Stub 清單。<br>• `csvLayerRegistry.ts` 當前開啟圖層在該區域的數值與標籤。<br>• `infotipPreferences.ts` 儲存在 `localStorage` 的顯示模式設定（[`infotipPreferences.ts:63-82`](file:///home/harvey/inter-geo/src/info/infotipPreferences.ts#L63-L82)）。 | [`MapTooltip.tsx:160-520`](file:///home/harvey/inter-geo/src/map/MapTooltip.tsx#L160-L520) 根據懸停物件類型查詢 `queryInfoStubs()`（套用 3 軌標籤篩選），若處於 `first-item` 模式則非同步呼叫 `loadInfoCard()` 擷取最高優先級卡片的第一條關鍵線索（[`MapTooltip.tsx:230-265`](file:///home/harvey/inter-geo/src/map/MapTooltip.tsx#L230-L265)）。 | 跟隨游標座標浮動渲染（[`MapTooltip.tsx:522-573`](file:///home/harvey/inter-geo/src/map/MapTooltip.tsx#L522-L573)），支援由 [`Header.tsx:95-145`](file:///home/harvey/inter-geo/src/components/Header.tsx#L95-L145) 即時切換 4 種模式：<br>1. 💡 **線索重點 (`first-item`)**<br>2. 🏷️ **特徵膠囊 (`tags-badges`)**<br>3. 📋 **線索清單 (`card-titles`)**<br>4. ⚡ **極簡名稱 (`minimal`)** |
+| **動態圖例 (`MapLegend`)** | • 當前啟用的 `FillWithColor` 圖層之 `@legend` 宣告（來自 `layers-index.json` 或 CSV 標頭）。<br>• 當前啟用的 `global-label` 與 `area-feature` 圖層清單。 | [`MapLegend.tsx:45-190`](file:///home/harvey/inter-geo/src/map/MapLegend.tsx#L45-L190) 解析當前主圖層的色塊（包含 `#邊線:#中線` 雙色標線預覽塊）與文字說明，並彙整所有疊加中的標籤與區域特徵圖層。 | 固定於地圖左上方（[`MapLegend.tsx:192-359`](file:///home/harvey/inter-geo/src/map/MapLegend.tsx#L192-L359)），支援展開／收合切換，並提供點擊個別疊加圖層膠囊直接關閉該圖層之快捷按鈕。 |
 
 ---
 
-## 6. 動態圖層體系與前端註冊中心 (Layer System & CSV Registry)
+## 4. URL 路由同步、深層連結與重整協定 (URL Routing & Reload Protocol)
 
-系統將圖層統一抽象為 **Layer**。圖層數據的 CSV 規範、Directives 標頭宣告與資料庫結構，請參見資料庫手冊 [inter-geo-data/README.md#3-csv-圖層撰寫規範與-directive-體系-csv-layer-directives](file:///home/harvey/inter-geo-data/README.md#3-csv-圖層撰寫規範與-directive-體系-csv-layer-directives)。
+系統於 [`App.tsx:204-311`](file:///home/harvey/inter-geo/src/App.tsx#L204-L311) 與 [`layerUrlUtils.ts:8-80`](file:///home/harvey/inter-geo/src/layers/layerUrlUtils.ts#L8-L80) 實作了決定性的多圖層 URL 解析與相機導航裁決協定：
 
-前端應用庫透過下列模組實現動態圖層解析、著色與互動：
+```mermaid
+flowchart TD
+  START["頁面啟動或 URL 解析\nsrc/App.tsx:204-288"]
+  PARSE_LAYERS["解析所有 ?layer= 參數\nsrc/layers/layerUrlUtils.ts:8-26\nparseLayersFromUrl(searchParams)"]
+  LOOP_LAYERS["依序遍歷 layers 清單\nsrc/App.tsx:215-248"]
+  CHECK_FILL{"layer.type ===\nFillWithColor ?"}
+  HAS_FILL{"filled_with_color\n已為 true ?"}
+  ACTIVATE_FILL["啟用為單選著色底圖\nfilled_with_color = true"]
+  CHECK_GOTO{"layer 宣告了\n@goto ?"}
+  HAS_GONE{"gone\n已為 true ?"}
+  ACTIVATE_GOTO["啟用圖層並記錄視角\ngone = true"]
+  ACTIVATE_OTHER["並行啟用該特徵/標籤圖層"]
 
-- **FGBObject 空間物件與裝飾模型 (`@type`)**：
-  CSV 的首欄永遠代表目標 `FGBObject`（2D 國家/行政區面、1D 公路網線、0D 單點散點），並透過 `@type` 決定在其幾何上套用的渲染器：
-  - `FillWithColor`：於 2D/1D/0D 物件填色（支援 `#RRGGBB`、8 碼帶透明度 Hex `#RRGGBBAA`、雙色標線 `#邊線:#中線`、或 `rgba(...)`）。
-  - `TextWithStyle`：於物件位置標註文字，支援 CSS 樣式描述字串或預設風格關鍵字（`badge` 徽章、`grid-letter` 大型加粗描邊字母、`plain` 純文字）。
-  - `Image`：於物件位置標註 SVG/WebP 圖檔。
-- **純目錄驅動與 On-demand 按需載入**：
-  圖層分類群組直接由資料庫目錄結構判定（`layers/fill-region-with-color/` $\rightarrow$ `fill-region`、`layers/global-label/` $\rightarrow$ `global-label`、`layers/area-feature/` $\rightarrow$ `area-feature`），毋需在 CSV 中重複維護 `@group`；所有圖層皆採 On-demand 按需下載解析，無須宣告 `@loadedTiming`。
-- **純 `@goto` 相機導航驅動**：
-  相機定位與觀看範圍統一由圖層聲明的 `@goto: lat=...&lon=...&ratio=...` 全權決定；無 `@goto` 之圖層切換時保持相機現狀，杜絕突兀跳動。
-- **動態 CSV 註冊中心 (`src/layers/csvLayerRegistry.ts`)**：從遠端快取 `layers-index.json`，在使用者選取圖層時下載對應 CSV 並解析為區域數值映射表。
-- **3 大圖層分類群組介面 (`src/components/LayerBar.tsx`)**：
-  | 群組代號 | 名稱 | 選取邏輯 | 適用場景與圖層範例 |
-  | --- | --- | --- | --- |
-  | `fill-region` | 區塊著色 | 單選 (Radio) | 預設底圖 (Base)、街景全覽 (Coverage)、行駛方向 (Driving Side)、車牌特徵 (License Plates)、電線桿特色 (Utility Poles)、道路標線 (Road Markings) |
-  | `global-label` | 全域標籤 | 複選 (Checkbox) | 國際化標籤：國旗 (Flags)、國際電話國碼 (Calling Code)、國家頂級網域 (ccTLD)、通用貨幣符號 (Currency)、路牌「街/路」用詞、特色字母 |
-  | `area-feature` | 區域特徵 | 複選 (Checkbox) | 區域專屬幾何與標籤：美國州際公路網 (`us-interstates`)、美國編號國道 (`us-numbered-highways`)、台灣電力座標系統 (`taiwan-power-poles`)、歐洲行人過路標誌、各國境內電話區碼 |
+  DECIDE_GONE{"gone === true ?"}
+  GOTO_LAYER["相機導航至該圖層 @goto 視角\n結束啟動導航 (return)\nsrc/App.tsx:250-258"]
+  DECIDE_TARGET{"URL 帶有\n?target=... ?"}
+  GOTO_TARGET["相機框選 target.bbox\n並自動展開 CountryDetailPanel\nsrc/App.tsx:260-278"]
+  GOTO_COORDS["依 URL ?lat=&lon=&ratio= 定位\n(若無則顯示世界全圖)\nsrc/App.tsx:280-287"]
 
-- **1D 向量路網著色與渲染管線 (`renderLayers.ts`)**：
-  系統將公路路網從前端寫死邏輯徹底解耦為標準 CSV 圖層：
-  - **獨立開關控制**：將美國高速公路細分為「州際公路 (`us-interstates.csv`)」與「編號國道 (`us-numbered-highways.csv`)」兩個獨立 CSV，用戶可依戰術需求單獨或同時開啟。
-  - **動態色彩批次分組**：渲染引擎 Layer 4 讀取 CSV 的 `valueMap`，依每條公路所定義之色碼（支援統一色碼或每條公路自訂色碼，含 8 碼 Hex 透明度）動態組裝專屬的 `Path2D` 批次組，一次光柵化筆刷繪製，兼顧極速 120 FPS 幀率與彈性著色。
-  - **動態圖例對齊**：圖例完全由 CSV 宣告之 `// @legend:` 標頭自動生成，徹底消除前端寫死的假圖例。
+  START --> PARSE_LAYERS --> LOOP_LAYERS
+  LOOP_LAYERS --> CHECK_FILL
+  CHECK_FILL -->|Yes| HAS_FILL
+  HAS_FILL -->|Yes, 忽略後續填色圖層| LOOP_LAYERS
+  HAS_FILL -->|No| ACTIVATE_FILL --> LOOP_LAYERS
+  CHECK_FILL -->|No| CHECK_GOTO
+  CHECK_GOTO -->|Yes| HAS_GONE
+  HAS_GONE -->|Yes, 忽略後續 @goto 圖層| LOOP_LAYERS
+  HAS_GONE -->|No| ACTIVATE_GOTO --> LOOP_LAYERS
+  CHECK_GOTO -->|No| ACTIVATE_OTHER --> LOOP_LAYERS
 
-- **雙色道路標線渲染管線 (`renderLayers.ts`)**：
-  道路邊界線與中央分向線顏色採用標準格式：`#邊線色:#中線色`（例如 `#f1f5f9:#f59e0b` 代表外側白邊線 + 中央黃線）。渲染引擎檢測到 `:` 分隔符時，自動切換至專屬的雙層筆刷光柵化。
-
-- **通用區域代碼正規化器 (`src/layers/assignableRegions.ts`)**：
-  提供 `normalizeRegionKeys(rawId, defaultIso2)` 通用函式：
-  - 支援分向分隔符自動轉換：`JP::26` $\leftrightarrow$ `JP-26` $\leftrightarrow$ `26`。
-  - 支援數值位數補零：`JP-01` $\leftrightarrow$ `JP-1` $\leftrightarrow$ `01` $\leftrightarrow$ `1`。
-  - 支援跨國通用命名空間：若指定 `defaultIso2 = 'US'`，輸入 `CA` 自動生成 `['CA', 'US::CA', 'US-CA']`。
-  - 支援特殊地理格網（如台灣電力座標 `TP-H`）。
-
-- **動態圖例元件 (`MapLegend.tsx`)**：
-  地圖左上方配置可自由收合與展開的動態圖例卡片：
-  - 展開時清楚展示當前著色圖層之色塊與說明文字；在 Base 模式下顯示友善的情境提示。
-  - 當啟用全域標籤或區域專屬標籤時，自動同步列出已疊加的藥丸徽章。
-  - 內建 `min-width` 與平滑過渡動畫，避免卡片切換時寬度劇烈跳動。
-
-### 多層 URL 狀態同步、轉跳與重新整理規則 (Multi-Layer URL Routing & Reload Protocol)
-
-系統採用嚴格且明確的多層圖層循環解析與優先級調度協定處理網址解析、深層連結（Deep Linking）與頁面重整（Reload/F5）：
-
-```typescript
-// 整理所有 URL 中的 layer= 放進 layers 清單:
-bool filled_with_color = false;
-bool gone = false;
-for (Layer layer : layers) {
-    if (layer.type == FillWithColor) {
-        if (filled_with_color) continue;
-        layer.active();
-        filled_with_color = true;
-    } else if (layer.@goto) {
-        if (gone) continue;
-        layer.active();
-        gone = true;
-    } else layer.active();
-}
-if (gone) return;
-if (target) {
-    goto(target.bbox);
-    target.infocard.open();
-    return;
-}
-goto(remaining tags);
+  LOOP_LAYERS -->|"遍歷結束"| DECIDE_GONE
+  DECIDE_GONE -->|Yes| GOTO_LAYER
+  DECIDE_GONE -->|No| DECIDE_TARGET
+  DECIDE_TARGET -->|Yes| GOTO_TARGET
+  DECIDE_TARGET -->|No| GOTO_COORDS
 ```
 
-#### 1. 啟動與網址載入規則
-1. **多層圖層聚合 (`layers`)**：
-   - 收集 URL 中所有 `layer=` 參數（支援重複宣告 `?layer=a&layer=b` 或逗號分隔 `?layer=a,b`）。
-   - **單一 2D 區塊著色限制 (`FillWithColor`)**：遍歷各圖層，首個 `FillWithColor` 類別圖層（如 `driving-side`）被啟用並鎖定 `filled_with_color = true`；後續出現之 `FillWithColor` 圖層自動忽略，維持單選互斥性。
-   - **單一相機跳轉優先級 (`layer.@goto`)**：首個聲明了 `@goto` 導航指令的圖層（如歐洲行人標誌）被啟用並鎖定 `gone = true`，記錄其相機視角；後續帶有 `@goto` 之圖層跳過以避免視角衝突。
-   - **其餘特徵圖層 (`else layer.active()`)**：無 `@goto` 且非 2D 填色之圖層（全域文字標籤、公路路網等）全數並行啟用。
-2. **三級相機導航裁決**：
-   - `if (gone) return;`：若有圖層觸發了 `@goto` 導航，鏡頭即刻導航至該圖層之視角並**中斷後續相機流程 (`return`)**，此時不框選目標幾何亦不打開情報卡。
-   - `if (target) { goto(target.bbox); target.infocard.open(); return; }`：若無 `@goto` 且網址指定了 `target`（如 `target=JP` 或 `target=US::CA`），相機框選目標幾何並展開實戰情報卡。
-   - `goto(remaining tags)`：若前兩者皆未觸發，相機依據 URL 中保留之 `lat`、`lon`、`ratio` 定位；若無則顯示世界全貌。
-
-#### 2. 操作時的 URL 實時更新
-在使用者操作地圖與介面時，URL 查詢參數透過 `replaceState` 實時雙向對齊：
-1. **`layer` 列出所有開啟中的圖層**：所有當前啟用的圖層（底圖、標籤、區域特徵）一律依序條列於網址中（例如 `?layer=driving-side&layer=flags&layer=us-interstates`）。
-2. **`target` 與情報卡連動**：當使用者開啟國家或行政區情報卡時，網址自動附帶 `target={id}`；關閉情報卡時自動清除 `target`。
-3. **無 `@goto` 時記錄視角座標**：若當前開啟的所有圖層中**沒有任何圖層具備 `@goto`**，地圖平移縮放時即時記錄當下之座標與縮放比例（`&lat=...&lon=...&ratio=...`）；一旦開啟了任何具備 `@goto` 的圖層，座標與 ratio 標籤自動自 URL 隱藏清理。
-
-#### 3. 瀏覽器重新整理 (Reload / F5)
-- 當使用者按下重新整理時，系統**自動丟棄 `lat`、`lon` 與 `ratio`，僅保留當前的 `layers` 與 `target`**。
-- 重新載入時重新依循上述啟動三級裁決流程還原圖層與目標視角，避免殘留陳舊視角坐標干擾。
+1. **操作期間的即時 URL 同步（[`App.tsx:290-311`](file:///home/harvey/inter-geo/src/App.tsx#L290-L311) & [`WorldMap.tsx:480-520`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L480-L520)）**：
+   - 所有啟用中的圖層依序寫入 `?layer=...`。
+   - 點擊開啟情報抽屜時寫入 `&target={id}`，關閉抽屜時移除 `target`。
+   - 當開啟的圖層中**沒有任何 `@goto` 圖層**時，平移縮放即時更新 `&lat=...&lon=...&ratio=...`；一旦開啟含有 `@goto` 的圖層，自動自網址清除 `lat/lon/ratio`。
+   - 支援 `&dev=true` 開發者模式參數持久化（[`devMode.ts:9-58`](file:///home/harvey/inter-geo/src/utils/devMode.ts#L9-L58)）。
+2. **重新整理 (Reload / F5) 清理機制（[`App.tsx:30-44`](file:///home/harvey/inter-geo/src/App.tsx#L30-L44)）**：
+   - 重新整理時自動捨棄舊有 `lat`、`lon`、`ratio`，僅保留 `layer`、`target` 與 `dev`，確保重新依照上述三級裁決流程精準對焦。
 
 ---
 
-## 7. Markdown 情報卡渲染架構與 Infotip 懸停模式 (Info Dossiers & Infotip Modes)
-
-情資文章統一由內容庫 `inter-geo-data/info/*.md` 集中維護。關於情報卡元數據欄位、Markdown 正文語法與 Google Maps / Street View 撰寫指南，請參閱 [inter-geo-data/README.md#4-markdown-實戰情報卡撰寫指南-info-card-authoring-guide](file:///home/harvey/inter-geo-data/README.md#4-markdown-實戰情報卡撰寫指南-info-card-authoring-guide)。
-
-前端應用庫透過下列架構實現極速載入、豐富互動與彈性呈現：
-
-### 優先級排序與按需讀取架構 (`infoRegistry.ts`)
-
-- **優先級定義 (`priority`)**：數值由 `0` 至 `139` 升冪排序（預設 `140`），數字越小優先度越高。
-- **即時按需載入**：比對 `info-targets.json` 索引以 $O(1)$ 速度命中目標，僅在使用者點擊或懸停時才抓取對應 Markdown 全文，支援請求合併與記憶體快取。
-
-### 結構化 Markdown 渲染組件 (`MarkdownInfoCard.tsx`)
-
-- **排版引擎**：支援粗體強調、全形括號主題強調標籤 `【...】`、國家快速跳轉按鈕、等比縮放圖示與二級縮排清單。
-- **卡片狀態管理**：支援標題點擊展開/收合切換，並自動對應卡片之自訂 Accent 主色邊框與光暈陰影。
-
-### Google Maps Embed API 整合組件 (`GoogleMapsEmbed.tsx` & `googleMapsEmbed.ts`)
-
-- **API 金鑰管理**：透過 Vite 環境變數 `VITE_GOOGLE_MAPS_API_KEY` 於 `.env` 中安全注入（前端公開使用，並透過 Google Cloud Console 配置 HTTP Referrer 白名單限制；內建公開 fallback key）。
-- **Markdown Token 智慧解析**：支援經緯度座標、完整 Google Maps / Street View 網址、自訂標題、視角角度（`heading` / `pitch` / `fov` / `zoom`）與地名搜尋。
-- **自適應固定比例與高度**：預設採用 16:9 (`16 / 9`) 固定黃金比例依照 Info Card 當前寬度動態自適應高度（當使用者拖曳抽屜寬度或全寬展開時，畫面即時等比例縮放不變形）；亦支援以 `4:3`、`16:10` 等自訂比例或 `h=<數值>` 固定像素高度覆蓋。
-- **純淨視圖裁切 (Cropping)**：預設啟用最佳純淨裁切 `crop=67,58,50,0`（精準裁除上方標題卡、右側羅盤控制項及下方版權列），亦支援自訂 `crop=top,right,bottom,left`、`crop-r=...` 或以 `no-crop` / `crop=none` 關閉裁切。
-- **視窗動態鎖定/解鎖切換 (Interactive Lock Toggle)**：支援 `lock` / `static` / `freeze` 選項作為預設初始狀態。鎖定時透過 CSS `pointer-events: none` 阻絕拖曳與縮放，滑鼠滾輪瀏覽卡片流暢不卡死；懸停時浮現 `🔒 已鎖定` 按鈕，使用者可隨時**點擊即時解鎖**切換為 `🔓 已解鎖` 進行 360 度互動探索，並可再次點擊隨時重新鎖定。
-- **事件隔離設計 (Event Bubbling Isolation)**：地圖容器阻斷 `click` 事件冒泡，使用者於地圖中拖曳視角、縮放或點擊時，絕不誤觸父層卡片的收合機制。
-- **外部直達按鈕**：右上角配置「在 Google 地圖開啟 ↗」獨立按鈕，即使在鎖定模式下亦能點擊跳轉至官方頁面進行全景探索。
-- **完整選項規範與語法**：請參閱資料庫手冊 [inter-geo-data/README.md#5-支援選項參數完整總覽以--分隔](file:///home/harvey/inter-geo-data/README.md#5-支援選項參數完整總覽以--分隔)。
-
-### 4 種 Infotip 懸停提示卡模式 (`MapTooltip.tsx`)
-
-使用者可點擊頂部導航列按鈕即時切換地圖 Tooltip 的呈現方式，設定會自動持久化至 `localStorage`：
-
-1. 💡 **線索重點 (`first-item`)**：提取最高優先級情報卡之第一點核心線索。
-2. 🏷️ **特徵膠囊 (`tags-badges`)**：呈現關鍵標籤、通行方向與街景覆蓋等膠囊徽章。
-3. 📋 **線索清單 (`card-titles`)**：條列所有適用於該區域的情報主題清單。
-4. ⚡ **極簡名稱 (`minimal`)**：極致簡潔，僅呈現國旗、中英文名稱與行政區代碼。
-
----
-
-## 8. 專案目錄導覽 (Repository Directory Reference)
+## 5. 專案目錄與程式碼完整導覽 (Repository Directory Reference)
 
 ### 前端應用庫 (`/home/harvey/inter-geo`)
 
-| 檔案 / 目錄路徑 | 系統職責 |
-| --- | --- |
-| `src/App.tsx` | 應用頂層調度器、選取狀態管理、網址參數解析、側邊欄協調 |
-| `src/App.css` | 全系統 CSS 樣式庫（深色現代主題、Canvas 排版、動態圖例、HUD） |
-| `src/components/WorldMap.tsx` | 核心地圖組件、Canvas 生命週期、相機手勢、視窗可見性計算、圖資排程 |
-| `src/components/Header.tsx` | 頂部導航列、品牌 Logo、圖層選擇器開關、情報設定面板開關 |
-| `src/components/LayerBar.tsx` | 3 大類別樹狀圖層面板、關鍵字搜尋過濾、圖層單選/複選控制 |
-| `src/components/InfoSettingsWindow.tsx` | 浮動情報設定面板、3 軌標籤規劃板（必含/必不含/預設）、游標物理跟隨拖曳、即時預覽 |
-| `src/components/CountryDetailPanel.tsx` | 點擊物件後彈出的情報抽屜、Markdown 卡片輪播與分頁 |
-| `src/components/MarkdownInfoCard.tsx` | 結構化 Markdown 渲染組件，支援強調文字與自訂標籤樣式 |
-| `src/components/GoogleMapsEmbed.tsx` | Google Maps Embed API 互動地圖與街景嵌入組件 |
-| `src/utils/googleMapsEmbed.ts` | 地圖嵌入參數解析器、網址特徵萃取與 Embed URL 構造器 |
-| `src/map/MapLegend.tsx` | 地圖左上方動態圖例卡片，支援展開/收合、多圖層徽章同步 |
-| `src/map/MapTooltip.tsx` | 地圖懸停浮動提示卡，支援 4 種使用者自訂顯示模式 |
-| `src/map/MapControls.tsx` | 地圖右下方縮放控制按鈕群（放大、縮小、視角重設） |
-| `src/map/render/renderLayers.ts` | Canvas 2D 專屬光柵化繪製管線（底圖、L1/L2 多邊形、公路、標籤） |
-| `src/map/hitTest.ts` | 指標碰撞檢測演算法，與繪製管線嚴格同步 |
-| `src/map/geo.ts` | 投影變換器（D3 Web Mercator）、地圖維度常數與空間幾何計算 |
-| `src/map/geoWorkerClient.ts` | Web Worker 溝通客戶端，封裝 Promise 化解碼請求 |
-| `src/map/geoDecode.worker.ts` | Web Worker 背景腳本，執行 FlatGeobuf 反序列化與座標轉換 |
-| `src/data/dataSource.ts` | 遠端資料來源 URL 構造中心（統一管理 main 與 index 分支路徑） |
-| `src/data/geoIndexClient.ts` | 遠端索引快取客戶端（加載並快取 `*-index.json`） |
-| `src/data/layers.ts` | 內建 Preset 圖層定義、圖例常數與 ID 別名解析器 |
-| `src/data/globalLayers.ts` | 全域標籤圖層註冊表與文字標籤合成器 |
-| `src/data/nationwideLayers.ts` | 國內專屬圖層（公路盾牌、電話區碼、專屬特徵）解析器 |
-| `src/info/infoRegistry.ts` | 情報卡查詢中心、優先級排序與非同步 Markdown 獲取 |
-| `src/info/infotipPreferences.ts` | 4 種懸停提示模式之狀態訂閱與 `localStorage` 存取 |
-| `src/layers/csvLayerRegistry.ts` | 動態 CSV 圖層註冊表、遠端圖層索引同步與數值查詢 |
-| `src/layers/assignableRegions.ts` | 通用區域代碼正規化工具（補零、命名空間映射、格網轉換） |
-| `src/objects/objectId.ts` | 規範化物件 ID 輔助工具（`country:JP`, `l2:US-CA` 等） |
-| `public/globe.svg` | 應用程式 Favicon 向量圖標 |
-
-### 空間資料內容庫 (`/home/harvey/inter-geo-data`)
-
-> [!NOTE]
-> 空間圖資、CSV 圖層結構與情報卡之詳細規範請直接參閱 [inter-geo-data/README.md](file:///home/harvey/inter-geo-data/README.md)。
-
-| 檔案 / 目錄路徑 | 系統職責 |
-| --- | --- |
-| `data/**/*.fgb` | 全球與各國空間幾何（`COUNTRY.fgb`, `JP.fgb`, `US/CA.fgb`, `US-roads.fgb`） |
-| `layers/` | 標準化 CSV 圖層數據，依類別資料夾存放（`fill-region-with-color/`, `global-label/`, `area-feature/`） |
-| `info/*.md` | 各國與各區域之實戰情報卡，包含 Markdown 內文與元數據 |
-| `images/**/*` | 依類別整理之實景圖片資源（交通號誌、防撞柱、特色建築） |
-| `scripts/build-indexes.mjs` | Node.js 索引編譯腳本，解析全部數據生成 JSON 索引清單 |
-| `.github/workflows/generate-index.yml` | GitHub Actions 工作流程，自動將編譯成果部署至 `index` 分支 |
-
----
-
-## 9. 開發任務切入指引 (Where to Start by Task)
-
-| 任務目標 | 建議優先修改的檔案 |
-| --- | --- |
-| **新增或編輯地圖圖層** | 在 `inter-geo-data/layers/` 新增或修改檔案（依類別置於 `fill-region-with-color/`、`global-label/` 或 `area-feature/` 目錄）；推送到 `main` 分支自動重建索引。 |
-| **新增或編輯 GeoGuessr 情報卡** | 在 `inter-geo-data/info/*.md` 新增或編寫 Markdown 內容，檢查 `targets` 與 `priority`。 |
-| **新增或更新二進位向量邊界** | 將 FlatGeobuf 放至 `inter-geo-data/data/`（遵循 `COUNTRY.fgb` 或 `{parent}/{child}.fgb` 命名規範）。 |
-| **調整相機手勢、縮放或平移邏輯** | 修改 `src/components/WorldMap.tsx`，必要時調整 `src/map/geo.ts`。 |
-| **修改地圖底色、描邊或圖層著色樣式** | 修改 `src/map/render/renderLayers.ts` 與 `src/map/theme.ts`。 |
-| **修改游標物件命中選取或懸停判定** | 修改 `src/map/hitTest.ts`，並確保與 `src/map/render/renderLayers.ts` 的繪製順序一致。 |
-| **調整圖層樹狀面板或分類邏輯** | 修改 `src/components/LayerBar.tsx` 與 `src/layers/csvLayerRegistry.ts`。 |
-| **調整動態圖例卡片外觀或排版** | 修改 `src/map/MapLegend.tsx` 與 `src/App.css` 中的 `.filter-legend-card` 樣式。 |
-| **調整懸停提示卡模式或內容** | 修改 `src/map/MapTooltip.tsx`、`src/info/infotipPreferences.ts` 或 `src/components/Header.tsx`。 |
-| **修改行政區代碼對齊或補零邏輯** | 修改 `src/layers/assignableRegions.ts` 或 `src/objects/objectId.ts`。 |
-| **修改遠端存取端點或索引加載** | 修改 `src/data/dataSource.ts` 與 `src/data/geoIndexClient.ts`。 |
+| 檔案路徑 | 行數 | 核心職責與關鍵函式 |
+| --- | :---: | --- |
+| [`src/main.tsx`](file:///home/harvey/inter-geo/src/main.tsx) | 20 | React 19 `createRoot` 應用程式入口 |
+| [`src/App.tsx`](file:///home/harvey/inter-geo/src/App.tsx) | 929 | 頂層狀態管理、多圖層 URL 路由協議、選取物件協調、快捷鍵綁定 |
+| [`src/App.css`](file:///home/harvey/inter-geo/src/App.css) | 2800+ | 全系統深色玻璃擬態主題、Canvas 佈局、抽屜、浮動視窗與微調面板樣式 |
+| **地圖渲染與幾何核心 (`src/map/`)** | | |
+| [`src/components/WorldMap.tsx`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx) | 3440 | 相機矩陣 (`transformRef`)、手勢互動、Viewport BBox Culling、L1/L2/L3 動態排程 |
+| [`src/map/render/renderLayers.ts`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts) | 1161 | Canvas 2D 光柵化管線：`drawWorldCopyLayers`、`drawGlobalTextBadges`、`drawCrossingSignBadges`、`drawExtFeatureLabels` |
+| [`src/map/hitTest.ts`](file:///home/harvey/inter-geo/src/map/hitTest.ts) | 387 | `hitTestMapFeature()` 多層次幾何碰撞拾取（與繪製順序嚴格反向同步） |
+| [`src/map/geo.ts`](file:///home/harvey/inter-geo/src/map/geo.ts) | 171 | D3 Web Mercator 投影器、球面距離與多邊形路徑合成工具 |
+| [`src/map/geoWorkerClient.ts`](file:///home/harvey/inter-geo/src/map/geoWorkerClient.ts) | 69 | `decodeGeo()` 4 線程 Web Worker Pool 負載均衡調度客戶端 |
+| [`src/map/geoDecode.worker.ts`](file:///home/harvey/inter-geo/src/map/geoDecode.worker.ts) | 131 | 背景執行 FlatGeobuf 二進位串流反序列化、座標投影與 BBox/質心計算 |
+| [`src/map/MapTooltip.tsx`](file:///home/harvey/inter-geo/src/map/MapTooltip.tsx) | 574 | 游標懸停提示卡，支援 4 種顯示模式與即時第一條線索預覽 |
+| [`src/map/MapLegend.tsx`](file:///home/harvey/inter-geo/src/map/MapLegend.tsx) | 360 | 左上角可收合動態圖例卡片、雙色標線色塊與疊加圖層快捷移除 |
+| [`src/map/MapControls.tsx`](file:///home/harvey/inter-geo/src/map/MapControls.tsx) | 85 | 右下角縮放、重設視角與測驗入口控制項 |
+| [`src/map/hooks/useKeyboardNav.ts`](file:///home/harvey/inter-geo/src/map/hooks/useKeyboardNav.ts) | 95 | 鍵盤方向鍵平移、`+/-` 縮放與 `ESC` 關閉面板導航 Hook |
+| **圖層與空間物件系統 (`src/layers/` & `src/objects/`)** | | |
+| [`src/layers/csvLayerRegistry.ts`](file:///home/harvey/inter-geo/src/layers/csvLayerRegistry.ts) | 508 | CSV 圖層註冊中心、`initCsvLayerRegistry()`、`loadOnDemandCsvLayer()` |
+| [`src/layers/csvLayerParser.ts`](file:///home/harvey/inter-geo/src/layers/csvLayerParser.ts) | 461 | `parseLayerDataCsv()` 解析 `// @directive` 標頭、圖例、CSS 樣式與 KV 資料列 |
+| [`src/layers/extObjectLoader.ts`](file:///home/harvey/inter-geo/src/layers/extObjectLoader.ts) | 258 | `loadExtObjectLayerFeatures()` 載入外部 `.fgb` 並與 CSV 數值進行空間屬性結合 |
+| [`src/layers/assignableRegions.ts`](file:///home/harvey/inter-geo/src/layers/assignableRegions.ts) | 220 | `normalizeRegionKeys()` 跨國代碼補零、分隔符轉換（`JP::01` $\leftrightarrow$ `JP-01`） |
+| [`src/layers/layerUrlUtils.ts`](file:///home/harvey/inter-geo/src/layers/layerUrlUtils.ts) | 81 | `parseLayersFromUrl()`、填色圖層單選判定與 `@goto` 導航檢查 |
+| [`src/objects/objectId.ts`](file:///home/harvey/inter-geo/src/objects/objectId.ts) | 100 | 統一空間物件識別碼正規化（`COUNTRY`, `SUBDIVISION`, `MUNICIPALITY`, `ROAD`, `GRID`） |
+| [`src/objects/objectRegistry.ts`](file:///home/harvey/inter-geo/src/objects/objectRegistry.ts) | 42 | 全域地理物件目錄查詢介面 |
+| **情報卡與偏好設定系統 (`src/info/`)** | | |
+| [`src/info/infoRegistry.ts`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts) | 369 | `initInfoIndex()`、`queryInfoStubs()`（`0~139` 優先級排序）、`loadInfoCard()` |
+| [`src/info/infoParser.ts`](file:///home/harvey/inter-geo/src/info/infoParser.ts) | 287 | `parseMarkdownInfo()` 將 Markdown 檔案解析為結構化 `InfoCard[]` |
+| [`src/info/infoTagPreferences.ts`](file:///home/harvey/inter-geo/src/info/infoTagPreferences.ts) | 305 | 9 大分類與 3 軌標籤狀態機（`includeTags`, `excludeTags`）與 `localStorage` 持久化 |
+| [`src/info/infotipPreferences.ts`](file:///home/harvey/inter-geo/src/info/infotipPreferences.ts) | 83 | 4 種懸停提示卡模式訂閱與持久化 |
+| [`src/info/imageUrl.ts`](file:///home/harvey/inter-geo/src/info/imageUrl.ts) | 25 | 將 `/images/...` 相對路徑轉換為遠端 `@geo-data/main/images/...` 完整 URL |
+| **遠端資料與索引客戶端 (`src/data/`)** | | |
+| [`src/data/dataSource.ts`](file:///home/harvey/inter-geo/src/data/dataSource.ts) | 46 | `getDataUrl()` (`main` 分支) 與 `getIndexUrl()` (`index` 分支) URL 建構器 |
+| [`src/data/geoIndexClient.ts`](file:///home/harvey/inter-geo/src/data/geoIndexClient.ts) | 652 | 遠端 `*-index.json` 非同步載入、記憶體快取、別名映射與同步查詢 API |
+| [`src/data/countriesParser.ts`](file:///home/harvey/inter-geo/src/data/countriesParser.ts) | 152 | 解析 `countries.csv` 生成 `CountryData` 結構 |
+| [`src/data/l3ChildList.ts`](file:///home/harvey/inter-geo/src/data/l3ChildList.ts) | 71 | `loadL3ChildrenForSubdivision()` 讀取二級行政區 `.fgb` 屬性並排序下轄清單 |
+| [`src/data/roadsMeta.ts`](file:///home/harvey/inter-geo/src/data/roadsMeta.ts) | 195 | 各國高速公路與國道系統編號規則、盾牌配色與走廊線索解析器 |
+| **使用者介面與內嵌組件 (`src/components/` & `src/utils/`)** | | |
+| [`src/components/Header.tsx`](file:///home/harvey/inter-geo/src/components/Header.tsx) | 159 | 頂部導航列、圖層面板開關、情報設定開關、4 種懸停模式切換器 |
+| [`src/components/LayerBar.tsx`](file:///home/harvey/inter-geo/src/components/LayerBar.tsx) | 433 | 左側 3 大類別圖層抽屜與即時搜尋過濾 |
+| [`src/components/CountryDetailPanel.tsx`](file:///home/harvey/inter-geo/src/components/CountryDetailPanel.tsx) | 427 | 右側可調寬度情報抽屜、層級麵包屑導航、L3 選擇器與卡片容器 |
+| [`src/components/MarkdownInfoCard.tsx`](file:///home/harvey/inter-geo/src/components/MarkdownInfoCard.tsx) | 633 | Markdown 卡片渲染、無限滾動分頁、國家內文連結跳轉與媒體嵌入分發 |
+| [`src/components/GoogleMapsEmbed.tsx`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx) | 919 | Google Street View / Maps 嵌入視窗、鎖定穿透遮罩、Dev Mode 0.5° 微調面板與最簡語法編輯器 |
+| [`src/utils/googleMapsEmbed.ts`](file:///home/harvey/inter-geo/src/utils/googleMapsEmbed.ts) | 577 | 街景語法 Token 解析器、Google URL 參數萃取、四邊裁切與 Embed URL 構造器 |
+| [`src/utils/devMode.ts`](file:///home/harvey/inter-geo/src/utils/devMode.ts) | 59 | `?dev=true` 開發者模式偵測與 React 訂閱 Hook |
+| [`src/components/InfoSettingsWindow.tsx`](file:///home/harvey/inter-geo/src/components/InfoSettingsWindow.tsx) | 519 | 3 軌標籤拖曳規劃視窗（必含 / 必不含 / 預設）与即時命中數量預覽 |
+| [`src/components/FloatingWindow.tsx`](file:///home/harvey/inter-geo/src/components/FloatingWindow.tsx) | 205 | 支援游標物理傾角動畫之通用可拖曳浮動視窗外框 |
+| [`src/components/L3ChildPicker.tsx`](file:///home/harvey/inter-geo/src/components/L3ChildPicker.tsx) | 95 | 一級行政區下轄市區町村／郡縣搜尋與點擊跳轉列表 |
+| [`src/components/RoadShieldBadge.tsx`](file:///home/harvey/inter-geo/src/components/RoadShieldBadge.tsx) | 95 | 各國公路編號盾牌 SVG 徽章渲染組件 |
+| [`src/components/QuizModal.tsx`](file:///home/harvey/inter-geo/src/components/QuizModal.tsx) | 220 | 互動式地理特徵問答測驗視窗 |
 
 ---
 
-## 10. 本機開發與建置命令 (Development & Build Workflows)
+## 6. 開發任務切入指引 (Where to Start by Task)
 
-### 環境需求
-- Node.js >= 18.0.0
-- npm >= 9.0.0
+| 任務目標 | 建議優先修改的檔案與行號 |
+| --- | --- |
+| **新增或編輯地圖 CSV 圖層** | 於 `inter-geo-data/layers/` 旗下對應類別目錄新增 `.csv`，並執行 `npm --prefix /home/harvey/inter-geo-data run build:index`（[`build-indexes.mjs:223`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L223)）。 |
+| **新增或編輯 GeoGuessr 情報卡** | 於 `inter-geo-data/info/*.md` 依洲別或專題編寫，確認 `targets` 與 `priority`（`0~139`，單國 `1~40`、多國比較 `100~139`），再執行 `npm run build:index`（[`build-indexes.mjs:51`](file:///home/harvey/inter-geo-data/scripts/build-indexes.mjs#L51)）。 |
+| **使用街景微調器對齊最佳角度** | 在瀏覽器網址加上 `&dev=true` 開啟開發者模式（[`devMode.ts:9`](file:///home/harvey/inter-geo/src/utils/devMode.ts#L9)），點擊街景右上角 `🎛️` 圖標展開微調器（[`GoogleMapsEmbed.tsx:702`](file:///home/harvey/inter-geo/src/components/GoogleMapsEmbed.tsx#L702)），調整水平/垂直/縮放後點擊複製圖示即可貼回 Markdown。 |
+| **調整相機手勢、LOD 閾值或縮放邏輯** | 修改 [`WorldMap.tsx:181-244`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L181-L244)（LOD 展開閾值）或 [`WorldMap.tsx:2045-2280`](file:///home/harvey/inter-geo/src/components/WorldMap.tsx#L2045-L2280)（指標手勢事件）。 |
+| **修改地圖填色、雙色標線或標籤繪製** | 修改 [`renderLayers.ts:94-635`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L94-L635)（多邊形與路網）或 [`renderLayers.ts:641-1160`](file:///home/harvey/inter-geo/src/map/render/renderLayers.ts#L641-L1160)（徽章與圖標）。 |
+| **修改游標命中優先順序** | 修改 [`hitTest.ts:60-386`](file:///home/harvey/inter-geo/src/map/hitTest.ts#L60-L386) `hitTestMapFeature()`。 |
+| **修改情報卡候選鍵匹配與排序權重** | 修改 [`infoRegistry.ts:159-329`](file:///home/harvey/inter-geo/src/info/infoRegistry.ts#L159-L329) `queryInfoStubs()`。 |
+
+---
+
+## 7. 本機開發、建置與 Nginx 部署流程 (Development & Production Workflows)
 
 ### 前端應用庫 (`inter-geo`)
 
@@ -429,46 +425,27 @@ goto(remaining tags);
 # 安裝相依套件
 npm install
 
-# 啟動 Vite 開發伺服器 (預設運行於 http://localhost:5173/inter-geo/)
+# 啟動 Vite 開發伺服器 (預設 http://localhost:5173/inter-geo/)
 npm run dev
 
-# 執行 ESLint 靜態代碼檢查 (維持 0 error / 0 warning 嚴格標準)
+# 執行 ESLint 靜態檢查 (維持 0 error / 0 warning 嚴格標準)
 npm run lint
 
-# 執行 TypeScript 型別檢查與 Vite 正式打包建置 (通常 < 2 秒完成)
+# 執行 TypeScript 型別檢查與 Vite 正式環境打包
 npm run build
-
-# 本機預覽打包後之正式版本
-npm run preview
 ```
 
-### 免開 Vite 之 Nginx 正式部署模式 (Production Nginx Server)
+### 免 Root 自包含 Nginx 正式服務 (`nginx.conf`)
 
-專案根目錄內建免 Root/Sudo 權限之自包含 Nginx 配置檔 (`nginx.conf`)，可直接在背景運行服務：
+本專案內建無須 Root 權限之 Nginx 伺服器配置（[`nginx.conf:1-132`](file:///home/harvey/inter-geo/nginx.conf#L1-L132)），直接將本機 `inter-geo/dist/` 與 `inter-geo-data/` 掛載於 `http://localhost:8080/inter-geo/`：
 
 ```bash
-# 1. 建置前端正式靜態產物至 dist/ (若已有 dist 則可直接啟動)
-npm run build
-
-# 2. 啟動 Nginx (自動以非特權端口 8080 運行)
+# 啟動 / 重新載入 / 停止 Nginx (預設監聽 8080 端口)
 npm run nginx:start
-
-# 3. 重新載入 Nginx 配置
 npm run nginx:reload
-
-# 4. 停止 Nginx
 npm run nginx:stop
 ```
 
-- **網頁進入點**：`http://localhost:8080/inter-geo/`（造訪 `http://localhost:8080/` 自動 302 跳轉）
-- **空間與圖層資料端點 (`@geo-data`)**：
-  - `http://localhost:8080/inter-geo/@geo-data/index/` $\rightarrow$ 映射本機 `/home/harvey/inter-geo-data/dist-index/`
-  - `http://localhost:8080/inter-geo/@geo-data/main/` $\rightarrow$ 映射本機 `/home/harvey/inter-geo-data/`
-  - 支援 FlatGeobuf (`.fgb`) 二進位空間串流 (`Accept-Ranges: bytes`)、Markdown (`.md`)、CSV (`.csv`)、SVG 與全域 CORS，本機編修即刻生效。
-
-### 資料內容庫 (`inter-geo-data`)
-
-當在 `inter-geo-data` 中編修圖資、CSV 圖層或 Markdown 情報卡時：
-1. 本機可執行 `npm run build:index` 預覽生成之 `dist-index/`。
-2. 提交並推送（`git commit` & `git push`）至遠端 `main` 分支後，GitHub Actions 將自動重新發布 `index` 分支。
-3. 詳細的圖資規範與編譯機制請參見 [inter-geo-data/README.md](https://github.com/harvey-euph/inter-geo-data/blob/main/README.md)。
+- **前端靜態資源路由**：`/inter-geo/` $\rightarrow$ `/home/harvey/inter-geo/dist/`（[`nginx.conf:114-128`](file:///home/harvey/inter-geo/nginx.conf#L114-L128)）
+- **本機索引即時路由**：`/inter-geo/@geo-data/index/` $\rightarrow$ `/home/harvey/inter-geo-data/dist-index/`（[`nginx.conf:72-83`](file:///home/harvey/inter-geo/nginx.conf#L72-L83)）
+- **本機原始資料路由**：`/inter-geo/@geo-data/main/` $\rightarrow$ `/home/harvey/inter-geo-data/`（[`nginx.conf:86-97`](file:///home/harvey/inter-geo/nginx.conf#L86-L97)）
