@@ -398,10 +398,11 @@ export function getCsvSubdivisionRow(
   if (!layer || !layer.data) return undefined;
 
   const subIso = sub.iso2?.trim().toUpperCase();
+  const hasNumericIsoCode = Boolean(sub.code && /^[A-Z]{2}-\d+$/i.test(sub.code));
   const rawCandidates = [
     sub.code,
     sub.postal,
-    sub.id !== undefined ? String(sub.id) : undefined,
+    !hasNumericIsoCode && sub.id !== undefined ? String(sub.id) : undefined,
     sub.nameEn,
     sub.name,
     sub.nameZh

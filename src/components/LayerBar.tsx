@@ -205,7 +205,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
               )}
             </span>
             <Palette size={14} style={{ color: '#38bdf8' }} />
-            <span className="fsw-group-title">Fill Region With Color</span>
+            <span className="fsw-group-title">Color</span>
             <span className="fsw-group-sub">區塊著色 · 單選</span>
           </button>
 
