@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Check, Layers } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, queryInfoStubs } from '../info/infoRegistry';
-import { getCsvLayerById, isLayersIndexLoaded, onLayersIndexLoaded } from '../layers/csvLayerRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import { GoogleMapsEmbed } from './GoogleMapsEmbed';
 import { isGoogleMapsEmbedToken } from '../utils/googleMapsEmbed';
@@ -235,22 +234,21 @@ const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => {
  * Single Markdown info card renderer
  */
 export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
-  const [isExpanded, setIsExpanded] = useState(() => card.display ?? false);
-  const [layersLoaded, setLayersLoaded] = useState(isLayersIndexLoaded());
+  const [expandedState, setExpandedState] = useState(() => card.display ?? false);
   const layerCtrl = React.useContext(LayerControlContext);
 
-  useEffect(() => {
-    if (!layersLoaded) {
-      return onLayersIndexLoaded(() => setLayersLoaded(true));
-    }
-  }, [layersLoaded]);
-
   const layerId = card.layer?.trim();
-  const csvLayer = useMemo(() => {
-    void layersLoaded;
-    return layerId ? getCsvLayerById(layerId) : undefined;
-  }, [layerId, layersLoaded]);
   const isLayerActive = layerId ? isAreaFeatureLayerActive(layerId, layerCtrl) : false;
+  const isLayerControlled = Boolean(layerId && layerCtrl.onToggleLayer);
+  const isExpanded = isLayerControlled ? isLayerActive : expandedState;
+
+  const handleToggleExpand = () => {
+    if (layerId && layerCtrl.onToggleLayer) {
+      layerCtrl.onToggleLayer(layerId);
+    } else {
+      setExpandedState((expanded) => !expanded);
+    }
+  };
 
   const accent = card.accentColor || '#fbbf24';
   const hasCardImage = Boolean(card.image);
@@ -358,7 +356,7 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
         ) {
           return;
         }
-        setIsExpanded((expanded) => !expanded);
+        handleToggleExpand();
       }}
       style={{
         borderColor: `${accent}70`,
@@ -379,7 +377,7 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
         <button
           type="button"
           aria-expanded={isExpanded}
-          onClick={() => setIsExpanded((expanded) => !expanded)}
+          onClick={handleToggleExpand}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -397,44 +395,10 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
           <span style={{ color: accent, fontWeight: 700, fontSize: 14, flex: 1 }}>{card.title}</span>
         </button>
 
-        {layerId && layerCtrl.onToggleLayer && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              layerCtrl.onToggleLayer?.(layerId);
-            }}
-            title={
-              isLayerActive
-                ? `點擊關閉地圖區域特徵圖層：${csvLayer?.nameZh || layerId}`
-                : `點擊在地圖上顯示區域特徵圖層：${csvLayer?.nameZh || layerId}`
-            }
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '3px 9px',
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer',
-              flexShrink: 0,
-              transition: 'all 150ms ease',
-              backgroundColor: isLayerActive ? accent : 'rgba(15, 23, 42, 0.78)',
-              color: isLayerActive ? '#020617' : accent,
-              border: `1px solid ${isLayerActive ? accent : `${accent}88`}`,
-              boxShadow: isLayerActive ? `0 0 10px ${accent}66` : 'none'
-            }}
-          >
-            {isLayerActive ? <Check size={12} strokeWidth={3} /> : <Layers size={12} />}
-            <span>{isLayerActive ? '圖層開啟中' : (csvLayer?.shortBadge || '區域圖層')}</span>
-          </button>
-        )}
-
         <button
           type="button"
           aria-label={isExpanded ? '收合專欄' : '展開專欄'}
-          onClick={() => setIsExpanded((expanded) => !expanded)}
+          onClick={handleToggleExpand}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
