@@ -439,8 +439,8 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
       }
     }
   } else {
-    // Check if raw coordinates: "51.1283, 71.4305" or "51.1283,71.4305"
-    const coordMatch = src.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+    // Check if raw coordinates: "51.1283, 71.4305" or "51.1283,71.4305" or "51, 71"
+    const coordMatch = src.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
     if (coordMatch) {
       const lat = coordMatch[1];
       const lng = coordMatch[2];

@@ -28,6 +28,52 @@ export interface GoogleMapsEmbedProps {
   className?: string;
 }
 
+const clampFov = (v: number) => Math.min(100, Math.max(10, v));
+const parseFov = (v?: string | number) => {
+  if (v === undefined || v === null || v === '') return 90;
+  const num = typeof v === 'number' ? v : parseFloat(v);
+  return isNaN(num) ? 90 : clampFov(num);
+};
+
+const parseSnippetInput = (
+  input: string,
+  fallbackSrc: string,
+  fallbackAlt = ''
+): ParsedEmbedConfig | null => {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Case 1: Standard markdown ![alt](src) or [alt](src)
+  const mdMatch = trimmed.match(/^!?\[(.*?)\]\((.*)\)$/s);
+  if (mdMatch) {
+    return parseGoogleMapsEmbedConfig(mdMatch[1], mdMatch[2]);
+  }
+
+  // Case 2: Just a URL or coordinates: "https://..." or "25.0338, 121.5645"
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(trimmed)
+  ) {
+    return parseGoogleMapsEmbedConfig(fallbackAlt, trimmed);
+  }
+
+  // Case 3: Just the alt pipe string: "streetview|vertical|heading=180|pitch=5|fov=30"
+  if (
+    trimmed.includes('|') ||
+    trimmed.startsWith('streetview') ||
+    trimmed.startsWith('view') ||
+    trimmed.startsWith('place') ||
+    trimmed.startsWith('directions') ||
+    trimmed.startsWith('search')
+  ) {
+    return parseGoogleMapsEmbedConfig(trimmed, fallbackSrc);
+  }
+
+  // Case 4: Default fallback: treat as new location / query string
+  return parseGoogleMapsEmbedConfig(fallbackAlt, trimmed);
+};
+
 export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   alt,
   src,
@@ -41,7 +87,11 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     return parseGoogleMapsEmbedConfig(alt, src);
   }, [alt, src]);
 
-  // User-toggleable lock state with config.locked as initial default
+  // Dev-mode override when snippet input is edited and applied via Enter
+  const [userConfigOverride, setUserConfigOverride] = useState<ParsedEmbedConfig | null>(null);
+  const baseConfig = userConfigOverride ?? config;
+
+  // User-toggleable lock state with baseConfig.locked as initial default
   const [userLocked, setUserLocked] = useState<boolean | null>(null);
   const [prevDefaultLocked, setPrevDefaultLocked] = useState(config.locked);
 
@@ -50,12 +100,12 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     setUserLocked(null);
   }
 
-  const isLocked = userLocked ?? config.locked;
+  const isLocked = userLocked ?? baseConfig.locked;
 
   // Real-time tuning state
   const initialHeading = config.params.heading ? parseFloat(config.params.heading) : 0;
   const initialPitch = config.params.pitch ? parseFloat(config.params.pitch) : 0;
-  const initialFov = config.params.fov ? parseFloat(config.params.fov) : 90;
+  const initialFov = parseFov(config.params.fov);
   const initialZoom = config.params.zoom ? parseFloat(config.params.zoom) : 13;
 
   const [liveHeading, setLiveHeading] = useState<number>(initialHeading);
@@ -64,16 +114,18 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   const [liveZoom, setLiveZoom] = useState<number>(initialZoom);
   const [showTuning, setShowTuning] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [appliedFlash, setAppliedFlash] = useState(false);
   const [customSnippet, setCustomSnippet] = useState<string | null>(null);
 
   // Sync if config prop changes during render
   const [prevConfig, setPrevConfig] = useState(config);
   if (config !== prevConfig) {
     setPrevConfig(config);
+    setUserConfigOverride(null);
     setCustomSnippet(null);
     setLiveHeading(config.params.heading ? parseFloat(config.params.heading) : 0);
     setLivePitch(config.params.pitch ? parseFloat(config.params.pitch) : 0);
-    setLiveFov(config.params.fov ? parseFloat(config.params.fov) : 90);
+    setLiveFov(parseFov(config.params.fov));
     setLiveZoom(config.params.zoom ? parseFloat(config.params.zoom) : 13);
   }
 
@@ -98,27 +150,27 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   }, [liveHeading, livePitch, liveFov, liveZoom]);
 
   const activeConfig = useMemo<ParsedEmbedConfig>(() => {
-    if (!showTuning || !isDev) return config;
-    const nextParams = { ...config.params };
-    if (config.mode === 'streetview') {
+    if (!showTuning || !isDev) return baseConfig;
+    const nextParams = { ...baseConfig.params };
+    if (baseConfig.mode === 'streetview') {
       nextParams.heading = String(Math.round(debouncedParams.heading * 10) / 10);
       nextParams.pitch = String(Math.round(debouncedParams.pitch * 10) / 10);
       nextParams.fov = String(Math.round(debouncedParams.fov * 10) / 10);
-    } else if (config.mode === 'view') {
+    } else if (baseConfig.mode === 'view') {
       nextParams.zoom = String(Math.round(debouncedParams.zoom));
     }
     return {
-      ...config,
+      ...baseConfig,
       params: nextParams
     };
-  }, [config, showTuning, isDev, debouncedParams]);
+  }, [baseConfig, showTuning, isDev, debouncedParams]);
 
   const embedUrl = useMemo(() => {
     return buildEmbedUrl(activeConfig, apiKey);
   }, [activeConfig, apiKey]);
 
   const badgeInfo = useMemo(() => {
-    switch (config.mode) {
+    switch (baseConfig.mode) {
       case 'streetview':
         return {
           label: 'Google 街景',
@@ -161,41 +213,42 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
           icon: <MapPin size={12} />
         };
     }
-  }, [config.mode]);
+  }, [baseConfig.mode]);
 
   const displayTitle =
-    config.title ||
-    (config.mode === 'directions' && config.params.origin && config.params.destination
-      ? `${config.params.origin} → ${config.params.destination}`
-      : config.params.location || config.params.q || config.params.center || badgeInfo.label);
+    baseConfig.title ||
+    (baseConfig.mode === 'directions' && baseConfig.params.origin && baseConfig.params.destination
+      ? `${baseConfig.params.origin} → ${baseConfig.params.destination}`
+      : baseConfig.params.location || baseConfig.params.q || baseConfig.params.center || badgeInfo.label);
 
   const buildCurrentSnippet = (isCurrentlyLocked: boolean) => {
-    const parts: string[] = [config.mode];
-    if (config.showHeader) parts.push('header');
+    const curConfig = baseConfig;
+    const parts: string[] = [curConfig.mode];
+    if (curConfig.showHeader) parts.push('header');
     if (isCurrentlyLocked) parts.push('lock');
 
-    if (config.isVertical) {
-      if (config.aspectRatio === '4 / 5') {
+    if (curConfig.isVertical) {
+      if (curConfig.aspectRatio === '4 / 5') {
         parts.push('vertical');
-      } else if (config.aspectRatio === '9 / 16') {
+      } else if (curConfig.aspectRatio === '9 / 16') {
         parts.push('9:16');
-      } else if (config.aspectRatio === '3 / 4') {
+      } else if (curConfig.aspectRatio === '3 / 4') {
         parts.push('3:4');
-      } else if (config.aspectRatio === '2 / 3') {
+      } else if (curConfig.aspectRatio === '2 / 3') {
         parts.push('2:3');
       } else {
-        parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+        parts.push(`ratio=${curConfig.aspectRatio.replace(/\s+/g, '')}`);
       }
-    } else if (config.aspectRatio && config.aspectRatio !== '16 / 9') {
-      parts.push(`ratio=${config.aspectRatio.replace(/\s+/g, '')}`);
+    } else if (curConfig.aspectRatio && curConfig.aspectRatio !== '16 / 9') {
+      parts.push(`ratio=${curConfig.aspectRatio.replace(/\s+/g, '')}`);
     }
-    if (config.width) {
-      parts.push(`w=${config.width}`);
+    if (curConfig.width) {
+      parts.push(`w=${curConfig.width}`);
     }
-    if (config.height) {
-      parts.push(`h=${config.height}`);
+    if (curConfig.height) {
+      parts.push(`h=${curConfig.height}`);
     }
-    const { top, right, bottom, left } = config.crop;
+    const { top, right, bottom, left } = curConfig.crop;
     const isDefaultCrop =
       top === DEFAULT_CROP.top &&
       right === DEFAULT_CROP.right &&
@@ -210,32 +263,77 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       }
     }
 
-    if (config.mode === 'streetview') {
-      const curHeading = showTuning ? liveHeading : (config.params.heading ? parseFloat(config.params.heading) : undefined);
-      const curPitch = showTuning ? livePitch : (config.params.pitch ? parseFloat(config.params.pitch) : undefined);
-      const curFov = showTuning ? liveFov : (config.params.fov ? parseFloat(config.params.fov) : undefined);
+    if (curConfig.mode === 'streetview') {
+      const curHeading = showTuning ? liveHeading : (curConfig.params.heading ? parseFloat(curConfig.params.heading) : undefined);
+      const curPitch = showTuning ? livePitch : (curConfig.params.pitch ? parseFloat(curConfig.params.pitch) : undefined);
+      const curFov = showTuning ? liveFov : (curConfig.params.fov ? parseFloat(curConfig.params.fov) : undefined);
 
       if (curHeading !== undefined) parts.push(`heading=${Math.round(curHeading * 10) / 10}`);
       if (curPitch !== undefined && curPitch !== 0) parts.push(`pitch=${Math.round(curPitch * 10) / 10}`);
       if (curFov !== undefined && curFov !== 90) parts.push(`fov=${Math.round(curFov * 10) / 10}`);
-    } else if (config.mode === 'view') {
-      const curZoom = showTuning ? liveZoom : (config.params.zoom ? parseFloat(config.params.zoom) : undefined);
+    } else if (curConfig.mode === 'view') {
+      const curZoom = showTuning ? liveZoom : (curConfig.params.zoom ? parseFloat(curConfig.params.zoom) : undefined);
       if (curZoom !== undefined) parts.push(`zoom=${Math.round(curZoom)}`);
     }
 
-    if (config.params.mode && config.mode === 'directions') parts.push(`mode=${config.params.mode}`);
-    if (config.title) parts.push(config.title);
+    if (curConfig.params.mode && curConfig.mode === 'directions') parts.push(`mode=${curConfig.params.mode}`);
+    if (curConfig.title) parts.push(curConfig.title);
 
     const targetSrc =
-      config.mode === 'directions' && config.params.origin && config.params.destination
-        ? `${config.params.origin} -> ${config.params.destination}`
-        : config.params.location || config.params.center || config.params.q || src;
+      curConfig.mode === 'directions' && curConfig.params.origin && curConfig.params.destination
+        ? `${curConfig.params.origin} -> ${curConfig.params.destination}`
+        : curConfig.params.location || curConfig.params.center || curConfig.params.q || src;
 
     return `![${parts.join('|')}](${targetSrc})`;
   };
 
   const autoSnippet = buildCurrentSnippet(isLocked);
   const displayedSnippet = customSnippet ?? autoSnippet;
+
+  const handleApplySnippet = () => {
+    const textToApply = customSnippet ?? autoSnippet;
+    if (!textToApply) return;
+    const currentSrc =
+      baseConfig.params.location ||
+      baseConfig.params.center ||
+      baseConfig.params.q ||
+      src;
+    const parsed = parseSnippetInput(textToApply, currentSrc, alt);
+    if (!parsed) return;
+
+    setUserConfigOverride(parsed);
+    setCustomSnippet(null);
+    setAppliedFlash(true);
+    setTimeout(() => setAppliedFlash(false), 800);
+
+    const newHeading = parsed.params.heading ? parseFloat(parsed.params.heading) : 0;
+    const newPitch = parsed.params.pitch ? parseFloat(parsed.params.pitch) : 0;
+    const newFov = parseFov(parsed.params.fov);
+    const newZoom = parsed.params.zoom ? parseFloat(parsed.params.zoom) : 13;
+
+    setLiveHeading(newHeading);
+    setLivePitch(newPitch);
+    setLiveFov(newFov);
+    setLiveZoom(newZoom);
+
+    setDebouncedParams({
+      heading: newHeading,
+      pitch: newPitch,
+      fov: newFov,
+      zoom: newZoom
+    });
+
+    if (parsed.locked !== undefined) {
+      setUserLocked(parsed.locked);
+    }
+
+    if (isDev) {
+      console.log('%c⚡ [GoogleMapsEmbed Snippet Applied via Enter]', 'color: #34d399; font-weight: bold;', {
+        snippet: textToApply,
+        parsed
+      });
+    }
+  };
 
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -252,19 +350,19 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
         console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
         console.log(snippet);
         console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
-          mode: config.mode,
-          title: config.title,
+          mode: baseConfig.mode,
+          title: baseConfig.title,
           locked: true,
-          crop: config.crop,
-          aspectRatio: config.aspectRatio,
-          height: config.height,
-          heading: showTuning ? liveHeading : config.params.heading,
-          pitch: showTuning ? livePitch : config.params.pitch,
-          fov: showTuning ? liveFov : config.params.fov,
-          zoom: showTuning ? liveZoom : config.params.zoom,
+          crop: baseConfig.crop,
+          aspectRatio: baseConfig.aspectRatio,
+          height: baseConfig.height,
+          heading: showTuning ? liveHeading : baseConfig.params.heading,
+          pitch: showTuning ? livePitch : baseConfig.params.pitch,
+          fov: showTuning ? liveFov : baseConfig.params.fov,
+          zoom: showTuning ? liveZoom : baseConfig.params.zoom,
           rawAlt: alt,
           rawSrc: src,
-          externalUrl: config.externalUrl
+          externalUrl: baseConfig.externalUrl
         });
         console.groupEnd();
       }
@@ -304,8 +402,8 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       style={{
         display: 'block',
         width: '100%',
-        maxWidth: config.isVertical ? (config.width ? `${config.width}px` : '340px') : undefined,
-        margin: config.isVertical ? '8px auto' : '8px 0',
+        maxWidth: baseConfig.isVertical ? (baseConfig.width ? `${baseConfig.width}px` : '340px') : undefined,
+        margin: baseConfig.isVertical ? '8px auto' : '8px 0',
         borderRadius: 8,
         overflow: 'hidden',
         touchAction: isLocked ? 'pan-y' : 'auto',
@@ -316,7 +414,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       }}
     >
       {/* Optional Top Header Bar (enabled via `header` or `bar` in markdown) */}
-      {config.showHeader && (
+      {baseConfig.showHeader && (
         <div
           style={{
             display: 'flex',
@@ -369,7 +467,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
               <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
             </button>
-            {isDev && (config.mode === 'streetview' || config.mode === 'view') && (
+            {isDev && (baseConfig.mode === 'streetview' || baseConfig.mode === 'view') && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -390,7 +488,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   border: `1px solid ${showTuning ? 'rgba(56, 189, 248, 0.45)' : 'rgba(148, 163, 184, 0.25)'}`,
                   transition: 'all 0.15s ease'
                 }}
-                title="開啟微調面板，可看著畫面滑動調整方位 (Heading)、仰角 (Pitch) 與視野 (FOV)"
+                title="開啟微調面板，可看著畫面滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)"
               >
                 <Sliders size={10} />
                 <span>{showTuning ? '收起微調' : '微調'}</span>
@@ -411,9 +509,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             </span>
           </div>
 
-          {config.externalUrl && (
+          {baseConfig.externalUrl && (
             <a
-              href={config.externalUrl}
+              href={baseConfig.externalUrl}
               target="_blank"
               rel="noopener noreferrer"
               title="在 Google 地圖開啟完整頁面"
@@ -456,12 +554,12 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
           style={{
             position: 'relative',
             width: '100%',
-            height: config.height ? `${config.height}px` : 'auto',
-            aspectRatio: config.height ? undefined : config.aspectRatio,
-            minHeight: config.height ? undefined : 160,
-            maxHeight: config.height
+            height: baseConfig.height ? `${baseConfig.height}px` : 'auto',
+            aspectRatio: baseConfig.height ? undefined : baseConfig.aspectRatio,
+            minHeight: baseConfig.height ? undefined : 160,
+            maxHeight: baseConfig.height
               ? undefined
-              : config.isVertical
+              : baseConfig.isVertical
               ? 'min(75vh, 520px)'
               : 'min(75vh, 600px)',
             overflow: 'hidden',
@@ -474,13 +572,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
           <iframe
             src={embedUrl}
             width="100%"
-            height={config.height ? config.height : undefined}
+            height={baseConfig.height ? baseConfig.height : undefined}
             style={{
               position: 'absolute',
-              top: -config.crop.top,
-              left: -config.crop.left,
-              width: `calc(100% + ${config.crop.left + config.crop.right}px)`,
-              height: `calc(100% + ${config.crop.top + config.crop.bottom}px)`,
+              top: -baseConfig.crop.top,
+              left: -baseConfig.crop.left,
+              width: `calc(100% + ${baseConfig.crop.left + baseConfig.crop.right}px)`,
+              height: `calc(100% + ${baseConfig.crop.top + baseConfig.crop.bottom}px)`,
               border: 0,
               display: 'block',
               backgroundColor: '#020617',
@@ -507,7 +605,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
           )}
 
           {/* Floating overlays when top bar is hidden: 0px layout impact, hover-triggered toggle */}
-          {!config.showHeader && (
+          {!baseConfig.showHeader && (
             <>
               <button
                 type="button"
@@ -518,7 +616,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 {isLocked ? <Lock size={11} /> : <Unlock size={11} />}
                 <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
               </button>
-              {isDev && (config.mode === 'streetview' || config.mode === 'view') && (
+              {isDev && (baseConfig.mode === 'streetview' || baseConfig.mode === 'view') && (
                 <button
                   type="button"
                   className={`google-maps-tune-btn ${showTuning ? 'is-active' : ''}`}
@@ -526,16 +624,16 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                     e.stopPropagation();
                     setShowTuning(!showTuning);
                   }}
-                  title="開啟微調面板，即時滑動調整方位 (Heading)、仰角 (Pitch) 與視野 (FOV)"
+                  title="開啟微調面板，即時滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)"
                 >
                   <Sliders size={11} />
                   <span>{showTuning ? '收起微調' : '微調'}</span>
                 </button>
               )}
-              {config.externalUrl && (
+              {baseConfig.externalUrl && (
                 <a
                   className="google-maps-float-link"
-                  href={config.externalUrl}
+                  href={baseConfig.externalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   title="在 Google 地圖開啟完整頁面"
@@ -563,9 +661,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             <AlertCircle size={16} />
             <span>尚未配置 Google Maps API 金鑰 (VITE_GOOGLE_MAPS_API_KEY)</span>
           </div>
-          {config.externalUrl && (
+          {baseConfig.externalUrl && (
             <a
-              href={config.externalUrl}
+              href={baseConfig.externalUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -589,12 +687,12 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       )}
 
       {/* Interactive Tuning Panel (Dev Mode Only) */}
-      {isDev && showTuning && (config.mode === 'streetview' || config.mode === 'view') && (
+      {isDev && showTuning && (baseConfig.mode === 'streetview' || baseConfig.mode === 'view') && (
         <div
           className="google-maps-tuning-panel"
           onClick={(e) => e.stopPropagation()}
         >
-          {config.mode === 'streetview' && (
+          {baseConfig.mode === 'streetview' && (
             <>
               {/* Heading Row */}
               <div className="google-maps-tuning-row">
@@ -680,10 +778,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 </button>
               </div>
 
-              {/* FOV Row */}
+              {/* Zoom (FOV) Row: Inverted Zoom semantics: [+] zooms in (FOV down to 10), [-] zooms out (FOV up to 100) */}
               <div className="google-maps-tuning-row">
-                <div className="google-maps-tuning-item-label">
-                  <span>視野</span>
+                <div
+                  className="google-maps-tuning-item-label"
+                  title={`目前視野角: ${Math.round(liveFov * 10) / 10}°（向右放大特寫，向左縮小廣角）`}
+                >
+                  <span>縮放</span>
                   <b>{Math.round(liveFov * 10) / 10}°</b>
                 </div>
                 <button
@@ -691,32 +792,34 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   className="google-maps-step-btn"
                   onClick={() => {
                     setCustomSnippet(null);
-                    setLiveFov(f => Math.max(15, Math.round((f - 0.5) * 10) / 10));
+                    setLiveFov(f => Math.min(100, Math.round((f + 0.5) * 10) / 10));
                   }}
-                  title="視野 -0.5° (放大特寫)"
+                  title="縮小 (廣角 +0.5°)"
                 >
                   -
                 </button>
                 <input
                   type="range"
-                  min={15}
-                  max={120}
+                  min={10}
+                  max={100}
                   step={0.5}
-                  value={liveFov}
+                  value={Math.round((110 - liveFov) * 10) / 10}
                   onChange={(e) => {
                     setCustomSnippet(null);
-                    setLiveFov(parseFloat(e.target.value));
+                    const val = parseFloat(e.target.value);
+                    setLiveFov(Math.round((110 - val) * 10) / 10);
                   }}
                   className="google-maps-tuning-slider"
+                  title="縮放調整（向右放大特寫，向左縮小廣角）"
                 />
                 <button
                   type="button"
                   className="google-maps-step-btn"
                   onClick={() => {
                     setCustomSnippet(null);
-                    setLiveFov(f => Math.min(120, Math.round((f + 0.5) * 10) / 10));
+                    setLiveFov(f => Math.max(10, Math.round((f - 0.5) * 10) / 10));
                   }}
-                  title="視野 +0.5° (廣角縮小)"
+                  title="放大 (特寫 -0.5°)"
                 >
                   +
                 </button>
@@ -724,7 +827,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             </>
           )}
 
-          {config.mode === 'view' && (
+          {baseConfig.mode === 'view' && (
             <div className="google-maps-tuning-row">
               <div className="google-maps-tuning-item-label">
                 <span>縮放</span>
@@ -768,14 +871,21 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
           )}
 
           {/* Live Editable Markdown Snippet Box with Icon-only Copy Button */}
-          <div className="google-maps-snippet-box">
+          <div className={`google-maps-snippet-box ${appliedFlash ? 'is-applied' : ''}`}>
             <input
               type="text"
               className="google-maps-snippet-input"
               value={displayedSnippet}
               onChange={(e) => setCustomSnippet(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleApplySnippet();
+                }
+              }}
               spellCheck={false}
-              title="可直接編輯或複製此 Markdown 語法"
+              title="可直接編輯或複製此 Markdown 語法（修改後按 Enter 立即套用更新畫面）"
             />
             <button
               type="button"
