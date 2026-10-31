@@ -19,6 +19,7 @@ import {
   DEFAULT_CROP,
   type ParsedEmbedConfig
 } from '../utils/googleMapsEmbed';
+import { useDevMode } from '../utils/devMode';
 
 export interface GoogleMapsEmbedProps {
   alt?: string;
@@ -34,6 +35,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   className
 }) => {
   const apiKey = getGoogleMapsApiKey();
+  const isDev = useDevMode();
 
   const config = useMemo(() => {
     return parseGoogleMapsEmbedConfig(alt, src);
@@ -62,11 +64,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   const [liveZoom, setLiveZoom] = useState<number>(initialZoom);
   const [showTuning, setShowTuning] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [customSnippet, setCustomSnippet] = useState<string | null>(null);
 
   // Sync if config prop changes during render
   const [prevConfig, setPrevConfig] = useState(config);
   if (config !== prevConfig) {
     setPrevConfig(config);
+    setCustomSnippet(null);
     setLiveHeading(config.params.heading ? parseFloat(config.params.heading) : 0);
     setLivePitch(config.params.pitch ? parseFloat(config.params.pitch) : 0);
     setLiveFov(config.params.fov ? parseFloat(config.params.fov) : 90);
@@ -94,7 +98,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   }, [liveHeading, livePitch, liveFov, liveZoom]);
 
   const activeConfig = useMemo<ParsedEmbedConfig>(() => {
-    if (!showTuning) return config;
+    if (!showTuning || !isDev) return config;
     const nextParams = { ...config.params };
     if (config.mode === 'streetview') {
       nextParams.heading = String(Math.round(debouncedParams.heading * 10) / 10);
@@ -107,7 +111,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       ...config,
       params: nextParams
     };
-  }, [config, showTuning, debouncedParams]);
+  }, [config, showTuning, isDev, debouncedParams]);
 
   const embedUrl = useMemo(() => {
     return buildEmbedUrl(activeConfig, apiKey);
@@ -230,6 +234,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     return `![${parts.join('|')}](${targetSrc})`;
   };
 
+  const autoSnippet = buildCurrentSnippet(isLocked);
+  const displayedSnippet = customSnippet ?? autoSnippet;
+
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextLocked = !isLocked;
@@ -237,52 +244,54 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
 
     if (nextLocked) {
       const snippet = buildCurrentSnippet(true);
-      // Print structured parameters and copy-ready snippet to developer console
-      console.group(
-        `%c🔒 [GoogleMapsEmbed Locked] ${displayTitle}`,
-        'color: #38bdf8; font-weight: bold; font-size: 12px;'
-      );
-      console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
-      console.log(snippet);
-      console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
-        mode: config.mode,
-        title: config.title,
-        locked: true,
-        crop: config.crop,
-        aspectRatio: config.aspectRatio,
-        height: config.height,
-        heading: showTuning ? liveHeading : config.params.heading,
-        pitch: showTuning ? livePitch : config.params.pitch,
-        fov: showTuning ? liveFov : config.params.fov,
-        zoom: showTuning ? liveZoom : config.params.zoom,
-        rawAlt: alt,
-        rawSrc: src,
-        externalUrl: config.externalUrl
-      });
-      console.groupEnd();
+      if (isDev) {
+        console.group(
+          `%c🔒 [GoogleMapsEmbed Locked] ${displayTitle}`,
+          'color: #38bdf8; font-weight: bold; font-size: 12px;'
+        );
+        console.log('%c📋 Markdown Snippet (直接複製寫入 Markdown):', 'color: #a5f3fc; font-weight: bold;');
+        console.log(snippet);
+        console.log('%c📐 目前配置參數 (Parameters):', 'color: #94a3b8; font-weight: bold;', {
+          mode: config.mode,
+          title: config.title,
+          locked: true,
+          crop: config.crop,
+          aspectRatio: config.aspectRatio,
+          height: config.height,
+          heading: showTuning ? liveHeading : config.params.heading,
+          pitch: showTuning ? livePitch : config.params.pitch,
+          fov: showTuning ? liveFov : config.params.fov,
+          zoom: showTuning ? liveZoom : config.params.zoom,
+          rawAlt: alt,
+          rawSrc: src,
+          externalUrl: config.externalUrl
+        });
+        console.groupEnd();
+      }
     }
   };
 
   const handleCopySnippet = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const snippet = buildCurrentSnippet(isLocked);
-    navigator.clipboard.writeText(snippet);
+    const textToCopy = displayedSnippet;
+    navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
 
-    console.group(
-      `%c📋 [GoogleMapsEmbed Snippet Copied] ${displayTitle}`,
-      'color: #38bdf8; font-weight: bold; font-size: 12px;'
-    );
-    console.log('%c📋 Markdown Snippet (直接複製貼上):', 'color: #a5f3fc; font-weight: bold;');
-    console.log(snippet);
-    console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
-      heading: liveHeading,
-      pitch: livePitch,
-      fov: liveFov,
-      zoom: liveZoom
-    });
-    console.groupEnd();
+    if (isDev) {
+      console.group(
+        `%c📋 [GoogleMapsEmbed Snippet Copied] ${displayTitle}`,
+        'color: #38bdf8; font-weight: bold; font-size: 12px;'
+      );
+      console.log('%c📋 Markdown Snippet (已複製):', 'color: #a5f3fc; font-weight: bold;', textToCopy);
+      console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
+        heading: liveHeading,
+        pitch: livePitch,
+        fov: liveFov,
+        zoom: liveZoom
+      });
+      console.groupEnd();
+    }
   };
 
   return (
@@ -360,7 +369,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
               <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
             </button>
-            {(config.mode === 'streetview' || config.mode === 'view') && (
+            {isDev && (config.mode === 'streetview' || config.mode === 'view') && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -509,7 +518,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 {isLocked ? <Lock size={11} /> : <Unlock size={11} />}
                 <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
               </button>
-              {(config.mode === 'streetview' || config.mode === 'view') && (
+              {isDev && (config.mode === 'streetview' || config.mode === 'view') && (
                 <button
                   type="button"
                   className={`google-maps-tune-btn ${showTuning ? 'is-active' : ''}`}
@@ -579,170 +588,203 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
         </div>
       )}
 
-      {/* Interactive Tuning Panel */}
-      {showTuning && (config.mode === 'streetview' || config.mode === 'view') && (
+      {/* Interactive Tuning Panel (Dev Mode Only) */}
+      {isDev && showTuning && (config.mode === 'streetview' || config.mode === 'view') && (
         <div
           className="google-maps-tuning-panel"
           onClick={(e) => e.stopPropagation()}
         >
           {config.mode === 'streetview' && (
             <>
-              {/* Heading Slider with -1° and +1° at the two ends */}
+              {/* Heading Row */}
               <div className="google-maps-tuning-row">
-                <div className="google-maps-tuning-label">
-                  <span>方位旋轉 (Heading)</span>
+                <div className="google-maps-tuning-item-label">
+                  <span>方位角</span>
                   <b>{Math.round(liveHeading * 10) / 10}°</b>
                 </div>
-                <div className="google-maps-tuning-control">
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLiveHeading(h => Math.round(((h - 0.5 + 360) % 360) * 10) / 10)}
-                    title="方位 -0.5°"
-                  >
-                    -0.5°
-                  </button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={360}
-                    step={0.5}
-                    value={liveHeading}
-                    onChange={(e) => setLiveHeading(parseFloat(e.target.value))}
-                    className="google-maps-tuning-slider"
-                  />
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLiveHeading(h => Math.round(((h + 0.5) % 360) * 10) / 10)}
-                    title="方位 +0.5°"
-                  >
-                    +0.5°
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLiveHeading(h => Math.round(((h - 0.5 + 360) % 360) * 10) / 10);
+                  }}
+                  title="方位 -0.5°"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={0.5}
+                  value={liveHeading}
+                  onChange={(e) => {
+                    setCustomSnippet(null);
+                    setLiveHeading(parseFloat(e.target.value));
+                  }}
+                  className="google-maps-tuning-slider"
+                />
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLiveHeading(h => Math.round(((h + 0.5) % 360) * 10) / 10);
+                  }}
+                  title="方位 +0.5°"
+                >
+                  +
+                </button>
               </div>
 
-              {/* Pitch Slider with -0.5° and +0.5° at the two ends */}
+              {/* Pitch Row */}
               <div className="google-maps-tuning-row">
-                <div className="google-maps-tuning-label">
-                  <span>仰角俯視 (Pitch)</span>
+                <div className="google-maps-tuning-item-label">
+                  <span>仰角</span>
                   <b>{livePitch > 0 ? '+' : ''}{Math.round(livePitch * 10) / 10}°</b>
                 </div>
-                <div className="google-maps-tuning-control">
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLivePitch(p => Math.max(-90, Math.round((p - 0.5) * 10) / 10))}
-                    title="仰角 -0.5°"
-                  >
-                    -0.5°
-                  </button>
-                  <input
-                    type="range"
-                    min={-90}
-                    max={90}
-                    step={0.5}
-                    value={livePitch}
-                    onChange={(e) => setLivePitch(parseFloat(e.target.value))}
-                    className="google-maps-tuning-slider"
-                  />
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLivePitch(p => Math.min(90, Math.round((p + 0.5) * 10) / 10))}
-                    title="仰角 +0.5°"
-                  >
-                    +0.5°
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLivePitch(p => Math.max(-90, Math.round((p - 0.5) * 10) / 10));
+                  }}
+                  title="仰角 -0.5°"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min={-90}
+                  max={90}
+                  step={0.5}
+                  value={livePitch}
+                  onChange={(e) => {
+                    setCustomSnippet(null);
+                    setLivePitch(parseFloat(e.target.value));
+                  }}
+                  className="google-maps-tuning-slider"
+                />
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLivePitch(p => Math.min(90, Math.round((p + 0.5) * 10) / 10));
+                  }}
+                  title="仰角 +0.5°"
+                >
+                  +
+                </button>
               </div>
 
-              {/* FOV Slider with -0.5° and +0.5° at the two ends */}
+              {/* FOV Row */}
               <div className="google-maps-tuning-row">
-                <div className="google-maps-tuning-label">
-                  <span>視野縮放 (FOV 焦距)</span>
+                <div className="google-maps-tuning-item-label">
+                  <span>視野</span>
                   <b>{Math.round(liveFov * 10) / 10}°</b>
                 </div>
-                <div className="google-maps-tuning-control">
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLiveFov(f => Math.max(15, Math.round((f - 0.5) * 10) / 10))}
-                    title="視野 -0.5° (放大特寫)"
-                  >
-                    -0.5°
-                  </button>
-                  <input
-                    type="range"
-                    min={15}
-                    max={120}
-                    step={0.5}
-                    value={liveFov}
-                    onChange={(e) => setLiveFov(parseFloat(e.target.value))}
-                    className="google-maps-tuning-slider"
-                  />
-                  <button
-                    type="button"
-                    className="google-maps-step-btn"
-                    onClick={() => setLiveFov(f => Math.min(120, Math.round((f + 0.5) * 10) / 10))}
-                    title="視野 +0.5° (廣角縮小)"
-                  >
-                    +0.5°
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLiveFov(f => Math.max(15, Math.round((f - 0.5) * 10) / 10));
+                  }}
+                  title="視野 -0.5° (放大特寫)"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min={15}
+                  max={120}
+                  step={0.5}
+                  value={liveFov}
+                  onChange={(e) => {
+                    setCustomSnippet(null);
+                    setLiveFov(parseFloat(e.target.value));
+                  }}
+                  className="google-maps-tuning-slider"
+                />
+                <button
+                  type="button"
+                  className="google-maps-step-btn"
+                  onClick={() => {
+                    setCustomSnippet(null);
+                    setLiveFov(f => Math.min(120, Math.round((f + 0.5) * 10) / 10));
+                  }}
+                  title="視野 +0.5° (廣角縮小)"
+                >
+                  +
+                </button>
               </div>
             </>
           )}
 
           {config.mode === 'view' && (
             <div className="google-maps-tuning-row">
-              <div className="google-maps-tuning-label">
-                <span>縮放層級 (Zoom Level)</span>
+              <div className="google-maps-tuning-item-label">
+                <span>縮放</span>
                 <b>{Math.round(liveZoom)}</b>
               </div>
-              <div className="google-maps-tuning-control">
-                <button
-                  type="button"
-                  className="google-maps-step-btn"
-                  onClick={() => setLiveZoom(z => Math.max(1, z - 1))}
-                  title="縮放 -1"
-                >
-                  -1
-                </button>
-                <input
-                  type="range"
-                  min={1}
-                  max={21}
-                  step={1}
-                  value={liveZoom}
-                  onChange={(e) => setLiveZoom(parseInt(e.target.value, 10))}
-                  className="google-maps-tuning-slider"
-                />
-                <button
-                  type="button"
-                  className="google-maps-step-btn"
-                  onClick={() => setLiveZoom(z => Math.min(21, z + 1))}
-                  title="縮放 +1"
-                >
-                  +1
-                </button>
-              </div>
+              <button
+                type="button"
+                className="google-maps-step-btn"
+                onClick={() => {
+                  setCustomSnippet(null);
+                  setLiveZoom(z => Math.max(1, z - 1));
+                }}
+                title="縮放 -1"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min={1}
+                max={21}
+                step={1}
+                value={liveZoom}
+                onChange={(e) => {
+                  setCustomSnippet(null);
+                  setLiveZoom(parseInt(e.target.value, 10));
+                }}
+                className="google-maps-tuning-slider"
+              />
+              <button
+                type="button"
+                className="google-maps-step-btn"
+                onClick={() => {
+                  setCustomSnippet(null);
+                  setLiveZoom(z => Math.min(21, z + 1));
+                }}
+                title="縮放 +1"
+              >
+                +
+              </button>
             </div>
           )}
 
-          {/* Live Markdown Snippet Box */}
+          {/* Live Editable Markdown Snippet Box with Icon-only Copy Button */}
           <div className="google-maps-snippet-box">
-            <span className="google-maps-snippet-code" title={buildCurrentSnippet(isLocked)}>
-              {buildCurrentSnippet(isLocked)}
-            </span>
+            <input
+              type="text"
+              className="google-maps-snippet-input"
+              value={displayedSnippet}
+              onChange={(e) => setCustomSnippet(e.target.value)}
+              spellCheck={false}
+              title="可直接編輯或複製此 Markdown 語法"
+            />
             <button
               type="button"
               className="google-maps-copy-btn"
               onClick={handleCopySnippet}
-              title="複製此 Markdown 語法"
+              title={copied ? '已複製到剪貼簿！' : '複製 Markdown 語法'}
+              aria-label="複製語法"
             >
-              {copied ? <Check size={11} /> : <Copy size={11} />}
-              <span>{copied ? '已複製!' : '複製語法'}</span>
+              {copied ? <Check size={13} /> : <Copy size={13} />}
             </button>
           </div>
         </div>
