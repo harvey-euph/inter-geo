@@ -371,11 +371,14 @@ export const BASE_NATIONWIDE_LAYERS: NationwideLayerDef[] = [
         titleEn: f.nameEn,
         activeColor: f.accentColor,
         layerType:
-          f.type === 'FillWithColor'
-            ? 'coloring'
-            : f.type === 'Image'
-              ? 'image'
-              : 'text',
+          f.fgb?.includes('-roads.fgb')
+            ? 'roads'
+            : f.type === 'FillWithColor'
+              ? 'coloring'
+              : f.type === 'Image'
+                ? 'image'
+                : 'text',
+        countryIso2: f.fgb?.includes('-roads.fgb') ? f.targetIso2 : undefined,
         descriptionZh: f.descriptionZh
       })
     )
@@ -430,7 +433,15 @@ export function getNationwideLayerById(id: string): NationwideLayerDef | undefin
       titleZh: csvF.descriptionZh,
       titleEn: csvF.nameEn,
       activeColor: csvF.accentColor || '#10b981',
-      layerType: 'text',
+      layerType:
+        csvF.fgb?.includes('-roads.fgb')
+          ? 'roads'
+          : csvF.type === 'FillWithColor'
+            ? 'coloring'
+            : csvF.type === 'Image'
+              ? 'image'
+              : 'text',
+      countryIso2: csvF.fgb?.includes('-roads.fgb') ? csvF.targetIso2 : undefined,
       descriptionZh: csvF.descriptionZh
     };
     NATIONWIDE_LAYERS_BY_ID.set(id, dynamicDef);
@@ -470,11 +481,14 @@ export function getNationwideLayersForCountry(iso2: string): NationwideLayerDef[
         titleEn: f.nameEn,
         activeColor: f.accentColor,
         layerType:
-          f.type === 'FillWithColor'
-            ? 'coloring'
-            : f.type === 'Image'
-              ? 'image'
-              : 'text',
+          f.fgb?.includes('-roads.fgb')
+            ? 'roads'
+            : f.type === 'FillWithColor'
+              ? 'coloring'
+              : f.type === 'Image'
+                ? 'image'
+                : 'text',
+        countryIso2: f.fgb?.includes('-roads.fgb') ? f.targetIso2 : undefined,
         descriptionZh: f.descriptionZh
       })
     );

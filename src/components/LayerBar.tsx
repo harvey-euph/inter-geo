@@ -12,8 +12,7 @@ import {
   Check,
   Palette,
   Layers,
-  Globe,
-  MapPin
+  Globe
 } from 'lucide-react';
 import { FloatingWindow } from './FloatingWindow';
 
@@ -43,7 +42,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   onToggleTextFilter,
   activeInternationalImageFilter,
   activeRegionalFilters,
-  onToggleRegionalFilter,
   onResetAll,
   isExpanded,
   onCollapse,
@@ -62,14 +60,13 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
 
   const searchQuery = '';
 
-  // 3 Toggled Sections matching the spec:
+  // 2 Toggled Sections in Top Layer Selector:
   // v Fill Region With Color (Radio select)
   // v Global Label (Multi-select)
-  // v Area Feature (Multi-select)
+  // (Area Feature layers are controlled inside Country Info Card articles)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     fillRegion: true,
-    globalLabel: true,
-    areaFeature: true
+    globalLabel: true
   });
 
   const toggleSection = (key: string) => {
@@ -96,7 +93,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
       goto?: string;
     }> = [];
     const globalLabel: RegisteredCsvLayer[] = [];
-    const areaFeature: RegisteredCsvLayer[] = [];
 
     for (const f of allCsvLayers) {
       const g = (f.meta.group as string) || (f.group as string) || '';
@@ -111,15 +107,12 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
         });
       } else if (g === 'global-label' || (f.rangeKind === 'International' && (f.type === 'Text' || f.type === 'TextWithStyle') && g !== 'area-feature')) {
         globalLabel.push(f);
-      } else {
-        areaFeature.push(f);
       }
     }
 
     return {
       fillRegion,
-      globalLabel,
-      areaFeature
+      globalLabel
     };
   }, [allCsvLayers]);
 
@@ -147,13 +140,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     return categorized.globalLabel.filter(matchesSearch);
   }, [categorized.globalLabel, matchesSearch]);
 
-  // Group 3: Area Feature (Highways, Taipower grid, Pedestrian crossing, South Asia scripts, etc.)
-  const isEuCrossingActive =
-    activeRegionalFilters.has('eu-pedestrian-crossing') ||
-    activeRegionalFilters.has('pedestrian-crossing') ||
-    activeInternationalImageFilter === 'eu-pedestrian-crossing' ||
-    activeInternationalImageFilter === 'pedestrian-crossing';
-
   const isSectionOpen = (key: string, hasSearchMatches: boolean) => {
     if (isSearching) return hasSearchMatches;
     return !!openSections[key];
@@ -177,84 +163,12 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
     }
   };
 
-  const handleToggleLabel = useCallback(
-    (filterId: string, gotoStr?: string) => {
-      if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
-        const turningOn = !isEuCrossingActive;
-        onToggleRegionalFilter('pedestrian-crossing');
-        if (turningOn && onGotoCamera) {
-          const goto = gotoStr || 'lat=50&lon=16&ratio=4';
-          try {
-            const p = new URLSearchParams(goto);
-            const lat = Number(p.get('lat'));
-            const lon = Number(p.get('lon'));
-            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
-            if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              onGotoCamera(lat, lon, ratio);
-            }
-          } catch {
-            // ignore
-          }
-        }
-        return;
-      }
-
-      onToggleRegionalFilter(filterId);
-    },
-    [isEuCrossingActive, onToggleRegionalFilter, onGotoCamera]
-  );
-
-  const areaFeatureItems = useMemo(() => {
-    const list: Array<{
-      id: string;
-      nameZh: string;
-      nameEn?: string;
-      shortBadge?: string;
-      descriptionZh?: string;
-      goto?: string;
-      checked: boolean;
-      onToggle: () => void;
-    }> = [];
-
-    for (const layer of categorized.areaFeature) {
-      const isEuCrossing = layer.id === 'eu-pedestrian-crossing' || layer.id === 'pedestrian-crossing';
-      const checked = isEuCrossing
-        ? isEuCrossingActive
-        : (activeRegionalFilters.has(layer.id) || activeTextFilters.has(layer.id));
-
-      list.push({
-        id: layer.id,
-        nameZh: layer.nameZh,
-        nameEn: layer.nameEn,
-        shortBadge: layer.shortBadge || layer.nameZh,
-        descriptionZh: layer.descriptionZh || layer.nameZh,
-        goto: layer.goto,
-        checked,
-        onToggle: () => handleToggleLabel(layer.id, layer.goto)
-      });
-    }
-
-    return list.filter(matchesSearch);
-  }, [
-    categorized.areaFeature,
-    activeRegionalFilters,
-    activeTextFilters,
-    isEuCrossingActive,
-    matchesSearch,
-    handleToggleLabel
-  ]);
-
   // Check if base layer is active
   const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
 
   // Active counts for header
-  const activeAreaFeatureCount =
-    categorized.areaFeature.filter((f) =>
-      (f.id === 'eu-pedestrian-crossing' || f.id === 'pedestrian-crossing')
-        ? isEuCrossingActive
-        : (activeRegionalFilters.has(f.id) || activeTextFilters.has(f.id))
-    ).length;
   const activeGlobalCount = filteredGlobalLabel.filter((f) => activeTextFilters.has(f.id)).length;
+  const activeAreaFeatureCount = activeRegionalFilters.size + (activeInternationalImageFilter ? 1 : 0);
 
   const totalActiveCount = activeAreaFeatureCount + activeGlobalCount;
 
@@ -375,53 +289,6 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
                     </label>
                   );
                 })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ============================================================== */}
-        {/* 3. Area Feature (區域特徵與物件 · 複選 Checkboxes)                */}
-        {/* ============================================================== */}
-        <div className="fsw-group">
-          <button
-            type="button"
-            className="fsw-group-header"
-            onClick={() => toggleSection('areaFeature')}
-          >
-            <span className="fsw-chevron">
-              {isSectionOpen('areaFeature', areaFeatureItems.length > 0) ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-            </span>
-            <MapPin size={14} style={{ color: '#f59e0b' }} />
-            <span className="fsw-group-title">Area Feature</span>
-            <span className="fsw-group-sub">區域特徵與物件 · 複選</span>
-            {activeAreaFeatureCount > 0 && <span className="fsw-count-pill">{activeAreaFeatureCount}</span>}
-          </button>
-
-          {isSectionOpen('areaFeature', areaFeatureItems.length > 0) && (
-            <div className="fsw-group-children">
-              <div className="fsw-item-list">
-                {areaFeatureItems.map((item) => (
-                  <label
-                    key={item.id}
-                    className={`fsw-checkbox-row ${item.checked ? 'checked' : ''}`}
-                    title={item.descriptionZh}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      item.onToggle();
-                    }}
-                  >
-                    <span className={`fsw-checkbox ${item.checked ? 'checked' : ''}`}>
-                      {item.checked && <Check size={11} strokeWidth={3} />}
-                    </span>
-                    <span className="fsw-item-name">{item.shortBadge}</span>
-                    <span className="fsw-item-name-zh">{item.nameZh}</span>
-                  </label>
-                ))}
               </div>
             </div>
           )}

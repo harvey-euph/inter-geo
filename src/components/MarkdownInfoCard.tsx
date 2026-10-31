@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Check, Layers } from 'lucide-react';
 import { isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, queryInfoStubs } from '../info/infoRegistry';
+import { getCsvLayerById, isLayersIndexLoaded, onLayersIndexLoaded } from '../layers/csvLayerRegistry';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import { GoogleMapsEmbed } from './GoogleMapsEmbed';
 import { isGoogleMapsEmbedToken } from '../utils/googleMapsEmbed';
@@ -12,6 +13,30 @@ import {
   resetInfoTagPreferences,
   type InfoTagPreferences
 } from '../info/infoTagPreferences';
+
+export interface LayerControlContextValue {
+  activeRegionalFilters?: Set<string>;
+  activeTextFilters?: Set<string>;
+  activeInternationalImageFilter?: string | null;
+  onToggleLayer?: (layerId: string) => void;
+}
+
+const LayerControlContext = React.createContext<LayerControlContextValue>({});
+
+function isAreaFeatureLayerActive(layerId: string, ctx: LayerControlContextValue): boolean {
+  if (!layerId) return false;
+  if (layerId === 'pedestrian-crossing' || layerId === 'eu-pedestrian-crossing') {
+    return Boolean(
+      ctx.activeRegionalFilters?.has('pedestrian-crossing') ||
+        ctx.activeRegionalFilters?.has('eu-pedestrian-crossing') ||
+        ctx.activeInternationalImageFilter === 'pedestrian-crossing' ||
+        ctx.activeInternationalImageFilter === 'eu-pedestrian-crossing'
+    );
+  }
+  return Boolean(
+    ctx.activeRegionalFilters?.has(layerId) || ctx.activeTextFilters?.has(layerId)
+  );
+}
 
 interface MarkdownInfoCardProps {
   card: InfoCard;
@@ -211,6 +236,22 @@ const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => {
  */
 export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
   const [isExpanded, setIsExpanded] = useState(() => card.display ?? false);
+  const [layersLoaded, setLayersLoaded] = useState(isLayersIndexLoaded());
+  const layerCtrl = React.useContext(LayerControlContext);
+
+  useEffect(() => {
+    if (!layersLoaded) {
+      return onLayersIndexLoaded(() => setLayersLoaded(true));
+    }
+  }, [layersLoaded]);
+
+  const layerId = card.layer?.trim();
+  const csvLayer = useMemo(() => {
+    void layersLoaded;
+    return layerId ? getCsvLayerById(layerId) : undefined;
+  }, [layerId, layersLoaded]);
+  const isLayerActive = layerId ? isAreaFeatureLayerActive(layerId, layerCtrl) : false;
+
   const accent = card.accentColor || '#fbbf24';
   const hasCardImage = Boolean(card.image);
   const imageDims = hasCardImage ? resolveImageDimensions(card.imageSize) : null;
@@ -326,39 +367,152 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
         cursor: 'pointer'
       }}
     >
-      <button
-        type="button"
+      <div
         className="intel-card-header info-card-title-toggle"
-        aria-expanded={isExpanded}
-        onClick={() => setIsExpanded((expanded) => !expanded)}
         style={{
+           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          width: '100%',
-          padding: 0,
-          border: 0,
-          background: 'transparent',
-          textAlign: 'left',
-          cursor: 'pointer'
+          width: '100%'
         }}
       >
-        {card.icon && <span style={{ fontSize: 18, lineHeight: 1 }}>{card.icon}</span>}
-        <span style={{ color: accent, fontWeight: 700, fontSize: 14, flex: 1 }}>{card.title}</span>
-        <ChevronDown
-          size={16}
-          aria-hidden="true"
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          onClick={() => setIsExpanded((expanded) => !expanded)}
           style={{
-            flexShrink: 0,
-            color: accent,
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 160ms ease'
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flex: 1,
+            minWidth: 0,
+            padding: 0,
+            border: 0,
+            background: 'transparent',
+            textAlign: 'left',
+            cursor: 'pointer'
           }}
-        />
-      </button>
+        >
+          {card.icon && <span style={{ fontSize: 18, lineHeight: 1 }}>{card.icon}</span>}
+          <span style={{ color: accent, fontWeight: 700, fontSize: 14, flex: 1 }}>{card.title}</span>
+        </button>
+
+        {layerId && layerCtrl.onToggleLayer && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              layerCtrl.onToggleLayer?.(layerId);
+            }}
+            title={
+              isLayerActive
+                ? `點擊關閉地圖區域特徵圖層：${csvLayer?.nameZh || layerId}`
+                : `點擊在地圖上顯示區域特徵圖層：${csvLayer?.nameZh || layerId}`
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 9px',
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'all 150ms ease',
+              backgroundColor: isLayerActive ? accent : 'rgba(15, 23, 42, 0.78)',
+              color: isLayerActive ? '#020617' : accent,
+              border: `1px solid ${isLayerActive ? accent : `${accent}88`}`,
+              boxShadow: isLayerActive ? `0 0 10px ${accent}66` : 'none'
+            }}
+          >
+            {isLayerActive ? <Check size={12} strokeWidth={3} /> : <Layers size={12} />}
+            <span>{isLayerActive ? '圖層開啟中' : (csvLayer?.shortBadge || '區域圖層')}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          aria-label={isExpanded ? '收合專欄' : '展開專欄'}
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            border: 0,
+            background: 'transparent',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <ChevronDown
+            size={16}
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              color: accent,
+              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 160ms ease'
+            }}
+          />
+        </button>
+      </div>
 
       {/* Card Body with Optional Image Layout & Bullet List */}
       {isExpanded && (
         <div className="intel-card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          {layerId && layerCtrl.onToggleLayer && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                padding: '8px 12px',
+                marginBottom: 10,
+                borderRadius: 8,
+                backgroundColor: isLayerActive ? `${accent}24` : 'rgba(15, 23, 42, 0.65)',
+                border: `1px solid ${isLayerActive ? accent : `${accent}55`}`
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#f8fafc' }}>
+                  <Layers size={13} style={{ color: accent, flexShrink: 0 }} />
+                  <span>對應區域特徵圖層：{csvLayer?.nameZh || layerId}</span>
+                </div>
+                {csvLayer?.descriptionZh && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                    {csvLayer.descriptionZh}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  layerCtrl.onToggleLayer?.(layerId);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  backgroundColor: isLayerActive ? accent : 'rgba(30, 41, 59, 0.9)',
+                  color: isLayerActive ? '#020617' : '#f8fafc',
+                  border: `1px solid ${accent}`
+                }}
+              >
+                {isLayerActive ? <Check size={13} strokeWidth={3} /> : <Layers size={13} />}
+                <span>{isLayerActive ? '已開啟圖層' : '開啟地圖圖層'}</span>
+              </button>
+            </div>
+          )}
           {card.tags && card.tags.length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
               {card.tags.map((tag, tIdx) => (
@@ -494,6 +648,12 @@ interface MarkdownInfoCardsProps {
   pageSize?: number;
   /** Opens another country when an info link uses the country: target. */
   onSelectCountryName?: (name: string) => void;
+  /** Active area-feature layer IDs */
+  activeRegionalFilters?: Set<string>;
+  activeTextFilters?: Set<string>;
+  activeInternationalImageFilter?: string | null;
+  /** Callback to toggle an area-feature layer from inside an info card */
+  onToggleLayer?: (layerId: string) => void;
 }
 
 /**
@@ -502,7 +662,11 @@ interface MarkdownInfoCardsProps {
 export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
   query,
   pageSize = 3,
-  onSelectCountryName
+  onSelectCountryName,
+  activeRegionalFilters,
+  activeTextFilters,
+  activeInternationalImageFilter,
+  onToggleLayer
 }) => {
   const [indexLoaded, setIndexLoaded] = useState(isInfoIndexLoaded());
   const [tagPrefs, setTagPrefs] = useState<InfoTagPreferences>(() => getInfoTagPreferences());
@@ -560,13 +724,24 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
     return () => observer.disconnect();
   }, [visibleCount, filteredStubs.length, queryKey, pageSize]);
 
+  const layerControlContextValue = useMemo<LayerControlContextValue>(
+    () => ({
+      activeRegionalFilters,
+      activeTextFilters,
+      activeInternationalImageFilter,
+      onToggleLayer
+    }),
+    [activeRegionalFilters, activeTextFilters, activeInternationalImageFilter, onToggleLayer]
+  );
+
   if (essayStubs.length === 0) return null;
 
   const visibleStubs = filteredStubs.slice(0, visibleCount);
   const remainingCount = filteredStubs.length - visibleStubs.length;
 
   return (
-    <CountryLinkContext.Provider value={onSelectCountryName}>
+    <LayerControlContext.Provider value={layerControlContextValue}>
+      <CountryLinkContext.Provider value={onSelectCountryName}>
       {filteredStubs.length < essayStubs.length && filteredStubs.length > 0 && (
         <div className="info-cards-filter-subtle-bar">
           <span className="subtle-hint-text">
@@ -627,6 +802,7 @@ export const MarkdownInfoCards: React.FC<MarkdownInfoCardsProps> = ({
           向下滾動或點擊載入更多專欄（尚有 {remainingCount} 篇）
         </div>
       )}
-    </CountryLinkContext.Provider>
+      </CountryLinkContext.Provider>
+    </LayerControlContext.Provider>
   );
 };

@@ -45,6 +45,7 @@ function entryToStub(entry: InfoTargetCardEntry): InfoStub {
     sourceFile: filename,
     sourcePath: entry.file.startsWith('/') ? entry.file.slice(1) : entry.file,
     priority: entry.priority,
+    layer: entry.layer || undefined,
     firstItemPreview: entry.preview ? { content: entry.preview } : undefined
   };
 }

@@ -59,6 +59,8 @@ export interface InfoStub {
   sourcePath: string;
   /** Optional priority for ordering */
   priority?: number;
+  /** Optional area-feature layer ID associated with this card */
+  layer?: string;
   /** Short preview of the first long item for instant map hover tooltips */
   firstItemPreview?: {
     label?: string;
@@ -99,6 +101,8 @@ export interface InfoCard {
   sourceFile?: string;
   /** Optional priority for ordering */
   priority?: number;
+  /** Optional area-feature layer ID associated with this card */
+  layer?: string;
 }
 
 export interface InfoQuery {

@@ -21,6 +21,10 @@ interface CountryDetailPanelProps {
   onNavigateToCountry?: (country: CountryData) => void;
   onSelectCountryName?: (name: string) => void;
   onSelectMunicipality?: (municipality: MunicipalityDetail) => void;
+  activeRegionalFilters?: Set<string>;
+  activeTextFilters?: Set<string>;
+  activeInternationalImageFilter?: string | null;
+  onToggleLayer?: (layerId: string) => void;
 }
 
 export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(({
@@ -36,7 +40,11 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
   onNavigateBack,
   onNavigateToCountry,
   onSelectCountryName,
-  onSelectMunicipality
+  onSelectMunicipality,
+  activeRegionalFilters,
+  activeTextFilters,
+  activeInternationalImageFilter,
+  onToggleLayer
 }) => {
   const drawerRef = useRef<HTMLElement>(null);
   const resizeRef = useRef<{ pointerId: number; right: number } | null>(null);
@@ -256,6 +264,10 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
               countryIso2: road.iso2
             }}
             onSelectCountryName={onSelectCountryName}
+            activeRegionalFilters={activeRegionalFilters}
+            activeTextFilters={activeTextFilters}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleLayer={onToggleLayer}
           />
         </div>
       </aside>
@@ -318,6 +330,10 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
               municipalityCode: municipality.code || `${municipality.iso2 || 'XX'}-LOCAL`
             }}
             onSelectCountryName={onSelectCountryName}
+            activeRegionalFilters={activeRegionalFilters}
+            activeTextFilters={activeTextFilters}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleLayer={onToggleLayer}
           />
         </div>
       </aside>
@@ -377,6 +393,10 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
               subdivisionId: subdivision.id
             }}
             onSelectCountryName={onSelectCountryName}
+            activeRegionalFilters={activeRegionalFilters}
+            activeTextFilters={activeTextFilters}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleLayer={onToggleLayer}
           />
         </div>
       </aside>
@@ -419,6 +439,10 @@ export const CountryDetailPanel: React.FC<CountryDetailPanelProps> = React.memo(
             countryIso2: country.iso2
           }}
           onSelectCountryName={onSelectCountryName}
+          activeRegionalFilters={activeRegionalFilters}
+          activeTextFilters={activeTextFilters}
+          activeInternationalImageFilter={activeInternationalImageFilter}
+          onToggleLayer={onToggleLayer}
         />
       </div>
     </aside>

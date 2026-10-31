@@ -131,6 +131,7 @@ export interface InfoTargetCardEntry {
   imageSize?: string | null;
   imagePosition?: string | null;
   imageAlt?: string | null;
+  layer?: string | null;
   preview?: string | null;
 }
 

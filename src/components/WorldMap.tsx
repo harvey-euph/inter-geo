@@ -658,12 +658,12 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     let cancelled = false;
     const activeExtLayerIds = Array.from(activeRegionalFilters).filter((id) => {
       const layer = getCsvLayerById(id);
+      if (!layer || layer.meta.fgb?.includes('-roads.fgb')) return false;
       return (
-        layer &&
-        (layer.type === 'ExtObject' ||
-          layer.id === 'taiwan-power-poles' ||
-          !!layer.meta.fgb ||
-          layer.meta.targetKeys?.some((k) => k.includes('::')))
+        layer.type === 'ExtObject' ||
+        layer.id === 'taiwan-power-poles' ||
+        !!layer.meta.fgb ||
+        layer.meta.targetKeys?.some((k) => k.includes('::'))
       );
     });
 
@@ -892,8 +892,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
         const csvLayer = getCsvLayerById(id);
         if (csvLayer?.meta.fgb?.includes(`${upper}-roads.fgb`)) {
-          if (roadClass === 'Interstate' && id.includes('interstate')) return true;
-          if (roadClass === 'Federal' && (id.includes('highway') || id.includes('route'))) return true;
+          if (id === 'us-interstates') {
+            if (roadClass === 'Interstate') return true;
+          } else if (id === 'us-numbered-highways' || id === 'us-highways') {
+            if (roadClass === 'Federal') return true;
+          } else {
+            return true;
+          }
         }
 
         const def = getNationwideLayerById(id);
@@ -1130,7 +1135,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const activeFilters = Array.from(activeRegionalFiltersRef.current)
       .map((id) => getCsvLayerById(id))
       .filter((filter): filter is NonNullable<typeof filter> =>
-        !!filter && filter.rangeKind === 'Nationwide'
+        !!filter &&
+        filter.rangeKind === 'Nationwide' &&
+        !filter.fgb?.includes('-roads.fgb') &&
+        filter.id !== 'taiwan-power-poles'
       );
     const areaCodeCountries = COUNTRIES_WITH_AREA_CODES.filter((iso2) =>
       activeRegionalFiltersRef.current.has(`area-codes-${iso2}`) ||

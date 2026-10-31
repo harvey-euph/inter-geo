@@ -463,7 +463,7 @@ export function App() {
     });
   }, [activeRegionalFilters, activeTextFilters, selectedCountry, selectedSubdivision, getTargetStr, activeFilterId, syncAppUrl]);
 
-  const handleToggleRegionalFilter = useCallback((filterId: string) => {
+  const handleToggleRegionalFilter = useCallback((filterId: string, skipCameraJump = false) => {
     let nextReg: Set<string>;
 
     if (filterId === 'eu-pedestrian-crossing' || filterId === 'pedestrian-crossing') {
@@ -490,18 +490,23 @@ export function App() {
         nextImg = 'pedestrian-crossing';
 
         const csvLayer = getCsvLayerById('pedestrian-crossing') || getCsvLayerById('eu-pedestrian-crossing');
-        const csvGoto = csvLayer?.meta?.goto || csvLayer?.goto || 'lat=50&lon=16&ratio=4';
-        if (csvGoto) {
-          try {
-            const p = new URLSearchParams(csvGoto);
-            const lat = Number(p.get('lat'));
-            const lon = Number(p.get('lon'));
-            const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
-            if (Number.isFinite(lat) && Number.isFinite(lon)) {
-              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+        if (csvLayer && !csvLayer.loaded) {
+          void loadOnDemandCsvLayer(csvLayer.id);
+        }
+        if (!skipCameraJump) {
+          const csvGoto = csvLayer?.meta?.goto || csvLayer?.goto || 'lat=50&lon=16&ratio=4';
+          if (csvGoto) {
+            try {
+              const p = new URLSearchParams(csvGoto);
+              const lat = Number(p.get('lat'));
+              const lon = Number(p.get('lon'));
+              const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+              if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
           }
         }
       }
@@ -522,11 +527,11 @@ export function App() {
         setSelectedRoad((r) => (r?.class === 'Interstate' ? null : r));
       } else if (filterId === 'us-numbered-highways' || filterId === 'roads-numbered') {
         setSelectedRoad((r) => (r && r.class !== 'Interstate' ? null : r));
-      } else if (targetDef?.layerType === 'roads') {
+      } else if (targetDef?.layerType === 'roads' || filterId.endsWith('-roads')) {
+        const roadIso = targetDef?.countryIso2 || filterId.slice(0, 2).toUpperCase();
         setSelectedRoad((r) => {
           if (!r) return null;
-          const rClass = r.class === 'Interstate' ? 'Interstate' : 'Federal';
-          if (r.iso2 === targetDef.countryIso2 && rClass === targetDef.roadClass) {
+          if (r.iso2 === roadIso) {
             return null;
           }
           return r;
@@ -554,6 +559,27 @@ export function App() {
 
     const csvLayer = getCsvLayerById(filterId);
     if (csvLayer) {
+      if (!csvLayer.loaded) {
+        void loadOnDemandCsvLayer(csvLayer.id).then((loaded: RegisteredCsvLayer | undefined) => {
+          if (skipCameraJump) return;
+          const freshGoto = loaded?.meta?.goto || loaded?.goto || loaded?.data?.meta?.goto;
+          if (freshGoto) {
+            try {
+              const p = new URLSearchParams(freshGoto);
+              const lat = Number(p.get('lat'));
+              const lon = Number(p.get('lon'));
+              const ratio = p.has('ratio') ? Number(p.get('ratio')) : undefined;
+              if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+              }
+            } catch {
+              // ignore
+            }
+          }
+        });
+      }
+      if (skipCameraJump) return;
+
       const applyGoto = (gotoStr: string) => {
         try {
           const p = new URLSearchParams(gotoStr);
@@ -576,17 +602,11 @@ export function App() {
         return;
       }
 
-      // If not loaded yet, fetch and apply any @goto defined in CSV
-      if (!csvLayer.loaded) {
-        void loadOnDemandCsvLayer(csvLayer.id).then((loaded: RegisteredCsvLayer | undefined) => {
-          const freshGoto = loaded?.meta?.goto || loaded?.goto || loaded?.data?.meta?.goto;
-          if (freshGoto && applyGoto(freshGoto)) return;
-        });
-      }
-
       // For CSV layers without @goto, do not jump camera
       return;
     }
+
+    if (skipCameraJump) return;
 
     if (targetDef) {
       if (targetDef.customBBoxes && targetDef.customBBoxes.length > 0) {
@@ -907,6 +927,10 @@ export function App() {
               onNavigateToCountry={handleNavigateToCountry}
               onSelectCountryName={handleSelectCountryByName}
               onSelectMunicipality={handleSelectMunicipality}
+              activeRegionalFilters={activeRegionalFilters}
+              activeTextFilters={activeTextFilters}
+              activeInternationalImageFilter={activeInternationalImageFilter}
+              onToggleLayer={(layerId) => handleToggleRegionalFilter(layerId, true)}
             />
           </Suspense>
         )}

@@ -3,7 +3,7 @@ import type { InfoCard, InfoItem } from '../types/info';
 type YamlValue = string | string[];
 
 const METADATA_KEY =
-  /^(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt|display)$/i;
+  /^(id|title|targets?|icon|accent|color|tags?|type|priority|comparison|image|imagesize|imageposition|imagealt|display|layers?)$/i;
 
 /**
  * Parses raw YAML-like string lines into key-value map
@@ -240,6 +240,7 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
   const imagePosition = (meta.imageposition ? getString(meta.imageposition).toLowerCase() : undefined) as InfoCard['imagePosition'];
   const imageAlt = meta.imagealt ? getString(meta.imagealt) : undefined;
   const display = getBoolean(meta.display);
+  const layer = meta.layer || meta.layers ? getString(meta.layer || meta.layers).trim() : undefined;
 
   return {
     id,
@@ -257,7 +258,8 @@ function parseSingleSection(sectionText: string, sourceFile: string, sectionInde
     items,
     comparisonTargets,
     sourceFile,
-    priority: isNaN(Number(priority)) ? undefined : priority
+    priority: isNaN(Number(priority)) ? undefined : priority,
+    layer: layer || undefined
   };
 }
 
