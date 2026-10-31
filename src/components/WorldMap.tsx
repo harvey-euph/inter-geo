@@ -1295,7 +1295,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       expanded.add(l2HoveredIso2);
     }
 
-    if (hoveredL2) {
+    if (hoveredL2 && !countryLevelTargets.has(hoveredL2.iso2)) {
       const isSubTarget =
         subdivisions.has(`${hoveredL2.iso2}:${String(hoveredL2.id)}`) ||
         (!!hoveredL2.code && subdivisions.has(`${hoveredL2.iso2}:${String(hoveredL2.code)}`));

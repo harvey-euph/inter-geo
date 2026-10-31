@@ -331,6 +331,35 @@ export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow
   return undefined;
 }
 
+function doesRowBelongToSubdivisionCountry(row: CsvLayerKVRow, subIso2?: string): boolean {
+  const members = row.unionMembers || [row.regionId];
+  const targetIso = subIso2?.trim().toUpperCase();
+  let hasExplicitCountryPrefix = false;
+
+  for (const m of members) {
+    const upper = m.trim().toUpperCase();
+    // A 2-letter ISO country code row (e.g. "BD" or "LK") is a country-level entry, never an L2 subdivision
+    if (/^[A-Z]{2}$/.test(upper)) {
+      return false;
+    }
+    if (!targetIso) continue;
+
+    const colonIdx = upper.indexOf('::');
+    if (colonIdx > 0) {
+      hasExplicitCountryPrefix = true;
+      if (upper.slice(0, colonIdx) === targetIso) return true;
+      continue;
+    }
+    const dashMatch = upper.match(/^([A-Z]{2})-/);
+    if (dashMatch && dashMatch[1] !== 'TP') {
+      hasExplicitCountryPrefix = true;
+      if (dashMatch[1] === targetIso) return true;
+    }
+  }
+
+  return !hasExplicitCountryPrefix;
+}
+
 /**
  * Looks up an L2 subdivision's value in a Nationwide CSV layer.
  */
@@ -338,6 +367,7 @@ export function getCsvSubdivisionValue(
   layerId: string,
   sub: {
     id?: string | number;
+    iso2?: string;
     code?: string;
     postal?: string;
     name?: string;
@@ -345,24 +375,8 @@ export function getCsvSubdivisionValue(
     nameZh?: string;
   }
 ): string | null {
-  const layer = getCsvLayerById(layerId);
-  if (!layer || !layer.data) return null;
-
-  const candidates = [
-    sub.code,
-    sub.postal,
-    sub.id !== undefined ? String(sub.id) : undefined,
-    sub.nameEn,
-    sub.name,
-    sub.nameZh
-  ];
-
-  for (const raw of candidates) {
-    if (!raw) continue;
-    const val = getCsvLayerValue(layerId, raw);
-    if (val !== null) return val;
-  }
-  return null;
+  const row = getCsvSubdivisionRow(layerId, sub);
+  return row ? row.value : null;
 }
 
 /**
@@ -372,6 +386,7 @@ export function getCsvSubdivisionRow(
   layerId: string,
   sub: {
     id?: string | number;
+    iso2?: string;
     code?: string;
     postal?: string;
     name?: string;
@@ -382,7 +397,8 @@ export function getCsvSubdivisionRow(
   const layer = getCsvLayerById(layerId);
   if (!layer || !layer.data) return undefined;
 
-  const candidates = [
+  const subIso = sub.iso2?.trim().toUpperCase();
+  const rawCandidates = [
     sub.code,
     sub.postal,
     sub.id !== undefined ? String(sub.id) : undefined,
@@ -391,10 +407,25 @@ export function getCsvSubdivisionRow(
     sub.nameZh
   ];
 
-  for (const raw of candidates) {
+  // 1. Try country-prefixed keys first (e.g. "BD::RJ", "IN::RJ") so multi-country layers never collide
+  if (subIso) {
+    for (const raw of rawCandidates) {
+      if (!raw) continue;
+      const prefixed = `${subIso}::${raw}`;
+      const row = getCsvLayerRow(layerId, prefixed);
+      if (row !== undefined && doesRowBelongToSubdivisionCountry(row, subIso)) {
+        return row;
+      }
+    }
+  }
+
+  // 2. Fallback to raw candidates, guarded by country ownership verification
+  for (const raw of rawCandidates) {
     if (!raw) continue;
     const row = getCsvLayerRow(layerId, raw);
-    if (row !== undefined) return row;
+    if (row !== undefined && doesRowBelongToSubdivisionCountry(row, subIso)) {
+      return row;
+    }
   }
   return undefined;
 }
@@ -406,6 +437,7 @@ export function getCsvSubdivisionCode(
   layerId: string,
   sub: {
     id?: string | number;
+    iso2?: string;
     code?: string;
     postal?: string;
     name?: string;
