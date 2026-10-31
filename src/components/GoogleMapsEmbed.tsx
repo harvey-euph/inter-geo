@@ -463,11 +463,11 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 3,
-                padding: '2px 6px',
+                justifyContent: 'center',
+                width: 22,
+                height: 22,
+                padding: 0,
                 borderRadius: 4,
-                fontSize: 10,
-                fontWeight: 600,
                 cursor: 'pointer',
                 backgroundColor: isLocked ? 'rgba(148, 163, 184, 0.15)' : 'rgba(56, 189, 248, 0.2)',
                 color: isLocked ? '#94a3b8' : '#38bdf8',
@@ -475,9 +475,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 transition: 'all 0.15s ease'
               }}
               title={isLocked ? '目前已鎖定（點擊解鎖開始互動探索）' : '目前已解鎖（點擊鎖定避免滑動干擾）'}
+              aria-label={isLocked ? '已鎖定' : '已解鎖'}
             >
-              {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
-              <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
+              {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
             </button>
             {isDev && (baseConfig.mode === 'streetview' || baseConfig.mode === 'view') && (
               <button
@@ -489,21 +489,21 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 3,
-                  padding: '2px 6px',
+                  justifyContent: 'center',
+                  width: 22,
+                  height: 22,
+                  padding: 0,
                   borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 600,
                   cursor: 'pointer',
                   backgroundColor: showTuning ? 'rgba(56, 189, 248, 0.25)' : 'rgba(148, 163, 184, 0.15)',
                   color: showTuning ? '#38bdf8' : '#94a3b8',
                   border: `1px solid ${showTuning ? 'rgba(56, 189, 248, 0.45)' : 'rgba(148, 163, 184, 0.25)'}`,
                   transition: 'all 0.15s ease'
                 }}
-                title="開啟微調面板，可看著畫面滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)"
+                title={showTuning ? '收起微調面板' : '開啟微調面板，可看著畫面滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)'}
+                aria-label={showTuning ? '收起微調' : '微調'}
               >
-                <Sliders size={10} />
-                <span>{showTuning ? '收起微調' : '微調'}</span>
+                <Sliders size={12} />
               </button>
             )}
             <span
@@ -527,13 +527,15 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               title="在 Google 地圖開啟完整頁面"
+              aria-label="在 Google 地圖開啟"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                padding: '2px 8px',
+                justifyContent: 'center',
+                width: 22,
+                height: 22,
+                padding: 0,
                 borderRadius: 4,
-                fontSize: 11,
                 color: '#94a3b8',
                 backgroundColor: 'rgba(255, 255, 255, 0.06)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -552,8 +554,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
               }}
             >
-              <span>在 Google 地圖開啟</span>
-              <ExternalLink size={11} />
+              <ExternalLink size={12} />
             </a>
           )}
         </div>
@@ -624,9 +625,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 className={`google-maps-lock-btn ${isLocked ? 'is-locked' : 'is-unlocked'}`}
                 onClick={toggleLock}
                 title={isLocked ? '目前已鎖定（點擊解鎖開始互動探索）' : '目前可互動（點擊鎖定避免滑動干擾）'}
+                aria-label={isLocked ? '已鎖定' : '已解鎖'}
               >
-                {isLocked ? <Lock size={11} /> : <Unlock size={11} />}
-                <span>{isLocked ? '已鎖定' : '已解鎖'}</span>
+                {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
               </button>
               {isDev && (baseConfig.mode === 'streetview' || baseConfig.mode === 'view') && (
                 <button
@@ -636,10 +637,10 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                     e.stopPropagation();
                     setShowTuning(!showTuning);
                   }}
-                  title="開啟微調面板，即時滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)"
+                  title={showTuning ? '收起微調面板' : '開啟微調面板，即時滑動調整方位 (Heading)、仰角 (Pitch) 與縮放 (FOV)'}
+                  aria-label={showTuning ? '收起微調' : '微調'}
                 >
-                  <Sliders size={11} />
-                  <span>{showTuning ? '收起微調' : '微調'}</span>
+                  <Sliders size={12} />
                 </button>
               )}
               {baseConfig.externalUrl && (
@@ -649,9 +650,9 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   title="在 Google 地圖開啟完整頁面"
+                  aria-label="在 Google 地圖開啟"
                 >
-                  <span>Google 地圖</span>
-                  <ExternalLink size={10} />
+                  <ExternalLink size={12} />
                 </a>
               )}
             </>

@@ -2917,8 +2917,10 @@ span.confused-country-btn {
   z-index: 20;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border-radius: 6px;
   font-size: 11px;
   color: #cbd5e1;
@@ -2959,8 +2961,10 @@ span.confused-country-btn {
   z-index: 20;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 500;
@@ -3010,12 +3014,14 @@ span.confused-country-btn {
 .google-maps-tune-btn {
   position: absolute;
   top: 8px;
-  left: 82px;
+  left: 38px;
   z-index: 20;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 500;
