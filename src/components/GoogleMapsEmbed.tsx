@@ -791,14 +791,14 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 </button>
               </div>
 
-              {/* Zoom (FOV) Row: Inverted Zoom semantics: [+] zooms in (FOV down to 10), [-] zooms out (FOV up to 100) */}
+              {/* Zoom (FOV) Row: Inverted Zoom semantics: 0 is lowest (FOV 100), 90 is highest (FOV 10) */}
               <div className="google-maps-tuning-row">
                 <div
                   className="google-maps-tuning-item-label"
-                  title={`目前視野角: ${Math.round(liveFov * 10) / 10}°（向右放大特寫，向左縮小廣角）`}
+                  title={`目前縮放: ${Math.round((100 - liveFov) * 10) / 10}（視野角 FOV: ${Math.round(liveFov * 10) / 10}°，向右放大，向左縮小）`}
                 >
                   <span>縮放</span>
-                  <b>{Math.round(liveFov * 10) / 10}°</b>
+                  <b>{Math.round((100 - liveFov) * 10) / 10}</b>
                 </div>
                 <button
                   type="button"
@@ -807,23 +807,23 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                     setCustomSnippet(null);
                     setLiveFov(f => Math.min(100, Math.round((f + 0.5) * 10) / 10));
                   }}
-                  title="縮小 (廣角 +0.5°)"
+                  title="縮小 (-0.5)"
                 >
                   -
                 </button>
                 <input
                   type="range"
-                  min={10}
-                  max={100}
+                  min={0}
+                  max={90}
                   step={0.5}
-                  value={Math.round((110 - liveFov) * 10) / 10}
+                  value={Math.round((100 - liveFov) * 10) / 10}
                   onChange={(e) => {
                     setCustomSnippet(null);
                     const val = parseFloat(e.target.value);
-                    setLiveFov(Math.round((110 - val) * 10) / 10);
+                    setLiveFov(Math.round((100 - val) * 10) / 10);
                   }}
                   className="google-maps-tuning-slider"
-                  title="縮放調整（向右放大特寫，向左縮小廣角）"
+                  title="縮放調整（向右放大，向左縮小，最低為 0）"
                 />
                 <button
                   type="button"
@@ -832,7 +832,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                     setCustomSnippet(null);
                     setLiveFov(f => Math.max(10, Math.round((f - 0.5) * 10) / 10));
                   }}
-                  title="放大 (特寫 -0.5°)"
+                  title="放大 (+0.5)"
                 >
                   +
                 </button>

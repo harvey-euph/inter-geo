@@ -525,9 +525,17 @@ export function parseGoogleMapsEmbedConfig(rawAlt?: string, rawSrc?: string): Pa
   }
 
   // Ensure minimum required params per mode
-  if (mode === 'streetview' && !params.location && !params.pano) {
-    if (params.q) {
-      mode = 'place';
+  if (mode === 'streetview') {
+    if (!params.fov && params.zoom) {
+      const zNum = parseFloat(params.zoom);
+      if (!isNaN(zNum)) {
+        params.fov = String(Math.min(100, Math.max(10, 100 - zNum)));
+      }
+    }
+    if (!params.location && !params.pano) {
+      if (params.q) {
+        mode = 'place';
+      }
     }
   }
 
