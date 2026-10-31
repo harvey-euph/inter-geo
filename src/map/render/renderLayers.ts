@@ -802,6 +802,9 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+  // Uniform font size across all area-feature TextWithStyle labels that scales smoothly with map zoom k
+  const fontSize = Math.min(44, Math.max(8, Math.round(6.0 * Math.sqrt(k) * 10) / 10));
+
   for (const csvFilter of activeNationwideCsvTextFilters) {
     const targetIso2s =
       csvFilter.targetIso2s && csvFilter.targetIso2s.length > 0
@@ -831,21 +834,6 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
               String(selectedL2.id) === String(sub.id)
             );
 
-            // Standard ExtObject / Taipower-style sizing based on subdivision bounding box
-            const edgeW = (sub.bbox[2] - sub.bbox[0]) * k;
-            const edgeH = (sub.bbox[3] - sub.bbox[1]) * k;
-            const minEdge = Math.min(edgeW, edgeH);
-
-            // Allow width to fit multiple numbers if present (e.g. "212, 718, 917" or "11~19")
-            const charRatio = 0.62;
-            const maxWSize = (edgeW * 0.82) / Math.max(1, pureCode.length * charRatio);
-            const maxHSize = edgeH * 0.72;
-            const targetSize = Math.min(maxWSize, maxHSize, minEdge * 0.75);
-            const fontSize = Math.min(100, Math.max(9, targetSize));
-
-            // When zoomed out too far, skip tiny illegible text to prevent clutter
-            if (fontSize < 10) continue;
-
             for (const copyIdx of visibleCopies) {
               const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
               const screenY = sub.centroid[1] * k + y;
@@ -859,8 +847,8 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
-              ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
-              ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.75)';
+              ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
+              ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
               ctx.strokeText(pureCode, 0, 0);
 
               ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
@@ -883,14 +871,6 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
         const centroid = override || cItem?.centroid;
         if (!centroid) continue;
 
-        const cBbox = cItem?.bbox;
-        const edgeW = cBbox ? (cBbox[2] - cBbox[0]) * k : 120;
-        const edgeH = cBbox ? (cBbox[3] - cBbox[1]) * k : 120;
-        const maxWSize = (edgeW * 0.82) / Math.max(1, countryText.length * 0.62);
-        const maxHSize = edgeH * 0.72;
-        const fontSize = Math.min(80, Math.max(10, Math.min(maxWSize, maxHSize)));
-        if (fontSize < 10) continue;
-
         for (const copyIdx of visibleCopies) {
           const screenX = (centroid[0] + copyIdx * MAP_W) * k + x;
           const screenY = centroid[1] * k + y;
@@ -907,11 +887,11 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
+          ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
           ctx.strokeStyle =
             isCountryHovered || isLayerCountryHovered
               ? 'rgba(15, 23, 42, 0.95)'
-              : 'rgba(15, 23, 42, 0.75)';
+              : 'rgba(15, 23, 42, 0.82)';
           ctx.strokeText(countryText, 0, 0);
 
           ctx.fillStyle =
