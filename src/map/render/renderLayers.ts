@@ -8,13 +8,16 @@ import { getDataUrl } from '../../data/dataSource';
 import {
   COUNTRY_LABEL_CENTROIDS,
   GLOBAL_TEXT_LAYERS_BY_ID,
-  getCombinedTextOverlay
+  getCombinedTextOverlay,
+  getGlobalTextLayerById
 } from '../../data/globalLayers';
 import {
   getRegisteredCsvLayers,
   getCsvSubdivisionCode,
-  getCsvLayerById
+  getCsvLayerById,
+  getCsvLayerValue
 } from '../../layers/csvLayerRegistry';
+import { getLayerVisualScale } from '../../layers/layerVisualSize';
 import { MAP_W } from '../geo';
 import {
   getActiveCountryUnionLayout,
@@ -23,6 +26,7 @@ import {
 import {
   MAP_COLORS,
   MONO_BADGE_FONT,
+  monoBadgeFont,
   inView,
   drawPill,
   fillRoadMarkingPolygon
@@ -702,6 +706,146 @@ export function drawWorldCopyLayers(rc: RenderContext): void {
   }
 }
 
+function layerTextUsesDefaultSize(layerIds: Set<string>): boolean {
+  for (const id of layerIds) {
+    if (getLayerVisualScale(id, 'text') !== 1) return false;
+  }
+  return true;
+}
+
+/**
+ * Global text badges when one of the active layers has a non-default text size.
+ * Scale 1 keeps the shared fast path in `drawGlobalTextBadges`.
+ */
+function drawVariableGlobalTextBadges(
+  rc: RenderContext,
+  allActiveText: Set<string>,
+  singleFilterAccent: string
+): void {
+  const {
+    ctx,
+    k,
+    x,
+    y,
+    vw,
+    vh,
+    visibleCopies,
+    countryPathData,
+    hoveredCountry: hoveredC,
+    selectedCountry: selectedC
+  } = rc;
+
+  const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  const isCrowded = k < 1.7;
+  const singleLayer = allActiveText.size === 1;
+
+  interface Segment {
+    val: string;
+    px: number;
+    w: number;
+    accent: string;
+  }
+
+  for (let i = 0; i < countryPathData.length; i++) {
+    const item = countryPathData[i];
+    const cMeta = item.countryMeta;
+    if (!cMeta) continue;
+
+    const segments: Segment[] = [];
+    for (const id of allActiveText) {
+      const layer = getCsvLayerById(id);
+      const val =
+        getGlobalTextLayerById(id)?.getText(cMeta) || getCsvLayerValue(id, cMeta.iso2) || '';
+      if (!val) continue;
+      const textScale = getLayerVisualScale(id, 'text');
+      const px = 11 * textScale;
+      ctx.font = monoBadgeFont(px);
+      segments.push({
+        val,
+        px,
+        w: ctx.measureText(val).width,
+        accent: layer?.accentColor || '#f8fafc'
+      });
+    }
+    if (segments.length === 0) continue;
+
+    let textWidth = 0;
+    let maxPx = 11;
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s];
+      if (s > 0) {
+        ctx.font = monoBadgeFont(seg.px);
+        textWidth += ctx.measureText('  ').width;
+      }
+      textWidth += seg.w;
+      if (seg.px > maxPx) maxPx = seg.px;
+    }
+    const pad = 10 * (maxPx / 11);
+    const badgeW = Math.round(textWidth + pad);
+    const badgeH = Math.round(18 * (maxPx / 11));
+
+    const override = COUNTRY_LABEL_CENTROIDS[cMeta.iso2];
+    const cx = override ? override[0] : item.centroid[0];
+    const cy = override ? override[1] : item.centroid[1];
+
+    for (const copyIdx of visibleCopies) {
+      const screenX = (cx + copyIdx * MAP_W) * k + x;
+      const screenY = cy * k + y;
+      if (screenX < -60 || screenX > vw + 60 || screenY < -30 || screenY > vh + 30) continue;
+
+      const isHovered = !!(hoveredC && hoveredC.iso2 === cMeta.iso2);
+      const isSelected = !!(selectedC && selectedC.iso2 === cMeta.iso2);
+
+      if (!isHovered && !isSelected && isCrowded) {
+        const [minX, minY, maxX, maxY] = item.bbox;
+        if ((maxX - minX) * k < 14 && (maxY - minY) * k < 14) continue;
+      }
+
+      const badgeX = Math.round(screenX - badgeW / 2);
+      const badgeY = Math.round(screenY - badgeH / 2);
+
+      if (!isHovered && !isSelected) {
+        let collides = false;
+        for (let b = 0; b < placedBoxes.length; b++) {
+          const pb = placedBoxes[b];
+          if (
+            badgeX < pb.x2 + 2 &&
+            badgeX + badgeW > pb.x1 - 2 &&
+            badgeY < pb.y2 + 2 &&
+            badgeY + badgeH > pb.y1 - 2
+          ) {
+            collides = true;
+            break;
+          }
+        }
+        if (collides) continue;
+      }
+
+      placedBoxes.push({
+        x1: badgeX,
+        y1: badgeY,
+        x2: badgeX + badgeW,
+        y2: badgeY + badgeH
+      });
+
+      drawPill(ctx, badgeX, badgeY, badgeW, badgeH, 4, isSelected, isHovered);
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      let cursor = badgeX + pad / 2;
+      for (let s = 0; s < segments.length; s++) {
+        const seg = segments[s];
+        ctx.font = monoBadgeFont(seg.px);
+        if (s > 0) cursor += ctx.measureText('  ').width;
+        ctx.fillStyle = isSelected || isHovered ? '#ffffff' : singleLayer ? singleFilterAccent : seg.accent;
+        ctx.fillText(seg.val, cursor, screenY + 0.5);
+        cursor += seg.w;
+      }
+      ctx.textAlign = 'center';
+    }
+  }
+}
+
 /**
  * Layer 6: Global Text Overlays (Calling Code / Domain / ccTLD)
  */
@@ -746,6 +890,12 @@ export function drawGlobalTextBadges(rc: RenderContext): void {
   ctx.font = MONO_BADGE_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+
+  if (!layerTextUsesDefaultSize(allActiveText)) {
+    drawVariableGlobalTextBadges(rc, allActiveText, singleFilterAccent);
+    ctx.restore();
+    return;
+  }
 
   const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
   const isCrowded = k < 1.7;
@@ -865,15 +1015,34 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
 
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
-  // Uniform font size across all area-feature TextWithStyle labels that scales smoothly with map zoom k
-  const fontSize = Math.min(44, Math.max(8, Math.round(6.0 * Math.sqrt(k) * 10) / 10));
+  interface PlacedAreaBadge {
+    code: string;
+    x: number;
+    y: number;
+    origX: number;
+    origY: number;
+    w: number;
+    h: number;
+    isHovered: boolean;
+    isSelected: boolean;
+    isUnion: boolean;
+    fillColor: string;
+  }
 
   for (const csvFilter of activeNationwideCsvTextFilters) {
+    const textScale = getLayerVisualScale(csvFilter.id, 'text');
+    const baseFont = Math.min(44, Math.max(8, Math.round(6.0 * Math.sqrt(k) * 10) / 10));
+    const fontSize = baseFont * textScale;
+    ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
+    const strokeLineWidth = Math.max(1.5, fontSize * 0.08);
     const targetIso2s =
       csvFilter.targetIso2s && csvFilter.targetIso2s.length > 0
         ? csvFilter.targetIso2s
         : [csvFilter.targetIso2];
+    const defaultAccent = csvFilter.accentColor || '#10b981';
 
     for (const iso2 of targetIso2s) {
       // 1. Check L2 subdivisions of this country (only if country is expanded to L2)
@@ -882,91 +1051,143 @@ export function drawAreaCodeBadges(rc: RenderContext): void {
         const subs = l2ByCountry[iso2];
         if (subs && subs.length > 0) {
           const unionLayout = getCountryUnionLayout(csvFilter.id, iso2, subs);
-          if (unionLayout) {
-            for (let gIdx = 0; gIdx < unionLayout.groups.length; gIdx++) {
-              const group = unionLayout.groups[gIdx];
-              const pureCode = group.code;
-              if (!pureCode) continue;
-              matchedAnySubdivision = true;
 
-              const isSubHovered =
-                !!(
-                  hoveredL2 &&
-                  hoveredL2.iso2 === iso2 &&
-                  group.memberIdSet.has(String(hoveredL2.id))
-                ) ||
-                group.members.some((m) =>
-                  layerHoveredL2Subdivisions.has(`${iso2}:${String(m.id)}`)
-                );
-              const isSubSelected = !!(
-                selectedL2 &&
-                selectedL2.iso2 === iso2 &&
-                group.memberIdSet.has(String(selectedL2.id))
-              );
+          for (const copyIdx of visibleCopies) {
+            const badges: PlacedAreaBadge[] = [];
 
-              for (const copyIdx of visibleCopies) {
+            if (unionLayout) {
+              for (let gIdx = 0; gIdx < unionLayout.groups.length; gIdx++) {
+                const group = unionLayout.groups[gIdx];
+                const pureCode = group.code;
+                if (!pureCode) continue;
+                matchedAnySubdivision = true;
+
                 const screenX = (group.centroid[0] + copyIdx * MAP_W) * k + x;
                 const screenY = group.centroid[1] * k + y;
+                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) {
+                  continue;
+                }
 
-                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
-
-                ctx.save();
-                ctx.translate(screenX, screenY);
-
-                ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-
-                ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
-                ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
-                ctx.strokeText(pureCode, 0, 0);
-
-                ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
-                ctx.fillText(pureCode, 0, 0);
-
-                ctx.restore();
+                const isSubHovered =
+                  !!(
+                    hoveredL2 &&
+                    hoveredL2.iso2 === iso2 &&
+                    group.memberIdSet.has(String(hoveredL2.id))
+                  ) ||
+                  group.members.some((m) =>
+                    layerHoveredL2Subdivisions.has(`${iso2}:${String(m.id)}`)
+                  );
+                const isSubSelected = !!(
+                  selectedL2 &&
+                  selectedL2.iso2 === iso2 &&
+                  group.memberIdSet.has(String(selectedL2.id))
+                );
+                badges.push({
+                  code: pureCode,
+                  x: screenX,
+                  y: screenY,
+                  origX: screenX,
+                  origY: screenY,
+                  w: Math.max(fontSize * 1.15, pureCode.length * fontSize * 0.66) + 4,
+                  h: fontSize * 1.08 + 2,
+                  isHovered: isSubHovered,
+                  isSelected: isSubSelected,
+                  isUnion: group.isUnion,
+                  fillColor: isSubSelected || isSubHovered ? '#ffffff' : defaultAccent
+                });
               }
-            }
-          } else {
-            for (let i = 0; i < subs.length; i++) {
-              const sub = subs[i];
-              const pureCode = getCsvSubdivisionCode(csvFilter.id, sub);
-              if (!pureCode) continue;
-              matchedAnySubdivision = true;
+            } else {
+              for (let i = 0; i < subs.length; i++) {
+                const sub = subs[i];
+                const pureCode = getCsvSubdivisionCode(csvFilter.id, sub);
+                if (!pureCode) continue;
+                matchedAnySubdivision = true;
 
-              const isSubHovered = !!(
-                hoveredL2 &&
-                hoveredL2.iso2 === sub.iso2 &&
-                (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
-              ) || layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
-              const isSubSelected = !!(
-                selectedL2 &&
-                selectedL2.iso2 === sub.iso2 &&
-                String(selectedL2.id) === String(sub.id)
-              );
-
-              for (const copyIdx of visibleCopies) {
                 const screenX = (sub.centroid[0] + copyIdx * MAP_W) * k + x;
                 const screenY = sub.centroid[1] * k + y;
+                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) {
+                  continue;
+                }
 
-                if (screenX < -120 || screenX > vw + 120 || screenY < -60 || screenY > vh + 60) continue;
-
-                ctx.save();
-                ctx.translate(screenX, screenY);
-
-                ctx.font = `900 ${fontSize}px ui-monospace, "JetBrains Mono", SFMono-Regular, monospace`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-
-                ctx.lineWidth = Math.max(1.5, fontSize * 0.08);
-                ctx.strokeStyle = isSubHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
-                ctx.strokeText(pureCode, 0, 0);
-
-                ctx.fillStyle = isSubSelected || isSubHovered ? '#ffffff' : (csvFilter.accentColor || '#10b981');
-                ctx.fillText(pureCode, 0, 0);
-
-                ctx.restore();
+                const isSubHovered =
+                  !!(
+                    hoveredL2 &&
+                    hoveredL2.iso2 === sub.iso2 &&
+                    (String(hoveredL2.id) === String(sub.id) || hoveredL2.name === sub.name)
+                  ) || layerHoveredL2Subdivisions.has(`${iso2}:${String(sub.id)}`);
+                const isSubSelected = !!(
+                  selectedL2 &&
+                  selectedL2.iso2 === sub.iso2 &&
+                  String(selectedL2.id) === String(sub.id)
+                );
+                badges.push({
+                  code: pureCode,
+                  x: screenX,
+                  y: screenY,
+                  origX: screenX,
+                  origY: screenY,
+                  w: Math.max(fontSize * 1.15, pureCode.length * fontSize * 0.66) + 4,
+                  h: fontSize * 1.08 + 2,
+                  isHovered: isSubHovered,
+                  isSelected: isSubSelected,
+                  isUnion: false,
+                  fillColor: isSubSelected || isSubHovered ? '#ffffff' : defaultAccent
+                });
               }
+            }
+
+            // Part B2: Gentle pairwise screen-space repulsion to prevent overlapping area badges
+            if (badges.length > 1) {
+              const maxDrift = fontSize * 1.35;
+              for (let iter = 0; iter < 2; iter++) {
+                for (let i = 0; i < badges.length; i++) {
+                  const a = badges[i];
+                  for (let j = i + 1; j < badges.length; j++) {
+                    const b = badges[j];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const minW = (a.w + b.w) * 0.5;
+                    const minH = (a.h + b.h) * 0.5;
+                    if (Math.abs(dx) >= minW || Math.abs(dy) >= minH) continue;
+
+                    const overlapX = minW - Math.abs(dx);
+                    const overlapY = minH - Math.abs(dy);
+                    const dist = Math.hypot(dx, dy) || 0.01;
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    const push = Math.min(overlapX, overlapY) * 0.55;
+
+                    // Multi-region unions yield more space than compact single-prefecture enclaves
+                    const weightA = a.isUnion === b.isUnion ? 0.5 : a.isUnion ? 0.78 : 0.22;
+                    const weightB = 1 - weightA;
+
+                    a.x -= nx * push * weightA;
+                    a.y -= ny * push * weightA;
+                    b.x += nx * push * weightB;
+                    b.y += ny * push * weightB;
+                  }
+                }
+                for (let i = 0; i < badges.length; i++) {
+                  const b = badges[i];
+                  const driftX = b.x - b.origX;
+                  const driftY = b.y - b.origY;
+                  const drift = Math.hypot(driftX, driftY);
+                  if (drift > maxDrift) {
+                    const scale = maxDrift / drift;
+                    b.x = b.origX + driftX * scale;
+                    b.y = b.origY + driftY * scale;
+                  }
+                }
+              }
+            }
+
+            for (let i = 0; i < badges.length; i++) {
+              const b = badges[i];
+              ctx.lineWidth = strokeLineWidth;
+              ctx.strokeStyle = b.isHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.82)';
+              ctx.strokeText(b.code, b.x, b.y);
+              ctx.fillStyle = b.fillColor;
+              ctx.fillText(b.code, b.x, b.y);
             }
           }
         }
@@ -1097,7 +1318,8 @@ export function drawCrossingSignBadges(rc: RenderContext): CrossingBadgeBox[] {
         (selectedL2 && selectedL2.iso2 === cMeta.iso2)
       );
 
-      const baseSize = isHovered || isSelected ? 40 : 32;
+      const imageScale = getLayerVisualScale('pedestrian-crossing', 'image');
+      const baseSize = (isHovered || isSelected ? 40 : 32) * imageScale;
       const natW = img.naturalWidth || baseSize;
       const natH = img.naturalHeight || baseSize;
       const scale = baseSize / Math.sqrt(natW * natH);
@@ -1206,10 +1428,12 @@ export function drawExtFeatureLabels(rc: RenderContext): void {
         minEdge = Math.min(edgeW, edgeH);
       }
 
-      const fontSize = Math.min(120, Math.max(10, minEdge * 0.75));
+      const baseFont = Math.min(120, Math.max(10, minEdge * 0.75));
 
-      if (fontSize < 11) continue;
+      if (baseFont < 11) continue;
 
+      const textScale = getLayerVisualScale(item.layerId, 'text');
+      const fontSize = baseFont * textScale;
       const letterText = item.id.includes('::') ? item.id.split('::').pop()! : item.id;
 
       ctx.save();

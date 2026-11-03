@@ -88,6 +88,9 @@ export interface LayerMeta {
   accentColor: string | null;
   defaultColor: string | null;
   defaultStyle?: string | null;
+  labelSize?: number | null;
+  textSize?: number | null;
+  imageSize?: number | null;
   descriptionZh: string | null;
   effectiveRange?: string | null;
   loadedTiming?: string | null;
@@ -471,6 +474,17 @@ export async function loadInfoTargetsIndex(): Promise<InfoTargetsIndex> {
       });
   }
   return infoTargetsPromise;
+}
+
+/** Drop the cached stub index and fetch info-targets.json again. */
+export async function reloadInfoTargetsIndex(): Promise<InfoTargetsIndex> {
+  const url = `${getIndexUrl('info-targets.json')}?t=${Date.now()}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} when fetching info-targets.json`);
+  const data = (await res.json()) as InfoTargetsIndex;
+  cachedInfoTargetsIndex = data;
+  infoTargetsPromise = Promise.resolve(data);
+  return data;
 }
 
 export function getInfoTargetsSync(): InfoTargetsIndex | null {

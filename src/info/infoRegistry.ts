@@ -5,9 +5,9 @@ import {
   roadObjectId
 } from '../objects/objectId';
 import type { InfoCard, InfoImagePosition, InfoImageSize, InfoQuery, InfoStub, InfoTargetType } from '../types/info';
-import { parseMarkdownInfo } from './infoParser';
+import { parseBulletLine, parseMarkdownInfo } from './infoParser';
 import { getDataUrl } from '../data/dataSource';
-import { loadInfoTargetsIndex, type InfoTargetCardEntry, type InfoTargetsIndex } from '../data/geoIndexClient';
+import { loadInfoTargetsIndex, reloadInfoTargetsIndex, type InfoTargetCardEntry, type InfoTargetsIndex } from '../data/geoIndexClient';
 
 let cachedStubsByTarget: Map<string, InfoStub[]> | null = null;
 let cachedStubsById: Map<string, InfoStub> | null = null;
@@ -109,6 +109,12 @@ export async function initInfoIndex(): Promise<void> {
   }
 }
 
+/** Refetch info-targets.json after an article write rebuilt the index. */
+export async function reloadInfoIndex(): Promise<void> {
+  const targets = await reloadInfoTargetsIndex();
+  syncFromInfoTargets(targets);
+}
+
 // Trigger lazy background load of the remote info-targets.json index
 if (typeof window !== 'undefined') {
   void initInfoIndex();
@@ -117,8 +123,199 @@ if (typeof window !== 'undefined') {
 /** In-memory cache of parsed full InfoCard objects by card ID */
 const loadedCardsById = new Map<string, InfoCard>();
 
+/** Bumped on invalidate so an in-flight parse cannot refill the cache with stale markdown. */
+let infoParseEpoch = 0;
+
 /** Deduplicate concurrent HTTP fetches for the same .md file */
 const inFlightFiles = new Map<string, Promise<InfoCard[]>>();
+
+/** Drop a cached card so the next open reads the markdown from disk. */
+export function invalidateInfoCard(cardId: string): void {
+  if (!cardId) return;
+  loadedCardsById.delete(cardId);
+  infoParseEpoch += 1;
+  inFlightFiles.clear();
+}
+
+/**
+ * Optimistically inserts or updates an InfoCard in the in-memory registry and targets index,
+ * allowing instant UI updates without waiting for server persistence or index rebuild.
+ * Returns a rollback function to revert changes if the backend save fails.
+ */
+export function optimisticUpsertInfoCard(card: InfoCard, stubOverride?: Partial<InfoStub>): () => void {
+  if (!cachedStubsByTarget) cachedStubsByTarget = new Map();
+  if (!cachedStubsById) cachedStubsById = new Map();
+
+  const prevCard = loadedCardsById.get(card.id);
+  const prevStub = cachedStubsById.get(card.id);
+  const prevTargetEntries: Array<{ targetKey: string; list: InfoStub[] }> = [];
+
+  loadedCardsById.set(card.id, card);
+
+  const rawFile = card.sourceFile || 'info/note.md';
+  const filename = rawFile.split('/').pop() || rawFile;
+  const sourcePath = rawFile.startsWith('info/') ? rawFile : `info/${rawFile}`;
+  const firstPreview = card.items[0]?.content
+    ? { content: card.items[0].content.replace(/[*_`#[\]]/g, '').slice(0, 120) }
+    : undefined;
+
+  const stub: InfoStub = {
+    id: card.id,
+    title: card.title,
+    icon: card.icon,
+    accentColor: card.accentColor,
+    targets: card.targets,
+    targetType: card.targetType,
+    tags: card.tags,
+    image: card.image,
+    imageSize: card.imageSize,
+    imagePosition: card.imagePosition,
+    imageAlt: card.imageAlt,
+    comparisonTargets: card.comparisonTargets,
+    sourceFile: filename,
+    sourcePath,
+    priority: card.priority ?? 20,
+    layer: card.layer,
+    firstItemPreview: firstPreview,
+    ...stubOverride
+  };
+
+  cachedStubsById.set(card.id, stub);
+
+  const targets = card.targets && card.targets.length > 0 ? card.targets : ['*'];
+  for (const rawTarget of targets) {
+    const upper = rawTarget.toUpperCase().trim();
+    const normalized = normalizeTargetKey(upper);
+    for (const k of new Set([upper, normalized])) {
+      if (!k) continue;
+      const keys = [k];
+      const alias = namespaceAliasForTarget(k);
+      if (alias && alias !== k) keys.push(alias);
+
+      for (const indexKey of keys) {
+        const existingList = cachedStubsByTarget.get(indexKey) || [];
+        prevTargetEntries.push({ targetKey: indexKey, list: [...existingList] });
+
+        const nextList = existingList.filter((s) => s.id !== card.id);
+        nextList.push(stub);
+        nextList.sort((a, b) => (a.priority ?? 140) - (b.priority ?? 140));
+        cachedStubsByTarget.set(indexKey, nextList);
+      }
+    }
+  }
+
+  isLoaded = true;
+
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  return () => {
+    if (prevCard) loadedCardsById.set(card.id, prevCard);
+    else loadedCardsById.delete(card.id);
+
+    if (prevStub) cachedStubsById?.set(card.id, prevStub);
+    else cachedStubsById?.delete(card.id);
+
+    for (const { targetKey, list } of prevTargetEntries) {
+      cachedStubsByTarget?.set(targetKey, list);
+    }
+
+    for (const listener of listeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+}
+
+/**
+ * Optimistically appends a single bullet item to a loaded InfoCard.
+ * Returns a rollback function to revert changes if the backend save fails.
+ */
+export function optimisticAppendCardBullet(cardId: string, bulletText: string): () => void {
+  const card = loadedCardsById.get(cardId);
+  if (!card) return () => {};
+
+  const prevItems = [...card.items];
+  const { label, content } = parseBulletLine(bulletText);
+  card.items.push({
+    raw: bulletText,
+    label,
+    content,
+    subItems: []
+  });
+
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  return () => {
+    card.items = prevItems;
+    for (const listener of listeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+}
+
+/**
+ * Optimistically removes an InfoCard from the in-memory registry and targets index.
+ * Returns a rollback function to restore the card if server deletion fails.
+ */
+export function optimisticDeleteInfoCard(cardId: string): () => void {
+  const prevCard = loadedCardsById.get(cardId);
+  const prevStub = cachedStubsById?.get(cardId);
+  const prevTargetEntries: Array<{ targetKey: string; list: InfoStub[] }> = [];
+
+  loadedCardsById.delete(cardId);
+  cachedStubsById?.delete(cardId);
+
+  if (cachedStubsByTarget) {
+    for (const [targetKey, list] of cachedStubsByTarget.entries()) {
+      if (list.some((s) => s.id === cardId)) {
+        prevTargetEntries.push({ targetKey, list: [...list] });
+        cachedStubsByTarget.set(targetKey, list.filter((s) => s.id !== cardId));
+      }
+    }
+  }
+
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  return () => {
+    if (prevCard) loadedCardsById.set(cardId, prevCard);
+    if (prevStub && cachedStubsById) cachedStubsById.set(cardId, prevStub);
+    for (const { targetKey, list } of prevTargetEntries) {
+      cachedStubsByTarget?.set(targetKey, list);
+    }
+    for (const listener of listeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+}
 
 /**
  * Returns all lightweight InfoStub entries from the remote index
@@ -339,7 +536,8 @@ export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
   let pending = inFlightFiles.get(stub.sourcePath);
   if (!pending) {
     const assetUrl = getDataUrl(stub.sourcePath);
-    pending = fetch(assetUrl)
+    const epoch = infoParseEpoch;
+    pending = fetch(assetUrl, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to fetch info file ${assetUrl}: ${res.status}`);
@@ -347,6 +545,7 @@ export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
         return res.text();
       })
       .then((rawMarkdown) => {
+        if (epoch !== infoParseEpoch) return [];
         const parsedCards = parseMarkdownInfo(rawMarkdown, stub.sourceFile);
         for (const card of parsedCards) {
           loadedCardsById.set(card.id, card);
@@ -354,7 +553,9 @@ export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
         return parsedCards;
       })
       .finally(() => {
-        inFlightFiles.delete(stub.sourcePath);
+        if (inFlightFiles.get(stub.sourcePath) === pending) {
+          inFlightFiles.delete(stub.sourcePath);
+        }
       });
 
     inFlightFiles.set(stub.sourcePath, pending);

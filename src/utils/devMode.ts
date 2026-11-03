@@ -16,7 +16,11 @@ export function isDevMode(): boolean {
       sessionStorage.setItem('intergeo_dev_mode', isEnabled ? 'true' : 'false');
       return isEnabled;
     }
-    return sessionStorage.getItem('intergeo_dev_mode') === 'true';
+    const session = sessionStorage.getItem('intergeo_dev_mode');
+    if (session !== null) {
+      return session === 'true';
+    }
+    return Boolean(import.meta.env?.DEV);
   } catch {
     return false;
   }

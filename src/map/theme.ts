@@ -11,8 +11,11 @@ export const MAP_COLORS = {
   capitalStroke: '#fef08a'
 } as const;
 
-export const MONO_BADGE_FONT =
-  'bold 11px "Twemoji Country Flags", ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Apple Color Emoji", "Noto Color Emoji", monospace';
+export function monoBadgeFont(px: number): string {
+  return `bold ${px}px "Twemoji Country Flags", ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Apple Color Emoji", "Noto Color Emoji", monospace`;
+}
+
+export const MONO_BADGE_FONT = monoBadgeFont(11);
 export const MONO_SMALL_FONT =
   'bold 9px "Twemoji Country Flags", ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Apple Color Emoji", "Noto Color Emoji", monospace';
 

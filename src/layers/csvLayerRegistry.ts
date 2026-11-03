@@ -69,6 +69,15 @@ export interface RegisteredCsvLayer {
   meta: CsvLayerMetadata;
 }
 
+function readLayerSize(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
 function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
   // Extract target ISO-2 codes automatically from targetKeys if present
   const targetIso2Set = new Set<string>();
@@ -136,6 +145,9 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
       accentColor: lm.accentColor || undefined,
       defaultColor: lm.defaultColor || undefined,
       defaultStyle: lm.defaultStyle || undefined,
+      labelSize: readLayerSize(lm.labelSize),
+      textSize: readLayerSize(lm.textSize),
+      imageSize: readLayerSize(lm.imageSize),
       descriptionZh: lm.descriptionZh || undefined,
       effectiveRange,
       type: layerType,
@@ -210,7 +222,24 @@ export async function initCsvLayerRegistry(): Promise<RegisteredCsvLayer[]> {
       'area-codes-MX': 'mx-area-codes',
       'area-codes-AR': 'ar-area-codes',
       'area-codes-GB': 'gb-area-codes',
-      'area-codes-US': 'us-area-codes'
+      'area-codes-US': 'us-area-codes',
+      'area-codes-TR': 'tr-area-codes',
+      'area-codes-KR': 'kr-area-codes',
+      'area-codes-TW': 'tw-area-codes',
+      'area-codes-ES': 'es-area-codes',
+      'area-codes-PL': 'pl-area-codes',
+      'area-codes-ZA': 'za-area-codes',
+      'area-codes-NZ': 'nz-area-codes',
+      'area-codes-CA': 'ca-area-codes',
+      'area-codes-EC': 'ec-area-codes',
+      'area-codes-BO': 'bo-area-codes',
+      'area-codes-PE': 'pe-area-codes',
+      'area-codes-CO': 'co-area-codes',
+      'area-codes-MY': 'my-area-codes',
+      'area-codes-VN': 'vn-area-codes',
+      'area-codes-IN': 'in-area-codes',
+      'area-codes-IT': 'it-area-codes',
+      'area-codes-RO': 'ro-area-codes'
     };
     for (const [alias, targetId] of Object.entries(areaCodeAliases)) {
       if (byId.has(targetId) && !byId.has(alias)) {
@@ -285,7 +314,24 @@ export function getCsvLayerById(id: string): RegisteredCsvLayer | undefined {
     'area-codes-MX': 'mx-area-codes',
     'area-codes-AR': 'ar-area-codes',
     'area-codes-GB': 'gb-area-codes',
-    'area-codes-US': 'us-area-codes'
+    'area-codes-US': 'us-area-codes',
+    'area-codes-TR': 'tr-area-codes',
+    'area-codes-KR': 'kr-area-codes',
+    'area-codes-TW': 'tw-area-codes',
+    'area-codes-ES': 'es-area-codes',
+    'area-codes-PL': 'pl-area-codes',
+    'area-codes-ZA': 'za-area-codes',
+    'area-codes-NZ': 'nz-area-codes',
+    'area-codes-CA': 'ca-area-codes',
+    'area-codes-EC': 'ec-area-codes',
+    'area-codes-BO': 'bo-area-codes',
+    'area-codes-PE': 'pe-area-codes',
+    'area-codes-CO': 'co-area-codes',
+    'area-codes-MY': 'my-area-codes',
+    'area-codes-VN': 'vn-area-codes',
+    'area-codes-IN': 'in-area-codes',
+    'area-codes-IT': 'it-area-codes',
+    'area-codes-RO': 'ro-area-codes'
   };
   if (areaCodeAliases[id]) {
     return cachedLayersById?.get(areaCodeAliases[id]);
@@ -531,6 +577,9 @@ export async function loadOnDemandCsvLayer(
         layer.legend = parsed.meta.legend;
         layer.meta.legend = parsed.meta.legend;
       }
+      if (typeof parsed.meta.labelSize === 'number') layer.meta.labelSize = parsed.meta.labelSize;
+      if (typeof parsed.meta.textSize === 'number') layer.meta.textSize = parsed.meta.textSize;
+      if (typeof parsed.meta.imageSize === 'number') layer.meta.imageSize = parsed.meta.imageSize;
       return layer;
     } catch (err) {
       console.warn(`[CSV Layer] Failed to fetch on-demand CSV at ${layer.path}:`, err);

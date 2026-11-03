@@ -3,9 +3,45 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { applyLayerSizes } from './scripts/layer-size-writer.mjs'
+import { applyInfoEmbed } from './scripts/info-embed-writer.mjs'
+import { applyInfoArticle } from './scripts/info-article-writer.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dataRepoPath = path.resolve(__dirname, '../inter-geo-data')
+
+function isLayerSizeUrl(url: string): boolean {
+  const clean = url.split('?')[0].replace(/\/+$/, '')
+  return clean.endsWith('/layer-size')
+}
+
+function isInfoEmbedUrl(url: string): boolean {
+  const clean = url.split('?')[0].replace(/\/+$/, '')
+  return clean.endsWith('/info-embed')
+}
+
+function isInfoArticleUrl(url: string): boolean {
+  const clean = url.split('?')[0].replace(/\/+$/, '')
+  return clean.endsWith('/info-article')
+}
+
+function readRequestBody(req: import('node:http').IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > 1048576) {
+        reject(new Error('body too large'))
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
 
 function localGeoDataPlugin(): Plugin {
   return {
@@ -13,6 +49,40 @@ function localGeoDataPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url || ''
+        if (isLayerSizeUrl(url) || isInfoEmbedUrl(url) || isInfoArticleUrl(url)) {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204
+            res.end()
+            return
+          }
+          if (req.method === 'POST') {
+            const write = isInfoArticleUrl(url)
+              ? applyInfoArticle
+              : isInfoEmbedUrl(url)
+                ? applyInfoEmbed
+                : applyLayerSizes
+            void readRequestBody(req)
+              .then((raw) => {
+                const payload = raw ? JSON.parse(raw) : {}
+                const result = write(dataRepoPath, payload)
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.end(JSON.stringify(result))
+              })
+              .catch((err: unknown) => {
+                res.statusCode = 400
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.end(JSON.stringify({
+                  ok: false,
+                  error: err instanceof Error ? err.message : 'failed',
+                  written: Boolean(err && typeof err === 'object' && 'written' in err && (err as { written?: boolean }).written)
+                }))
+              })
+            return
+          }
+        }
         const marker = '/@geo-data/'
         const markerIdx = url.indexOf(marker)
         if (markerIdx !== -1) {

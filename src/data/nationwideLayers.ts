@@ -56,7 +56,10 @@ export interface NationwideLayerDef {
   descriptionZh: string;
 }
 
-export const COUNTRIES_WITH_AREA_CODES = ['BR', 'JP', 'FR', 'RU', 'TH', 'ID', 'AU', 'MX', 'AR', 'GB', 'US'];
+export const COUNTRIES_WITH_AREA_CODES = [
+  'BR', 'JP', 'FR', 'RU', 'TH', 'ID', 'AU', 'MX', 'AR', 'GB', 'US',
+  'TR', 'KR', 'TW', 'ES', 'PL', 'ZA', 'NZ', 'CA', 'EC', 'BO', 'PE', 'CO', 'MY', 'VN', 'IN', 'IT', 'RO'
+];
 
 export const COUNTRIES_WITH_CAPITALS = [
   'US', 'JP', 'BR', 'FR', 'GB', 'DE', 'IT', 'ES', 'IN', 'AU',

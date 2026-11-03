@@ -32,6 +32,12 @@ export interface CsvLayerMetadata {
   order?: number;
   defaultColor?: string;
   defaultStyle?: string;
+  /** Multiplier for the layer's label glyphs. 1 keeps the current size. */
+  labelSize?: number;
+  /** Multiplier for the layer's text glyphs. 1 keeps the current size. */
+  textSize?: number;
+  /** Multiplier for the layer's images. 1 keeps the current size. */
+  imageSize?: number;
   goto?: string;
   group?: string;
   legend?: Array<{ key: string; color: string; labelZh: string }>;
@@ -84,6 +90,8 @@ export interface CsvLayerKVRow {
   unionGroupId?: string;
   /** Individual member region IDs when regionId is a pipe-delimited union */
   unionMembers?: string[];
+  /** Optional anchor member ID specified via '*' (e.g. 'JP::11*|JP::12|JP::14' -> 'JP::11') */
+  unionAnchorMember?: string;
   /** Value (color hex/rgba, text string, image path, or special payload) */
   value: string;
   /** Text string if TextWithStyle */
@@ -295,6 +303,11 @@ export function parseLayerDataCsv(
         else if (key === 'order' || key === 'priority') {
           const n = parseInt(val, 10);
           if (!isNaN(n)) meta.order = n;
+        } else if (key === 'labelSize' || key === 'textSize' || key === 'imageSize') {
+          const n = Number(val);
+          if (Number.isFinite(n)) {
+            meta[key] = Math.round(Math.min(4, Math.max(0.4, n)) * 10) / 10;
+          }
         } else if (key === 'legend') {
           const sep = val.includes(':') ? ':' : ',';
           const parts = val.split(sep);
@@ -418,12 +431,24 @@ export function parseLayerDataCsv(
       ''
     ).replace(/^"|"$/g, '').trim();
 
-    const unionParts = rawRegionId.includes('|')
+    let unionAnchorMember: string | undefined;
+    const rawTokens = rawRegionId.includes('|')
       ? rawRegionId
           .split('|')
           .map((s) => s.trim())
           .filter(Boolean)
       : [rawRegionId];
+
+    const unionParts: string[] = [];
+    for (const token of rawTokens) {
+      const hasStar = token.startsWith('*') || token.endsWith('*');
+      const cleaned = token.replace(/^\*+|\*+$/g, '').trim();
+      if (!cleaned) continue;
+      if (hasStar && !unionAnchorMember) {
+        unionAnchorMember = cleaned;
+      }
+      unionParts.push(cleaned);
+    }
 
     if (assignableList.validIds.size > 0) {
       for (const part of unionParts) {
@@ -436,11 +461,13 @@ export function parseLayerDataCsv(
     const rawStyle = attributes.style || (styleCol !== -1 ? (cells[styleCol] || '').replace(/^"|"$/g, '').trim() : undefined) || meta.defaultStyle;
     const parsedStyle = parseCssStyle(rawStyle, meta.defaultStyle);
     const rowText = attributes.text || rawValue;
+    const canonicalRegionId = unionParts.join('|') || rawRegionId;
 
     const row: CsvLayerKVRow = {
-      regionId: rawRegionId,
-      unionGroupId: unionParts.length > 1 ? rawRegionId : undefined,
+      regionId: canonicalRegionId,
+      unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
       unionMembers: unionParts.length > 1 ? unionParts : undefined,
+      unionAnchorMember,
       value: rawValue,
       text: rowText,
       style: rawStyle,

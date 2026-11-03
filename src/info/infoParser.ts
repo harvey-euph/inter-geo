@@ -55,7 +55,7 @@ function getBoolean(val: YamlValue | undefined): boolean | undefined {
 /**
  * Extracts label and content from a long bullet point line
  */
-function parseBulletLine(lineText: string): { label?: string; content: string } {
+export function parseBulletLine(lineText: string): { label?: string; content: string } {
   const trimmed = lineText.trim();
   const boldMatch = trimmed.match(/^\*\*(.+?)\*\*[:：]?\s*(.*)$/);
   if (boldMatch) {

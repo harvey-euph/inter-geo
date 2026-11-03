@@ -36,6 +36,7 @@ import {
   isLayersIndexLoaded,
   onLayersIndexLoaded
 } from '../layers/csvLayerRegistry';
+import { subscribeLayerVisualSize } from '../layers/layerVisualSize';
 import {
   parseLayersFromUrl,
   isLayerFillColor,
@@ -461,6 +462,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     });
   }, []);
 
+  useEffect(() => subscribeLayerVisualSize(() => requestRender()), [requestRender]);
+
   const placeTooltip = useCallback((clientX: number, clientY: number, measure = false) => {
     const node = tooltipRef.current;
     if (!node) return;
@@ -711,7 +714,31 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         );
       let centroid: [number, number] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
       try {
-        const c = pathGenerator.centroid(feature);
+        let centroidFeature: GeoFeature = feature;
+        if (
+          feature.geometry &&
+          feature.geometry.type === 'MultiPolygon' &&
+          feature.geometry.coordinates.length > 1
+        ) {
+          let maxArea = -1;
+          for (let pIdx = 0; pIdx < feature.geometry.coordinates.length; pIdx++) {
+            const polyFeature: GeoFeature = {
+              type: 'Feature',
+              id: feature.id,
+              properties: feature.properties,
+              geometry: {
+                type: 'Polygon',
+                coordinates: feature.geometry.coordinates[pIdx]
+              }
+            };
+            const a = pathGenerator.area(polyFeature);
+            if (Number.isFinite(a) && a > maxArea) {
+              maxArea = a;
+              centroidFeature = polyFeature;
+            }
+          }
+        }
+        const c = pathGenerator.centroid(centroidFeature);
         if (c && !isNaN(c[0]) && !isNaN(c[1])) {
           centroid = c;
         }

@@ -3,6 +3,13 @@ set -e
 
 CONF_PATH="/home/harvey/inter-geo/nginx.conf"
 PID_FILE="/tmp/inter_geo_nginx.pid"
+SIZE_PID_FILE="/tmp/inter_geo_layer_size.pid"
+
+if [ -f "$SIZE_PID_FILE" ] && kill -0 "$(cat "$SIZE_PID_FILE")" 2>/dev/null; then
+    echo "🛑 Stopping dev helper server..."
+    kill "$(cat "$SIZE_PID_FILE")" 2>/dev/null || true
+    rm -f "$SIZE_PID_FILE"
+fi
 
 if [ ! -f "$PID_FILE" ] || ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     echo "ℹ️  Nginx is not running."

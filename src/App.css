@@ -3054,6 +3054,40 @@ span.confused-country-btn {
   border-color: rgba(56, 189, 248, 0.45);
 }
 
+.google-maps-delete-btn {
+  position: absolute;
+  top: 8px;
+  left: 68px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  user-select: none;
+  color: #fca5a5;
+  background-color: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.google-maps-embed-container:hover .google-maps-delete-btn,
+.google-maps-delete-btn.is-visible {
+  opacity: 1;
+}
+
+.google-maps-delete-btn:hover {
+  color: #fff;
+  background-color: rgba(185, 28, 28, 0.9);
+  border-color: #fca5a5;
+}
+
 /* Tuning HUD Panel */
 .google-maps-tuning-panel {
   padding: 8px 10px;
@@ -3161,31 +3195,6 @@ span.confused-country-btn {
 .google-maps-snippet-input:focus {
   background: rgba(56, 189, 248, 0.08);
   border-radius: 4px;
-}
-
-.google-maps-copy-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 4px;
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-}
-
-.google-maps-copy-btn:hover {
-  background: #0284c7;
-  color: #ffffff;
-}
-
-.google-maps-copy-btn:active {
-  transform: scale(0.92);
 }
 
 

@@ -60,7 +60,30 @@ function boundsOf(feature: Feature): BBox {
 
 function centroidOf(feature: Feature, bbox: BBox): [number, number] {
   try {
-    const c = pathGenerator.centroid(feature);
+    let targetFeature: Feature = feature;
+    if (
+      feature.geometry &&
+      feature.geometry.type === 'MultiPolygon' &&
+      feature.geometry.coordinates.length > 1
+    ) {
+      let maxArea = -1;
+      for (let i = 0; i < feature.geometry.coordinates.length; i++) {
+        const polyFeature: Feature = {
+          type: 'Feature',
+          properties: null,
+          geometry: {
+            type: 'Polygon',
+            coordinates: feature.geometry.coordinates[i]
+          }
+        };
+        const a = pathGenerator.area(polyFeature);
+        if (Number.isFinite(a) && a > maxArea) {
+          maxArea = a;
+          targetFeature = polyFeature;
+        }
+      }
+    }
+    const c = pathGenerator.centroid(targetFeature);
     if (c && !isNaN(c[0]) && !isNaN(c[1])) return c;
   } catch {
     // fallback below

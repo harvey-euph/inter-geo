@@ -10,18 +10,30 @@ import {
 } from './csvLayerRegistry';
 import type { ExtFeatureRenderItem } from '../map/types';
 
+function isCssColor(val: unknown): val is string {
+  if (typeof val !== 'string' || !val) return false;
+  const s = val.trim();
+  return s.startsWith('#') || s.startsWith('rgb') || s.startsWith('hsl');
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   if (hex.startsWith('rgba') || hex.startsWith('rgb')) {
     return hex;
   }
-  const clean = hex.replace('#', '');
+  const clean = hex.replace('#', '').trim();
   if (clean.length === 6) {
     const r = parseInt(clean.slice(0, 2), 16);
     const g = parseInt(clean.slice(2, 4), 16);
     const b = parseInt(clean.slice(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
-  return hex;
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(56, 189, 248, ${alpha})`;
 }
 
 const extFeatureCache = new Map<string, ExtFeatureRenderItem[]>();
@@ -117,14 +129,20 @@ export async function loadExtObjectLayerFeatures(
           row?.attributes?.name ||
           String(props.name ?? props.title ?? subId);
 
-        const color =
-          row?.value ||
-          getCsvLayerValue(layerId, rawId) ||
-          getCsvLayerValue(layerId, subId) ||
-          getCsvLayerValue(layerId, objectTag) ||
-          (props.color as string) ||
-          csvLayer.accentColor ||
-          '#38bdf8';
+        const colorCandidates = [
+          row?.color,
+          row?.style,
+          row?.parsedStyle?.color,
+          row?.attributes?.style,
+          row?.attributes?.color,
+          row?.value,
+          getCsvLayerValue(layerId, rawId),
+          getCsvLayerValue(layerId, subId),
+          getCsvLayerValue(layerId, objectTag),
+          props.color as string | undefined,
+          csvLayer.accentColor
+        ];
+        const color = colorCandidates.find(isCssColor) || '#38bdf8';
 
         const label =
           row?.label ||

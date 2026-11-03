@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ExternalLink,
   Compass,
@@ -9,8 +9,7 @@ import {
   Search,
   Route,
   Sliders,
-  Copy,
-  Check
+  Trash2
 } from 'lucide-react';
 import {
   parseGoogleMapsEmbedConfig,
@@ -20,12 +19,27 @@ import {
   type ParsedEmbedConfig
 } from '../utils/googleMapsEmbed';
 import { useDevMode } from '../utils/devMode';
+import { InfoEmbedSourceContext } from '../info/infoEmbedSource';
+import { isInfoEmbedToken, saveInfoEmbed } from '../info/saveInfoEmbed';
+import { invalidateInfoCard } from '../info/infoRegistry';
 
 export interface GoogleMapsEmbedProps {
   alt?: string;
   src: string;
   style?: React.CSSProperties;
   className?: string;
+  /** Exact `![...](...)` token stored in the info markdown. */
+  originalToken?: string;
+  /** Which copy of `originalToken` this embed is, inside its card. */
+  embedIndex?: number;
+  /** Draft that is not in the markdown yet. Enter inserts a new bullet. */
+  unsaved?: boolean;
+  /** Open the snippet box as soon as the draft appears. */
+  startOpen?: boolean;
+  /** Fired after Enter inserts this draft. */
+  onInserted?: (token: string) => void;
+  /** Drop this embed from the card after a delete, or when a draft is discarded. */
+  onRemoved?: () => void;
 }
 
 const clampFov = (v: number) => Math.min(100, Math.max(10, v));
@@ -80,10 +94,17 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   alt,
   src,
   style,
-  className
+  className,
+  originalToken,
+  embedIndex,
+  unsaved = false,
+  startOpen = false,
+  onInserted,
+  onRemoved
 }) => {
   const apiKey = getGoogleMapsApiKey();
   const isDev = useDevMode();
+  const embedSource = useContext(InfoEmbedSourceContext);
 
   const config = useMemo(() => {
     return parseGoogleMapsEmbedConfig(alt, src);
@@ -114,10 +135,25 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
   const [livePitch, setLivePitch] = useState<number>(initialPitch);
   const [liveFov, setLiveFov] = useState<number>(initialFov);
   const [liveZoom, setLiveZoom] = useState<number>(initialZoom);
-  const [showTuning, setShowTuning] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [showTuning, setShowTuning] = useState(startOpen);
   const [appliedFlash, setAppliedFlash] = useState(false);
   const [customSnippet, setCustomSnippet] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [savedFrom, setSavedFrom] = useState(originalToken || '');
+  const [prevOriginalToken, setPrevOriginalToken] = useState(originalToken);
+  const [localPersisted, setLocalPersisted] = useState(false);
+  const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
+  const [gone, setGone] = useState(false);
+  const savingRef = useRef(false);
+  const persisted = !unsaved || localPersisted;
+  const writeIndex = pinnedIndex ?? embedIndex ?? 0;
+
+  if (originalToken !== prevOriginalToken) {
+    setPrevOriginalToken(originalToken);
+    setSavedFrom(originalToken || '');
+    setPinnedIndex(null);
+    setSaveError('');
+  }
 
   // Sync if config prop changes during render
   const [prevConfig, setPrevConfig] = useState(config);
@@ -223,8 +259,13 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       ? `${baseConfig.params.origin} → ${baseConfig.params.destination}`
       : baseConfig.params.location || baseConfig.params.q || baseConfig.params.center || badgeInfo.label);
 
-  const buildCurrentSnippet = (isCurrentlyLocked: boolean) => {
-    const curConfig = baseConfig;
+  const buildCurrentSnippet = (
+    isCurrentlyLocked: boolean,
+    curConfig: ParsedEmbedConfig = baseConfig,
+    live: { heading: number; pitch: number; fov: number; zoom: number } | null = showTuning
+      ? { heading: liveHeading, pitch: livePitch, fov: liveFov, zoom: liveZoom }
+      : null
+  ) => {
     const parts: string[] = [];
 
     // Mode: prioritize shortest alias ('sv', 'dir', etc.)
@@ -276,15 +317,23 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     }
 
     if (curConfig.mode === 'streetview') {
-      const curHeading = showTuning ? liveHeading : (curConfig.params.heading ? parseFloat(curConfig.params.heading) : undefined);
-      const curPitch = showTuning ? livePitch : (curConfig.params.pitch ? parseFloat(curConfig.params.pitch) : undefined);
-      const curFov = showTuning ? liveFov : (curConfig.params.fov ? parseFloat(curConfig.params.fov) : undefined);
+      const curHeading = live
+        ? live.heading
+        : curConfig.params.heading
+          ? parseFloat(curConfig.params.heading)
+          : undefined;
+      const curPitch = live
+        ? live.pitch
+        : curConfig.params.pitch
+          ? parseFloat(curConfig.params.pitch)
+          : undefined;
+      const curFov = live ? live.fov : curConfig.params.fov ? parseFloat(curConfig.params.fov) : undefined;
 
       if (curHeading !== undefined) parts.push(`heading=${Math.round(curHeading * 10) / 10}`);
       if (curPitch !== undefined && curPitch !== 0) parts.push(`pitch=${Math.round(curPitch * 10) / 10}`);
       if (curFov !== undefined && curFov !== 90) parts.push(`fov=${Math.round(curFov * 10) / 10}`);
     } else if (curConfig.mode === 'view') {
-      const curZoom = showTuning ? liveZoom : (curConfig.params.zoom ? parseFloat(curConfig.params.zoom) : undefined);
+      const curZoom = live ? live.zoom : curConfig.params.zoom ? parseFloat(curConfig.params.zoom) : undefined;
       if (curZoom !== undefined) parts.push(`z=${Math.round(curZoom)}`);
     }
 
@@ -315,8 +364,6 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
 
     setUserConfigOverride(parsed);
     setCustomSnippet(null);
-    setAppliedFlash(true);
-    setTimeout(() => setAppliedFlash(false), 800);
 
     const newHeading = parsed.params.heading ? parseFloat(parsed.params.heading) : 0;
     const newPitch = parsed.params.pitch ? parseFloat(parsed.params.pitch) : 0;
@@ -339,13 +386,112 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
       setUserLocked(parsed.locked);
     }
 
-    if (isDev) {
-      console.log('%c⚡ [GoogleMapsEmbed Snippet Applied via Enter]', 'color: #34d399; font-weight: bold;', {
-        snippet: textToApply,
-        parsed
-      });
+    if (!isDev) return;
+    const to = buildCurrentSnippet(parsed.locked, parsed, null);
+    const file = embedSource?.file;
+    const cardId = embedSource?.cardId;
+    if (!file || !cardId) {
+      setSaveError('找不到這張街景在 info 卡片裡的位置');
+      return;
     }
+    if (!isInfoEmbedToken(to)) {
+      setSaveError('先在訊息框填上座標，再按 Enter');
+      return;
+    }
+    const from = savedFrom || originalToken || '';
+    if (persisted && from === to) {
+      setSaveError('');
+      setAppliedFlash(true);
+      window.setTimeout(() => setAppliedFlash(false), 800);
+      return;
+    }
+    if (persisted && !from) {
+      setSaveError('找不到這張街景在 info 卡片裡的位置');
+      return;
+    }
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaveError('');
+    const request = persisted
+      ? saveInfoEmbed({ op: 'replace', file, cardId, from, to, index: writeIndex })
+      : saveInfoEmbed({ op: 'insert', file, cardId, to });
+    void request
+      .then((result) => {
+        setLocalPersisted(true);
+        setSavedFrom(to);
+        setPinnedIndex(result.index);
+        invalidateInfoCard(cardId);
+        if (!persisted) onInserted?.(to);
+        setAppliedFlash(true);
+        window.setTimeout(() => setAppliedFlash(false), 800);
+      })
+      .catch((err: unknown) => {
+        setSaveError(err instanceof Error ? err.message : '寫入失敗');
+      })
+      .finally(() => {
+        savingRef.current = false;
+      });
   };
+
+  const handleDelete = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!isDev || savingRef.current) return;
+    if (!persisted) {
+      onRemoved?.();
+      setGone(true);
+      return;
+    }
+    const file = embedSource?.file;
+    const cardId = embedSource?.cardId;
+    const from = savedFrom || originalToken || '';
+    if (!file || !cardId || !from) {
+      setSaveError('找不到這張街景在 info 卡片裡的位置');
+      setShowTuning(true);
+      return;
+    }
+    savingRef.current = true;
+    setSaveError('');
+    void saveInfoEmbed({ op: 'delete', file, cardId, from, index: writeIndex })
+      .then(() => {
+        invalidateInfoCard(cardId);
+        onRemoved?.();
+        setGone(true);
+      })
+      .catch((err: unknown) => {
+        setSaveError(err instanceof Error ? err.message : '刪除失敗');
+        setShowTuning(true);
+      })
+      .finally(() => {
+        savingRef.current = false;
+      });
+  };
+
+  const canDelete = isDev && baseConfig.mode === 'streetview' && (unsaved || Boolean(originalToken) || Boolean(savedFrom));
+
+  const deleteButton = (floating: boolean) => (
+    <button
+      type="button"
+      className={floating ? `google-maps-delete-btn${unsaved || showTuning ? ' is-visible' : ''}` : undefined}
+      onClick={handleDelete}
+      title="刪除這張街景"
+      aria-label="刪除街景"
+      style={floating ? undefined : {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 22,
+        height: 22,
+        padding: 0,
+        borderRadius: 4,
+        cursor: 'pointer',
+        backgroundColor: 'rgba(248, 113, 113, 0.15)',
+        color: '#fca5a5',
+        border: '1px solid rgba(248, 113, 113, 0.35)'
+      }}
+    >
+      <Trash2 size={12} />
+    </button>
+  );
 
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -381,28 +527,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
     }
   };
 
-  const handleCopySnippet = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const textToCopy = displayedSnippet;
-    navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-
-    if (isDev) {
-      console.group(
-        `%c📋 [GoogleMapsEmbed Snippet Copied] ${displayTitle}`,
-        'color: #38bdf8; font-weight: bold; font-size: 12px;'
-      );
-      console.log('%c📋 Markdown Snippet (已複製):', 'color: #a5f3fc; font-weight: bold;', textToCopy);
-      console.log('%c📐 即時參數 (Live Parameters):', 'color: #94a3b8; font-weight: bold;', {
-        heading: liveHeading,
-        pitch: livePitch,
-        fov: liveFov,
-        zoom: liveZoom
-      });
-      console.groupEnd();
-    }
-  };
+  if (gone) return null;
 
   return (
     <div
@@ -506,6 +631,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 <Sliders size={12} />
               </button>
             )}
+            {canDelete && deleteButton(false)}
             <span
               style={{
                 fontWeight: 500,
@@ -643,6 +769,7 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                   <Sliders size={12} />
                 </button>
               )}
+              {canDelete && deleteButton(true)}
               {baseConfig.externalUrl && (
                 <a
                   className="google-maps-float-link"
@@ -883,13 +1010,15 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
             </div>
           )}
 
-          {/* Live Editable Markdown Snippet Box with Icon-only Copy Button */}
           <div className={`google-maps-snippet-box ${appliedFlash ? 'is-applied' : ''}`}>
             <input
               type="text"
               className="google-maps-snippet-input"
               value={displayedSnippet}
-              onChange={(e) => setCustomSnippet(e.target.value)}
+              onChange={(e) => {
+                setSaveError('');
+                setCustomSnippet(e.target.value);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -898,19 +1027,14 @@ export const GoogleMapsEmbed: React.FC<GoogleMapsEmbedProps> = ({
                 }
               }}
               spellCheck={false}
-              placeholder="![sv|v|heading=...](...)"
-              title="可直接編輯或複製此 Markdown 語法（修改後按 Enter 立即套用更新畫面）"
+              placeholder={unsaved && !localPersisted ? '輸入座標，例如 39.92,32.85，Enter 寫回' : '![sv|v|heading=...](...)'}
+              title={unsaved && !localPersisted ? '填好座標後按 Enter，新增到這張 info 卡片' : '改完按 Enter，寫回這張 info 卡片'}
+              autoFocus={unsaved && !localPersisted}
             />
-            <button
-              type="button"
-              className="google-maps-copy-btn"
-              onClick={handleCopySnippet}
-              title={copied ? '已複製到剪貼簿！' : '複製 Markdown 語法'}
-              aria-label="複製語法"
-            >
-              {copied ? <Check size={13} /> : <Copy size={13} />}
-            </button>
           </div>
+          {saveError && (
+            <div style={{ color: '#fca5a5', fontSize: 11, lineHeight: 1.4, marginTop: 4 }}>{saveError}</div>
+          )}
         </div>
       )}
     </div>
