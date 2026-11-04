@@ -26,5 +26,6 @@ dist-ssr
 
 # Scratch geojson
 *.geojson
+!public/poc-data/**
 
 .env

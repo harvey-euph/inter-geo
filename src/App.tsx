@@ -3,6 +3,10 @@ import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
 import { InfoSettingsWindow } from './components/InfoSettingsWindow';
 import { WorldMap } from './components/WorldMap';
+
+const MapLibrePoC = lazy(() =>
+  import('./poc/MapLibrePoC').then((m) => ({ default: m.MapLibrePoC }))
+);
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
@@ -51,6 +55,27 @@ const QuizModal = lazy(() =>
 );
 
 export function App() {
+  const [renderEngine, setRenderEngine] = useState<'canvas' | 'maplibre'>(() => {
+    if (typeof window === 'undefined') return 'canvas';
+    const p = new URLSearchParams(window.location.search);
+    return p.get('engine') === 'maplibre' || p.has('poc') ? 'maplibre' : 'canvas';
+  });
+
+  const handleToggleRenderEngine = useCallback(() => {
+    setRenderEngine((prev) => {
+      const next = prev === 'canvas' ? 'maplibre' : 'canvas';
+      const url = new URL(window.location.href);
+      if (next === 'maplibre') {
+        url.searchParams.set('engine', 'maplibre');
+      } else {
+        url.searchParams.delete('engine');
+        url.searchParams.delete('poc');
+      }
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      return next;
+    });
+  }, []);
+
   const [initialLayers] = useState(() => parseLayersFromUrl(new URLSearchParams(window.location.search)));
   const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
 
@@ -845,72 +870,88 @@ export function App() {
         isInfoSettingsExpanded={isInfoSettingsExpanded}
         isInfoSettingsFocused={isInfoSettingsExpanded && activeWindow === 'info'}
         onToggleInfoSettingsExpanded={handleToggleInfoSettingsExpanded}
+        renderEngine={renderEngine}
+        onToggleRenderEngine={handleToggleRenderEngine}
       />
 
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
-          {/* Tree-based Layer Selector Window */}
-          <LayerBar
-            activeFilterId={activeFilterId}
-            onSelectFilter={handleSelectFilter}
-            activeTextFilters={activeTextFilters}
-            onToggleTextFilter={handleToggleTextFilter}
-            activeInternationalImageFilter={activeInternationalImageFilter}
-            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
-            activeRegionalFilters={activeRegionalFilters}
-            onToggleRegionalFilter={handleToggleRegionalFilter}
-            visibleRegionalFilters={visibleRegionalFilters}
-            onResetAll={handleResetAllFilters}
-            isExpanded={isFilterExpanded}
-            onCollapse={handleCollapseFilter}
-            zIndex={layerZIndex}
-            isFront={activeWindow === 'layer'}
-            onFocusWindow={() => bringToFront('layer')}
-            onGotoCamera={(lat, lon, ratio) => {
-              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
-            }}
-          />
+          {renderEngine === 'maplibre' ? (
+            <Suspense
+              fallback={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#38bdf8' }}>
+                  載入 MapLibre WebGL 渲染引擎中...
+                </div>
+              }
+            >
+              <MapLibrePoC onBackToCanvas={handleToggleRenderEngine} />
+            </Suspense>
+          ) : (
+            <>
+              {/* Tree-based Layer Selector Window */}
+              <LayerBar
+                activeFilterId={activeFilterId}
+                onSelectFilter={handleSelectFilter}
+                activeTextFilters={activeTextFilters}
+                onToggleTextFilter={handleToggleTextFilter}
+                activeInternationalImageFilter={activeInternationalImageFilter}
+                onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+                activeRegionalFilters={activeRegionalFilters}
+                onToggleRegionalFilter={handleToggleRegionalFilter}
+                visibleRegionalFilters={visibleRegionalFilters}
+                onResetAll={handleResetAllFilters}
+                isExpanded={isFilterExpanded}
+                onCollapse={handleCollapseFilter}
+                zIndex={layerZIndex}
+                isFront={activeWindow === 'layer'}
+                onFocusWindow={() => bringToFront('layer')}
+                onGotoCamera={(lat, lon, ratio) => {
+                  focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+                }}
+              />
 
-          {/* Infotip & Info Tag Preference Window */}
-          <InfoSettingsWindow
-            isExpanded={isInfoSettingsExpanded}
-            onCollapse={handleCollapseInfoSettings}
-            zIndex={infoZIndex}
-            isFront={activeWindow === 'info'}
-            onFocusWindow={() => bringToFront('info')}
-          />
+              {/* Infotip & Info Tag Preference Window */}
+              <InfoSettingsWindow
+                isExpanded={isInfoSettingsExpanded}
+                onCollapse={handleCollapseInfoSettings}
+                zIndex={infoZIndex}
+                isFront={activeWindow === 'info'}
+                onFocusWindow={() => bringToFront('info')}
+              />
 
-          {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}
-          <WorldMap
-            activeFilterId={activeFilterId}
-            activeTextFilters={activeTextFilters}
-            onToggleTextFilter={handleToggleTextFilter}
-            activeInternationalImageFilter={activeInternationalImageFilter}
-            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
-            activeRegionalFilters={activeRegionalFilters}
-            onToggleRegionalFilter={handleToggleRegionalFilter}
-            onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
-            isFilterExpanded={isFilterExpanded}
-            selectedCountry={selectedCountry}
-            onSelectCountry={handleSelectCountry}
-            selectedSubdivision={selectedSubdivision}
-            onSelectSubdivision={handleSelectSubdivision}
-            selectedMunicipality={selectedMunicipality}
-            onSelectMunicipality={handleSelectMunicipality}
-            selectedRoad={selectedRoad}
-            onSelectRoad={handleSelectRoad}
-            detailPanelWidth={detailPanelWidth}
-            detailPanelFullWidth={detailPanelFullWidth}
-            zoomToSubdivisionRef={zoomToSubdivisionRef}
-            focusMapRef={focusMapRef}
-            initialTarget={initialTarget}
-            initialFocusTarget={initialFocusTarget}
-            showRoads={showRoads}
-            showInterstates={showInterstates}
-            showNumberedRoutes={showNumberedRoutes}
-            onOceanClick={handleOceanClick}
-          />
+              {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}
+              <WorldMap
+                activeFilterId={activeFilterId}
+                activeTextFilters={activeTextFilters}
+                onToggleTextFilter={handleToggleTextFilter}
+                activeInternationalImageFilter={activeInternationalImageFilter}
+                onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+                activeRegionalFilters={activeRegionalFilters}
+                onToggleRegionalFilter={handleToggleRegionalFilter}
+                onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
+                isFilterExpanded={isFilterExpanded}
+                selectedCountry={selectedCountry}
+                onSelectCountry={handleSelectCountry}
+                selectedSubdivision={selectedSubdivision}
+                onSelectSubdivision={handleSelectSubdivision}
+                selectedMunicipality={selectedMunicipality}
+                onSelectMunicipality={handleSelectMunicipality}
+                selectedRoad={selectedRoad}
+                onSelectRoad={handleSelectRoad}
+                detailPanelWidth={detailPanelWidth}
+                detailPanelFullWidth={detailPanelFullWidth}
+                zoomToSubdivisionRef={zoomToSubdivisionRef}
+                focusMapRef={focusMapRef}
+                initialTarget={initialTarget}
+                initialFocusTarget={initialFocusTarget}
+                showRoads={showRoads}
+                showInterstates={showInterstates}
+                showNumberedRoutes={showNumberedRoutes}
+                onOceanClick={handleOceanClick}
+              />
+            </>
+          )}
         </section>
 
         {(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad) && (

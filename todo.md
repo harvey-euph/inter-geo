@@ -91,11 +91,15 @@
 
 ### 5. 開發與驗證順序（建議）
 
-1. 用一個國家（例如 TW 或 US）的 L2 + roads 產出測試用 vector tiles。
-2. 在獨立頁面用 MapLibre 載入，量測縮放與平移的 FPS。
-3. 把現有的 `WorldMap` 改成可切換「Canvas 模式 / MapLibre 模式」。
-4. 逐步遷移圖層（先 fill-region，再 roads，再標籤）。
-5. 確認情報卡、URL 同步、Street View 仍正常運作後，再考慮全面切換。
+- [x] **1. 用一個國家（例如 TW 或 US）的 L2 + roads 產出測試用向量資料**
+  - 完成：`scripts/export-poc-data.mjs`，匯出包含全球國家輪廓、台灣 L2 行政區、台灣主要公路、美國 50 州及美國洲際公路網於 `public/poc-data/`。
+- [x] **2. 獨立組件用 MapLibre 載入，量測縮放與平移的 FPS**
+  - 完成：`src/poc/MapLibrePoC.tsx`，內建即時 GPU 效能監測器（即時 FPS、60 幀滑動平均、低標 FPS、幀時間 ms）、視角與圖層開關、滑鼠游標拾取高亮，以及「連續縮放動態巡航壓力測試」。
+- [x] **3. 把現有的地圖系統改成可雙向切換「Canvas 模式 / MapLibre 模式」**
+  - 完成：`src/components/Header.tsx` 配置 `🎨 2D` $\leftrightarrow$ `⚡ WebGL` 快速切換鈕，支援 `?engine=maplibre` 路由參數，並使用 Vite codeSplitting 進行動態延遲載入（Lazy Loading），未進入 WebGL 模式時不增加首屏負載。
+- [ ] **4. 逐步遷移圖層（先 fill-region，再 roads，再標籤）**
+  - 規劃：將 CSV 填色規則轉換為 MapLibre `fill-color` 表達式、公路路網雙層 Casing 渲染、標籤碰撞檢測（Symbol layer）。
+- [ ] **5. 確認情報卡、URL 同步、Street View 仍正常運作後，再考慮全面切換**
 
 ## 風險與注意事項
 
