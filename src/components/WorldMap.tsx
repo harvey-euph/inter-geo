@@ -77,6 +77,10 @@ import { useKeyboardNav } from '../map/hooks/useKeyboardNav';
 import { MapTooltip } from '../map/MapTooltip';
 import { MapLegend } from '../map/MapLegend';
 import { MapControls } from '../map/MapControls';
+import {
+  PerformanceMonitorPanel,
+  type PerformanceStats
+} from './PerformanceMonitorPanel';
 
 export type {
   RoadPathData,
@@ -440,6 +444,24 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const [centerCursorEnabled, setCenterCursorEnabled] = useState(!hasFinePointer);
   const centerCursorEnabledRef = useRef(centerCursorEnabled);
   const isInitializedRef = useRef(false);
+
+  // Real-time Canvas performance monitoring
+  const [perf, setPerf] = useState<PerformanceStats>({
+    fps: 60,
+    minFps: 60,
+    maxFps: 60,
+    avgFps: 60,
+    frameTime: 16.6
+  });
+  const [isStressTesting, setIsStressTesting] = useState(false);
+  const stressRef = useRef<number | null>(null);
+  const frameTimesRef = useRef<number[]>([]);
+  const lastTimeRef = useRef<number>(0);
+  const perfRafIdRef = useRef<number | null>(null);
+
+  // Camera inspection coordinates for monitor panel
+  const [monitorCenter, setMonitorCenter] = useState<[number, number]>([0, 20]);
+  const [monitorZoom, setMonitorZoom] = useState(1.0);
 
   const getHoverClientPoint = useCallback(() => {
     if (hasFinePointerRef.current) return mousePos.current;
@@ -866,6 +888,110 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     },
     []
   );
+
+  // Continuous RAF loop to monitor FPS
+  useEffect(() => {
+    let active = true;
+    lastTimeRef.current = performance.now();
+
+    const measure = (now: number) => {
+      if (!active) return;
+      if (lastTimeRef.current === 0) {
+        lastTimeRef.current = now;
+      }
+      const delta = now - lastTimeRef.current;
+      lastTimeRef.current = now;
+
+      if (delta > 0 && delta < 200) {
+        const currentFps = 1000 / delta;
+        const times = frameTimesRef.current;
+        times.push(currentFps);
+        if (times.length > 60) times.shift();
+
+        if (times.length >= 10) {
+          const avg = times.reduce((a, b) => a + b, 0) / times.length;
+          const min = Math.min(...times);
+          const max = Math.max(...times);
+          setPerf({
+            fps: Math.round(currentFps),
+            minFps: Math.round(min),
+            maxFps: Math.round(max),
+            avgFps: Math.round(avg),
+            frameTime: Number(delta.toFixed(1))
+          });
+        }
+      }
+
+      // Periodically update camera coords for monitor
+      const { k, x, y } = transformRef.current;
+      const { vh, centerX } = getRemainingVisibleArea(false);
+      if (vh > 0 && k > 0) {
+        const mapX = (((centerX - x) / k) % MAP_W + MAP_W) % MAP_W;
+        const mapY = (vh / 2 - y) / k;
+        const c = projection.invert?.([mapX, mapY]);
+        if (c && c.every(Number.isFinite)) {
+          setMonitorCenter([Number(c[0].toFixed(2)), Number(c[1].toFixed(2))]);
+        }
+        setMonitorZoom(Number(k.toFixed(2)));
+      }
+
+      perfRafIdRef.current = requestAnimationFrame(measure);
+    };
+
+    perfRafIdRef.current = requestAnimationFrame(measure);
+
+    return () => {
+      active = false;
+      if (perfRafIdRef.current) cancelAnimationFrame(perfRafIdRef.current);
+    };
+  }, [projection, getRemainingVisibleArea]);
+
+  // Continuous stress test animation loop
+  const toggleStressTest = useCallback(() => {
+    if (isStressTesting) {
+      setIsStressTesting(false);
+      if (stressRef.current) {
+        cancelAnimationFrame(stressRef.current);
+        stressRef.current = null;
+      }
+      return;
+    }
+
+    setIsStressTesting(true);
+    let step = 0;
+    const run = () => {
+      step += 0.015;
+      const angle = step;
+      // Oscillate between Taiwan and East Asia with continuous zoom change
+      const lng = 121 + Math.sin(angle) * 8;
+      const lat = 24 + Math.cos(angle * 0.7) * 4;
+      const k = 4.0 + Math.sin(angle * 1.5) * 2.5;
+
+      const { vw, vh, centerX } = getRemainingVisibleArea(false);
+      if (vw > 0 && vh > 0) {
+        const [px, py] = projection([lng, lat]) || [MAP_W / 2, MAP_H / 2];
+        const targetX = wrapX(centerX - px * k, k);
+        const targetY = clampY(vh / 2 - py * k, k, vh);
+        transformRef.current = { k, x: targetX, y: targetY };
+        const targetLOD = getLODLevel(k);
+        if (targetLOD !== lodLevelRef.current) {
+          lodLevelRef.current = targetLOD;
+          setLodLevel(targetLOD);
+        }
+        renderCanvasRef.current();
+      }
+
+      stressRef.current = requestAnimationFrame(run);
+    };
+
+    stressRef.current = requestAnimationFrame(run);
+  }, [isStressTesting, getRemainingVisibleArea, projection, wrapX, clampY]);
+
+  useEffect(() => {
+    return () => {
+      if (stressRef.current) cancelAnimationFrame(stressRef.current);
+    };
+  }, []);
 
   // Strict screen visibility check: requires positive, meaningful physical overlap on screen
   const isCountryVisibleOnScreen = useCallback(
@@ -3456,6 +3582,32 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         onToggleInternationalImageFilter={onToggleInternationalImageFilter}
         onToggleRegionalFilter={onToggleRegionalFilter}
       />
+
+      {/* Top Right Live FPS & Canvas Performance Metrics */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 16,
+          right: (selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad)
+            ? (detailPanelFullWidth ? 'max(16px, calc(100% - 240px))' : `min(${detailPanelWidth + 16}px, calc(100% - 240px))`)
+            : 16,
+          zIndex: 25,
+          transition: 'right 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+      >
+        <PerformanceMonitorPanel
+          title="實時 Canvas 效能監測"
+          badgeText="2D"
+          perf={perf}
+          zoom={monitorZoom}
+          center={monitorCenter}
+          extraMetrics={[
+            { label: 'LOD 階層', value: lodLevel }
+          ]}
+          isStressTesting={isStressTesting}
+          onToggleStressTest={toggleStressTest}
+        />
+      </div>
 
       {/* Map Control Buttons */}
       <MapControls
