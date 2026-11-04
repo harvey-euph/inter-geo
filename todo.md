@@ -1,103 +1,118 @@
-# Bug
+# Inter-Geo 渲染層遷移簡報（用一個新的 branch 來做）
 
-- [x] 現在在放大倍數 1x 或更大的時候螢幕的拖曳平移會明顯延遲，可能是我電腦的 CPU 太差，用手機或平板不會
-- [x] 不知道為什麼 漂浮資訊卡 在平板的時候會跑到左上方，手機的時候則符合預期在右上方
+## 專案理解
 
-# Structure
+**Inter-Geo** 是一套純前端、無後端的 Web GIS，專為地理探索與 GeoGuessr 競技分析設計。
 
-- [x] **多 repo 架構** 把資料 (data / layers / info / images) 都放到另一個 repo: `https://github.com/harvey-euph/inter-geo-data` (已準備好，只須改檔案路徑即可)
-    - 不是 submodule，直接在前端 fetch `https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads/main` 的內容
-    - `inter-geo-data` push main 時 Action 自動整理索引，推到另一個 branch index，這個 branch 只存這檔案 (某種 inverted index 結構)
-    - 當我要知道要抓哪些檔案時，先去查 index 這樣就可以做到動態增刪檔案
-    - 後面會解釋各種資料類型怎麼組成 index
+- 前端 repo：`inter-geo`（React 19 + TypeScript + Vite）
+- 資料 repo：`inter-geo-data`（FlatGeobuf `.fgb`、CSV 圖層、Markdown 情報卡）
+- 架構：雙 repo 解耦。前端啟動時載入輕量 JSON 索引，再按需串流原始資料。
+- 核心能力：
+  - L1 國家 → L2 一級行政區 → L3+ 二級／三級行政區的下鑽
+  - 公路路網、雙色道路標線、街景拍攝車特徵
+  - CSV 動態圖層（區塊著色 / 全域標籤 / 區域特徵）
+  - Markdown 情報卡 + 3 軌標籤過濾
+  - 內嵌 Google Street View + Dev Mode 微調器
+  - URL 狀態同步（lat / lon / zoom）
 
-- [x] 重新設計 fgb 物件的組織架構方式、重新命名整理
-    - 所有任何層級的 (Multi)Point / (Multi)LineString / (Multi)Polygon 都是一個存於 fgb file 的幾何物件，不需要存名字以外的 header，存了也不會用
-    - 每個檔案只存同一個層級﹑類型的資料
-    - 頁面啟動時會最先抓 `data/COUNTRY.fgb` 用來畫世界草圖和國家邊界，因此程式一定要讀完所有國家。
-    - `data/COUNTRY.fgb` 裡面的物件都是國家，會用兩個字母作為標籤，例如 `JP`, `US`
-    - 當 `data/COUNTRY.fgb` 裡面有物件 `XX` 就代表 "可能有" `data/XX.fgb` 存在，代表這個國家的第一級區域劃分
-    - 可能會沒有檔案，要根據 `https://raw.githubusercontent.com/harvey-euph/inter-geo-data/refs/heads/index/data-index.json` 確認 
-    - `data/XX.fgb` 會 on-demand requested，當用戶涉及任何需要看到 `XX` 國家內的行政區的行為就要去要
-    - 同理，如果 `data/XX.fgb` 裡面有物件叫做 `YY`，可能會有 `data/XX/YY.fgb` 存有 `YY` 裡面的次級行政區，此行為目前只有兩層，但我要讓這件事變成不受限制，只要 `*/A.fgb` 檔案裡面有物件 `B` ，就有可能找到 `*/A/B.fgb` 來細分，方便擴充
-    - 可能會有 `XX-ZZ.fgb` 代表 `XX` 的國界以外資訊，例如公路﹑鐵路﹑數據點散布圖﹑其他 covering info，會被其他地方呼叫到，例如 Layer，稍後提及。 
+**目前渲染瓶頸**：  
+使用 HTML5 Canvas 2D + `Path2D`（`src/map/render/renderLayers.ts` + `WorldMap.tsx`）。  
+複雜多邊形與道路在主執行緒做 fill/stroke，加上 `shadowBlur` 高亮，導致縮放與展開行政區時不夠流暢。  
+與 Google Maps / MapLibre 的差距主要來自「CPU Canvas vs GPU WebGL」，而非單純資料精度不足。
 
-- [x] 重新設計 Layer 的操作方式﹑編輯方式，目標是整合讓所有 filter 都能來自一個 csv file
-    - csv 格式如下:
-    ```
-    // file-name.csv // 不用另外 id，直接用 file-name 來追縱，URL 找 layer 也直接放 `?layer=file-name`
-    // @type=[Text, FillWithColor, Image]
-    // @nameZh: 中文名字
-    // @nameEn: Eng Name
-    // @shortBadge: Short name
-    // @default-color: [Text: 文字預設顏色, FillWithColor: 全局預設顏色(若無代表不改變背景顏色), Image: 無意義/不支援]
-    // @descriptionZh: 中文說明
-    // @goto: lat=38.81442&lon=-94.20697&ratio=5.374 // 可以沒有，如果有，代表啟動後要跳轉座標和 ratio。使用 URL query 格式
+## 轉換目標
 
-    FGBObject(例如 XX::YY), [Text(Text), FillWithColor(Color Code), Image(Path, local img file path or internet link)]
+把「幾何繪製」從 Canvas 2D 改為 WebGL，使平移、縮放、L2/L3 展開、道路渲染能接近現代向量地圖的流暢度。
 
-    ```
-    - csv 範例如下:
+保留：
+- 雙 repo 資料架構
+- CSV 圖層系統與情報卡
+- Street View 嵌入與 UI 互動
+- 現有 hit-test 邏輯（可改寫為 WebGL picking 或保留 CPU 輔助）
 
-    ```csv
-    // country-code.csv
-    // @id: calling-code
-    // @order: 2 
-    // @type: Text
-    // @nameZh: 電話國碼
-    // @nameEn: Calling Code
-    // @shortBadge: 📞 國碼
-    // @accentColor: #34d399
-    // @descriptionZh: 顯示全球各國國際電話區號（如 +886、+81、+1、+44 等）
-    
-    // Asia
-    TW, +886
-    JP, +81
-    KR, +82
-    PH, +63
-    TH, +66
-    KH, +855
-    ...
-    ```
+## 建議技術路線
 
-    - 然後是 Layer 的選擇視窗，也要做調整，應該改成類似這樣 (草稿): 
-        (Toggled lists)
-        v Fill Region With Color 
-            // (內部使用擇一圓點，而不是勾選框) 
-            // (製作索引的時候檢查對象物件是否全為 XX, XX::YY, XX::...::ZZ 格式，代表地理區)
-            x Base
-            o Google Street View Coverage
-            o Driving Side
-            o ...
-        v Ext Object
-            // Fill With Color 其他物件，而非一個地理區域
-            [ ] ...(各國公路)
-            [ ] 台灣電力座標格 (對，座標格本身也要做成 fgb 檔案存起來變成 csv layer 紀錄，顏色要加透明度 #xxxxxxYY)
-            [ ] ...也許以後可以再加個 scatter plot 檔案
-        // (涵蓋 Text 和 Image 都放這，可開啟多個，但是單次只允許同一個對象疊加一份)
-        v Global Label
-            [ ] $
-            [ ] ccTLD / ...
-        v Area Label
-            [ ] 南亞文字比較
-            [ ] 歐洲人行道
-            [ ] ...
+優先順序：
 
-    - 最後是我還不清楚該怎麼做的: 道路標線，包含邊線與中線，現在使用外框和中心分色，但是要怎麼標準化到 csv 還在想 (幫我想方案)
-        
+1. **MapLibre GL JS**（推薦起步）  
+   - 開源向量地圖引擎，內建 WebGL、多級 LOD、標籤碰撞、道路 casing。  
+   - 適合把現有 FGB 轉成 vector tiles 後直接使用。
 
-- [x] 同理，對每個 Object 來說，都會有 "hover 出現的 Infotip" 和 "出現在右邊可以全螢幕的 Info Card" 也要重新設計
-    - Info Card
-        - 同樣的，我會用相同的 md 格式放在 `inter-geo-data`，標註 targets，紀錄 index 的時候就會有 map: target -> lists of files 來告訴前端要 on-demand下載哪些 .md 取得文章
-        - 排序嚴格依照 priority: 0 到 139 ，如果相同直接依照讀取順序排 
+2. **deck.gl**（疊加自訂圖層）  
+   - 可與 MapLibre 或自有底圖搭配。  
+   - 適合保留部分現有 Canvas 邏輯，只把重型多邊形／道路搬到 WebGL。
 
-    - Infotip
-        - 目前好像是讓用戶可以看到 Info Card 的第一項，我要能讓用戶彈性的看到他想看的東西，要放一個設置切換說我要在 Infotip 看到什麼
-        - 實作待定，給我方案
+3. **自研 WebGL2 / WebGPU 渲染器**  
+   - 完全掌控雙色標線、特殊高亮、精確 picking。  
+   - 工作量最大，僅在前兩項無法滿足需求時考慮。
 
+**建議第一階段**：以 MapLibre GL JS 為主，驗證效能提升幅度後再決定要不要深入自訂。
 
-# Feature
+## 技術細節與遷移步驟
 
-- [ ] 接下來要讓 Info 可以根據使用者的喜好看到不同類型的資訊，比方說目前預設資訊大多為 Geoguessr 會想看的，日後希望可以更彈性，比方說如果我要讓滑雪的人來用，我就要有很多滑雪場資訊列在 Info 裡面等等
+### 1. 資料準備
 
-- [ ] L1_Name::L2_Name, L1_Name::L2_Name::L3_Name 的標示似乎目前只有部分區域有效 (URL 好像只有日本)，幫我讓全世界都依循這個方式標註地點，讓我可以在 Layer / URL / Info Card 都使用這一套來標出
+- 現有資料：`inter-geo-data/data/**/*.fgb`（L1/L2/L3/Roads）
+- 目標：產出 **vector tiles**（MVT / PMTiles）或 MapLibre 可直接消費的格式。
+- 建議工具：
+  - `tippecanoe`（從 GeoJSON/FlatGeobuf 生成多級 vector tiles）
+  - 或 `flatgeobuf` + 自訂簡化腳本後再切片
+- 需處理：
+  - 低縮放級別做幾何簡化（Douglas-Peucker 或類似）
+  - 道路按 class 分層，避免低縮放畫出過多細節
+  - 保留現有屬性（iso2、名稱、道路等級等），供 style 與 hit-test 使用
+
+### 2. 前端渲染層替換
+
+關鍵檔案（目前 Canvas 實作）：
+- `src/components/WorldMap.tsx`（主循環、transform、LOD 判斷、requestAnimationFrame）
+- `src/map/render/renderLayers.ts`（fill / stroke / 高亮 / 徽章繪製）
+- `src/map/hitTest.ts`（游標拾取）
+- `src/map/geoDecode.worker.ts`（FGB 解碼）
+
+遷移方向：
+- 用 MapLibre 的 `Map` 實例取代 Canvas 元素。
+- 把現有的 `k / x / y` transform 對應到 MapLibre 的 `center` + `zoom`。
+- 圖層改用 MapLibre style layers（fill、line、symbol）或 `addLayer` 動態加入。
+- CSV 圖層系統改為：解析後產生 MapLibre source + layer，或用 deck.gl 的 layer。
+- 高亮效果改用 MapLibre 的 `line-color` / `line-width` / `fill-opacity` 或 custom layer shader，避免 `shadowBlur`。
+
+### 3. LOD 與載入策略
+
+- 目前：依畫面比例決定是否展開 L2/L3（離散）。
+- 改為：依賴 vector tiles 的 zoom level 自動切換（連續）。
+- 保留「solidity / 離島判斷」作為是否載入較高精度圖磚的額外條件即可。
+
+### 4. Hit-test 與互動
+
+- MapLibre 內建 `queryRenderedFeatures`，可取代大部分 `hitTest.ts` 邏輯。
+- 若需保留現有精確的「上層優先」規則，可在 MapLibre 事件中再做一次過濾。
+- 情報卡、圖層開關、Street View 面板等 UI 邏輯可幾乎原封不動保留。
+
+### 5. 開發與驗證順序（建議）
+
+1. 用一個國家（例如 TW 或 US）的 L2 + roads 產出測試用 vector tiles。
+2. 在獨立頁面用 MapLibre 載入，量測縮放與平移的 FPS。
+3. 把現有的 `WorldMap` 改成可切換「Canvas 模式 / MapLibre 模式」。
+4. 逐步遷移圖層（先 fill-region，再 roads，再標籤）。
+5. 確認情報卡、URL 同步、Street View 仍正常運作後，再考慮全面切換。
+
+## 風險與注意事項
+
+- 雙色道路標線、特殊高亮若 MapLibre style 無法表達，可能需要 custom layer 或 deck.gl。
+- 現有 `Path2D` 快取與 dissolve 邏輯在 WebGL 路線下大部分可廢棄。
+- 資料 repo 的 index 產生流程（`build-indexes.mjs`）需要新增 vector tiles 的產出步驟。
+- 純前端部署（GitHub Pages）時，vector tiles 建議用 PMTiles 或靜態 MVT 目錄，避免後端依賴。
+
+## 預期成果
+
+- 縮放與平移明顯更流暢（尤其 L2/L3 展開後）。
+- 可承受更高密度的道路與行政區邊界。
+- 保留現有 GeoGuessr 導向的互動功能（情報卡、圖層、Street View）。
+- 為後續加入更完整的地理著色、標籤碰撞、連續 LOD 打下基礎。
+
+---
+
+**給 Agent 的起手式**：  
+先讀 `src/components/WorldMap.tsx` 與 `src/map/render/renderLayers.ts`，確認 Canvas 繪製路徑；  
+再評估用 MapLibre GL JS 載入單一國家的 vector tiles 作為 PoC，驗證效能後再規劃完整遷移。
