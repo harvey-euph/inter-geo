@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Map, type MapGeoJSONFeature, type MapLayerMouseEvent } from 'maplibre-gl';
+import { Map, setWorkerUrl, type MapGeoJSONFeature, type MapLayerMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
   Layers,
   Activity,
   ArrowLeft,
   Play,
-  Pause
+  Pause,
+  AlertTriangle
 } from 'lucide-react';
+
+// Explicitly register worker URL with absolute path resolving base URL
+const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/inter-geo/';
+const workerPath = `${baseUrl.replace(/\/+$/, '')}/assets/maplibre-gl-worker.mjs`;
+setWorkerUrl(workerPath);
 
 interface MapLibrePoCProps {
   onBackToCanvas?: () => void;
@@ -34,6 +40,7 @@ export const MapLibrePoC: React.FC<MapLibrePoCProps> = ({ onBackToCanvas }) => {
   const [zoom, setZoom] = useState(1.5);
   const [center, setCenter] = useState<[number, number]>([0, 20]);
   const [hoveredInfo, setHoveredInfo] = useState<string | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Performance monitoring
   const [perf, setPerf] = useState<PerformanceStats>({
@@ -123,6 +130,19 @@ export const MapLibrePoC: React.FC<MapLibrePoCProps> = ({ onBackToCanvas }) => {
     });
 
     mapRef.current = map;
+
+    map.on('error', (e) => {
+      console.error('MapLibre GL error:', e);
+      if (e.error?.message) {
+        setMapError(e.error.message);
+      }
+    });
+
+    // Ensure proper canvas dimension synchronization
+    const handleResize = () => {
+      map.resize();
+    };
+    window.addEventListener('resize', handleResize);
 
     map.on('move', () => {
       const c = map.getCenter();
@@ -343,6 +363,7 @@ export const MapLibrePoC: React.FC<MapLibrePoCProps> = ({ onBackToCanvas }) => {
     });
 
     return () => {
+      window.removeEventListener('resize', handleResize);
       map.remove();
       mapRef.current = null;
     };
@@ -422,9 +443,36 @@ export const MapLibrePoC: React.FC<MapLibrePoCProps> = ({ onBackToCanvas }) => {
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#0b0f19' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', backgroundColor: '#0b0f19' }}>
       {/* MapLibre WebGL Canvas Container */}
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* Error alert toast if loading fails */}
+      {mapError && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            backgroundColor: 'rgba(239, 68, 68, 0.95)',
+            border: '1px solid #f87171',
+            borderRadius: 8,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 100,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+          }}
+        >
+          <AlertTriangle size={18} />
+          <span>WebGL 地圖載入錯誤: {mapError}</span>
+        </div>
+      )}
 
       {/* Top Left Navigation & Mode Banner */}
       <div
