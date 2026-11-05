@@ -2,14 +2,10 @@ import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } fro
 import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
 import { InfoSettingsWindow } from './components/InfoSettingsWindow';
-import { WorldMap } from './components/WorldMap';
-
-const MapLibreMap = lazy(() =>
-  import('./components/MapLibreMap').then((m) => ({ default: m.MapLibreMap }))
-);
+import { MapLibreMap } from './components/MapLibreMap';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
-import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
+import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './map/types';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import {
   getNationwideLayerById,
@@ -55,27 +51,6 @@ const QuizModal = lazy(() =>
 );
 
 export function App() {
-  const [renderEngine, setRenderEngine] = useState<'canvas' | 'maplibre'>(() => {
-    if (typeof window === 'undefined') return 'canvas';
-    const p = new URLSearchParams(window.location.search);
-    return p.get('engine') === 'maplibre' || p.has('poc') ? 'maplibre' : 'canvas';
-  });
-
-  const handleToggleRenderEngine = useCallback(() => {
-    setRenderEngine((prev) => {
-      const next = prev === 'canvas' ? 'maplibre' : 'canvas';
-      const url = new URL(window.location.href);
-      if (next === 'maplibre') {
-        url.searchParams.set('engine', 'maplibre');
-      } else {
-        url.searchParams.delete('engine');
-        url.searchParams.delete('poc');
-      }
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-      return next;
-    });
-  }, []);
-
   const [initialLayers] = useState(() => parseLayersFromUrl(new URLSearchParams(window.location.search)));
   const [initialTargetParam] = useState(() => new URLSearchParams(window.location.search).get('target')?.trim() || '');
 
@@ -870,8 +845,6 @@ export function App() {
         isInfoSettingsExpanded={isInfoSettingsExpanded}
         isInfoSettingsFocused={isInfoSettingsExpanded && activeWindow === 'info'}
         onToggleInfoSettingsExpanded={handleToggleInfoSettingsExpanded}
-        renderEngine={renderEngine}
-        onToggleRenderEngine={handleToggleRenderEngine}
       />
 
       {/* Main Viewport */}
@@ -908,76 +881,35 @@ export function App() {
             onFocusWindow={() => bringToFront('info')}
           />
 
-          {renderEngine === 'maplibre' ? (
-            <Suspense
-              fallback={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#38bdf8' }}>
-                  載入 MapLibre WebGL 渲染引擎中...
-                </div>
-              }
-            >
-              <MapLibreMap
-                activeFilterId={activeFilterId}
-                activeTextFilters={activeTextFilters}
-                onToggleTextFilter={handleToggleTextFilter}
-                activeInternationalImageFilter={activeInternationalImageFilter}
-                onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
-                activeRegionalFilters={activeRegionalFilters}
-                onToggleRegionalFilter={handleToggleRegionalFilter}
-                onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
-                isFilterExpanded={isFilterExpanded}
-                selectedCountry={selectedCountry}
-                onSelectCountry={handleSelectCountry}
-                selectedSubdivision={selectedSubdivision}
-                onSelectSubdivision={handleSelectSubdivision}
-                selectedMunicipality={selectedMunicipality}
-                onSelectMunicipality={handleSelectMunicipality}
-                selectedRoad={selectedRoad}
-                onSelectRoad={handleSelectRoad}
-                detailPanelWidth={detailPanelWidth}
-                detailPanelFullWidth={detailPanelFullWidth}
-                zoomToSubdivisionRef={zoomToSubdivisionRef}
-                focusMapRef={focusMapRef}
-                initialTarget={initialTarget}
-                initialFocusTarget={initialFocusTarget}
-                showRoads={showRoads}
-                showInterstates={showInterstates}
-                showNumberedRoutes={showNumberedRoutes}
-                onOceanClick={handleOceanClick}
-                onBackToCanvas={handleToggleRenderEngine}
-              />
-            </Suspense>
-          ) : (
-            <WorldMap
-              activeFilterId={activeFilterId}
-              activeTextFilters={activeTextFilters}
-              onToggleTextFilter={handleToggleTextFilter}
-              activeInternationalImageFilter={activeInternationalImageFilter}
-              onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
-              activeRegionalFilters={activeRegionalFilters}
-              onToggleRegionalFilter={handleToggleRegionalFilter}
-              onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
-              isFilterExpanded={isFilterExpanded}
-              selectedCountry={selectedCountry}
-              onSelectCountry={handleSelectCountry}
-              selectedSubdivision={selectedSubdivision}
-              onSelectSubdivision={handleSelectSubdivision}
-              selectedMunicipality={selectedMunicipality}
-              onSelectMunicipality={handleSelectMunicipality}
-              selectedRoad={selectedRoad}
-              onSelectRoad={handleSelectRoad}
-              detailPanelWidth={detailPanelWidth}
-              detailPanelFullWidth={detailPanelFullWidth}
-              zoomToSubdivisionRef={zoomToSubdivisionRef}
-              focusMapRef={focusMapRef}
-              initialTarget={initialTarget}
-              initialFocusTarget={initialFocusTarget}
-              showRoads={showRoads}
-              showInterstates={showInterstates}
-              showNumberedRoutes={showNumberedRoutes}
-              onOceanClick={handleOceanClick}
-            />
-          )}
+          <MapLibreMap
+            activeFilterId={activeFilterId}
+            activeTextFilters={activeTextFilters}
+            onToggleTextFilter={handleToggleTextFilter}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+            activeRegionalFilters={activeRegionalFilters}
+            onToggleRegionalFilter={handleToggleRegionalFilter}
+            onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
+            isFilterExpanded={isFilterExpanded}
+            selectedCountry={selectedCountry}
+            onSelectCountry={handleSelectCountry}
+            selectedSubdivision={selectedSubdivision}
+            onSelectSubdivision={handleSelectSubdivision}
+            selectedMunicipality={selectedMunicipality}
+            onSelectMunicipality={handleSelectMunicipality}
+            selectedRoad={selectedRoad}
+            onSelectRoad={handleSelectRoad}
+            detailPanelWidth={detailPanelWidth}
+            detailPanelFullWidth={detailPanelFullWidth}
+            zoomToSubdivisionRef={zoomToSubdivisionRef}
+            focusMapRef={focusMapRef}
+            initialTarget={initialTarget}
+            initialFocusTarget={initialFocusTarget}
+            showRoads={showRoads}
+            showInterstates={showInterstates}
+            showNumberedRoutes={showNumberedRoutes}
+            onOceanClick={handleOceanClick}
+          />
         </section>
 
         {(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad) && (

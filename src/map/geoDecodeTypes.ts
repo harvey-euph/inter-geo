@@ -1,18 +1,22 @@
+import type { FeatureCollection } from 'geojson';
+
 export type BBox = [number, number, number, number];
 
 /**
  * Decode job kinds:
+ * - `l1`: Country outlines
  * - `l2`: Admin-1 subdivisions (adds centroid + dissolved national outline)
  * - `l3`: Regional L3 partition pack
  * - `roads`: Road network (features with empty geometry are dropped)
  */
-export type DecodeKind = 'l2' | 'l3' | 'roads';
+export type DecodeKind = 'l1' | 'l2' | 'l3' | 'roads';
 
 export interface DecodeRequest {
   id: number;
   url: string;
   kind: DecodeKind;
   iso2?: string;
+  asGeoJson?: boolean;
 }
 
 /** A projected feature: SVG path string in map space + precomputed bbox (and centroid for L2). */
@@ -26,6 +30,7 @@ export interface DecodedFeature {
 
 export interface DecodeResult {
   features: DecodedFeature[];
+  geojson?: FeatureCollection;
   /** L2 only: dissolved outer national boundary path (absent when dissolve failed or produced artifacts). */
   dissolvedD?: string;
 }

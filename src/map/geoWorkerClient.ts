@@ -1,3 +1,4 @@
+import type { FeatureCollection } from 'geojson';
 import type { DecodeKind, DecodeResponse, DecodeResult } from './geoDecodeTypes';
 
 interface PendingJob {
@@ -35,7 +36,7 @@ function getPool(): Worker[] {
       pending.delete(msg.id);
       inFlight[idx]--;
       if (msg.ok) {
-        job.resolve({ features: msg.features, dissolvedD: msg.dissolvedD });
+        job.resolve({ features: msg.features || [], geojson: msg.geojson, dissolvedD: msg.dissolvedD });
       } else {
         job.reject(new Error(msg.error));
       }
@@ -65,4 +66,25 @@ export function decodeGeo(url: string, kind: DecodeKind, iso2?: string): Promise
     inFlight[workerIdx]++;
     pool[workerIdx].postMessage({ id, url: absUrl, kind, iso2 });
   });
+}
+
+/**
+ * Fetch + decode a FlatGeobuf file into standard GeoJSON FeatureCollection
+ * for WebGL (MapLibre) consumption off the main thread.
+ */
+export async function decodeGeoJson(url: string, kind: DecodeKind, iso2?: string): Promise<FeatureCollection> {
+  const pool = getPool();
+  let workerIdx = 0;
+  for (let i = 1; i < pool.length; i++) {
+    if (inFlight[i] < inFlight[workerIdx]) workerIdx = i;
+  }
+  const id = nextId++;
+  const absUrl = new URL(url, self.location.href).href;
+  const res = await new Promise<DecodeResult>((resolve, reject) => {
+    pending.set(id, { workerIdx, resolve, reject });
+    inFlight[workerIdx]++;
+    pool[workerIdx].postMessage({ id, url: absUrl, kind, iso2, asGeoJson: true });
+  });
+
+  return res.geojson || { type: 'FeatureCollection', features: [] };
 }

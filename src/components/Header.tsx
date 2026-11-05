@@ -24,8 +24,6 @@ interface HeaderProps {
   isInfoSettingsFocused?: boolean;
   onToggleInfoSettingsExpanded?: () => void;
   onOpenQuiz?: () => void;
-  renderEngine?: 'canvas' | 'maplibre';
-  onToggleRenderEngine?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = React.memo(({
@@ -38,9 +36,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleFilterExpanded,
   isInfoSettingsExpanded,
   isInfoSettingsFocused,
-  onToggleInfoSettingsExpanded,
-  renderEngine,
-  onToggleRenderEngine
+  onToggleInfoSettingsExpanded
 }) => {
   const activeCount = activeLayerCount ?? activeFilterCount ?? 0;
   const isExpanded = isLayerExpanded ?? isFilterExpanded ?? false;
@@ -155,23 +151,6 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           </span>
           {isInfoSettingsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
-
-        {onToggleRenderEngine && (
-          <button
-            type="button"
-            className={`filter-trigger-btn ${renderEngine === 'maplibre' ? 'has-active' : ''}`}
-            onClick={onToggleRenderEngine}
-            title={renderEngine === 'maplibre' ? '點擊切換為 Canvas 2D 引擎' : '點擊切換為 WebGL / MapLibre 引擎 (PoC)'}
-            style={{
-              borderColor: renderEngine === 'maplibre' ? '#38bdf8' : undefined,
-              color: renderEngine === 'maplibre' ? '#38bdf8' : undefined
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700 }}>
-              {renderEngine === 'maplibre' ? '⚡ WebGL' : '🎨 2D'}
-            </span>
-          </button>
-        )}
       </div>
 
     </header>

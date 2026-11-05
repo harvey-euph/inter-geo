@@ -97,9 +97,15 @@
   - 完成：`src/poc/MapLibrePoC.tsx`，內建即時 GPU 效能監測器（即時 FPS、60 幀滑動平均、低標 FPS、幀時間 ms）、視角與圖層開關、滑鼠游標拾取高亮，以及「連續縮放動態巡航壓力測試」。
 - [x] **3. 把現有的地圖系統改成可雙向切換「Canvas 模式 / MapLibre 模式」**
   - 完成：`src/components/Header.tsx` 配置 `🎨 2D` $\leftrightarrow$ `⚡ WebGL` 快速切換鈕，支援 `?engine=maplibre` 路由參數，並使用 Vite codeSplitting 進行動態延遲載入（Lazy Loading），未進入 WebGL 模式時不增加首屏負載。
-- [ ] **4. 逐步遷移圖層（先 fill-region，再 roads，再標籤）**
-  - 規劃：將 CSV 填色規則轉換為 MapLibre `fill-color` 表達式、公路路網雙層 Casing 渲染、標籤碰撞檢測（Symbol layer）。
-- [ ] **5. 確認情報卡、URL 同步、Street View 仍正常運作後，再考慮全面切換**
+- [x] **4. 實現下方地名文字框與懸浮小卡共存，並整合至 main 分支**
+  - 完成：在 WebGL 與 Canvas 2D 雙引擎均實作下方毛玻璃地名藥丸框（`hoveredInfoText`），與動態游標漂浮詳細小卡（`MapTooltip`）完美共存。
+- [ ] **5. 全面遷移 MapLibre 並徹底移除 Canvas 2D（進行中）**
+  - [ ] **5.1 幾何資料管線升級**：Worker 解碼支援標準 GeoJSON Lon/Lat 串流，對接 FGB 動態載入（L1 全球、L2 州/省、L3 鄉鎮市區、Roads 路網）。
+  - [ ] **5.2 CSV 主題填色與圖例對接**：將 CSV 圖層填色規則轉換為 MapLibre Expression 動態驅動多邊形著色。
+  - [ ] **5.3 徽章、標籤與特殊圖層**：以 Symbol Layers 實現全球文字覆蓋、區碼徽章、行人穿越道標誌與自訂外擴標籤。
+  - [ ] **5.4 導航、URL 同步與控制項**：完成 `focusMapRef`、`zoomToSubdivisionRef`、URL 雙向座標同步、鍵盤導航與準星模式。
+  - [ ] **5.5 徹底移除 Canvas 2D 遺留檔案**：移除 `WorldMap.tsx`、`renderLayers.ts`、`hitTest.ts`，移除 Header 中的切換鈕，使 MapLibre 成為單一預設引擎。
+  - [ ] **5.6 完整回歸驗證與多倉庫同步**：全站功能驗證、Zero Lint/Build 警告，推送至 `inter-geo` 與 `inter-geo-data`。
 
 ## 風險與注意事項
 
