@@ -84,15 +84,23 @@ export interface CsvLayerRegistryEntry {
 }
 
 export interface CsvLayerKVRow {
-  /** Original region-id written in the CSV */
+  /** Original target/region-id written in the CSV (from 'Target' or 'regionId' / 'iso2' / 'roadId') */
   regionId: string;
+  /** Primary target key (alias of regionId) */
+  target?: string;
+  /** Explicit color specified in row (from 'Color') */
+  color?: string;
+  /** Explicit label (text string, image path, etc.) */
+  label?: string;
+  /** Label display method (e.g. 'badge', 'plain', 'image', 'grid-letter', 'shield') */
+  labelDisplayMethod?: string;
   /** If regionId is a pipe-delimited union (e.g. 'BR::PA|BR::AM'), holds the canonical union group ID */
   unionGroupId?: string;
   /** Individual member region IDs when regionId is a pipe-delimited union */
   unionMembers?: string[];
   /** Optional anchor member ID specified via '*' (e.g. 'JP::11*|JP::12|JP::14' -> 'JP::11') */
   unionAnchorMember?: string;
-  /** Value (color hex/rgba, text string, image path, or special payload) */
+  /** Canonical value (color hex/rgba, text string, image path, or special payload) */
   value: string;
   /** Text string if TextWithStyle */
   text?: string;
@@ -100,8 +108,6 @@ export interface CsvLayerKVRow {
   style?: string;
   /** Parsed CSS style properties */
   parsedStyle?: ParsedTextStyle;
-  /** Optional label/note for legend or tooltip */
-  label?: string;
   /** All parsed column attributes as a key-value dictionary */
   attributes: Record<string, string>;
   [key: string]: unknown;
@@ -269,9 +275,12 @@ export function parseLayerDataCsv(
 
   let columns: string[] = [];
   let regionIdCol = 0;
+  let colorCol = -1;
+  let labelCol = -1;
+  let displayMethodCol = -1;
   let valueCol = 1;
   let styleCol = -1;
-  let labelCol = 2;
+  let descCol = -1;
   let hasCheckedHeader = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -329,6 +338,7 @@ export function parseLayerDataCsv(
       const rawCols = cells.map((c) => c.trim().replace(/^"|"$/g, ''));
       const normFirst = (rawCols[0] || '').toLowerCase().replace(/[\s_-]+/g, '');
       const isHeader =
+        normFirst === 'target' ||
         normFirst === 'regionid' ||
         normFirst === 'region' ||
         normFirst === 'roadid' ||
@@ -339,18 +349,30 @@ export function parseLayerDataCsv(
         normFirst === 'code' ||
         normFirst === 'letter' ||
         rawCols.some((c) =>
-          ['color', 'value', 'label', 'namezh', 'nameen', 'examplepolecode', 'subdivisions'].includes(
-            c.toLowerCase().replace(/[\s_-]+/g, '')
-          )
+          [
+            'target',
+            'color',
+            'label',
+            'labeldisplaymethod',
+            'displaymethod',
+            'value',
+            'namezh',
+            'nameen',
+            'examplepolecode',
+            'subdivisions',
+            'description'
+          ].includes(c.toLowerCase().replace(/[\s_-]+/g, ''))
         );
 
       if (isHeader) {
         columns = rawCols;
         let foundRegionCol = false;
         let foundValueCol = false;
+
         for (let cIdx = 0; cIdx < rawCols.length; cIdx++) {
           const normCol = rawCols[cIdx].toLowerCase().replace(/[\s_-]+/g, '');
           if (
+            normCol === 'target' ||
             normCol === 'regionid' ||
             normCol === 'region' ||
             normCol === 'roadid' ||
@@ -361,8 +383,11 @@ export function parseLayerDataCsv(
           ) {
             regionIdCol = cIdx;
             foundRegionCol = true;
+          } else if (normCol === 'color' || normCol === 'colour') {
+            colorCol = cIdx;
+          } else if (normCol === 'labeldisplaymethod' || normCol === 'displaymethod') {
+            displayMethodCol = cIdx;
           } else if (
-            normCol === 'color' ||
             normCol === 'value' ||
             normCol === 'val' ||
             normCol === 'text' ||
@@ -375,6 +400,8 @@ export function parseLayerDataCsv(
           ) {
             valueCol = cIdx;
             foundValueCol = true;
+          } else if (normCol === 'label') {
+            labelCol = cIdx;
           } else if (normCol === 'code') {
             if (!foundRegionCol && cIdx === 0) {
               regionIdCol = cIdx;
@@ -382,11 +409,7 @@ export function parseLayerDataCsv(
             } else if (!foundValueCol) {
               valueCol = cIdx;
             }
-          } else if (
-            normCol === 'id' ||
-            normCol === 'key' ||
-            normCol === 'letter'
-          ) {
+          } else if (normCol === 'id' || normCol === 'key' || normCol === 'letter') {
             if (!foundRegionCol) {
               regionIdCol = cIdx;
               foundRegionCol = true;
@@ -394,27 +417,26 @@ export function parseLayerDataCsv(
           } else if (normCol === 'style') {
             styleCol = cIdx;
           } else if (
-            normCol === 'label' ||
-            normCol === 'namezh' ||
-            normCol === 'nameen' ||
             normCol === 'desc' ||
             normCol === 'description' ||
+            normCol === 'descriptionzh' ||
+            normCol === 'namezh' ||
+            normCol === 'nameen' ||
             normCol === 'subdivisions'
           ) {
-            if (labelCol === 2 || normCol === 'label') {
-              labelCol = cIdx;
+            if (descCol === -1) {
+              descCol = cIdx;
             }
           }
         }
         continue;
       } else {
-        columns = ['regionId', 'value', 'label'];
+        columns = ['Target', 'Color', 'Label', 'LabelDisplayMethod', 'Description'];
       }
     }
 
     const rawRegionId = (cells[regionIdCol] || cells[0] || '').replace(/^"|"$/g, '').trim();
-    const rawValue = (cells[valueCol] || cells[1] || '').replace(/^"|"$/g, '').trim();
-    if (!rawRegionId || !rawValue) continue;
+    if (!rawRegionId) continue;
 
     const attributes: Record<string, string> = {};
     for (let cIdx = 0; cIdx < cells.length; cIdx++) {
@@ -422,14 +444,59 @@ export function parseLayerDataCsv(
       attributes[colName] = (cells[cIdx] || '').replace(/^"|"$/g, '').trim();
     }
 
-    const rawLabel = (
-      cells[labelCol] ||
+    // Resolve unified columns
+    const rowColor = (colorCol !== -1 ? cells[colorCol] : attributes.color || attributes.Color || '')
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    const rowLabel = (
+      (labelCol !== -1 ? cells[labelCol] : '') ||
       attributes.label ||
+      attributes.Label ||
+      attributes.text ||
+      attributes.image ||
+      ''
+    )
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    const rowDisplayMethod = (
+      (displayMethodCol !== -1 ? cells[displayMethodCol] : '') ||
+      attributes.labelDisplayMethod ||
+      attributes.LabelDisplayMethod ||
+      attributes.displayMethod ||
+      ''
+    )
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    const rowDesc = (
+      (descCol !== -1 ? cells[descCol] : '') ||
+      attributes.description ||
+      attributes.Description ||
+      attributes.descriptionZh ||
+      attributes.DescriptionZh ||
       attributes.nameZh ||
       attributes.subdivisions ||
-      cells[2] ||
       ''
-    ).replace(/^"|"$/g, '').trim();
+    )
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    // Canonical value resolution:
+    // If Color exists, value is Color.
+    // If Label exists and is text/image, value is Label.
+    // Otherwise fallback to legacy valueCol.
+    let rawValue = (cells[valueCol] || '').replace(/^"|"$/g, '').trim();
+    if (!rawValue) {
+      if (rowColor) {
+        rawValue = rowColor;
+      } else if (rowLabel) {
+        rawValue = rowLabel;
+      } else if (cells[1]) {
+        rawValue = cells[1].replace(/^"|"$/g, '').trim();
+      }
+    }
 
     let unionAnchorMember: string | undefined;
     const rawTokens = rawRegionId.includes('|')
@@ -458,13 +525,20 @@ export function parseLayerDataCsv(
       }
     }
 
-    const rawStyle = attributes.style || (styleCol !== -1 ? (cells[styleCol] || '').replace(/^"|"$/g, '').trim() : undefined) || meta.defaultStyle;
+    const rawStyle =
+      attributes.style ||
+      (styleCol !== -1 ? (cells[styleCol] || '').replace(/^"|"$/g, '').trim() : undefined) ||
+      meta.defaultStyle;
     const parsedStyle = parseCssStyle(rawStyle, meta.defaultStyle);
-    const rowText = attributes.text || rawValue;
+    const rowText = rowLabel || attributes.text || rawValue;
     const canonicalRegionId = unionParts.join('|') || rawRegionId;
 
     const row: CsvLayerKVRow = {
       regionId: canonicalRegionId,
+      target: canonicalRegionId,
+      color: rowColor || undefined,
+      label: rowLabel || undefined,
+      labelDisplayMethod: rowDisplayMethod || undefined,
       unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
       unionMembers: unionParts.length > 1 ? unionParts : undefined,
       unionAnchorMember,
@@ -472,10 +546,15 @@ export function parseLayerDataCsv(
       text: rowText,
       style: rawStyle,
       parsedStyle,
-      label: rawLabel || undefined,
       attributes
     };
     rows.push(row);
+
+    // Map lookups:
+    // 1. valueMap (returns primary value: color or label or rawValue)
+    // 2. labelMap (returns description/tooltip if present, else label or value)
+    // 3. rowMap (returns full CsvLayerKVRow)
+    const mapLabel = rowDesc || rowLabel || rawValue;
 
     valueMap.set(rawRegionId, rawValue);
     valueMap.set(rawRegionId.toUpperCase(), rawValue);
@@ -491,8 +570,8 @@ export function parseLayerDataCsv(
       const normalizedKeys = assignableList.normalizeId(part);
       for (const k of normalizedKeys) {
         valueMap.set(k, rawValue);
-        if (rawLabel) {
-          labelMap.set(k, rawLabel);
+        if (mapLabel) {
+          labelMap.set(k, mapLabel);
         }
         rowMap.set(k, row);
       }
