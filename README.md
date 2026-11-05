@@ -484,10 +484,10 @@ npm run build
 
 ### 免 Root 自包含 Nginx 正式服務 (`nginx.conf`)
 
-本專案內建無須 Root 權限之可攜式 Nginx 配置（[`nginx.conf`](nginx.conf)），完全採用**相對路徑**設計，能將本機 `dist/` 與同級 `inter-geo-data/` 掛載於 `http://localhost:9222/inter-geo/`：
+本專案內建無須 Root 權限之可攜式 Nginx 配置（[`nginx.conf`](nginx.conf)），完全採用**相對路徑**設計，能將本機 `dist/` 與同級 `inter-geo-data/` 掛載於 `http://localhost:8080/inter-geo/`：
 
 ```bash
-# 啟動 Nginx 與 Dev Helper 服務 (預設監聽 9222 端口與 8091 回寫端口)
+# 啟動 Nginx 與 Dev Helper 服務 (預設監聽 8080 端口與 8091 回寫端口)
 npm run nginx:start
 
 # 重新載入設定

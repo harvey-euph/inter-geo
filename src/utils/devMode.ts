@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 /**
  * Developer Mode utility
  * Activated via URL query parameter `dev=true` or `&dev=true` (or `dev=1`)
- * e.g. http://localhost:9222/?dev=true
+ * e.g. http://localhost:8080/?dev=true
  */
 
 export function isDevMode(): boolean {

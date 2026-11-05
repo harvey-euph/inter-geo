@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Edit3, FileText, Send, Sparkles, X } from 'lucide-react';
 import { saveInfoArticle, type NewInfoArticlePayload } from '../info/saveInfoArticle';
-import { optimisticUpsertInfoCard, reloadInfoIndex } from '../info/infoRegistry';
+import { invalidateInfoCard, optimisticUpsertInfoCard, reloadInfoIndex } from '../info/infoRegistry';
 import { parseMarkdownInfo } from '../info/infoParser';
 import type { InfoCard, InfoItem } from '../types/info';
 
@@ -25,7 +25,7 @@ function cardItemsToMarkdown(items?: InfoItem[]): string {
   return lines.join('\n');
 }
 
-const AVAILABLE_INFO_FILES = [
+export const AVAILABLE_INFO_FILES = [
   'info/asia.md',
   'info/europe.md',
   'info/latin-america.md',
@@ -143,7 +143,7 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
     const targetFile = file.trim() || 'info/note.md';
 
     let payload: NewInfoArticlePayload;
-    let cardMarkdown: string;
+    let cardMarkdown = '';
 
     if (mode === 'raw') {
       const text = rawMarkdown.trim();
@@ -211,10 +211,11 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
     // 🚀 Optimistic update: parse card and display immediately (0ms delay)
     const optimisticCards = parseMarkdownInfo(cardMarkdown, targetFile);
     let rollback: (() => void) | null = null;
+    let cardId = payload.id || '';
 
     if (optimisticCards.length > 0) {
       const optCard = optimisticCards[0];
-      const cardId = optCard.id;
+      cardId = optCard.id;
       rollback = optimisticUpsertInfoCard(optCard);
       if (onSuccess) {
         onSuccess(cardId);

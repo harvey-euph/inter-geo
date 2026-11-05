@@ -122,32 +122,6 @@ export type HitFeature =
   | { type: 'country'; data: CountryPathData }
   | { type: 'extFeature'; data: ExtFeatureItem };
 
-export type MapFocusBox = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
-
-export type MapFocusTarget = (
-  | { kind: 'country'; iso2: string }
-  | { kind: 'subdivision'; iso2: string; id: string | number }
-  | {
-      kind: 'municipality';
-      iso2?: string;
-      code?: string;
-      parentName?: string;
-      parentCode?: string;
-    }
-  | { kind: 'road'; bbox: [number, number, number, number] }
-  | { kind: 'bbox'; boxes: MapFocusBox[] }
-  | { kind: 'coordinates'; lat: number; lon: number; ratio?: number }
-) & { force?: boolean };
-
-export type MapSelectOptions = { focus?: boolean };
-
-export type { RoadPathData };
-
 export function normParentKey(iso2: string, text: string): string {
   return `${(iso2 || '').toLowerCase()}-${String(text || '')
     .normalize('NFD')

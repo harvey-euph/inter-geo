@@ -2,10 +2,10 @@ import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } fro
 import { Header } from './components/Header';
 import { LayerBar } from './components/LayerBar';
 import { InfoSettingsWindow } from './components/InfoSettingsWindow';
-import { MapLibreMap } from './components/MapLibreMap';
+import { WorldMap } from './components/WorldMap';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
-import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './map/types';
+import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import {
   getNationwideLayerById,
@@ -850,7 +850,7 @@ export function App() {
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
-          {/* Tree-based Layer Selector Window (Shared by both 2D and WebGL engines) */}
+          {/* Tree-based Layer Selector Window */}
           <LayerBar
             activeFilterId={activeFilterId}
             onSelectFilter={handleSelectFilter}
@@ -872,7 +872,7 @@ export function App() {
             }}
           />
 
-          {/* Infotip & Info Tag Preference Window (Shared by both 2D and WebGL engines) */}
+          {/* Infotip & Info Tag Preference Window */}
           <InfoSettingsWindow
             isExpanded={isInfoSettingsExpanded}
             onCollapse={handleCollapseInfoSettings}
@@ -881,7 +881,8 @@ export function App() {
             onFocusWindow={() => bringToFront('info')}
           />
 
-          <MapLibreMap
+          {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}
+          <WorldMap
             activeFilterId={activeFilterId}
             activeTextFilters={activeTextFilters}
             onToggleTextFilter={handleToggleTextFilter}
