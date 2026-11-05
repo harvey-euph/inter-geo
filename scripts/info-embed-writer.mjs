@@ -98,9 +98,14 @@ function deleteNthToken(sectionBody, token, index) {
  * `file` is relative to the data repo, for example `info/taiwan-grid.md`.
  */
 export function applyInfoEmbed(dataRepo, body) {
-  const file = String(body?.file || '').replace(/\\/g, '/');
+  let file = String(body?.file || '').replace(/\\/g, '/').trim();
+  file = file.replace(/^\/+/, '').replace(/^info\/+/, '');
+  if (!file) file = 'note.md';
+  if (!file.endsWith('.md')) file += '.md';
+  file = `info/${file}`;
+
   if (!/^info\/[A-Za-z0-9._-]+\.md$/.test(file)) {
-    throw new Error('invalid info file');
+    throw new Error(`invalid info file: ${file}`);
   }
   const cardId = String(body?.cardId || '').trim();
   if (!cardId || /[\r\n/]/.test(cardId) || cardId.length > 160) {

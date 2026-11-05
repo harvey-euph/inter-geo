@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Edit3, Trash2 } from 'lucide-react';
 import { invalidateInfoCard, isInfoIndexLoaded, loadInfoCard, onInfoIndexLoaded, optimisticAppendCardBullet, optimisticDeleteInfoCard, queryInfoStubs, reloadInfoIndex } from '../info/infoRegistry';
-import { InfoArticleError, deleteInfoArticle, saveInfoArticle } from '../info/saveInfoArticle';
+import { InfoArticleError, deleteInfoArticle, normalizeInfoFilePath, saveInfoArticle } from '../info/saveInfoArticle';
 import { resolveInfoImageUrl } from '../info/imageUrl';
 import { GoogleMapsEmbed } from './GoogleMapsEmbed';
 import { InfoEmbedSourceContext, type InfoEmbedSlot, type InfoEmbedSource } from '../info/infoEmbedSource';
@@ -325,8 +325,7 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
     // 🚀 Optimistic delete: immediately remove from UI
     const rollback = optimisticDeleteInfoCard(card.id);
 
-    const rawFile = card.sourceFile || 'info/note.md';
-    const sourceFile = rawFile.startsWith('info/') ? rawFile : `info/${rawFile}`;
+    const sourceFile = normalizeInfoFilePath(card.sourceFile || 'info/note.md');
 
     void deleteInfoArticle({ file: sourceFile, cardId: card.id })
       .then(async () => {
@@ -373,7 +372,8 @@ export const MarkdownInfoCard: React.FC<MarkdownInfoCardProps> = ({ card }) => {
   };
 
   const accent = card.accentColor || '#fbbf24';
-  const sourceName = card.sourceFile?.split('/').pop() || '';
+  const rawSourceName = card.sourceFile?.replace(/\\/g, '/').split('/').pop() || '';
+  const sourceName = rawSourceName ? (rawSourceName.endsWith('.md') ? rawSourceName : `${rawSourceName}.md`) : '';
   const queues = new Map<string, InfoEmbedSlot[]>();
   const visibleCounts = new Map<string, number>();
   const occurrenceCounts = new Map<string, number>();

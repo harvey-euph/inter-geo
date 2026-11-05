@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Check, Edit3, FileText, Send, Sparkles, X } from 'lucide-react';
-import { saveInfoArticle, type NewInfoArticlePayload } from '../info/saveInfoArticle';
+import { normalizeInfoFilePath, saveInfoArticle, type NewInfoArticlePayload } from '../info/saveInfoArticle';
 import { optimisticUpsertInfoCard, reloadInfoIndex } from '../info/infoRegistry';
 import { parseMarkdownInfo } from '../info/infoParser';
 import type { InfoCard, InfoItem } from '../types/info';
@@ -27,24 +27,26 @@ function cardItemsToMarkdown(items?: InfoItem[]): string {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AVAILABLE_INFO_FILES = [
-  'info/asia.md',
-  'info/europe.md',
-  'info/latin-america.md',
-  'info/north-america.md',
   'info/africa.md',
-  'info/oceania.md',
-  'info/countries.md',
-  'info/japan.md',
-  'info/russia.md',
-  'info/india.md',
-  'info/taiwan-grid.md',
+  'info/asia.md',
   'info/car-meta.md',
-  'info/highways.md',
-  'info/pedestrian-crossing.md',
+  'info/countries.md',
   'info/eu-bollard.md',
-  'info/local-admin.md',
+  'info/europe.md',
   'info/grok-gen.md',
+  'info/highways.md',
+  'info/india-states.md',
+  'info/india.md',
+  'info/japan.md',
+  'info/latin-america.md',
+  'info/local-admin.md',
+  'info/north-america.md',
   'info/note.md',
+  'info/oceania.md',
+  'info/pedestrian-crossing.md',
+  'info/russia.md',
+  'info/street-view.md',
+  'info/taiwan-grid.md',
   'info/test.md'
 ];
 
@@ -80,9 +82,13 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
   onSuccess
 }) => {
   const isEditing = Boolean(initialCard);
-  const resolvedFile = initialCard?.sourceFile
-    ? (initialCard.sourceFile.startsWith('info/') ? initialCard.sourceFile : `info/${initialCard.sourceFile}`)
-    : defaultFile;
+  const resolvedFile = normalizeInfoFilePath(initialCard?.sourceFile || defaultFile);
+  const fileOptions = useMemo(() => {
+    if (resolvedFile && !AVAILABLE_INFO_FILES.includes(resolvedFile)) {
+      return [resolvedFile, ...AVAILABLE_INFO_FILES];
+    }
+    return AVAILABLE_INFO_FILES;
+  }, [resolvedFile]);
 
   const [mode, setMode] = useState<'form' | 'raw'>('form');
 
@@ -160,6 +166,7 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
       payload = {
         file: targetFile,
         title: '',
+        previousId: initialCard?.id,
         targets: '',
         rawMarkdown: text
       };
@@ -200,11 +207,19 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
         file: targetFile,
         title: cleanTitle,
         id: cleanId,
+        previousId: initialCard?.id,
         targets: cleanTargets,
         icon: cleanIcon,
         accent: cleanAccent,
         tags: cleanTags,
         priority: cleanPriority,
+        layer: initialCard?.layer,
+        image: initialCard?.image,
+        imageSize: initialCard?.imageSize,
+        imagePosition: initialCard?.imagePosition,
+        imageAlt: initialCard?.imageAlt,
+        comparison: initialCard?.comparisonTargets,
+        display: initialCard?.display,
         content: content.trim()
       };
     }
@@ -358,7 +373,7 @@ export const NewInfoArticleForm: React.FC<NewInfoArticleFormProps> = ({
                 fontSize: 12
               }}
             >
-              {AVAILABLE_INFO_FILES.map((f) => (
+              {fileOptions.map((f) => (
                 <option key={f} value={f}>
                   {f}
                 </option>

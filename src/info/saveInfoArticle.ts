@@ -12,6 +12,7 @@ export interface NewInfoArticlePayload {
   file: string;
   title: string;
   id?: string;
+  previousId?: string;
   targets: string[] | string;
   icon?: string;
   accent?: string;
@@ -19,6 +20,11 @@ export interface NewInfoArticlePayload {
   priority?: number | string;
   layer?: string;
   image?: string;
+  imageSize?: string;
+  imagePosition?: string;
+  imageAlt?: string;
+  comparison?: string[] | string;
+  display?: boolean;
   content?: string;
   rawMarkdown?: string;
 }
@@ -50,17 +56,30 @@ export interface SaveInfoArticleResponse {
   indexed: boolean;
 }
 
+export function normalizeInfoFilePath(rawFile?: string): string {
+  const clean = (rawFile || '')
+    .replace(/\\/g, '/')
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/^info\/+/, '');
+  const base = clean || 'note.md';
+  return `info/${base.endsWith('.md') ? base : `${base}.md`}`;
+}
+
 export async function deleteInfoArticle(params: { file: string; cardId: string }): Promise<SaveInfoArticleResponse> {
   return saveInfoArticle({ op: 'delete', file: params.file, cardId: params.cardId });
 }
 
 export async function saveInfoArticle(body: SaveInfoArticlePayload): Promise<SaveInfoArticleResponse> {
+  const normalizedFile = normalizeInfoFilePath(body.file);
+  const normalizedBody = { ...body, file: normalizedFile };
+
   const base = (import.meta.env.BASE_URL || '/inter-geo/').replace(/\/+$/, '');
   const targetUrl = `${base}/@dev/info-article`;
   let res = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(normalizedBody)
   });
 
   if (res.status === 404 && base) {
@@ -68,7 +87,7 @@ export async function saveInfoArticle(body: SaveInfoArticlePayload): Promise<Sav
       const fallbackRes = await fetch('/@dev/info-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(normalizedBody)
       });
       if (fallbackRes.ok || fallbackRes.status !== 404) {
         res = fallbackRes;

@@ -99,6 +99,11 @@ function formatCardSection({
   priority,
   layer,
   image,
+  imageSize,
+  imagePosition,
+  imageAlt,
+  comparison,
+  display,
   content
 }) {
   const cleanTitle = String(title || '').replace(/^#\s*/, '').trim();
@@ -121,6 +126,16 @@ function formatCardSection({
   }
   if (layer && String(layer).trim()) metaLines.push(`- layer: ${String(layer).trim()}`);
   if (image && String(image).trim()) metaLines.push(`- image: ${String(image).trim()}`);
+  if (imageSize && String(imageSize).trim()) metaLines.push(`- imageSize: ${String(imageSize).trim()}`);
+  if (imagePosition && String(imagePosition).trim()) metaLines.push(`- imagePosition: ${String(imagePosition).trim()}`);
+  if (imageAlt && String(imageAlt).trim()) metaLines.push(`- imageAlt: ${String(imageAlt).trim()}`);
+  if (comparison) {
+    const compStr = Array.isArray(comparison) ? comparison.join(', ') : String(comparison);
+    if (compStr.trim()) metaLines.push(`- comparison: ${compStr.trim()}`);
+  }
+  if (display !== undefined && display !== null && String(display).trim() !== '') {
+    metaLines.push(`- display: ${display}`);
+  }
 
   let body = String(content || '').trim();
   if (body) {
@@ -176,19 +191,23 @@ function parseRawCardSection(rawMarkdown, fallbackId) {
  */
 export function applyInfoArticle(dataRepo, body) {
   let file = String(body?.file || '').replace(/\\/g, '/').trim();
+  file = file.replace(/^\/+/, '').replace(/^info\/+/, '');
   if (!file) {
-    file = 'info/note.md';
-  } else if (!file.startsWith('info/')) {
-    file = `info/${file}`;
+    file = 'note.md';
   }
+  if (!file.endsWith('.md')) {
+    file += '.md';
+  }
+  file = `info/${file}`;
+
   if (!/^info\/[A-Za-z0-9._-]+\.md$/.test(file)) {
-    throw fail('無效的 info 檔案路徑');
+    throw fail(`無效的 info 檔案路徑: ${file}`);
   }
 
   const root = path.resolve(dataRepo, 'info') + path.sep;
   const abs = path.resolve(dataRepo, file);
   if (!abs.startsWith(root)) {
-    throw fail('無效的 info 檔案路徑');
+    throw fail(`無效的 info 檔案路徑: ${file}`);
   }
 
   // Ensure info directory exists
@@ -296,11 +315,20 @@ export function applyInfoArticle(dataRepo, body) {
       priority: body?.priority,
       layer: body?.layer,
       image: body?.image,
+      imageSize: body?.imageSize,
+      imagePosition: body?.imagePosition,
+      imageAlt: body?.imageAlt,
+      comparison: body?.comparison,
+      display: body?.display,
       content: body?.content
     });
   }
 
-  const existingSection = original ? findCardSection(original, cardId) : null;
+  const prevId = String(body?.previousId || body?.prevId || '').trim();
+  let existingSection = original ? findCardSection(original, cardId) : null;
+  if (!existingSection && prevId && original) {
+    existingSection = findCardSection(original, prevId);
+  }
   let nextFileContent = '';
 
   if (existingSection) {

@@ -153,8 +153,9 @@ export function optimisticUpsertInfoCard(card: InfoCard, stubOverride?: Partial<
   loadedCardsById.set(card.id, card);
 
   const rawFile = card.sourceFile || 'info/note.md';
-  const filename = rawFile.split('/').pop() || rawFile;
-  const sourcePath = rawFile.startsWith('info/') ? rawFile : `info/${rawFile}`;
+  const cleanFilename = rawFile.replace(/\\/g, '/').trim().replace(/^\/+/, '').replace(/^info\/+/, '') || 'note.md';
+  const filename = cleanFilename.endsWith('.md') ? cleanFilename : `${cleanFilename}.md`;
+  const sourcePath = `info/${filename}`;
   const firstPreview = card.items[0]?.content
     ? { content: card.items[0].content.replace(/[*_`#[\]]/g, '').slice(0, 120) }
     : undefined;
