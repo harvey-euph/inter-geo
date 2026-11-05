@@ -352,6 +352,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const crossingImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const renderedCrossingBadgesRef = useRef<CrossingBadgeBox[]>([]);
 
+  // Bottom Center Hover Badge Info Text
+  const [hoveredInfoText, setHoveredInfoText] = useState<string | null>(null);
+
   // Global Text Overlay Filters ref
   const activeTextFiltersRef = useRef<Set<string>>(activeTextFilters || new Set());
   const activeInternationalImageFilterRef = useRef<string | null>(activeInternationalImageFilter || null);
@@ -1942,6 +1945,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       setHoveredExtFeature(null);
       hadHover = true;
     }
+    setHoveredInfoText(null);
     if (tooltipRef.current) {
       tooltipRef.current.style.display = 'none';
     }
@@ -1982,6 +1986,23 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         hoveredExtFeatureRef.current = extFeature;
         setHoveredExtFeature(extFeature);
       }
+
+      // Compute bottom hover badge label text
+      if (road) {
+        const flag = road.iso2 ? findCountry(road.iso2)?.flag : '';
+        setHoveredInfoText(`🛣️ ${flag ? flag + ' ' : ''}${road.name}`);
+      } else if (municipality) {
+        setHoveredInfoText(`📍 ${municipality.countryFlag ? municipality.countryFlag + ' ' : ''}${municipality.nameZh || municipality.city} (${municipality.pref || ''})`);
+      } else if (l2) {
+        setHoveredInfoText(`${l2.countryFlag ? l2.countryFlag + ' ' : ''}${l2.countryNameZh || l2.countryName} · ${l2.nameZh || l2.name}${l2.postal ? ` (${l2.postal})` : l2.code ? ` (${l2.code})` : ''}`);
+      } else if (country) {
+        setHoveredInfoText(`${country.flag || '🌍'} ${country.nameZh} (${country.name})`);
+      } else if (extFeature) {
+        setHoveredInfoText(`📌 ${extFeature.label || extFeature.id}`);
+      } else {
+        setHoveredInfoText(null);
+      }
+
       requestRender();
     },
     [setHoveredCountry, requestRender]
@@ -3582,6 +3603,44 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         onToggleInternationalImageFilter={onToggleInternationalImageFilter}
         onToggleRegionalFilter={onToggleRegionalFilter}
       />
+
+      {/* Bottom Center Hover Badge Info */}
+      {hoveredInfoText && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '8px 20px',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid rgba(56, 189, 248, 0.6)',
+            borderRadius: 24,
+            boxShadow: '0 8px 28px rgba(0,0,0,0.6), 0 0 16px rgba(56, 189, 248, 0.35)',
+            color: '#f8fafc',
+            fontSize: 13,
+            fontWeight: 700,
+            pointerEvents: 'none',
+            zIndex: 40,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: '#38bdf8',
+              boxShadow: '0 0 8px #38bdf8'
+            }}
+          />
+          <span>{hoveredInfoText}</span>
+        </div>
+      )}
 
       {/* Top Right Live FPS & Canvas Performance Metrics */}
       <div
