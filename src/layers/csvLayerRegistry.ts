@@ -198,8 +198,17 @@ export async function initCsvLayerRegistry(): Promise<RegisteredCsvLayer[]> {
       byPath.set(reg.path, reg);
 
       const filename = reg.path.split('/').pop()?.replace(/\.csv$/, '');
-      if (filename && !byId.has(filename)) {
-        byId.set(filename, reg);
+      if (filename) {
+        if (!byId.has(filename)) {
+          byId.set(filename, reg);
+        }
+        // Register legacy and alternate subpath aliases
+        byPath.set(`layers/area-feature/area-codes/${filename}.csv`, reg);
+        byPath.set(`layers/area-feature/roads/${filename}.csv`, reg);
+        byPath.set(`layers/area-feature/${filename}.csv`, reg);
+        byPath.set(`layers/${filename}.csv`, reg);
+        byPath.set(`${filename}.csv`, reg);
+        byPath.set(filename, reg);
       }
 
       if (reg.loadedTiming === 'init' && !reg.loaded) {
@@ -544,7 +553,31 @@ export async function loadOnDemandCsvLayer(
   const promise = (async () => {
     try {
       const resolvedUrl = getDataUrl(layer.path);
-      const res = await fetch(resolvedUrl);
+      let res = await fetch(resolvedUrl);
+      if (!res.ok) {
+        // Fallback: if path moved under area-codes/ or roads/, try candidate fallback URLs
+        const filename = layer.path.split('/').pop();
+        if (filename) {
+          const fallbacks = [
+            getDataUrl(`layers/area-feature/area-codes/${filename}`),
+            getDataUrl(`layers/area-feature/roads/${filename}`),
+            getDataUrl(`layers/area-feature/${filename}`)
+          ];
+          for (const fbUrl of fallbacks) {
+            if (fbUrl !== resolvedUrl) {
+              try {
+                const fbRes = await fetch(fbUrl);
+                if (fbRes.ok) {
+                  res = fbRes;
+                  break;
+                }
+              } catch {
+                // ignore and try next
+              }
+            }
+          }
+        }
+      }
       if (!res.ok) {
         console.warn(`[CSV Layer] HTTP ${res.status} when fetching ${resolvedUrl}`);
         return layer;

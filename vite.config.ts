@@ -96,6 +96,21 @@ function localGeoDataPlugin(): Plugin {
             filePath = path.join(dataRepoPath, rest)
           }
 
+          if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            const filename = path.basename(filePath)
+            const candidates = [
+              path.join(dataRepoPath, 'layers/area-feature/area-codes', filename),
+              path.join(dataRepoPath, 'layers/area-feature/roads', filename),
+              path.join(dataRepoPath, 'layers/area-feature', filename)
+            ]
+            for (const cand of candidates) {
+              if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+                filePath = cand
+                break
+              }
+            }
+          }
+
           if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             if (filePath.endsWith('.json')) res.setHeader('Content-Type', 'application/json')
             else if (filePath.endsWith('.csv')) res.setHeader('Content-Type', 'text/plain; charset=utf-8')
