@@ -627,10 +627,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
           paint: {
             'line-color': '#0f172a',
             'line-width': [
-              'case',
-              ['==', ['get', 'class'], 'Interstate'],
-              ['interpolate', ['linear'], ['zoom'], 4, 2.0, 8, 4.0, 12, 7.2],
-              ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.0, 12, 5.2]
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              4,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.6],
+              8,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 4.0, 3.0],
+              12,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 7.2, 5.2]
             ]
           }
         });
@@ -649,10 +654,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
               '#fbbf24'
             ],
             'line-width': [
-              'case',
-              ['==', ['get', 'class'], 'Interstate'],
-              ['interpolate', ['linear'], ['zoom'], 4, 1.0, 8, 2.0, 12, 3.6],
-              ['interpolate', ['linear'], ['zoom'], 4, 0.7, 8, 1.4, 12, 2.6]
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              4,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 1.0, 0.7],
+              8,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.4],
+              12,
+              ['case', ['==', ['get', 'class'], 'Interstate'], 3.6, 2.6]
             ]
           }
         });
@@ -1058,10 +1068,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
         paint: {
           'line-color': '#0f172a',
           'line-width': [
-            'case',
-            ['==', ['get', 'class'], 'Interstate'],
-            ['interpolate', ['linear'], ['zoom'], 4, 2.0, 8, 4.0, 12, 7.2],
-            ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.0, 12, 5.2]
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.6],
+            8,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 4.0, 3.0],
+            12,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 7.2, 5.2]
           ]
         }
       });
@@ -1081,10 +1096,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
             '#fbbf24'
           ],
           'line-width': [
-            'case',
-            ['==', ['get', 'class'], 'Interstate'],
-            ['interpolate', ['linear'], ['zoom'], 4, 1.0, 8, 2.0, 12, 3.6],
-            ['interpolate', ['linear'], ['zoom'], 4, 0.7, 8, 1.4, 12, 2.6]
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 1.0, 0.7],
+            8,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.4],
+            12,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 3.6, 2.6]
           ]
         }
       });
@@ -1105,10 +1125,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
         paint: {
           'line-color': '#0f172a',
           'line-width': [
-            'case',
-            ['==', ['get', 'class'], 'Interstate'],
-            ['interpolate', ['linear'], ['zoom'], 4, 2.0, 8, 4.0, 12, 7.2],
-            ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.0, 12, 5.2]
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.6],
+            8,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 4.0, 3.0],
+            12,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 7.2, 5.2]
           ]
         }
       });
@@ -1128,10 +1153,15 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
             '#fbbf24'
           ],
           'line-width': [
-            'case',
-            ['==', ['get', 'class'], 'Interstate'],
-            ['interpolate', ['linear'], ['zoom'], 4, 1.0, 8, 2.0, 12, 3.6],
-            ['interpolate', ['linear'], ['zoom'], 4, 0.7, 8, 1.4, 12, 2.6]
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            4,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 1.0, 0.7],
+            8,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 2.0, 1.4],
+            12,
+            ['case', ['==', ['get', 'class'], 'Interstate'], 3.6, 2.6]
           ]
         }
       });
