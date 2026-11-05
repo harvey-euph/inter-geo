@@ -4,8 +4,8 @@ import { LayerBar } from './components/LayerBar';
 import { InfoSettingsWindow } from './components/InfoSettingsWindow';
 import { WorldMap } from './components/WorldMap';
 
-const MapLibrePoC = lazy(() =>
-  import('./poc/MapLibrePoC').then((m) => ({ default: m.MapLibrePoC }))
+const MapLibreMap = lazy(() =>
+  import('./components/MapLibreMap').then((m) => ({ default: m.MapLibreMap }))
 );
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
@@ -877,6 +877,37 @@ export function App() {
       {/* Main Viewport */}
       <div className="main-viewport">
         <section className="map-section">
+          {/* Tree-based Layer Selector Window (Shared by both 2D and WebGL engines) */}
+          <LayerBar
+            activeFilterId={activeFilterId}
+            onSelectFilter={handleSelectFilter}
+            activeTextFilters={activeTextFilters}
+            onToggleTextFilter={handleToggleTextFilter}
+            activeInternationalImageFilter={activeInternationalImageFilter}
+            onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+            activeRegionalFilters={activeRegionalFilters}
+            onToggleRegionalFilter={handleToggleRegionalFilter}
+            visibleRegionalFilters={visibleRegionalFilters}
+            onResetAll={handleResetAllFilters}
+            isExpanded={isFilterExpanded}
+            onCollapse={handleCollapseFilter}
+            zIndex={layerZIndex}
+            isFront={activeWindow === 'layer'}
+            onFocusWindow={() => bringToFront('layer')}
+            onGotoCamera={(lat, lon, ratio) => {
+              focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
+            }}
+          />
+
+          {/* Infotip & Info Tag Preference Window (Shared by both 2D and WebGL engines) */}
+          <InfoSettingsWindow
+            isExpanded={isInfoSettingsExpanded}
+            onCollapse={handleCollapseInfoSettings}
+            zIndex={infoZIndex}
+            isFront={activeWindow === 'info'}
+            onFocusWindow={() => bringToFront('info')}
+          />
+
           {renderEngine === 'maplibre' ? (
             <Suspense
               fallback={
@@ -885,43 +916,7 @@ export function App() {
                 </div>
               }
             >
-              <MapLibrePoC onBackToCanvas={handleToggleRenderEngine} />
-            </Suspense>
-          ) : (
-            <>
-              {/* Tree-based Layer Selector Window */}
-              <LayerBar
-                activeFilterId={activeFilterId}
-                onSelectFilter={handleSelectFilter}
-                activeTextFilters={activeTextFilters}
-                onToggleTextFilter={handleToggleTextFilter}
-                activeInternationalImageFilter={activeInternationalImageFilter}
-                onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
-                activeRegionalFilters={activeRegionalFilters}
-                onToggleRegionalFilter={handleToggleRegionalFilter}
-                visibleRegionalFilters={visibleRegionalFilters}
-                onResetAll={handleResetAllFilters}
-                isExpanded={isFilterExpanded}
-                onCollapse={handleCollapseFilter}
-                zIndex={layerZIndex}
-                isFront={activeWindow === 'layer'}
-                onFocusWindow={() => bringToFront('layer')}
-                onGotoCamera={(lat, lon, ratio) => {
-                  focusMapRef.current?.({ kind: 'coordinates', lat, lon, ratio });
-                }}
-              />
-
-              {/* Infotip & Info Tag Preference Window */}
-              <InfoSettingsWindow
-                isExpanded={isInfoSettingsExpanded}
-                onCollapse={handleCollapseInfoSettings}
-                zIndex={infoZIndex}
-                isFront={activeWindow === 'info'}
-                onFocusWindow={() => bringToFront('info')}
-              />
-
-              {/* GPU-Accelerated Vector World Map with Dynamic LOD Precision Tracking */}
-              <WorldMap
+              <MapLibreMap
                 activeFilterId={activeFilterId}
                 activeTextFilters={activeTextFilters}
                 onToggleTextFilter={handleToggleTextFilter}
@@ -949,8 +944,39 @@ export function App() {
                 showInterstates={showInterstates}
                 showNumberedRoutes={showNumberedRoutes}
                 onOceanClick={handleOceanClick}
+                onBackToCanvas={handleToggleRenderEngine}
               />
-            </>
+            </Suspense>
+          ) : (
+            <WorldMap
+              activeFilterId={activeFilterId}
+              activeTextFilters={activeTextFilters}
+              onToggleTextFilter={handleToggleTextFilter}
+              activeInternationalImageFilter={activeInternationalImageFilter}
+              onToggleInternationalImageFilter={handleToggleInternationalImageFilter}
+              activeRegionalFilters={activeRegionalFilters}
+              onToggleRegionalFilter={handleToggleRegionalFilter}
+              onVisibleRegionalFiltersChange={setVisibleRegionalFilters}
+              isFilterExpanded={isFilterExpanded}
+              selectedCountry={selectedCountry}
+              onSelectCountry={handleSelectCountry}
+              selectedSubdivision={selectedSubdivision}
+              onSelectSubdivision={handleSelectSubdivision}
+              selectedMunicipality={selectedMunicipality}
+              onSelectMunicipality={handleSelectMunicipality}
+              selectedRoad={selectedRoad}
+              onSelectRoad={handleSelectRoad}
+              detailPanelWidth={detailPanelWidth}
+              detailPanelFullWidth={detailPanelFullWidth}
+              zoomToSubdivisionRef={zoomToSubdivisionRef}
+              focusMapRef={focusMapRef}
+              initialTarget={initialTarget}
+              initialFocusTarget={initialFocusTarget}
+              showRoads={showRoads}
+              showInterstates={showInterstates}
+              showNumberedRoutes={showNumberedRoutes}
+              onOceanClick={handleOceanClick}
+            />
           )}
         </section>
 
