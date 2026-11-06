@@ -4,6 +4,7 @@ import { getDataUrl } from '../../data/dataSource';
 import { findCountry } from '../../data/countries';
 import { FeatureRegistry, type CanonicalFeature, type AdminLevel } from './FeatureRegistry';
 import { AdministrativeHierarchy } from './AdministrativeHierarchy';
+import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
 
 /**
  * FlatGeobufLoader handles fetching, parsing, and normalizing FlatGeobuf (.fgb) files
@@ -106,13 +107,14 @@ export class FlatGeobufLoader {
           const nameEn = String(props.name_en || countryMeta?.name || props.name || '');
           const nameZh = String(props.name_zh || countryMeta?.nameZh || props.name || '');
 
-          const center = AdministrativeHierarchy.calculateCenter(f.geometry);
-          const bbox = AdministrativeHierarchy.calculateBBox(f.geometry);
+          const geometry = normalizeAntimeridianGeometry(f.geometry);
+          const center = AdministrativeHierarchy.calculateCenter(geometry);
+          const bbox = AdministrativeHierarchy.calculateBBox(geometry);
 
           const canonical: CanonicalFeature = {
             type: 'Feature',
             id: undefined, // Will be set by FeatureRegistry numeric_id
-            geometry: f.geometry,
+            geometry,
             properties: {
               ...props,
               feature_id: featureId,

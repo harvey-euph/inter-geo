@@ -2,6 +2,7 @@ import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
 import type { FeatureCollection, Point } from 'geojson';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
+import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
 import { AdministrativeHierarchy } from './AdministrativeHierarchy';
 import { getCsvLayerById, getCsvLayerValue, getCsvSubdivisionValue } from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
@@ -114,6 +115,9 @@ export class GeographicDataManager {
       const it = (await import('flatgeobuf')).geojson.deserialize(new Uint8Array(buffer));
       const features: any[] = [];
       for await (const feat of it) {
+        if (feat.geometry) {
+          feat.geometry = normalizeAntimeridianGeometry(feat.geometry);
+        }
         features.push(feat);
       }
       if (this.map) {

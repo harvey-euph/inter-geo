@@ -6,6 +6,7 @@ import { AdministrativeHierarchy } from '../src/map/data/AdministrativeHierarchy
 import { ProjectionController } from '../src/map/ProjectionController.ts';
 import { FeatureStateManager } from '../src/map/interaction/FeatureStateManager.ts';
 import { GeometryLODManager } from '../src/map/lod/GeometryLODManager.ts';
+import { splitRingAtAntimeridian, normalizeAntimeridianGeometry } from '../src/map/geo/antimeridian.ts';
 
 console.log('=== Running InterGeo MapLibre Refactoring Verification ===\n');
 
@@ -132,6 +133,54 @@ assert(stateMgr.getState().selectedFeature?.id === 'ADM2_JP_22130', 'Selected st
 assert(GeometryLODManager.getLODForZoom(2) === 0, 'Zoom 2 -> LOD 0 (ADM0)');
 assert(GeometryLODManager.getLODForZoom(5) === 1, 'Zoom 5 -> LOD 1 (ADM1)');
 assert(GeometryLODManager.getLODForZoom(9) === 2, 'Zoom 9 -> LOD 2 (ADM2)');
+
+// 10. Antimeridian Geometry Normalization (eliminates lines circling the globe)
+const testRing = [
+  [179, 10],
+  [-179, 10],
+  [179, 12],
+  [179, 10]
+];
+const splitSynthetic = splitRingAtAntimeridian(testRing);
+assert(splitSynthetic.length === 2, 'Synthetic triangle across antimeridian splits into 2 rings');
+for (const ring of splitSynthetic) {
+  let maxDx = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    maxDx = Math.max(maxDx, Math.abs(ring[i + 1][0] - ring[i][0]));
+  }
+  assert(maxDx <= 1.0, `Synthetic split ring max dx is <= 1.0 deg (got ${maxDx.toFixed(2)})`);
+}
+
+// Verify real-world COUNTRY.fgb antimeridian normalization
+const countryBuffer = fs.readFileSync('../inter-geo-data/data/COUNTRY.fgb');
+const itCountry = flatgeobuf.geojson.deserialize(new Uint8Array(countryBuffer));
+let totalNormalizedCrossings = 0;
+let fijiMaxDx = 0;
+let russiaMaxDx = 0;
+let antarcticaMaxDx = 0;
+
+for await (const f of itCountry) {
+  const norm = normalizeAntimeridianGeometry(f.geometry);
+  const polys = norm.type === 'Polygon' ? [norm.coordinates] : (norm.type === 'MultiPolygon' ? norm.coordinates : []);
+  for (const poly of polys) {
+    for (const ring of poly) {
+      for (let i = 0; i < ring.length - 1; i++) {
+        const dx = Math.abs(ring[i + 1][0] - ring[i][0]);
+        if (dx > 180) {
+          totalNormalizedCrossings++;
+        }
+        if (f.properties?.name === 'Fiji') fijiMaxDx = Math.max(fijiMaxDx, dx);
+        if (f.properties?.name === 'Russia') russiaMaxDx = Math.max(russiaMaxDx, dx);
+        if (f.properties?.name === 'Antarctica') antarcticaMaxDx = Math.max(antarcticaMaxDx, dx);
+      }
+    }
+  }
+}
+
+assert(totalNormalizedCrossings === 0, 'Zero antimeridian crossings across entire COUNTRY.fgb');
+assert(fijiMaxDx < 1.0, `Fiji normalized max consecutive dx < 1.0 deg (got ${fijiMaxDx.toFixed(2)})`);
+assert(russiaMaxDx < 10.0, `Russia normalized max consecutive dx < 10.0 deg (got ${russiaMaxDx.toFixed(2)})`);
+assert(antarcticaMaxDx <= 90.0, `Antarctica normalized max consecutive dx <= 90.0 deg (got ${antarcticaMaxDx.toFixed(2)})`);
 
 console.log('\n=== Summary ===');
 if (failed === 0) {
