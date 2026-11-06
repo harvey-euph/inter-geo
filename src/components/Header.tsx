@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Globe, SlidersHorizontal, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { MapModeSwitcher } from './MapModeSwitcher';
+import type { ProjectionMode } from '../map/ProjectionController';
 import {
   getInfotipDisplayMode,
   subscribeInfotipDisplayMode,
@@ -24,6 +26,8 @@ interface HeaderProps {
   isInfoSettingsFocused?: boolean;
   onToggleInfoSettingsExpanded?: () => void;
   onOpenQuiz?: () => void;
+  projectionMode?: ProjectionMode;
+  onToggleProjectionMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = React.memo(({
@@ -36,7 +40,9 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleFilterExpanded,
   isInfoSettingsExpanded,
   isInfoSettingsFocused,
-  onToggleInfoSettingsExpanded
+  onToggleInfoSettingsExpanded,
+  projectionMode = '2d',
+  onToggleProjectionMode
 }) => {
   const activeCount = activeLayerCount ?? activeFilterCount ?? 0;
   const isExpanded = isLayerExpanded ?? isFilterExpanded ?? false;
@@ -116,14 +122,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </span>
         {pullVisual.ready && <span className="pull-refresh-label">放開即可重新整理</span>}
       </div>
-      {/* Left: Brand Logo & Title */}
-      <div className="brand">
+      {/* Left: Brand Logo & Title & 2D/3D Mode Switcher */}
+      <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div className="brand-icon">
           <Globe size={18} />
         </div>
         <div className="brand-title">
           <span>InterGeo</span>
         </div>
+        {onToggleProjectionMode && (
+          <MapModeSwitcher mode={projectionMode} onToggle={onToggleProjectionMode} />
+        )}
       </div>
 
       {/* Center / Left-Center: Layer Selector & Infotip Settings Buttons */}

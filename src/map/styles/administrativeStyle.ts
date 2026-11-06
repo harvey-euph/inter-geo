@@ -168,10 +168,24 @@ export const administrativeLayers: LayerSpecification[] = [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
         '#f43f5e',
-        '#38bdf8'
+        ['==', ['get', 'class'], 'Interstate'],
+        '#38bdf8',
+        '#fbbf24'
       ],
-      'line-width': 2.0,
-      'line-opacity': 0.8
+      'line-width': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        2,
+        0.8,
+        5,
+        1.5,
+        8,
+        2.2,
+        12,
+        3.5
+      ],
+      'line-opacity': 0.85
     }
   },
 
@@ -220,17 +234,17 @@ export const administrativeLayers: LayerSpecification[] = [
         ['linear'],
         ['zoom'],
         1,
-        0.45,
+        0.75,
         4,
-        0.65,
+        1.0,
         7,
-        0.85,
+        1.25,
         10,
-        1.1
+        1.5
       ],
       'icon-allow-overlap': false,
       'icon-ignore-placement': false,
-      'icon-padding': 4
+      'icon-padding': 6
     }
   },
 

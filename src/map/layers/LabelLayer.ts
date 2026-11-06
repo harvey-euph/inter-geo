@@ -12,7 +12,7 @@ export class LabelLayer {
   public static setLanguage(map: MapLibreMap, lang: 'zh' | 'en'): void {
     if (map.getLayer(LabelLayer.LAYER_ID)) {
       const field = lang === 'zh' ? ['get', 'nameZh'] : ['get', 'nameEn'];
-      map.setLayoutProperty(LabelLayer.LAYER_ID, 'text-field', field as any);
+      map.setLayoutProperty(LabelLayer.LAYER_ID, 'text-field', field as unknown as string);
     }
   }
 }

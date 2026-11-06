@@ -1,8 +1,9 @@
 import React from 'react';
 import type { CountryData } from '../types/geo';
-import type { LODLevel, MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
+import type { MunicipalityDetail, L2SubdivisionDetail } from '../types/lod';
 import type { RoadPathData } from '../data/roadsMeta';
 import type { NationwideLayerDef } from '../data/nationwideLayers';
+import type { ProjectionMode } from '../map/ProjectionController';
 import type {
   WorldCountryProperties,
   CountryPathData,
@@ -80,6 +81,8 @@ export interface WorldMapProps {
   detailPanelWidth?: number;
   detailPanelFullWidth?: boolean;
   onOceanClick?: () => void;
+  projectionMode?: ProjectionMode;
+  onProjectionModeChange?: (mode: ProjectionMode) => void;
 }
 
 export const WorldMap: React.FC<WorldMapProps> = (props) => {

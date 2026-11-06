@@ -6,6 +6,7 @@ import { WorldMap } from './components/WorldMap';
 import type { CountryData } from './types/geo';
 import type { MunicipalityDetail, L2SubdivisionDetail } from './types/lod';
 import type { MapFocusTarget, MapSelectOptions, RoadPathData } from './components/WorldMap';
+import type { ProjectionMode } from './map/ProjectionController';
 import { findCountry, COUNTRIES_DATA } from './data/countries';
 import {
   getNationwideLayerById,
@@ -191,6 +192,10 @@ export function App() {
   const showNumberedRoutes = activeRegionalFilters.has('us-numbered-highways') || activeRegionalFilters.has('roads-numbered');
   const showRoads = showInterstates || showNumberedRoutes;
   const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [projectionMode, setProjectionMode] = useState<ProjectionMode>('2d');
+  const handleToggleProjectionMode = useCallback(() => {
+    setProjectionMode((m) => (m === '2d' ? '3d' : '2d'));
+  }, []);
 
   const zoomToSubdivisionRef = useRef<((iso2: string, id: string | number) => void) | null>(null);
   const focusMapRef = useRef<((target: MapFocusTarget) => void) | null>(null);
@@ -845,6 +850,8 @@ export function App() {
         isInfoSettingsExpanded={isInfoSettingsExpanded}
         isInfoSettingsFocused={isInfoSettingsExpanded && activeWindow === 'info'}
         onToggleInfoSettingsExpanded={handleToggleInfoSettingsExpanded}
+        projectionMode={projectionMode}
+        onToggleProjectionMode={handleToggleProjectionMode}
       />
 
       {/* Main Viewport */}
@@ -910,6 +917,8 @@ export function App() {
             showInterstates={showInterstates}
             showNumberedRoutes={showNumberedRoutes}
             onOceanClick={handleOceanClick}
+            projectionMode={projectionMode}
+            onProjectionModeChange={setProjectionMode}
           />
         </section>
 

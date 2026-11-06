@@ -1,5 +1,5 @@
 import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
-import type { FeatureCollection, Point } from 'geojson';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
@@ -35,6 +35,7 @@ export class GeographicDataManager {
   private activeInternationalImageFilter: string | null = null;
   private activeRegionalFilters = new Set<string>();
   private showRoads = false;
+  private loadedRoadFeatures = new Map<string, Feature[]>();
   private loadedImageIcons = new Set<string>();
   private onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
 
@@ -130,19 +131,8 @@ export class GeographicDataManager {
    */
   public async ensureRoads(iso2: string): Promise<void> {
     const cleanIso = iso2.toUpperCase();
-    try {
-      const url = `/inter-geo/@geo-data/main/data/${cleanIso}-roads.fgb`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const buffer = await res.arrayBuffer();
-      const it = (await import('flatgeobuf')).geojson.deserialize(new Uint8Array(buffer));
-      const features: any[] = [];
-      for await (const feat of it) {
-        if (feat.geometry) {
-          feat.geometry = normalizeAntimeridianGeometry(feat.geometry);
-        }
-        features.push(feat);
-      }
+    if (this.loadedRoadFeatures.has(cleanIso)) {
+      const features = this.loadedRoadFeatures.get(cleanIso)!;
       if (this.map) {
         const source = this.map.getSource('roads-source') as GeoJSONSource | undefined;
         if (source) {
@@ -151,9 +141,62 @@ export class GeographicDataManager {
             features
           });
         }
+        if (this.map.getLayer('roads-line')) {
+          this.map.setLayoutProperty('roads-line', 'visibility', 'visible');
+        }
+      }
+      return;
+    }
+
+    try {
+      const url = getDataUrl(`data/${cleanIso}-roads.fgb`);
+      const res = await fetch(url);
+      if (!res.ok) {
+        this.clearRoads();
+        return;
+      }
+      const buffer = await res.arrayBuffer();
+      const it = (await import('flatgeobuf')).geojson.deserialize(new Uint8Array(buffer));
+      const features: Feature[] = [];
+      let roadIdx = 0;
+      for await (const feat of it) {
+        if (feat.geometry) {
+          feat.geometry = normalizeAntimeridianGeometry(feat.geometry);
+        }
+        feat.id = roadIdx++;
+        features.push(feat);
+      }
+      this.loadedRoadFeatures.set(cleanIso, features);
+      if (this.map) {
+        const source = this.map.getSource('roads-source') as GeoJSONSource | undefined;
+        if (source) {
+          source.setData({
+            type: 'FeatureCollection',
+            features
+          });
+        }
+        if (this.map.getLayer('roads-line')) {
+          this.map.setLayoutProperty('roads-line', 'visibility', 'visible');
+        }
       }
     } catch (err) {
       console.warn(`[GeographicDataManager] Failed to load roads for ${cleanIso}:`, err);
+      this.clearRoads();
+    }
+  }
+
+  /**
+   * Clears currently rendered road network.
+   */
+  public clearRoads(): void {
+    if (this.map) {
+      const source = this.map.getSource('roads-source') as GeoJSONSource | undefined;
+      if (source) {
+        source.setData({
+          type: 'FeatureCollection',
+          features: []
+        });
+      }
     }
   }
 
@@ -377,7 +420,7 @@ export class GeographicDataManager {
     const source = this.map.getSource('text-markers-source') as GeoJSONSource | undefined;
     if (!source) return;
 
-    const markerFeatures: any[] = [];
+    const markerFeatures: Feature<Point>[] = [];
 
     // 1. Global Text Filters on ADM0 Countries (e.g. callingCode, tld, currency)
     if (this.activeTextFilters.size > 0) {
@@ -468,7 +511,7 @@ export class GeographicDataManager {
     const source = this.map.getSource('image-markers-source') as GeoJSONSource | undefined;
     if (!source) return;
 
-    const imageFeatures: any[] = [];
+    const imageFeatures: Feature<Point>[] = [];
 
     if (this.activeInternationalImageFilter) {
       const filterId = this.activeInternationalImageFilter;
@@ -517,19 +560,42 @@ export class GeographicDataManager {
   }
 
   /**
-   * Helper to load an external image and add it to MapLibre.
+   * Helper to load an external image, downscale it to a crisp base size (32px at pixelRatio: 2),
+   * and add it to MapLibre.
    */
   private async loadIconToMap(iconId: string, url: string): Promise<boolean> {
     if (!this.map || this.map.hasImage(iconId)) return true;
     try {
       const res = await this.map.loadImage(url);
-      if (res && res.data && !this.map.hasImage(iconId)) {
-        this.map.addImage(iconId, res.data);
+      if (!this.map || this.map.hasImage(iconId)) return true;
+      if (res && res.data) {
+        if (typeof document !== 'undefined') {
+          const TARGET_SIZE = 64; // Logical 32px at pixelRatio: 2
+          const canvas = document.createElement('canvas');
+          canvas.width = TARGET_SIZE;
+          canvas.height = TARGET_SIZE;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const rawImg = res.data as HTMLImageElement | ImageBitmap;
+            const w = rawImg.width || TARGET_SIZE;
+            const h = rawImg.height || TARGET_SIZE;
+            const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
+            const dw = Math.max(1, Math.round(w * scale));
+            const dh = Math.max(1, Math.round(h * scale));
+            const dx = Math.round((TARGET_SIZE - dw) / 2);
+            const dy = Math.round((TARGET_SIZE - dh) / 2);
+            ctx.drawImage(rawImg as CanvasImageSource, dx, dy, dw, dh);
+            const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            this.map.addImage(iconId, imgData, { pixelRatio: 2 });
+            return true;
+          }
+        }
+        this.map.addImage(iconId, res.data, { pixelRatio: 2 });
         return true;
       }
     } catch {
       // Fallback: load using HTMLImageElement
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         try {
           const img = new Image();
           img.crossOrigin = 'anonymous';
@@ -538,8 +604,26 @@ export class GeographicDataManager {
             img.onload = () => resolve();
             img.onerror = reject;
           });
-          if (!this.map.hasImage(iconId)) {
-            this.map.addImage(iconId, img);
+          if (!this.map || this.map.hasImage(iconId)) return true;
+          const TARGET_SIZE = 64;
+          const canvas = document.createElement('canvas');
+          canvas.width = TARGET_SIZE;
+          canvas.height = TARGET_SIZE;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const w = img.naturalWidth || TARGET_SIZE;
+            const h = img.naturalHeight || TARGET_SIZE;
+            const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
+            const dw = Math.max(1, Math.round(w * scale));
+            const dh = Math.max(1, Math.round(h * scale));
+            const dx = Math.round((TARGET_SIZE - dw) / 2);
+            const dy = Math.round((TARGET_SIZE - dh) / 2);
+            ctx.drawImage(img, dx, dy, dw, dh);
+            const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            this.map.addImage(iconId, imgData, { pixelRatio: 2 });
+            return true;
+          } else {
+            this.map.addImage(iconId, img, { pixelRatio: 2 });
             return true;
           }
         } catch (e) {

@@ -7,7 +7,6 @@ import { GeographicDataManager } from './data/GeographicDataManager';
 import { FeatureStateManager } from './interaction/FeatureStateManager';
 import { InteractionController, type InteractionControllerCallbacks } from './interaction/InteractionController';
 import { LODController } from './lod/LODController';
-import type { CanonicalFeature } from './data/FeatureRegistry';
 
 // Configure MapLibre Web Worker URL for Vite bundling
 if (typeof window !== 'undefined') {

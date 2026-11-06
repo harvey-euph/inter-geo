@@ -1,4 +1,4 @@
-import type { Geometry, Polygon, MultiPolygon, LineString, MultiLineString } from 'geojson';
+import type { Geometry } from 'geojson';
 
 /**
  * Calculates intersection latitude of an edge crossing the antimeridian (180 / -180).

@@ -4,7 +4,6 @@ import { MapLibreAdapter } from './MapLibreAdapter';
 import type { ProjectionMode } from './ProjectionController';
 import type { CanonicalFeature } from './data/FeatureRegistry';
 import { AdministrativeHierarchy } from './data/AdministrativeHierarchy';
-import { MapModeSwitcher } from '../components/MapModeSwitcher';
 import { FeatureTooltip } from '../components/FeatureTooltip';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
@@ -48,6 +47,8 @@ export interface MapContainerProps {
   detailPanelWidth?: number;
   detailPanelFullWidth?: boolean;
   onOceanClick?: () => void;
+  projectionMode?: ProjectionMode;
+  onProjectionModeChange?: (mode: ProjectionMode) => void;
 }
 
 export const MapContainer: React.FC<MapContainerProps> = ({
@@ -72,11 +73,12 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   zoomToSubdivisionRef,
   detailPanelWidth = 420,
   detailPanelFullWidth = false,
-  onOceanClick
+  onOceanClick,
+  projectionMode = '2d',
+  onProjectionModeChange
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const adapterRef = useRef<MapLibreAdapter | null>(null);
-  const [projectionMode, setProjectionMode] = useState<ProjectionMode>('2d');
   const [hoveredFeature, setHoveredFeature] = useState<CanonicalFeature | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [filterVersion, setFilterVersion] = useState(0);
@@ -131,13 +133,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     };
   }, [activeFilterId, filterVersion]);
 
-  // Toggle 2D / 3D Globe mode
-  const handleToggleMode = useCallback(() => {
-    if (adapterRef.current) {
-      adapterRef.current.getProjectionController().toggle();
-    }
-  }, []);
-
   // Handle Feature Click / Selection
   const handleFeatureSelect = useCallback(
     (feature: CanonicalFeature) => {
@@ -146,8 +141,9 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const country = AdministrativeHierarchy.toCountryData(feature);
         if (country) {
           onSelectCountry(country);
-          // Focus and expand country to load ADM1
+          // Focus and expand country to load ADM1 & Roads
           adapterRef.current?.getLODController().getAdminLODManager().setFocusedCountry(country.iso2);
+          void adapterRef.current?.getDataManager().ensureRoads(country.iso2);
           if (p.bbox) {
             adapterRef.current?.fitBounds(p.bbox);
           }
@@ -159,12 +155,16 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           ?.getLODController()
           .getAdminLODManager()
           .setFocusedSubdivision(sub.iso2, sub.id);
+        void adapterRef.current?.getDataManager().ensureRoads(sub.iso2);
         if (p.bbox) {
           adapterRef.current?.fitBounds(p.bbox);
         }
       } else if (p.admin_level === 2) {
         const muni = AdministrativeHierarchy.toMunicipalityDetail(feature);
         onSelectMunicipality?.(muni);
+        if (muni.iso2) {
+          void adapterRef.current?.getDataManager().ensureRoads(muni.iso2);
+        }
         if (p.bbox) {
           adapterRef.current?.fitBounds(p.bbox);
         }
@@ -179,7 +179,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 
     const adapter = new MapLibreAdapter({
       container: containerRef.current,
-      initialMode: '2d',
+      initialMode: projectionMode || '2d',
       initialCenter: [138, 38], // Default Japan
       initialZoom: 4,
       callbacks: {
@@ -197,7 +197,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       onReady: (inst) => {
         // Subscribe to projection mode changes
         inst.getProjectionController().subscribe((mode) => {
-          setProjectionMode(mode);
+          onProjectionModeChange?.(mode);
         });
 
         // Set initial filters
@@ -221,6 +221,12 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         void inst.getDataManager().ensureAdm1('JP').then(() => {
           void inst.getDataManager().ensureAdm2('JP', '22'); // Preload Shizuoka / Hamamatsu
         });
+
+        // Ensure roads if a country is already active
+        const activeIso = selectedCountry?.iso2 || selectedSubdivision?.iso2 || selectedMunicipality?.iso2;
+        if (activeIso) {
+          void inst.getDataManager().ensureRoads(activeIso);
+        }
 
         // Initial regional filters notification
         onVisibleRegionalFiltersChange?.(NATIONWIDE_LAYERS);
@@ -262,6 +268,25 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     adapterRef.current?.getDataManager().setShowRoads(showRoads ?? false);
   }, [showRoads]);
 
+  // Sync projectionMode prop
+  useEffect(() => {
+    if (adapterRef.current && projectionMode) {
+      if (adapterRef.current.getProjectionController().getMode() !== projectionMode) {
+        adapterRef.current.getProjectionController().setMode(projectionMode);
+      }
+    }
+  }, [projectionMode]);
+
+  // Load and show roads when country/subdivision/municipality info card is open
+  useEffect(() => {
+    const activeIso = selectedCountry?.iso2 || selectedSubdivision?.iso2 || selectedMunicipality?.iso2;
+    if (activeIso && adapterRef.current) {
+      void adapterRef.current.getDataManager().ensureRoads(activeIso);
+    } else if (!activeIso && adapterRef.current) {
+      adapterRef.current.getDataManager().clearRoads();
+    }
+  }, [selectedCountry?.iso2, selectedSubdivision?.iso2, selectedMunicipality?.iso2]);
+
   // Handle selectedCountry change
   useEffect(() => {
     if (selectedCountry && adapterRef.current) {
@@ -294,6 +319,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const iso = target.iso2.toUpperCase();
         adapter.getLODController().getAdminLODManager().setFocusedCountry(iso);
         void adapter.getDataManager().ensureAdm1(iso);
+        void adapter.getDataManager().ensureRoads(iso);
 
         // Find country feature in registry
         const feat = adapter.getDataManager().getRegistry().getById(`ADM0_${iso}`);
@@ -313,6 +339,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const id = String(target.id);
         adapter.getLODController().getAdminLODManager().setFocusedSubdivision(iso, id);
         void adapter.getDataManager().ensureAdm2(iso, id);
+        void adapter.getDataManager().ensureRoads(iso);
 
         const subFeat = adapter.getDataManager().getRegistry().getById(`ADM1_${iso}_${id}`);
         if (subFeat?.properties.bbox) {
@@ -324,6 +351,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       } else if (target.kind === 'municipality') {
         if (target.parentCode && target.iso2) {
           void adapter.getDataManager().ensureAdm2(target.iso2, target.parentCode);
+          void adapter.getDataManager().ensureRoads(target.iso2);
         }
       } else if (target.kind === 'bbox' && target.boxes && target.boxes.length > 0) {
         const b = target.boxes[0];
@@ -356,18 +384,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      {/* 2D / 3D Projection Switcher */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '16px',
-          left: '16px',
-          zIndex: 25
-        }}
-      >
-        <MapModeSwitcher mode={projectionMode} onToggle={handleToggleMode} />
-      </div>
-
       {/* MapLibre WebGL Canvas Container */}
       <div
         ref={containerRef}
