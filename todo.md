@@ -1,118 +1,796 @@
-# Inter-Geo 渲染層遷移簡報（用一個新的 branch 來做）
+# InterGeo — Global Administrative Map / Globe
+## MapLibre GL JS Integration & Implementation Specification
 
-## 專案理解
+## 1. Project Objective
 
-**Inter-Geo** 是一套純前端、無後端的 Web GIS，專為地理探索與 GeoGuessr 競技分析設計。
+在現有 InterGeo 專案中整合 MapLibre GL JS，建立一套全球行政區向量地圖系統。
 
-- 前端 repo：`inter-geo`（React 19 + TypeScript + Vite）
-- 資料 repo：`inter-geo-data`（FlatGeobuf `.fgb`、CSV 圖層、Markdown 情報卡）
-- 架構：雙 repo 解耦。前端啟動時載入輕量 JSON 索引，再按需串流原始資料。
-- 核心能力：
-  - L1 國家 → L2 一級行政區 → L3+ 二級／三級行政區的下鑽
-  - 公路路網、雙色道路標線、街景拍攝車特徵
-  - CSV 動態圖層（區塊著色 / 全域標籤 / 區域特徵）
-  - Markdown 情報卡 + 3 軌標籤過濾
-  - 內嵌 Google Street View + Dev Mode 微調器
-  - URL 狀態同步（lat / lon / zoom）
+核心需求：
 
-**目前渲染瓶頸**：  
-使用 HTML5 Canvas 2D + `Path2D`（`src/map/render/renderLayers.ts` + `WorldMap.tsx`）。  
-複雜多邊形與道路在主執行緒做 fill/stroke，加上 `shadowBlur` 高亮，導致縮放與展開行政區時不夠流暢。  
-與 Google Maps / MapLibre 的差距主要來自「CPU Canvas vs GPU WebGL」，而非單純資料精度不足。
+1. 支援 2D 全球循環地圖（Equirectangular / Plate Carrée）。
+2. 支援 3D Globe。
+3. 2D 與 3D 必須使用同一份地理向量資料。
+4. 兩種模式必須共用相同的行政區、著色、Label、圖片及互動邏輯。
+5. 支援全球國界與多層級行政區。
+6. 隨著 Zoom / Focus 動態載入更精細的行政區與幾何資料。
+7. 所有地理資料以 FlatGeobuf（FGB）作為主要資料格式。
 
-## 轉換目標
-
-把「幾何繪製」從 Canvas 2D 改為 WebGL，使平移、縮放、L2/L3 展開、道路渲染能接近現代向量地圖的流暢度。
-
-保留：
-- 雙 repo 資料架構
-- CSV 圖層系統與情報卡
-- Street View 嵌入與 UI 互動
-- 現有 hit-test 邏輯（可改寫為 WebGL picking 或保留 CPU 輔助）
-
-## 建議技術路線
-
-優先順序：
-
-1. **MapLibre GL JS**（推薦起步）  
-   - 開源向量地圖引擎，內建 WebGL、多級 LOD、標籤碰撞、道路 casing。  
-   - 適合把現有 FGB 轉成 vector tiles 後直接使用。
-
-2. **deck.gl**（疊加自訂圖層）  
-   - 可與 MapLibre 或自有底圖搭配。  
-   - 適合保留部分現有 Canvas 邏輯，只把重型多邊形／道路搬到 WebGL。
-
-3. **自研 WebGL2 / WebGPU 渲染器**  
-   - 完全掌控雙色標線、特殊高亮、精確 picking。  
-   - 工作量最大，僅在前兩項無法滿足需求時考慮。
-
-**建議第一階段**：以 MapLibre GL JS 為主，驗證效能提升幅度後再決定要不要深入自訂。
-
-## 技術細節與遷移步驟
-
-### 1. 資料準備
-
-- 現有資料：`inter-geo-data/data/**/*.fgb`（L1/L2/L3/Roads）
-- 目標：產出 **vector tiles**（MVT / PMTiles）或 MapLibre 可直接消費的格式。
-- 建議工具：
-  - `tippecanoe`（從 GeoJSON/FlatGeobuf 生成多級 vector tiles）
-  - 或 `flatgeobuf` + 自訂簡化腳本後再切片
-- 需處理：
-  - 低縮放級別做幾何簡化（Douglas-Peucker 或類似）
-  - 道路按 class 分層，避免低縮放畫出過多細節
-  - 保留現有屬性（iso2、名稱、道路等級等），供 style 與 hit-test 使用
-
-### 2. 前端渲染層替換
-
-關鍵檔案（目前 Canvas 實作）：
-- `src/components/WorldMap.tsx`（主循環、transform、LOD 判斷、requestAnimationFrame）
-- `src/map/render/renderLayers.ts`（fill / stroke / 高亮 / 徽章繪製）
-- `src/map/hitTest.ts`（游標拾取）
-- `src/map/geoDecode.worker.ts`（FGB 解碼）
-
-遷移方向：
-- 用 MapLibre 的 `Map` 實例取代 Canvas 元素。
-- 把現有的 `k / x / y` transform 對應到 MapLibre 的 `center` + `zoom`。
-- 圖層改用 MapLibre style layers（fill、line、symbol）或 `addLayer` 動態加入。
-- CSV 圖層系統改為：解析後產生 MapLibre source + layer，或用 deck.gl 的 layer。
-- 高亮效果改用 MapLibre 的 `line-color` / `line-width` / `fill-opacity` 或 custom layer shader，避免 `shadowBlur`。
-
-### 3. LOD 與載入策略
-
-- 目前：依畫面比例決定是否展開 L2/L3（離散）。
-- 改為：依賴 vector tiles 的 zoom level 自動切換（連續）。
-- 保留「solidity / 離島判斷」作為是否載入較高精度圖磚的額外條件即可。
-
-### 4. Hit-test 與互動
-
-- MapLibre 內建 `queryRenderedFeatures`，可取代大部分 `hitTest.ts` 邏輯。
-- 若需保留現有精確的「上層優先」規則，可在 MapLibre 事件中再做一次過濾。
-- 情報卡、圖層開關、Street View 面板等 UI 邏輯可幾乎原封不動保留。
-
-### 5. 開發與驗證順序（建議）
-
-1. 用一個國家（例如 TW 或 US）的 L2 + roads 產出測試用 vector tiles。
-2. 在獨立頁面用 MapLibre 載入，量測縮放與平移的 FPS。
-3. 把現有的 `WorldMap` 改成可切換「Canvas 模式 / MapLibre 模式」。
-4. 逐步遷移圖層（先 fill-region，再 roads，再標籤）。
-5. 確認情報卡、URL 同步、Street View 仍正常運作後，再考慮全面切換。
-
-## 風險與注意事項
-
-- 雙色道路標線、特殊高亮若 MapLibre style 無法表達，可能需要 custom layer 或 deck.gl。
-- 現有 `Path2D` 快取與 dissolve 邏輯在 WebGL 路線下大部分可廢棄。
-- 資料 repo 的 index 產生流程（`build-indexes.mjs`）需要新增 vector tiles 的產出步驟。
-- 純前端部署（GitHub Pages）時，vector tiles 建議用 PMTiles 或靜態 MVT 目錄，避免後端依賴。
-
-## 預期成果
-
-- 縮放與平移明顯更流暢（尤其 L2/L3 展開後）。
-- 可承受更高密度的道路與行政區邊界。
-- 保留現有 GeoGuessr 導向的互動功能（情報卡、圖層、Street View）。
-- 為後續加入更完整的地理著色、標籤碰撞、連續 LOD 打下基礎。
+這是一個 Geographic Information Visualization System，不是單純的 3D Globe Demo。
 
 ---
 
-**給 Agent 的起手式**：  
-先讀 `src/components/WorldMap.tsx` 與 `src/map/render/renderLayers.ts`，確認 Canvas 繪製路徑；  
-再評估用 MapLibre GL JS 載入單一國家的 vector tiles 作為 PoC，驗證效能後再規劃完整遷移。
+## 2. Existing Project Context
+
+專案：InterGeo
+
+Repository:
+https://github.com/harvey-euph/inter-geo
+
+現有技術架構：
+- Vite
+- React
+- TypeScript（如現有程式已採用）
+- FlatGeobuf
+- Web Worker
+- GitHub Pages 靜態部署
+
+現有資料結構包含：
+- `public/data/l2/`
+- `public/data/l3/`
+
+已經有 FlatGeobuf 資料載入、空間索引與相關地理資料處理機制。
+
+### Important Constraints
+
+- 先理解現有資料載入架構，不要重複實作已有功能。
+- 不要破壞現有 InterGeo 頁面及資料瀏覽功能。
+- 不要直接刪除或重構既有 FGB loader。
+- MapLibre 應該整合進現有 React/Vite 架構。
+- 地理資料的 Source of Truth 必須維持為向量資料，不使用 Raster Image 代替行政區。
+- 不要為 2D 和 3D 各建立一份不同的行政區幾何資料。
+
+---
+
+## 3. Git Workflow
+
+開始實作前：
+
+1. 檢查目前 Git branch、working tree 及未提交變更。
+2. 確認目前專案狀態。
+3. 從適當的基礎 branch 建立新 branch：
+
+`feat/maplibre-admin-globe`
+
+4. 不得覆蓋或丟棄使用者現有的未提交變更。
+5. 所有本次實作都在新 branch 進行。
+
+開始前先閱讀：
+- package.json
+- vite.config.ts
+- src/ 目錄結構
+- 現有地圖渲染元件
+- FGB loader
+- Web Worker
+- L2/L3 資料載入流程
+
+---
+
+## 4. Technology Selection
+
+主要渲染引擎：
+
+**MapLibre GL JS**
+
+Official repository:
+https://github.com/maplibre/maplibre-gl-js
+
+Official documentation:
+https://maplibre.org/maplibre-gl-js/docs/
+
+使用 MapLibre 的原因：
+
+- WebGL vector rendering
+- Globe projection
+- Polygon / MultiPolygon rendering
+- Vector Tile support
+- GeoJSON Source
+- Feature picking
+- Feature state
+- Symbol Layer
+- Dynamic layer styling
+- Zoom-dependent rendering
+- Camera control
+
+優先使用 MapLibre 原生的 Style Layer、Source、Feature State 和 Picking API，不要自行重寫整套 WebGL 渲染機制。
+
+---
+
+## 5. Critical Requirement: Unified 2D / 3D Rendering
+
+這是整個專案最重要的架構要求。
+
+2D 與 3D 必須共用：
+
+- 同一份行政區資料
+- 同一份 Feature ID
+- 同一套 Geometry
+- 同一套 Style Rules
+- 同一套 Feature State
+- 同一套 Hover / Click Event Handling
+- 同一套 Label Data
+- 同一套 Image Marker Data
+- 同一套 LOD 管理邏輯
+
+預期架構：
+
+```text
+              Geographic Data
+                     |
+                     v
+             FlatGeobuf (FGB)
+                     |
+                     v
+             Data Loading Layer
+                     |
+                     v
+              Shared Map Source
+                     |
+          +----------+----------+
+          |                     |
+          v                     v
+      2D Renderer           3D Renderer
+   Equirectangular             Globe
+          |                     |
+          +----------+----------+
+                     |
+                     v
+            Shared Style System
+                     |
+                     v
+           Shared Interaction State
+                     |
+        +------------+------------+
+        |            |             |
+      Hover        Click        Selection
+        |            |             |
+        +------------+-------------+
+                     |
+                     v
+             React Information UI
+```
+
+### Projection Switching
+
+預期使用者可以透過 UI 一鍵切換：
+
+- 2D: Equirectangular / Plate Carrée
+- 3D: Globe
+
+優先使用同一個 MapLibre Map instance 和同一套 Source / Layer。
+
+切換投影時：
+- 不重新下載地理資料。
+- 不重建 Feature。
+- 不重置 Hover / Selected 狀態。
+- 不重新建立 Label / Image Marker。
+- 不改變行政區的邏輯 ID。
+- 保留目前的地理位置與合理的相機視角。
+
+### Important Projection Investigation
+
+不要假設 Equirectangular 是 MapLibre 內建投影。
+
+目前需要驗證：
+
+1. MapLibre GL JS Globe / Vertical Perspective 的實際 API。
+2. MapLibre GL JS Custom CRS API。
+3. 能否透過 Custom CRS 實作 Equirectangular。
+4. Equirectangular 是否能支援水平循環 World Copies。
+5. Custom CRS 是否能與 Globe 在同一 Map instance 切換。
+6. Feature Picking、Symbol Placement、Camera Control 在兩種模式是否正常。
+
+Custom CRS 相關文件：
+
+https://maplibre.org/maplibre-gl-js/docs/guides/custom-crs/
+
+Style Projection Specification:
+
+https://maplibre.org/maplibre-style-spec/types/
+
+Custom CRS 目前具有 Experimental 性質，需注意版本相容性。
+
+如果單一 Map instance 無法完整滿足兩種投影需求，請先提出技術限制及可行替代架構，不要自行降低需求或默默改用兩套不同的地理資料。
+
+---
+
+## 6. 2D Circular World Map
+
+2D 模式要求：
+
+- 使用 Equirectangular / Plate Carrée。
+- X 軸對應 Longitude。
+- Y 軸對應 Latitude。
+- 左右兩側可循環。
+- 可以持續水平 Pan，不會遇到世界地圖的終點。
+- 跨越 ±180° 時不應出現 Polygon 異常連線。
+- 相鄰 World Copies 必須保持相同 Feature ID。
+- Hover / Click 必須正確對應原始 Feature。
+
+示意：
+
+```text
++-----------------------------+
+|  America | Europe | Asia    |
++-----------------------------+
+        -> horizontal pan ->
++-----------------------------+
+| Europe | Asia | America     |
++-----------------------------+
+```
+
+需要特別處理：
+- Antimeridian crossing
+- Polygon clipping
+- MultiPolygon
+- World copies
+- Geometry normalization
+
+---
+
+## 7. Geographic Data
+
+主要資料來源：
+
+geoBoundaries
+
+https://www.geoboundaries.org/
+
+GitHub:
+https://github.com/wmgeolab/geoBoundaries
+
+預計資料層級：
+
+| Level | Content |
+|---|---|
+| ADM0 | Country |
+| ADM1 | State / Province / Prefecture |
+| ADM2 | District / Municipality |
+| ADM3+ | More detailed administrative divisions |
+
+資料來源可依國家完整度補充其他政府公開資料或 OpenStreetMap。
+
+### Canonical Data Format
+
+FlatGeobuf（FGB）是主要資料儲存格式。
+
+要求：
+- Geometry 使用 WGS84 longitude / latitude。
+- Polygon / MultiPolygon。
+- 保留行政區屬性。
+- 建立穩定 Feature ID。
+- 建立 Parent / Child 關係。
+- 支援空間索引。
+- 支援 HTTP Range Request。
+- 盡可能沿用現有 FGB Loader。
+
+建議 Feature Properties：
+
+```json
+{
+  "feature_id": "JPN-22-22100",
+  "parent_id": "JPN-22",
+  "country_code": "JPN",
+  "admin_level": 2,
+  "name": "Hamamatsu",
+  "name_en": "Hamamatsu",
+  "geometry_lod": 2
+}
+```
+
+Feature ID 必須跨越不同 LOD 保持穩定。
+
+注意：以上 ID 是示意格式，正式 ID 必須由資料處理流程產生，並確保不與其他行政區衝突。
+
+### FGB Rendering Integration
+
+MapLibre 沒有將 `.fgb` 直接視為原生 GeoJSON URL 的功能。
+
+需要評估兩種方式：
+
+**Option A — Direct FGB Loading**
+
+使用 FlatGeobuf JavaScript Library：
+
+https://github.com/flatgeobuf/flatgeobuf
+
+透過空間索引與 HTTP Range Request：
+1. 根據目前地圖視野取得 Bounding Box。
+2. 從 FGB 取得相交的 Features。
+3. 將資料送入 MapLibre GeoJSON Source。
+4. 視需要增量更新資料。
+
+可以評估 MapLibre 的 FlatGeobuf 整合插件：
+
+https://maplibre.org/maplibre-gl-js/docs/plugins/
+
+**Option B — Vector Tile Rendering**
+
+由 FGB 離線產生 MVT / PMTiles。
+
+使用：
+- MVT
+- PMTiles
+- MapLibre Vector Source
+
+此方式適合大量全球行政區資料，減少瀏覽器一次載入的資料量。
+
+MVT / PMTiles 必須由同一份 FGB Source of Truth 衍生，不得建立獨立的 2D、3D 幾何版本。
+
+初期可先使用 Direct FGB Loading 驗證功能，再依 Benchmark 決定是否需要 Vector Tiles。
+
+---
+
+## 8. Administrative LOD
+
+需要同時支援 Geometry LOD 與 Semantic LOD。
+
+### Geometry LOD
+
+同一個行政區在不同縮放層級使用不同幾何精度。
+
+例如：
+
+```text
+Country Geometry
+  LOD 0: Simplified
+  LOD 1: Medium
+  LOD 2: High Resolution
+```
+
+### Semantic LOD
+
+依照 Zoom / Focus 展開行政區：
+
+```text
+Global
+  |
+  +-- ADM0: Countries
+         |
+         +-- ADM1: Provinces
+                |
+                +-- ADM2: Municipalities
+                       |
+                       +-- ADM3: Districts
+```
+
+預期行為：
+
+- 全球視角顯示 ADM0。
+- 聚焦國家後載入 ADM1。
+- 聚焦省份後載入 ADM2。
+- 需要時再載入 ADM3+。
+- 不需要的高精度資料可以卸載。
+- Zoom Out 時恢復較低層級。
+- 不同 LOD 切換時避免閃爍及重複邊界。
+
+行政區層級不能單純假設每個國家都相同，需要使用資料本身的 parent-child hierarchy。
+
+---
+
+## 9. Shared Styling System
+
+所有 Style 必須共用。
+
+### Polygon Fill
+
+支援：
+- Default color
+- Data-driven color
+- Hover color
+- Selected color
+- Disabled / unavailable state
+
+優先使用 MapLibre Fill Layer。
+
+### Boundary
+
+使用 Line Layer。
+
+支援：
+- Country boundary
+- Administrative boundary
+- Selected boundary
+- Hover boundary
+- 不同行政層級的線寬
+
+### Label
+
+使用 Symbol Layer。
+
+支援：
+- Country name
+- Province name
+- City / Municipality name
+- Zoom-dependent visibility
+- Language switching
+- Text size
+- Text color
+- Text halo
+- Collision detection
+
+Label Anchor 必須盡量使用正確的行政區內部標註點，而不是直接使用 Polygon Centroid。
+
+同一 Label 資料必須適用於 2D 與 3D。
+
+### Image Marker
+
+支援在地理位置上附加圖片。
+
+例如：
+- Country image
+- Landmark image
+- User-defined image
+- Administrative area thumbnail
+
+優先使用 MapLibre Symbol Layer 的 `icon-image`。
+
+圖片資源與地理座標應分開管理。
+
+同一個 Image Marker 在兩種投影下應維持相同的地理位置與 Feature ID。
+
+---
+
+## 10. Interaction System
+
+所有互動必須與 Projection 無關。
+
+### Hover
+
+使用 MapLibre Layer Event：
+
+```javascript
+map.on('mousemove', 'admin-fill', handler);
+```
+
+透過 `setFeatureState()` 更新 Hover 狀態。
+
+要求：
+- Hover 時改變 Polygon Fill。
+- 同時改變 Boundary Style。
+- 顯示 Tooltip。
+- 滑鼠離開後恢復原始狀態。
+- 2D / 3D 行為一致。
+
+### Click
+
+使用：
+
+```javascript
+map.on('click', 'admin-fill', handler);
+```
+
+透過 Feature Properties 取得：
+
+- Feature ID
+- Administrative Level
+- Name
+- Parent ID
+- Additional Properties
+
+Click 後：
+- 設定 Selected Feature。
+- 顯示詳細資訊。
+- 可進一步展開下層行政區。
+- 可顯示附加圖片。
+- 可以取消選取。
+
+### Feature State
+
+建議管理：
+
+```javascript
+interface MapInteractionState {
+  hoveredFeatureId: string | null;
+  selectedFeatureId: string | null;
+  expandedFeatureId: string | null;
+  activeAdminLevel: number;
+}
+```
+
+注意：
+- React State 是互動狀態的主要管理來源。
+- MapLibre Feature State 是渲染層的呈現狀態。
+- 不要將 UI 狀態綁定在特定 Projection。
+- 不要依賴 GeoJSON Feature 的陣列 index 作為永久 ID。
+- 使用 promoteId 或明確的 Feature ID。
+
+官方 API：
+
+https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/#setFeatureState
+
+---
+
+## 11. Camera and Mode Switching
+
+建立一個簡單的模式切換 UI：
+
+```text
+[ 2D Map ] [ 3D Globe ]
+```
+
+切換時：
+- 儘量保留目前的地理中心。
+- 保留合理的 Zoom。
+- 保留 Selected Feature。
+- 保留 Hover / UI 狀態。
+- 保留目前顯示的行政區層級。
+- 避免重新載入 FGB。
+- 避免閃爍。
+
+需要處理 Globe 與 2D 不同的相機參數，不要求兩種模式的 Zoom 數字完全相同，但要盡可能維持相近的視覺範圍。
+
+---
+
+## 12. Suggested Architecture
+
+建議先依現有專案結構調整，不要為了符合下列目錄而強制搬移既有檔案。
+
+概念上的模組：
+
+```text
+src/
+  map/
+    MapContainer.tsx
+    MapLibreAdapter.ts
+    ProjectionController.ts
+
+    data/
+      GeographicDataManager.ts
+      FlatGeobufLoader.ts
+      FeatureRegistry.ts
+      AdministrativeHierarchy.ts
+
+    layers/
+      AdministrativeFillLayer.ts
+      BoundaryLayer.ts
+      LabelLayer.ts
+      ImageMarkerLayer.ts
+
+    interaction/
+      InteractionController.ts
+      FeatureStateManager.ts
+
+    lod/
+      LODController.ts
+      GeometryLODManager.ts
+      AdministrativeLODManager.ts
+
+    styles/
+      mapStyle.ts
+      administrativeStyle.ts
+
+  components/
+    MapModeSwitcher.tsx
+    FeatureTooltip.tsx
+    FeatureInfoPanel.tsx
+```
+
+模組之間應保持低耦合。
+
+特別注意：
+- MapLibre instance 不應由多個 React component 重複建立。
+- Data Manager 不應直接操作 React UI。
+- Interaction State 不應直接依賴 Projection。
+- Projection Controller 不應負責重新載入資料。
+- LOD Controller 不應自行產生不同版本的 Feature ID。
+
+---
+
+## 13. Implementation Phases
+
+### Phase 1 — Repository Inspection
+
+- 檢查現有專案。
+- 確認 FGB Loader。
+- 確認資料目錄。
+- 建立 Git branch。
+- 安裝 MapLibre GL JS。
+- 建立基本 MapLibre React component。
+
+### Phase 2 — Projection Proof of Concept
+
+這是優先級最高的技術驗證。
+
+使用少量 GeoJSON 測試：
+- Globe rendering。
+- Equirectangular rendering。
+- Custom CRS。
+- Horizontal world wrapping。
+- Projection switching。
+- Feature picking。
+- Feature state persistence。
+
+確認是否能使用同一個 MapLibre instance 完成所有功能。
+
+如果不能，先整理限制與可行方案。
+
+### Phase 3 — FGB Integration
+
+- 整合現有 FlatGeobuf Loader。
+- 載入日本 ADM0 / ADM1 / ADM2 測試資料。
+- 建立 Feature ID。
+- 驗證空間索引與 Range Request。
+- 確保 2D / 3D 共用相同資料。
+
+### Phase 4 — Interactive Layers
+
+實作：
+- Administrative Fill
+- Administrative Boundary
+- Hover
+- Click
+- Selected Feature
+- Tooltip
+- Feature Info Panel
+
+### Phase 5 — Labels and Images
+
+實作：
+- Administrative Labels
+- Label Anchor
+- Image Markers
+- Zoom-dependent visibility
+- Collision handling
+
+### Phase 6 — LOD
+
+實作：
+- ADM0 / ADM1 / ADM2
+- Dynamic Loading
+- Geometry LOD
+- Administrative Hierarchy
+- Zoom-dependent layer visibility
+
+### Phase 7 — Performance and Validation
+
+測試：
+- 全球 ADM0
+- 全球 ADM1 / ADM2
+- 高精度日本行政區
+- 大量 Polygon
+- 大量 Labels
+- Hover Performance
+- Projection Switching
+- Memory Usage
+
+---
+
+## 14. Acceptance Criteria
+
+以下條件必須通過，才能視為完成第一階段。
+
+### A. Projection
+
+- [ ] 可以切換 2D 與 3D。
+- [ ] 2D 使用 Equirectangular。
+- [ ] 2D 支援水平 World Wrapping。
+- [ ] 3D 使用 Globe。
+- [ ] 兩種模式共用同一份向量資料。
+- [ ] 不需要為兩種模式分別產生 Geometry。
+- [ ] 切換模式不會重置互動狀態。
+
+### B. Geographic Data
+
+- [ ] 可以載入 FGB。
+- [ ] 支援 Polygon。
+- [ ] 支援 MultiPolygon。
+- [ ] Feature ID 穩定。
+- [ ] 支援行政區 Parent / Child 關係。
+- [ ] 支援空間索引。
+- [ ] 支援動態載入。
+
+### C. Visual Rendering
+
+- [ ] Polygon Fill。
+- [ ] Boundary。
+- [ ] Data-driven Styling。
+- [ ] Hover Highlight。
+- [ ] Selected Highlight。
+- [ ] Administrative Labels。
+- [ ] Image Markers。
+
+### D. Interaction
+
+- [ ] Hover 正確辨識 Feature。
+- [ ] Click 正確辨識 Feature。
+- [ ] Tooltip 正常。
+- [ ] Information Panel 正常。
+- [ ] 2D / 3D 互動結果一致。
+- [ ] Projection Switching 後 Selected Feature 仍然存在。
+
+### E. LOD
+
+- [ ] 全球視角顯示 ADM0。
+- [ ] 聚焦國家載入 ADM1。
+- [ ] 聚焦行政區載入 ADM2。
+- [ ] 高精度資料可以動態載入。
+- [ ] Zoom Out 能恢復較低層級。
+- [ ] LOD 切換不影響 Feature Identity。
+
+---
+
+## 15. Initial Demo Scenario
+
+第一個 Demo 不需要載入全世界所有行政區。
+
+請以日本作為測試區域。
+
+使用資料：
+- Japan ADM0
+- Japan ADM1
+- Japan ADM2
+
+測試流程：
+
+1. 開啟 2D 全球地圖。
+2. 顯示日本國界。
+3. Hover 日本，顯示 Highlight。
+4. Click 日本，顯示資訊面板。
+5. Zoom In，載入都道府縣。
+6. Hover 靜岡縣。
+7. Click 靜岡縣。
+8. 顯示市町村。
+9. Hover 濱松市。
+10. 切換成 3D Globe。
+11. 確認靜岡縣、市町村、著色、Label、圖片及選取狀態都正確。
+12. 切回 2D，確認狀態仍然一致。
+13. 水平移動地圖，測試 World Copies。
+14. 測試日期變更線附近的 Polygon。
+
+---
+
+## 16. Out of Scope for Initial Implementation
+
+第一階段不需要：
+
+- Satellite Imagery
+- Terrain
+- 3D Buildings
+- Real-time Traffic
+- Weather Layers
+- Routing
+- Geocoding
+- Backend Database
+- User Authentication
+
+優先把全球行政區向量資料、2D / 3D Projection、LOD、Picking 做好。
+
+---
+
+## 17. Expected Deliverables
+
+完成後請提供：
+
+1. 新 Git branch：`feat/maplibre-admin-globe`
+2. 可執行的 InterGeo MapLibre 頁面。
+3. 2D / 3D 切換 UI。
+4. 日本 ADM0 / ADM1 / ADM2 測試資料整合。
+5. Hover / Click / Highlight。
+6. Label。
+7. Image Marker。
+8. Projection-independent interaction state。
+9. FGB 載入流程。
+10. 技術架構說明。
+11. Projection / Custom CRS 的相容性與限制。
+12. Performance Benchmark。
+13. 尚未完成的項目與後續建議。
+
+### 最重要的開發原則
+
+不要只完成一個漂亮的 Globe Demo。
+
+這個專案的核心是：
+
+**One Geographic Dataset, One Feature Identity System, One Interaction Model, Multiple Projections.**
+
+2D 與 3D 只是同一套地理資訊系統的兩種呈現方式。
