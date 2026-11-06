@@ -4,8 +4,17 @@ import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
 import { AdministrativeHierarchy } from './AdministrativeHierarchy';
-import { getCsvLayerById, getCsvLayerValue, getCsvSubdivisionValue } from '../../layers/csvLayerRegistry';
+import {
+  getCsvLayerById,
+  getCsvLayerValue,
+  getCsvSubdivisionValue,
+  getCsvSubdivisionCode,
+  loadOnDemandCsvLayer
+} from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
+import { getCombinedTextOverlay, COUNTRY_LABEL_CENTROIDS } from '../../data/globalLayers';
+import { getCrossingSign } from '../../data/pedestrianCrossing';
+import { getDataUrl } from '../../data/dataSource';
 
 export interface DataManagerOptions {
   onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
@@ -22,6 +31,11 @@ export class GeographicDataManager {
   private loadedAdm1Countries = new Set<string>();
   private loadedAdm2Subdivisions = new Set<string>();
   private activeFilterId = 'base';
+  private activeTextFilters = new Set<string>();
+  private activeInternationalImageFilter: string | null = null;
+  private activeRegionalFilters = new Set<string>();
+  private showRoads = false;
+  private loadedImageIcons = new Set<string>();
   private onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
 
   constructor(options?: DataManagerOptions) {
@@ -32,6 +46,11 @@ export class GeographicDataManager {
 
   public setMap(map: MapLibreMap | null): void {
     this.map = map;
+    if (this.map) {
+      this.refreshAllSources();
+      void this.updateTextMarkers();
+      void this.updateImageMarkers();
+    }
   }
 
   public getRegistry(): FeatureRegistry {
@@ -50,6 +69,8 @@ export class GeographicDataManager {
     this.registry.registerAll(features);
     this.updateSource('adm0-source', 0);
     this.updateLabelSource();
+    void this.updateTextMarkers();
+    void this.updateImageMarkers();
     this.onDataLoaded?.(0, features.length);
   }
 
@@ -68,6 +89,7 @@ export class GeographicDataManager {
       this.loadedAdm1Countries.add(cleanIso);
       this.updateSource('adm1-source', 1);
       this.updateLabelSource();
+      void this.updateTextMarkers();
       this.onDataLoaded?.(1, features.length);
       return features;
     } catch (err) {
@@ -94,6 +116,7 @@ export class GeographicDataManager {
       this.loadedAdm2Subdivisions.add(key);
       this.updateSource('adm2-source', 2);
       this.updateLabelSource();
+      void this.updateTextMarkers();
       this.onDataLoaded?.(2, features.length);
       return features;
     } catch (err) {
@@ -137,10 +160,72 @@ export class GeographicDataManager {
   /**
    * Sets active filter id and updates fill colors.
    */
-  public setActiveFilterId(filterId: string): void {
-    if (this.activeFilterId === filterId) return;
+  public async setActiveFilterId(filterId: string): Promise<void> {
     this.activeFilterId = filterId;
+    if (filterId && filterId !== 'base' && filterId !== 'none') {
+      try {
+        await loadOnDemandCsvLayer(filterId);
+      } catch (err) {
+        console.warn(`[GeographicDataManager] Failed to load CSV for ${filterId}:`, err);
+      }
+    }
     this.refreshAllSources();
+  }
+
+  /**
+   * Sets active global text filters (calling codes, tld, etc.) and updates text badges.
+   */
+  public async setActiveTextFilters(filters: Set<string>): Promise<void> {
+    this.activeTextFilters = new Set(filters);
+    for (const id of filters) {
+      try {
+        await loadOnDemandCsvLayer(id);
+      } catch (err) {
+        console.warn(`[GeographicDataManager] Failed to load text filter CSV for ${id}:`, err);
+      }
+    }
+    await this.updateTextMarkers();
+  }
+
+  /**
+   * Sets active regional filters (area codes, nationwide features).
+   */
+  public async setActiveRegionalFilters(filters: Set<string>): Promise<void> {
+    this.activeRegionalFilters = new Set(filters);
+    for (const id of filters) {
+      try {
+        await loadOnDemandCsvLayer(id);
+      } catch (err) {
+        console.warn(`[GeographicDataManager] Failed to load regional filter CSV for ${id}:`, err);
+      }
+    }
+    this.refreshAllSources();
+    await this.updateTextMarkers();
+  }
+
+  /**
+   * Sets active international image filter (e.g. pedestrian crossing signs).
+   */
+  public async setActiveInternationalImageFilter(filterId: string | null): Promise<void> {
+    this.activeInternationalImageFilter = filterId;
+    if (filterId) {
+      try {
+        await loadOnDemandCsvLayer(filterId);
+      } catch (err) {
+        console.warn(`[GeographicDataManager] Failed to load image filter CSV for ${filterId}:`, err);
+      }
+    }
+    await this.updateImageMarkers();
+  }
+
+  /**
+   * Controls road layer visibility.
+   */
+  public setShowRoads(show: boolean): void {
+    this.showRoads = show;
+    if (this.map && this.map.getLayer('roads-line')) {
+      this.map.setLayoutProperty('roads-line', 'visibility', show ? 'visible' : 'none');
+    }
   }
 
   /**
@@ -150,15 +235,25 @@ export class GeographicDataManager {
     const p = feature.properties;
     const iso2 = p.country_code;
 
-    // Check CSV layer
+    // 1. Check primary activeFilterId
     const csvLayer = getCsvLayerById(this.activeFilterId);
-    if (csvLayer) {
+    if (csvLayer && csvLayer.data) {
       if (p.admin_level === 0) {
         const val = getCsvLayerValue(csvLayer.id, iso2);
         if (val) return val;
       } else if (p.admin_level === 1) {
         const subId = p.code || p.postal || String(p.pref_id || '');
-        const val = getCsvSubdivisionValue(csvLayer.id, { id: subId, iso2, code: subId }) || getCsvLayerValue(csvLayer.id, iso2);
+        const val =
+          getCsvSubdivisionValue(csvLayer.id, { id: subId, iso2, code: subId }) ||
+          getCsvLayerValue(csvLayer.id, iso2);
+        if (val) return val;
+      } else if (p.admin_level === 2) {
+        const muniCode = p.code || String(p.id || '');
+        const parentCode = String(p.pref_id || p.parent_code || '');
+        const val =
+          getCsvSubdivisionValue(csvLayer.id, { id: muniCode, iso2, code: muniCode }) ||
+          getCsvSubdivisionValue(csvLayer.id, { id: parentCode, iso2, code: parentCode }) ||
+          getCsvLayerValue(csvLayer.id, iso2);
         if (val) return val;
       }
       const defCol =
@@ -168,14 +263,22 @@ export class GeographicDataManager {
       if (defCol) return defCol;
     }
 
+    // 2. Check activeRegionalFilters for fill layers
+    if (this.activeRegionalFilters.size > 0) {
+      for (const regId of this.activeRegionalFilters) {
+        const regLayer = getCsvLayerById(regId);
+        if (regLayer && regLayer.data && regLayer.type === 'FillWithColor') {
+          if (p.admin_level === 1) {
+            const subId = p.code || p.postal || String(p.pref_id || '');
+            const val = getCsvSubdivisionValue(regId, { id: subId, iso2, code: subId });
+            if (val) return val;
+          }
+        }
+      }
+    }
+
     // Default base fill color
-    if (p.admin_level === 0) {
-      return '#1e293b'; // slate-800
-    }
-    if (p.admin_level === 1) {
-      return '#1e293b';
-    }
-    return '#1e293b';
+    return '#1e293b'; // slate-800
   }
 
   /**
@@ -229,13 +332,14 @@ export class GeographicDataManager {
 
     const labelFeatures = allFeatures
       .map((f) => {
-        const center = f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
-        if (!center || (center[0] === 0 && center[1] === 0)) return null;
-
         const p = f.properties;
         const country = findCountry(p.country_code);
         const nameZh = p.name_zh || country?.nameZh || p.name || '';
         const nameEn = p.name_en || country?.name || p.name || '';
+
+        const override = p.admin_level === 0 ? COUNTRY_LABEL_CENTROIDS[p.country_code] : undefined;
+        const center = override || p.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+        if (!center || (center[0] === 0 && center[1] === 0)) return null;
 
         return {
           type: 'Feature' as const,
@@ -263,5 +367,187 @@ export class GeographicDataManager {
     };
 
     source.setData(fc);
+  }
+
+  /**
+   * Updates text badge markers on countries and subdivisions.
+   */
+  public async updateTextMarkers(): Promise<void> {
+    if (!this.map) return;
+    const source = this.map.getSource('text-markers-source') as GeoJSONSource | undefined;
+    if (!source) return;
+
+    const markerFeatures: any[] = [];
+
+    // 1. Global Text Filters on ADM0 Countries (e.g. callingCode, tld, currency)
+    if (this.activeTextFilters.size > 0) {
+      const countries = this.registry.getByLevel(0);
+      for (const f of countries) {
+        const country = AdministrativeHierarchy.toCountryData(f);
+        if (!country) continue;
+
+        const badgeText = getCombinedTextOverlay(country, this.activeTextFilters);
+        if (!badgeText) continue;
+
+        const override = COUNTRY_LABEL_CENTROIDS[country.iso2];
+        const center = override || f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+        if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+        markerFeatures.push({
+          type: 'Feature',
+          id: f.properties.numeric_id,
+          geometry: {
+            type: 'Point',
+            coordinates: center
+          },
+          properties: {
+            id: f.properties.feature_id,
+            text: badgeText,
+            textColor: '#f8fafc',
+            adminLevel: 0
+          }
+        });
+      }
+    }
+
+    // 2. Regional / Area Code Filters on Subdivisions (e.g. jp-area-codes, us-area-codes)
+    if (this.activeRegionalFilters.size > 0) {
+      for (const regId of this.activeRegionalFilters) {
+        const layer = getCsvLayerById(regId);
+        if (!layer || !layer.data) continue;
+
+        if (layer.type === 'Text' || layer.type === 'TextWithStyle' || layer.type === 'ExtObject') {
+          const subs = this.registry.getByLevel(1);
+          for (const s of subs) {
+            const p = s.properties;
+            const subParam = {
+              id: String(p.code || p.id || ''),
+              iso2: p.country_code,
+              code: String(p.code || ''),
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            };
+            const code = getCsvSubdivisionCode(regId, subParam) || getCsvSubdivisionValue(regId, subParam);
+
+            if (code) {
+              const center = p.center || AdministrativeHierarchy.calculateCenter(s.geometry);
+              if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+              markerFeatures.push({
+                type: 'Feature',
+                id: p.numeric_id,
+                geometry: {
+                  type: 'Point',
+                  coordinates: center
+                },
+                properties: {
+                  id: p.feature_id,
+                  text: code,
+                  textColor: layer.accentColor || '#10b981',
+                  adminLevel: 1
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: markerFeatures
+    });
+  }
+
+  /**
+   * Updates image markers (e.g. pedestrian crossing signs) on countries.
+   */
+  public async updateImageMarkers(): Promise<void> {
+    if (!this.map) return;
+    const source = this.map.getSource('image-markers-source') as GeoJSONSource | undefined;
+    if (!source) return;
+
+    const imageFeatures: any[] = [];
+
+    if (this.activeInternationalImageFilter) {
+      const filterId = this.activeInternationalImageFilter;
+      const isCrossing = filterId === 'pedestrian-crossing' || filterId === 'eu-pedestrian-crossing';
+
+      if (isCrossing) {
+        await loadOnDemandCsvLayer('pedestrian-crossing');
+        const countries = this.registry.getByLevel(0);
+        for (const f of countries) {
+          const iso2 = f.properties.country_code;
+          const sign = getCrossingSign(iso2);
+          if (!sign || !sign.imagePath) continue;
+
+          const iconId = `crossing-${iso2.toLowerCase()}`;
+          if (!this.loadedImageIcons.has(iconId)) {
+            const url = getDataUrl(sign.imagePath);
+            const loaded = await this.loadIconToMap(iconId, url);
+            if (loaded) this.loadedImageIcons.add(iconId);
+          }
+
+          const override = COUNTRY_LABEL_CENTROIDS[iso2];
+          const center = override || f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+          if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+          imageFeatures.push({
+            type: 'Feature',
+            id: f.properties.numeric_id,
+            geometry: {
+              type: 'Point',
+              coordinates: center
+            },
+            properties: {
+              id: `image-${iso2}`,
+              icon: iconId,
+              name: sign.nameZh || f.properties.name
+            }
+          });
+        }
+      }
+    }
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: imageFeatures
+    });
+  }
+
+  /**
+   * Helper to load an external image and add it to MapLibre.
+   */
+  private async loadIconToMap(iconId: string, url: string): Promise<boolean> {
+    if (!this.map || this.map.hasImage(iconId)) return true;
+    try {
+      const res = await this.map.loadImage(url);
+      if (res && res.data && !this.map.hasImage(iconId)) {
+        this.map.addImage(iconId, res.data);
+        return true;
+      }
+    } catch {
+      // Fallback: load using HTMLImageElement
+      if (typeof window !== 'undefined') {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = url;
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = reject;
+          });
+          if (!this.map.hasImage(iconId)) {
+            this.map.addImage(iconId, img);
+            return true;
+          }
+        } catch (e) {
+          console.warn(`[GeographicDataManager] Failed to load icon ${iconId} from ${url}:`, e);
+          return false;
+        }
+      }
+    }
+    return false;
   }
 }

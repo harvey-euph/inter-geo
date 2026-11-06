@@ -37,6 +37,14 @@ export const baseMapStyle: StyleSpecification = {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
       promoteId: 'id'
+    },
+    'text-markers-source': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    },
+    'image-markers-source': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
     }
   },
   sky: {

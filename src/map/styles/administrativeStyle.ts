@@ -206,5 +206,65 @@ export const administrativeLayers: LayerSpecification[] = [
       'text-halo-color': '#090d16',
       'text-halo-width': 1.5
     }
+  },
+
+  // 9. Image Markers (e.g. Pedestrian crossing signs, flags)
+  {
+    id: 'image-markers-layer',
+    type: 'symbol',
+    source: 'image-markers-source',
+    layout: {
+      'icon-image': ['get', 'icon'],
+      'icon-size': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        1,
+        0.45,
+        4,
+        0.65,
+        7,
+        0.85,
+        10,
+        1.1
+      ],
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'icon-padding': 4
+    }
+  },
+
+  // 10. Text Badges (Calling code, tld, currency, area codes)
+  {
+    id: 'text-markers-layer',
+    type: 'symbol',
+    source: 'text-markers-source',
+    layout: {
+      'text-field': ['get', 'text'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        1,
+        10,
+        4,
+        11,
+        7,
+        13,
+        10,
+        15
+      ],
+      'text-anchor': 'center',
+      'text-allow-overlap': false,
+      'text-ignore-placement': false,
+      'text-padding': 3
+    },
+    paint: {
+      'text-color': ['to-color', ['get', 'textColor'], '#f8fafc'],
+      'text-halo-color': '#020617',
+      'text-halo-width': 2.5,
+      'text-halo-blur': 0.5
+    }
   }
 ];

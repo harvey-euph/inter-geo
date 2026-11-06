@@ -7,6 +7,8 @@ import { ProjectionController } from '../src/map/ProjectionController.ts';
 import { FeatureStateManager } from '../src/map/interaction/FeatureStateManager.ts';
 import { GeometryLODManager } from '../src/map/lod/GeometryLODManager.ts';
 import { splitRingAtAntimeridian, normalizeAntimeridianGeometry } from '../src/map/geo/antimeridian.ts';
+import { GeographicDataManager } from '../src/map/data/GeographicDataManager.ts';
+import { initCsvLayerRegistry } from '../src/layers/csvLayerRegistry.ts';
 
 console.log('=== Running InterGeo MapLibre Refactoring Verification ===\n');
 
@@ -181,6 +183,98 @@ assert(totalNormalizedCrossings === 0, 'Zero antimeridian crossings across entir
 assert(fijiMaxDx < 1.0, `Fiji normalized max consecutive dx < 1.0 deg (got ${fijiMaxDx.toFixed(2)})`);
 assert(russiaMaxDx < 10.0, `Russia normalized max consecutive dx < 10.0 deg (got ${russiaMaxDx.toFixed(2)})`);
 assert(antarcticaMaxDx <= 90.0, `Antarctica normalized max consecutive dx <= 90.0 deg (got ${antarcticaMaxDx.toFixed(2)})`);
+
+// 11. Layer Ingestion & Attribute Decoration (Color fill, Text badges, Image markers)
+await initCsvLayerRegistry();
+
+const dm = new GeographicDataManager();
+// Register a mock map with mock sources
+const sources = new Map();
+const mockMap = {
+  getSource(id) {
+    if (!sources.has(id)) {
+      sources.set(id, {
+        setData(fc) { this.data = fc; },
+        data: null
+      });
+    }
+    return sources.get(id);
+  },
+  hasImage() { return false; },
+  async loadImage(url) { return { data: { width: 10, height: 10 } }; },
+  addImage(id, data) { this.images = this.images || new Map(); this.images.set(id, data); },
+  getLayer() { return { id: 'roads-line' }; },
+  setLayoutProperty() {}
+};
+dm.setMap(mockMap);
+
+// Register JP and US features into dm registry
+const jpCanonical = {
+  type: 'Feature',
+  geometry: { type: 'Point', coordinates: [138, 38] },
+  properties: {
+    feature_id: 'ADM0_JP',
+    numeric_id: 1,
+    admin_level: 0,
+    country_code: 'JP',
+    name: 'Japan',
+    name_zh: '日本',
+    name_en: 'Japan',
+    center: [138, 38]
+  }
+};
+const usCanonical = {
+  type: 'Feature',
+  geometry: { type: 'Point', coordinates: [-95, 37] },
+  properties: {
+    feature_id: 'ADM0_US',
+    numeric_id: 2,
+    admin_level: 0,
+    country_code: 'US',
+    name: 'United States',
+    name_zh: '美國',
+    name_en: 'United States',
+    center: [-95, 37]
+  }
+};
+const frCanonical = {
+  type: 'Feature',
+  geometry: { type: 'Point', coordinates: [2.3, 46.2] },
+  properties: {
+    feature_id: 'ADM0_FR',
+    numeric_id: 3,
+    admin_level: 0,
+    country_code: 'FR',
+    name: 'France',
+    name_zh: '法國',
+    name_en: 'France',
+    center: [2.3, 46.2]
+  }
+};
+dm.getRegistry().registerAll([jpCanonical, usCanonical, frCanonical]);
+
+// A. Test Color Fill: drivingSide
+await dm.setActiveFilterId('drivingSide');
+const adm0Data = mockMap.getSource('adm0-source').data;
+assert(adm0Data && adm0Data.features.length === 3, 'adm0-source updated with 3 features');
+const jpFeat = adm0Data.features.find(f => f.properties.country_code === 'JP');
+const usFeat = adm0Data.features.find(f => f.properties.country_code === 'US');
+assert(jpFeat?.properties.fillColor === '#f59e0b', `Japan driving side is #f59e0b (left-hand) (got ${jpFeat?.properties.fillColor})`);
+assert(usFeat?.properties.fillColor === '#3b82f6', `USA driving side is #3b82f6 (right-hand) (got ${usFeat?.properties.fillColor})`);
+
+// B. Test Text Badges: callingCode
+await dm.setActiveTextFilters(new Set(['callingCode']));
+const textData = mockMap.getSource('text-markers-source').data;
+assert(textData && textData.features.length >= 2, 'text-markers-source updated with text badges');
+const jpText = textData.features.find(f => f.properties.id === 'ADM0_JP');
+assert(jpText?.properties.text === '+81', `Japan calling code badge is +81 (got ${jpText?.properties.text})`);
+
+// C. Test Image Markers: pedestrian-crossing
+await dm.setActiveInternationalImageFilter('pedestrian-crossing');
+const imgData = mockMap.getSource('image-markers-source').data;
+assert(imgData && imgData.features.length > 0, 'image-markers-source updated with image markers');
+const frImg = imgData.features.find(f => f.properties.id === 'image-FR');
+assert(frImg?.properties.icon === 'crossing-fr', `France pedestrian crossing marker icon is crossing-fr (got ${frImg?.properties.icon})`);
 
 console.log('\n=== Summary ===');
 if (failed === 0) {

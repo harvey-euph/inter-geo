@@ -67,6 +67,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   selectedMunicipality,
   onSelectMunicipality,
   selectedRoad,
+  showRoads,
   focusMapRef,
   zoomToSubdivisionRef,
   detailPanelWidth = 420,
@@ -78,6 +79,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const [projectionMode, setProjectionMode] = useState<ProjectionMode>('2d');
   const [hoveredFeature, setHoveredFeature] = useState<CanonicalFeature | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+  const [filterVersion, setFilterVersion] = useState(0);
 
   // Active layer definition for MapLegend
   const activeFilterDef = useMemo<LayerDefinition>(() => {
@@ -127,7 +129,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       legend: [],
       getColor: () => '#38bdf8'
     };
-  }, [activeFilterId]);
+  }, [activeFilterId, filterVersion]);
 
   // Toggle 2D / 3D Globe mode
   const handleToggleMode = useCallback(() => {
@@ -198,8 +200,22 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           setProjectionMode(mode);
         });
 
-        // Set initial filter id
-        inst.getDataManager().setActiveFilterId(activeFilterId);
+        // Set initial filters
+        void inst.getDataManager().setActiveFilterId(activeFilterId).then(() => {
+          setFilterVersion((v) => v + 1);
+        });
+        if (activeTextFilters && activeTextFilters.size > 0) {
+          void inst.getDataManager().setActiveTextFilters(activeTextFilters);
+        }
+        if (activeInternationalImageFilter) {
+          void inst.getDataManager().setActiveInternationalImageFilter(activeInternationalImageFilter);
+        }
+        if (activeRegionalFilters && activeRegionalFilters.size > 0) {
+          void inst.getDataManager().setActiveRegionalFilters(activeRegionalFilters);
+        }
+        if (showRoads) {
+          inst.getDataManager().setShowRoads(true);
+        }
 
         // Preload Japan ADM1 and ADM2 for instant demo capability
         void inst.getDataManager().ensureAdm1('JP').then(() => {
@@ -221,8 +237,30 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 
   // Update filter styling when activeFilterId changes
   useEffect(() => {
-    adapterRef.current?.getDataManager().setActiveFilterId(activeFilterId);
+    void adapterRef.current?.getDataManager().setActiveFilterId(activeFilterId).then(() => {
+      setFilterVersion((v) => v + 1);
+    });
   }, [activeFilterId]);
+
+  // Sync activeTextFilters (Global text labels)
+  useEffect(() => {
+    void adapterRef.current?.getDataManager().setActiveTextFilters(activeTextFilters || new Set());
+  }, [activeTextFilters]);
+
+  // Sync activeInternationalImageFilter (Crossing signs, etc.)
+  useEffect(() => {
+    void adapterRef.current?.getDataManager().setActiveInternationalImageFilter(activeInternationalImageFilter || null);
+  }, [activeInternationalImageFilter]);
+
+  // Sync activeRegionalFilters (Area codes, regional features)
+  useEffect(() => {
+    void adapterRef.current?.getDataManager().setActiveRegionalFilters(activeRegionalFilters || new Set());
+  }, [activeRegionalFilters]);
+
+  // Sync showRoads
+  useEffect(() => {
+    adapterRef.current?.getDataManager().setShowRoads(showRoads ?? false);
+  }, [showRoads]);
 
   // Handle selectedCountry change
   useEffect(() => {
