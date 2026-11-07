@@ -6,6 +6,7 @@ import { findL3Partition, hasCountryL2Sync, resolveSubdivisionFileSync } from '.
 import { FeatureRegistry, type CanonicalFeature, type AdminLevel } from './FeatureRegistry';
 import { AdministrativeHierarchy } from './AdministrativeHierarchy';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
+import { ADM0_CENTER_ANCHORS } from '../geo/adminCenterAnchors';
 
 /**
  * FlatGeobufLoader handles fetching, parsing, and normalizing FlatGeobuf (.fgb) files
@@ -137,7 +138,9 @@ export class FlatGeobufLoader {
           const nameZh = String(props.name_zh || countryMeta?.nameZh || props.name || '');
 
           const geometry = normalizeAntimeridianGeometry(f.geometry);
-          const center = AdministrativeHierarchy.calculateCenter(geometry);
+          const center =
+            (adminLevel === 0 && ADM0_CENTER_ANCHORS[resolvedIso2]?.coordinates) ||
+            AdministrativeHierarchy.calculateCenter(geometry);
           const bbox = AdministrativeHierarchy.calculateBBox(geometry);
 
           const canonical: CanonicalFeature = {

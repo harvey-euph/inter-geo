@@ -23,36 +23,35 @@ export interface TextLayerDef {
   getText: (country: CountryData) => string | null;
 }
 
-import { getAllCentroidsSync } from './geoIndexClient';
+import { ADM0_CENTER_ANCHORS } from '../map/geo/adminCenterAnchors';
 
 /**
- * Visual Mainland Centroid Overrides [Mercator X, Mercator Y] on a 1000x1000 canvas.
+ * Visual Mainland Geographic Centroid Overrides [Longitude, Latitude].
  * Corrects geometric centroids distorted by far-off polar islands or overseas territories.
- * Dynamically proxies centroids loaded from countries-index.json.
  */
 export const COUNTRY_LABEL_CENTROIDS: Record<string, [number, number]> = new Proxy(
   {},
   {
     get(_target, prop: string) {
-      const dynamic = getAllCentroidsSync();
-      if (dynamic && dynamic[prop]) return dynamic[prop];
+      const clean = prop.toUpperCase();
+      if (ADM0_CENTER_ANCHORS[clean]) {
+        return ADM0_CENTER_ANCHORS[clean].coordinates;
+      }
       return undefined;
     },
     has(_target, prop: string) {
-      const dynamic = getAllCentroidsSync();
-      return !!dynamic && prop in dynamic;
+      return prop.toUpperCase() in ADM0_CENTER_ANCHORS;
     },
     ownKeys() {
-      const dynamic = getAllCentroidsSync();
-      return dynamic ? Object.keys(dynamic) : [];
+      return Object.keys(ADM0_CENTER_ANCHORS);
     },
     getOwnPropertyDescriptor(_target, prop: string) {
-      const dynamic = getAllCentroidsSync();
-      if (dynamic && prop in dynamic) {
+      const clean = prop.toUpperCase();
+      if (clean in ADM0_CENTER_ANCHORS) {
         return {
           enumerable: true,
           configurable: true,
-          value: dynamic[prop]
+          value: ADM0_CENTER_ANCHORS[clean].coordinates
         };
       }
       return undefined;

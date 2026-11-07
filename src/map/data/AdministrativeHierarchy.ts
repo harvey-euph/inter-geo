@@ -73,6 +73,9 @@ export class AdministrativeHierarchy {
 
   /**
    * Extracts centroid or interior point from a GeoJSON geometry.
+   * For MultiPolygons, calculates the centroid of the largest landmass polygon
+   * to avoid far-flung islands or polar territories skewing the center off mainland.
+   * Also handles antimeridian crossing cleanly.
    */
   public static calculateCenter(geometry: CanonicalFeature['geometry']): [number, number] {
     if (!geometry) return [0, 0];
@@ -81,31 +84,85 @@ export class AdministrativeHierarchy {
       return [geometry.coordinates[0], geometry.coordinates[1]];
     }
 
+    if (geometry.type === 'Polygon') {
+      if (geometry.coordinates.length === 0 || geometry.coordinates[0].length === 0) return [0, 0];
+      return AdministrativeHierarchy.calculateRingCentroid(geometry.coordinates[0]);
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+      if (geometry.coordinates.length === 0) return [0, 0];
+
+      let maxArea = -1;
+      let largestRing: number[][] | null = null;
+
+      for (const poly of geometry.coordinates) {
+        if (!poly || poly.length === 0) continue;
+        const outerRing = poly[0];
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        for (const pt of outerRing) {
+          if (pt[0] < minX) minX = pt[0];
+          if (pt[1] < minY) minY = pt[1];
+          if (pt[0] > maxX) maxX = pt[0];
+          if (pt[1] > maxY) maxY = pt[1];
+        }
+
+        const area = (maxX - minX) * (maxY - minY);
+        if (area > maxArea) {
+          maxArea = area;
+          largestRing = outerRing;
+        }
+      }
+
+      if (largestRing) {
+        return AdministrativeHierarchy.calculateRingCentroid(largestRing);
+      }
+    }
+
+    return [0, 0];
+  }
+
+  /**
+   * Calculates centroid of a coordinate ring, handling antimeridian wrapping cleanly.
+   */
+  private static calculateRingCentroid(ring: number[][]): [number, number] {
+    if (!ring || ring.length === 0) return [0, 0];
+
     let totalX = 0;
     let totalY = 0;
     let count = 0;
 
-    const processRing = (ring: number[][]) => {
-      for (const pt of ring) {
-        totalX += pt[0];
-        totalY += pt[1];
-        count++;
-      }
-    };
+    let hasFarNegative = false;
+    let hasFarPositive = false;
+    for (const pt of ring) {
+      if (pt[0] < -90) hasFarNegative = true;
+      if (pt[0] > 90) hasFarPositive = true;
+    }
+    const cross180 = hasFarNegative && hasFarPositive;
 
-    if (geometry.type === 'Polygon') {
-      if (geometry.coordinates.length > 0) {
-        processRing(geometry.coordinates[0]);
+    for (const pt of ring) {
+      let x = pt[0];
+      const y = pt[1];
+      if (cross180 && x < 0) {
+        x += 360;
       }
-    } else if (geometry.type === 'MultiPolygon') {
-      for (const poly of geometry.coordinates) {
-        if (poly.length > 0) {
-          processRing(poly[0]);
-        }
-      }
+      totalX += x;
+      totalY += y;
+      count++;
     }
 
-    return count > 0 ? [totalX / count, totalY / count] : [0, 0];
+    if (count === 0) return [0, 0];
+    let avgX = totalX / count;
+    const avgY = totalY / count;
+
+    if (cross180 && avgX > 180) {
+      avgX -= 360;
+    }
+
+    return [avgX, avgY];
   }
 
   /**

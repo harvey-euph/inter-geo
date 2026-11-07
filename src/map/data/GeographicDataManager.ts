@@ -12,9 +12,10 @@ import {
   loadOnDemandCsvLayer
 } from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
-import { getCombinedTextOverlay, COUNTRY_LABEL_CENTROIDS } from '../../data/globalLayers';
+import { getCombinedTextOverlay } from '../../data/globalLayers';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
 import { getDataUrl } from '../../data/dataSource';
+import { resolveAdminCenter } from '../geo/adminCenterAnchors';
 
 export interface DataManagerOptions {
   onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
@@ -448,8 +449,7 @@ export class GeographicDataManager {
         const nameZh = p.name_zh || country?.nameZh || p.name || '';
         const nameEn = p.name_en || country?.name || p.name || '';
 
-        const override = p.admin_level === 0 ? COUNTRY_LABEL_CENTROIDS[p.country_code] : undefined;
-        const center = override || p.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+        const center = resolveAdminCenter(f, this.registry);
         if (!center || (center[0] === 0 && center[1] === 0)) return null;
 
         return {
@@ -500,8 +500,7 @@ export class GeographicDataManager {
         const badgeText = getCombinedTextOverlay(country, this.activeTextFilters);
         if (!badgeText) continue;
 
-        const override = COUNTRY_LABEL_CENTROIDS[country.iso2];
-        const center = override || f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+        const center = resolveAdminCenter(f, this.registry);
         if (!center || (center[0] === 0 && center[1] === 0)) continue;
 
         markerFeatures.push({
@@ -544,7 +543,7 @@ export class GeographicDataManager {
             const code = getCsvSubdivisionCode(regId, subParam) || getCsvSubdivisionValue(regId, subParam);
 
             if (code) {
-              const center = p.center || AdministrativeHierarchy.calculateCenter(s.geometry);
+              const center = resolveAdminCenter(s, this.registry);
               if (!center || (center[0] === 0 && center[1] === 0)) continue;
 
               markerFeatures.push({
@@ -604,8 +603,7 @@ export class GeographicDataManager {
 
           if (!this.loadedImageIcons.has(iconId)) continue;
 
-          const override = COUNTRY_LABEL_CENTROIDS[iso2];
-          const center = override || f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
+          const center = resolveAdminCenter(f, this.registry);
           if (!center || (center[0] === 0 && center[1] === 0)) continue;
 
           imageFeatures.push({
