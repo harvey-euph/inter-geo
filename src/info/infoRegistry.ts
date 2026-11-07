@@ -7,7 +7,8 @@ import {
 import type { InfoCard, InfoImagePosition, InfoImageSize, InfoQuery, InfoStub, InfoTargetType } from '../types/info';
 import { parseBulletLine, parseMarkdownInfo } from './infoParser';
 import { getDataUrl } from '../data/dataSource';
-import { loadInfoTargetsIndex, reloadInfoTargetsIndex, type InfoTargetCardEntry, type InfoTargetsIndex } from '../data/geoIndexClient';
+import { loadInfoTargetsIndex, reloadInfoTargetsIndex, hasCountryRoadsSync, type InfoTargetCardEntry, type InfoTargetsIndex } from '../data/geoIndexClient';
+import { findCountry } from '../data/countries';
 
 let cachedStubsByTarget: Map<string, InfoStub[]> | null = null;
 let cachedStubsById: Map<string, InfoStub> | null = null;
@@ -524,6 +525,44 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
     );
   }
 
+  // Ensure every country with road data has a highway/road post
+  if (query.countryIso2 && !hasRoadContext) {
+    const cleanIso = query.countryIso2.toUpperCase().trim();
+    if (hasCountryRoadsSync(cleanIso)) {
+      const hasExistingRoadStub = results.some(
+        (s) =>
+          s.targetType === 'road' ||
+          (s.layer &&
+            (s.layer.toLowerCase().includes('interstate') ||
+              s.layer.toLowerCase().includes('highway') ||
+              s.layer.toLowerCase().startsWith('roads-')))
+      );
+
+      if (!hasExistingRoadStub) {
+        const country = findCountry(cleanIso);
+        const nameZh = country?.nameZh || cleanIso;
+        const nameEn = country?.name || cleanIso;
+        const syntheticStub: InfoStub = {
+          id: `roads-synthetic-${cleanIso}`,
+          title: `${nameZh} 國家主要公路與國道網 (${nameEn} Highway Network)`,
+          icon: '🛣️',
+          accentColor: '#38bdf8',
+          targets: [cleanIso],
+          targetType: 'road',
+          tags: ['公路', '交通', '道路'],
+          priority: 88,
+          layer: `roads-${cleanIso}`,
+          sourceFile: 'synthetic-roads.md',
+          sourcePath: 'info/synthetic-roads.md',
+          firstItemPreview: {
+            content: `展開此情報專欄即可在地圖上載入並顯示 ${nameZh} 全國主要公路、高速公路與國道路網。`
+          }
+        };
+        results.push(syntheticStub);
+      }
+    }
+  }
+
   return results;
 }
 
@@ -533,6 +572,32 @@ export function queryInfoStubs(query: InfoQuery): InfoStub[] {
 export async function loadInfoCard(stub: InfoStub): Promise<InfoCard | null> {
   const cached = loadedCardsById.get(stub.id);
   if (cached) return cached;
+
+  if (stub.id.startsWith('roads-synthetic-')) {
+    const iso = (stub.targets && stub.targets[0]) || '';
+    const country = findCountry(iso);
+    const nameZh = country?.nameZh || iso;
+    const card: InfoCard = {
+      id: stub.id,
+      title: stub.title,
+      icon: stub.icon,
+      accentColor: stub.accentColor,
+      targets: stub.targets,
+      targetType: stub.targetType,
+      tags: stub.tags,
+      layer: stub.layer,
+      priority: stub.priority,
+      items: [
+        {
+          raw: `- **主要公路路網圖層**：展開此專欄將在地圖上開啟 ${nameZh} 的主要高速公路、國道與幹道路網走廊。`,
+          label: '主要公路路網圖層',
+          content: `展開此情報專欄將在地圖上動態載入並顯示 **${nameZh}** 的主要高速公路、國道與幹線公路路網（包含一級幹線與二級聯邦/區域國道）。點擊地圖上的道路線段可進一步檢視各路線名稱與編號。`
+        }
+      ]
+    };
+    loadedCardsById.set(stub.id, card);
+    return card;
+  }
 
   let pending = inFlightFiles.get(stub.sourcePath);
   if (!pending) {

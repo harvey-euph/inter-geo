@@ -190,7 +190,12 @@ export function App() {
   const [detailPanelFullWidth, setDetailPanelFullWidth] = useState(false);
   const showInterstates = activeRegionalFilters.has('us-interstates') || activeRegionalFilters.has('roads-highways');
   const showNumberedRoutes = activeRegionalFilters.has('us-numbered-highways') || activeRegionalFilters.has('roads-numbered');
-  const showRoads = showInterstates || showNumberedRoutes;
+  const showRoads =
+    showInterstates ||
+    showNumberedRoutes ||
+    Array.from(activeRegionalFilters).some(
+      (f) => f.includes('interstate') || f.includes('highway') || f.startsWith('roads-')
+    );
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [projectionMode, setProjectionMode] = useState<ProjectionMode>('2d');
   const handleToggleProjectionMode = useCallback(() => {
@@ -342,6 +347,18 @@ export function App() {
       setSelectedSubdivision(null);
       setSelectedMunicipality(null);
       setSelectedRoad(null);
+      // Reset country-specific road layers so the info card opens with road posts collapsed by default
+      setActiveRegionalFilters((prev) => {
+        const next = new Set(prev);
+        let changed = false;
+        for (const f of prev) {
+          if (f.startsWith('roads-') || f.includes('interstate') || f.includes('highway')) {
+            next.delete(f);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
       if (options?.focus !== false) {
         focusMapRef.current?.({ kind: 'country', iso2: country.iso2 });
       }
@@ -642,6 +659,17 @@ export function App() {
     setSelectedSubdivision(null);
     setSelectedMunicipality(null);
     setSelectedRoad(null);
+    setActiveRegionalFilters((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const f of prev) {
+        if (f.startsWith('roads-') || f.includes('interstate') || f.includes('highway')) {
+          next.delete(f);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
     const activeLayers = getActiveLayersList(activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters);
     syncAppUrl(activeLayers, null);
   }, [activeFilterId, activeTextFilters, activeInternationalImageFilter, activeRegionalFilters, syncAppUrl]);

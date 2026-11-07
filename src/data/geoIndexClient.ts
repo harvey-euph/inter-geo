@@ -381,6 +381,61 @@ export function hasCountryL2Sync(iso2: string): boolean {
 }
 
 /**
+ * Checks whether road network data exists for country iso2.
+ */
+export function hasCountryRoadsSync(iso2: string): boolean {
+  if (!cachedDataIndex) return false;
+  const upper = (iso2 || '').toUpperCase();
+  return Boolean(
+    cachedDataIndex.roadsByCountry?.[upper] ||
+    cachedDataIndex.files?.some((f) => f.toLowerCase() === `data/${upper.toLowerCase()}-roads.fgb`)
+  );
+}
+
+/**
+ * Checks whether any road layer corresponding to country iso2 is active in activeFilters.
+ */
+export function isRoadLayerActiveForCountry(iso2: string, activeFilters?: Set<string>): boolean {
+  if (!activeFilters || activeFilters.size === 0) return false;
+  const iso = (iso2 || '').toUpperCase();
+  const lower = iso.toLowerCase();
+  if (!iso) return false;
+
+  for (const filterId of activeFilters) {
+    const fLower = filterId.toLowerCase();
+    const fUpper = filterId.toUpperCase();
+
+    if (
+      fLower === `${lower}-interstates` ||
+      fLower === `${lower}-highways` ||
+      fUpper === `ROADS-${iso}` ||
+      fUpper.startsWith(`ROADS-${iso}-`) ||
+      fLower === `roads-${lower}` ||
+      fLower.startsWith(`roads-${lower}-`)
+    ) {
+      return true;
+    }
+
+    if (iso === 'US') {
+      if (
+        fLower === 'us-interstates' ||
+        fLower === 'us-numbered-highways' ||
+        fLower === 'us-routes' ||
+        fLower === 'us-highways'
+      ) {
+        return true;
+      }
+    }
+
+    if (fLower === 'roads-highways' || fLower === 'roads-numbered' || fLower === 'roads') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Resolves child subdivision file path if it exists.
  */
 export function resolveSubdivisionFileSync(parentPath: string, childId: string): string | null {

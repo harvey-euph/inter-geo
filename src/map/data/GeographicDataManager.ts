@@ -152,7 +152,7 @@ export class GeographicDataManager {
           });
         }
         if (this.map.getLayer('roads-line')) {
-          this.map.setLayoutProperty('roads-line', 'visibility', 'visible');
+          this.map.setLayoutProperty('roads-line', 'visibility', this.showRoads ? 'visible' : 'none');
         }
       }
       return;
@@ -186,7 +186,7 @@ export class GeographicDataManager {
           });
         }
         if (this.map.getLayer('roads-line')) {
-          this.map.setLayoutProperty('roads-line', 'visibility', 'visible');
+          this.map.setLayoutProperty('roads-line', 'visibility', this.showRoads ? 'visible' : 'none');
         }
       }
     } catch (err) {
@@ -207,6 +207,44 @@ export class GeographicDataManager {
           features: []
         });
       }
+    }
+  }
+
+  /**
+   * Filters displayed road classes based on active road layers (e.g. freeways vs provincial).
+   */
+  public updateRoadFilter(activeRegionalFilters: Set<string>, countryIso2: string): void {
+    if (!this.map || !this.map.getLayer('roads-line')) return;
+    const cleanIso = countryIso2.toUpperCase();
+    const lower = countryIso2.toLowerCase();
+
+    const hasInterstate =
+      activeRegionalFilters.has(`${lower}-interstates`) ||
+      activeRegionalFilters.has(`roads-${cleanIso}-expressway`) ||
+      activeRegionalFilters.has(`roads-${cleanIso}-interstates`) ||
+      (cleanIso === 'US' && activeRegionalFilters.has('us-interstates'));
+
+    const hasHighway =
+      activeRegionalFilters.has(`${lower}-highways`) ||
+      activeRegionalFilters.has(`roads-${cleanIso}-primary`) ||
+      activeRegionalFilters.has(`roads-${cleanIso}-highways`) ||
+      (cleanIso === 'US' && (activeRegionalFilters.has('us-numbered-highways') || activeRegionalFilters.has('us-routes')));
+
+    const hasGeneral =
+      activeRegionalFilters.has(`roads-${cleanIso}`) ||
+      activeRegionalFilters.has(`roads-${lower}`) ||
+      activeRegionalFilters.has('roads-highways') ||
+      activeRegionalFilters.has('roads-numbered') ||
+      activeRegionalFilters.has('roads');
+
+    if (hasGeneral || (hasInterstate && hasHighway)) {
+      this.map.setFilter('roads-line', null);
+    } else if (hasInterstate) {
+      this.map.setFilter('roads-line', ['==', ['get', 'class'], 'Interstate']);
+    } else if (hasHighway) {
+      this.map.setFilter('roads-line', ['!=', ['get', 'class'], 'Interstate']);
+    } else {
+      this.map.setFilter('roads-line', null);
     }
   }
 
