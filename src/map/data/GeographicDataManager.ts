@@ -540,17 +540,13 @@ export class GeographicDataManager {
 
     let rawFeatures: CanonicalFeature[] = [];
     if (level === 0) {
-      rawFeatures = this.registry
-        .getByLevel(0)
-        .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
+      // ADM0 retains all countries to provide an unbroken base underlay and seamless national boundary
+      rawFeatures = this.registry.getByLevel(0);
     } else if (level === 1) {
+      // ADM1 retains all subdivisions of active countries to provide underlay for ADM2
       rawFeatures = this.registry
         .getByLevel(1)
-        .filter(
-          (f) =>
-            this.activeAdm1Countries.has(f.properties.country_code) &&
-            !this.isAdm2DisplayedForSubdivision(f)
-        );
+        .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
     } else if (level === 2) {
       rawFeatures = this.registry
         .getByLevel(2)
