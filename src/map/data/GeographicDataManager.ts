@@ -115,12 +115,14 @@ export class GeographicDataManager {
 
     try {
       const features = await this.loader.loadAdm2(cleanIso, sub);
-      this.registry.registerAll(features);
       this.loadedAdm2Subdivisions.add(key);
-      this.updateSource('adm2-source', 2);
-      this.updateLabelSource();
-      void this.updateTextMarkers();
-      this.onDataLoaded?.(2, features.length);
+      if (features.length > 0) {
+        this.registry.registerAll(features);
+        this.updateSource('adm2-source', 2);
+        this.updateLabelSource();
+        void this.updateTextMarkers();
+        this.onDataLoaded?.(2, features.length);
+      }
       return features;
     } catch (err) {
       console.warn(`[GeographicDataManager] Failed to load ADM2 for ${cleanIso}/${sub}:`, err);

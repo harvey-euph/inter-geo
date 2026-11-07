@@ -14,6 +14,7 @@ import type { NationwideLayerDef } from '../data/nationwideLayers';
 import type { RoadPathData } from '../data/roadsMeta';
 import type { LayerDefinition } from '../data/layers';
 import { findCountry } from '../data/countries';
+import { hasL3ForSubdivision } from '../data/l3Manifest';
 import { NATIONWIDE_LAYERS } from '../data/nationwideLayers';
 import { getCsvLayerById, getCsvLayerValue } from '../layers/csvLayerRegistry';
 
@@ -158,7 +159,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           .setFocusedSubdivision(sub.iso2, sub.id);
         const parentId = `ADM1_${sub.iso2.toUpperCase()}_${sub.id}`;
         void adapterRef.current?.getDataManager().ensureRoads(sub.iso2);
-        void adapterRef.current?.getDataManager().setActiveDisplayLevels([sub.iso2], [parentId]);
+        const hasL3 = hasL3ForSubdivision(sub.iso2, sub);
+        void adapterRef.current?.getDataManager().setActiveDisplayLevels([sub.iso2], hasL3 ? [parentId] : []);
         if (p.bbox) {
           adapterRef.current?.fitBounds(p.bbox);
         }
@@ -292,9 +294,11 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     }
     if (selectedSubdivision?.iso2) {
       activeAdm1.push(selectedSubdivision.iso2);
-      const subId = String(selectedSubdivision.id ?? selectedSubdivision.code ?? '');
-      if (subId) {
-        activeAdm2Parents.push(`ADM1_${selectedSubdivision.iso2.toUpperCase()}_${subId}`);
+      if (hasL3ForSubdivision(selectedSubdivision.iso2, selectedSubdivision)) {
+        const subId = String(selectedSubdivision.id ?? selectedSubdivision.code ?? '');
+        if (subId) {
+          activeAdm2Parents.push(`ADM1_${selectedSubdivision.iso2.toUpperCase()}_${subId}`);
+        }
       }
     }
     if (selectedMunicipality?.iso2) {
@@ -313,7 +317,17 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       }
       if (p.admin_level === 1) {
         const subId = String(p.code || p.postal || p.id || '');
-        if (hIso && subId) {
+        if (
+          hIso &&
+          subId &&
+          hasL3ForSubdivision(hIso, {
+            id: p.id as string | number | undefined,
+            code: p.code,
+            name: p.name,
+            nameEn: p.name_en,
+            nameZh: p.name_zh
+          })
+        ) {
           activeAdm2Parents.push(`ADM1_${hIso.toUpperCase()}_${subId}`);
         }
       } else if (p.admin_level === 2) {
@@ -332,6 +346,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     return () => clearTimeout(timer);
   }, [
     selectedCountry?.iso2,
+    selectedSubdivision,
     selectedSubdivision?.iso2,
     selectedSubdivision?.id,
     selectedSubdivision?.code,
@@ -400,8 +415,9 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const iso = target.iso2.toUpperCase();
         const id = String(target.id);
         const parentId = `ADM1_${iso}_${id}`;
+        const hasL3 = hasL3ForSubdivision(iso, { id, code: id });
         adapter.getLODController().getAdminLODManager().setFocusedSubdivision(iso, id);
-        void adapter.getDataManager().setActiveDisplayLevels([iso], [parentId]);
+        void adapter.getDataManager().setActiveDisplayLevels([iso], hasL3 ? [parentId] : []);
         void adapter.getDataManager().ensureRoads(iso);
 
         const subFeat = adapter.getDataManager().getRegistry().getById(parentId);

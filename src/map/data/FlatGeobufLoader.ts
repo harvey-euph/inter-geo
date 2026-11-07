@@ -2,6 +2,7 @@ import * as flatgeobuf from 'flatgeobuf';
 import type { Feature, Geometry } from 'geojson';
 import { getDataUrl } from '../../data/dataSource';
 import { findCountry } from '../../data/countries';
+import { findL3Partition, hasCountryL2Sync, resolveSubdivisionFileSync } from '../../data/geoIndexClient';
 import { FeatureRegistry, type CanonicalFeature, type AdminLevel } from './FeatureRegistry';
 import { AdministrativeHierarchy } from './AdministrativeHierarchy';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
@@ -27,6 +28,9 @@ export class FlatGeobufLoader {
    */
   public async loadAdm1(iso2: string): Promise<CanonicalFeature[]> {
     const cleanIso = iso2.toUpperCase();
+    if (!hasCountryL2Sync(cleanIso)) {
+      return [];
+    }
     const url = getDataUrl(`data/${cleanIso}.fgb`);
     return this.loadFgbUrl(url, 1, cleanIso);
   }
@@ -34,11 +38,33 @@ export class FlatGeobufLoader {
   /**
    * Loads ADM2 (Municipalities for a subdivision, e.g. JP/22.fgb).
    */
-  public async loadAdm2(iso2: string, subIdOrCode: string | number): Promise<CanonicalFeature[]> {
+  public async loadAdm2(
+    iso2: string,
+    subIdOrCode: string | number,
+    extraParts?: { name?: string; nameEn?: string; nameZh?: string }
+  ): Promise<CanonicalFeature[]> {
     const cleanIso = iso2.toUpperCase();
     const sub = String(subIdOrCode).trim();
-    const url = getDataUrl(`data/${cleanIso}/${sub}.fgb`);
     const parentId = FeatureRegistry.createId(1, cleanIso, sub);
+
+    // 1. Check L3 Manifest partition
+    const partition = findL3Partition(cleanIso, {
+      id: sub,
+      code: sub,
+      name: extraParts?.name,
+      nameEn: extraParts?.nameEn,
+      nameZh: extraParts?.nameZh
+    });
+
+    const relativePath = partition?.file
+      ? partition.file.replace(/^\/?data\/l3\//, 'data/').replace(/^\/+/, '')
+      : resolveSubdivisionFileSync(cleanIso, sub);
+
+    if (!relativePath) {
+      return [];
+    }
+
+    const url = getDataUrl(relativePath);
     return this.loadFgbUrl(url, 2, cleanIso, parentId);
   }
 
@@ -63,6 +89,9 @@ export class FlatGeobufLoader {
       try {
         const res = await fetch(url);
         if (!res.ok) {
+          if (res.status === 404) {
+            return [];
+          }
           throw new Error(`Failed to load ${url}: HTTP ${res.status}`);
         }
         const buffer = await res.arrayBuffer();
