@@ -395,7 +395,12 @@ export class GeographicDataManager {
         if (col) return col;
       } else if (p.admin_level === 2) {
         const muniCode = p.code || String(p.id || '');
-        const parentCode = String(p.pref_id || p.parent_code || '');
+        const parentFeature = p.parent_id ? this.registry.getById(p.parent_id) : undefined;
+        const parentSubId =
+          String(p.pref_id || p.parent_code || '') ||
+          parentFeature?.properties?.code ||
+          parentFeature?.properties?.postal ||
+          (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
         const val =
           getCsvSubdivisionValue(csvLayer.id, {
             id: muniCode,
@@ -406,13 +411,20 @@ export class GeographicDataManager {
             nameZh: p.name_zh
           }) ||
           getCsvSubdivisionValue(csvLayer.id, {
-            id: parentCode,
+            id: parentSubId,
             iso2,
-            code: parentCode
+            code: parentSubId,
+            postal: parentFeature?.properties?.postal,
+            name: parentFeature?.properties?.name,
+            nameEn: parentFeature?.properties?.name_en,
+            nameZh: parentFeature?.properties?.name_zh
           }) ||
           getCsvLayerValue(csvLayer.id, iso2);
         const col = extractColor(csvLayer, val);
         if (col) return col;
+        if (parentFeature?.properties?.fillColor && parentFeature.properties.fillColor !== MAP_COLORS.defaultFill) {
+          return parentFeature.properties.fillColor;
+        }
       }
       const defCol =
         csvLayer.meta.defaultColor ||
@@ -446,6 +458,12 @@ export class GeographicDataManager {
             if (col) return col;
           } else if (p.admin_level === 2) {
             const muniCode = p.code || String(p.id || '');
+            const parentFeature = p.parent_id ? this.registry.getById(p.parent_id) : undefined;
+            const parentSubId =
+              String(p.pref_id || p.parent_code || '') ||
+              parentFeature?.properties?.code ||
+              parentFeature?.properties?.postal ||
+              (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
             const val =
               getCsvSubdivisionValue(regId, {
                 id: muniCode,
@@ -454,9 +472,22 @@ export class GeographicDataManager {
                 name: p.name,
                 nameEn: p.name_en,
                 nameZh: p.name_zh
-              }) || getCsvLayerValue(regId, iso2);
+              }) ||
+              getCsvSubdivisionValue(regId, {
+                id: parentSubId,
+                iso2,
+                code: parentSubId,
+                postal: parentFeature?.properties?.postal,
+                name: parentFeature?.properties?.name,
+                nameEn: parentFeature?.properties?.name_en,
+                nameZh: parentFeature?.properties?.name_zh
+              }) ||
+              getCsvLayerValue(regId, iso2);
             const col = extractColor(regLayer, val);
             if (col) return col;
+            if (parentFeature?.properties?.fillColor && parentFeature.properties.fillColor !== MAP_COLORS.defaultFill) {
+              return parentFeature.properties.fillColor;
+            }
           }
         }
       }

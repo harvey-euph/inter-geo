@@ -67,16 +67,46 @@ export interface ActiveEntityConstraints {
 }
 
 /**
+ * Determines whether a layer displays visual labels/badges (Text, TextWithStyle, Image, ExtObject),
+ * which requires locking administrative levels so that detailed child polygons do not replace or hide the labels.
+ *
+ * User rule:
+ * "當我開啟的 layer 屬於 '有 label 的'，那就不要展示細節行政區，但如果是只有著色的，就要細化行政區，並且繼承母區塊顏色"
+ *
+ * If a layer is pure coloring (FillWithColor), it does NOT lock levels: detailed administrative divisions
+ * will expand normally upon zooming in, inheriting the mother region's color.
+ */
+export function isLabelLayer(layer: { type?: string; group?: string }): boolean {
+  if (
+    layer.type === 'Text' ||
+    layer.type === 'TextWithStyle' ||
+    layer.type === 'Image' ||
+    layer.type === 'ExtObject'
+  ) {
+    return true;
+  }
+  if (layer.type === 'FillWithColor') {
+    return false;
+  }
+  if (layer.group === 'global-label') {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Parses all active layers (activeFilterId, activeTextFilters, activeRegionalFilters, activeInternationalImageFilter)
  * and resolves per-entity level lock constraints.
  *
  * User rule:
  * "當我們用 AMD{x} 的標籤時 (要注意，同一組標籤所顯示的層級可能不同，要以各自的單體角度去思考)
- * 當放大時不可以切換到 AMD{y} 其中 y > x ，這樣我要看的 layer 才會保持顯示"
+ * 當放大時不可以切換到 AMD{y} 其中 y > x ，這樣我要看的 layer 才會保持顯示。
+ * 當開啟的 layer 屬於 '有 label 的'，那就不要展示細節行政區，但如果是只有著色的，就要細化行政區，並且繼承母區塊顏色"
  *
- * - An entity targeted at ADM0 (e.g. LK, BD in india-scripts, or TW, US in flags) must NOT switch to ADM1 or ADM2 (y > 0) upon zooming in.
- * - An entity targeted at ADM1 (e.g. IN::TN in india-scripts, or JP::13 in jp-area-codes) allows its parent to expand to ADM1,
+ * - An entity targeted at ADM0 in a label layer (e.g. LK, BD in india-scripts, or TW, US in flags) must NOT switch to ADM1 or ADM2 (y > 0) upon zooming in.
+ * - An entity targeted at ADM1 in a label layer (e.g. IN::TN in india-scripts, or JP::13 in jp-area-codes) allows its parent to expand to ADM1,
  *   but must NOT switch to ADM2 (y > 1) upon zooming in.
+ * - Coloring layers (FillWithColor) do NOT lock levels, allowing natural LOD expansion with inherited colors.
  */
 export function resolveActiveLayerConstraints(
   activeFilterId: string,
@@ -104,7 +134,7 @@ export function resolveActiveLayerConstraints(
 
   for (const layerId of activeLayerIds) {
     const layer = getCsvLayerById(layerId);
-    if (!layer) continue;
+    if (!layer || !isLabelLayer(layer)) continue;
 
     // Collect all raw targets from loaded CSV rows or pre-indexed targetKeys
     const rawTargets: string[] = [];
