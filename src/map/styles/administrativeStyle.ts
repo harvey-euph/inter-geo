@@ -447,8 +447,8 @@ export const administrativeLayers: LayerSpecification[] = [
         15
       ],
       'text-anchor': 'center',
-      'text-allow-overlap': false,
-      'text-ignore-placement': false,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
       'text-padding': 3
     },
     paint: {

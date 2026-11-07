@@ -143,7 +143,11 @@ export function resolveActiveLayerConstraints(
         if (row.unionMembers && row.unionMembers.length > 0) {
           rawTargets.push(...row.unionMembers);
         } else if (row.regionId) {
-          rawTargets.push(row.regionId);
+          if (row.regionId.includes('|')) {
+            rawTargets.push(...row.regionId.split('|').map((s) => s.trim()).filter(Boolean));
+          } else {
+            rawTargets.push(row.regionId);
+          }
         }
       }
     } else if (layer.targetKeys && layer.targetKeys.length > 0) {
@@ -163,17 +167,49 @@ export function resolveActiveLayerConstraints(
       const colonCount = (clean.match(/::/g) || []).length;
 
       if (colonCount === 0) {
+        // Check if this is an ISO-SUB format (e.g. IN-TN, JP-01, US-CA)
+        const dashMatch = clean.match(/^([A-Z]{2})-([A-Za-z0-9_-]+)$/);
+        if (dashMatch && !clean.startsWith('I-')) {
+          const iso = dashMatch[1].toUpperCase();
+          const sub = dashMatch[2];
+          const upperSub = sub.toUpperCase();
+
+          lockedAdm1Subdivisions.add(`${iso}::${sub}`);
+          lockedAdm1Subdivisions.add(`${iso}::${upperSub}`);
+          lockedAdm1Subdivisions.add(`${iso}-${sub}`);
+          lockedAdm1Subdivisions.add(`${iso}-${upperSub}`);
+          lockedAdm1Subdivisions.add(sub);
+          lockedAdm1Subdivisions.add(upperSub);
+          lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, sub));
+          lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, upperSub));
+
+          if (/^\d+$/.test(sub)) {
+            const num = String(parseInt(sub, 10));
+            const padded = num.padStart(2, '0');
+            for (const variant of [num, padded]) {
+              lockedAdm1Subdivisions.add(`${iso}::${variant}`);
+              lockedAdm1Subdivisions.add(`${iso}-${variant}`);
+              lockedAdm1Subdivisions.add(variant);
+              lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, variant));
+            }
+          }
+          continue;
+        }
+
         // Check if this is an ADM0 country code or a nationwide subdivision
         const upper = clean.toUpperCase();
         if (/^[A-Z]{2}$/.test(upper)) {
-          // If the layer is Nationwide for another country (e.g. US), and key is CA (California),
+          // If the layer is strictly Nationwide for a single country (e.g. US), and key is CA (California),
           // it's an ADM1 subdivision of US.
-          if (
+          const isNationwideSub =
             layer.rangeKind === 'Nationwide' &&
             layer.targetIso2 &&
             layer.targetIso2 !== '*' &&
-            layer.targetIso2 !== upper
-          ) {
+            layer.targetIso2 !== upper &&
+            (!layer.targetIso2s || layer.targetIso2s.length === 1) &&
+            !(layer.targetIso2s && layer.targetIso2s.includes(upper));
+
+          if (isNationwideSub) {
             const iso = layer.targetIso2.toUpperCase();
             lockedAdm1Subdivisions.add(`${iso}::${upper}`);
             lockedAdm1Subdivisions.add(`${iso}-${upper}`);

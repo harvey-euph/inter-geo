@@ -1,7 +1,10 @@
 import { getDataUrl } from '../data/dataSource';
 import { loadLayersIndex, type LayerMeta } from '../data/geoIndexClient';
+import { findCountry } from '../data/countries';
+import { ADM0_CENTER_ANCHORS } from '../map/geo/adminCenterAnchors';
 import {
   getAssignableRegionList,
+  parseEffectiveRange,
   type AssignableRegionList
 } from './assignableRegions';
 import {
@@ -82,35 +85,53 @@ function readLayerSize(value: unknown): number | undefined {
   return undefined;
 }
 
-function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
-  // Extract target ISO-2 codes automatically from targetKeys if present
-  const targetIso2Set = new Set<string>();
-  if (lm.fgb) {
-    const roadMatch = lm.fgb.match(/\/([A-Z]{2})-roads\.fgb/i);
-    if (roadMatch) targetIso2Set.add(roadMatch[1].toUpperCase());
-  }
-  if (lm.id.startsWith('us-')) {
-    targetIso2Set.add('US');
-  }
-  if (lm.targetKeys) {
-    for (const rawKey of lm.targetKeys) {
-      for (const key of rawKey.split('|').map((s) => s.trim()).filter(Boolean)) {
-        if (key.includes('::')) {
-          targetIso2Set.add(key.split('::')[0].toUpperCase());
-        } else if (key.includes('-') && !key.startsWith('I-')) {
-          targetIso2Set.add(key.split('-')[0].toUpperCase());
-        } else if (/^[A-Z]{2}$/i.test(key)) {
-          targetIso2Set.add(key.toUpperCase());
+export function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
+  let rangeKind: 'International' | 'Nationwide' = 'International';
+  let targetIso2 = '*';
+  let targetIso2s: string[] = [];
+  let effectiveRange = lm.effectiveRange || 'International';
+
+  const rawGroup = lm.group || 'global-label';
+  const group = rawGroup === 'fill-region-with-color' ? 'fill-region' : rawGroup;
+
+  if (lm.effectiveRange) {
+    const parsed = parseEffectiveRange(lm.effectiveRange);
+    rangeKind = parsed.kind;
+    targetIso2 = parsed.targetIso2;
+    targetIso2s = parsed.targetIso2s.filter((s) => s !== '*');
+    effectiveRange = parsed.canonicalKey;
+  } else {
+    // Extract target ISO-2 codes automatically from targetKeys if present
+    const targetIso2Set = new Set<string>();
+    if (lm.fgb) {
+      const roadMatch = lm.fgb.match(/\/([A-Z]{2})-roads\.fgb/i);
+      if (roadMatch) targetIso2Set.add(roadMatch[1].toUpperCase());
+    }
+    if (lm.id.startsWith('us-')) {
+      targetIso2Set.add('US');
+    }
+    if (lm.targetKeys) {
+      for (const rawKey of lm.targetKeys) {
+        for (const key of rawKey.split('|').map((s) => s.trim()).filter(Boolean)) {
+          if (key.includes('::')) {
+            targetIso2Set.add(key.split('::')[0].toUpperCase());
+          } else if (key.includes('-') && !key.startsWith('I-')) {
+            targetIso2Set.add(key.split('-')[0].toUpperCase());
+          } else if (/^[A-Z]{2}$/i.test(key)) {
+            const upper = key.toUpperCase();
+            if (findCountry(upper) || ADM0_CENTER_ANCHORS[upper]) {
+              targetIso2Set.add(upper);
+            }
+          }
         }
       }
     }
+    targetIso2s = Array.from(targetIso2Set);
+    rangeKind = group === 'global-label' || targetIso2s.length !== 1 ? 'International' : 'Nationwide';
+    targetIso2 = targetIso2s.length === 1 ? targetIso2s[0] : '*';
+    effectiveRange = rangeKind === 'Nationwide' && targetIso2 !== '*' ? `Nationwide:${targetIso2}` : 'International';
   }
-  const targetIso2s = Array.from(targetIso2Set);
-  const targetIso2 = targetIso2s.length === 1 ? targetIso2s[0] : (targetIso2s.length > 0 ? targetIso2s[0] : '*');
-  const rawGroup = lm.group || 'global-label';
-  const group = rawGroup === 'fill-region-with-color' ? 'fill-region' : rawGroup;
-  const rangeKind = group === 'global-label' || targetIso2s.length > 5 || targetIso2s.length === 0 ? 'International' : 'Nationwide';
-  const effectiveRange = lm.effectiveRange || (rangeKind === 'Nationwide' && targetIso2 !== '*' ? `Nationwide:${targetIso2s.join('|')}` : 'International');
+
   const assignableList = getAssignableRegionList(effectiveRange);
   const layerType = (lm.type as CsvLayerType) || (group === 'fill-region' ? 'FillWithColor' : 'TextWithStyle');
 
@@ -352,6 +373,16 @@ export function getCsvLayerById(id: string): RegisteredCsvLayer | undefined {
     return cachedLayersById?.get(areaCodeAliases[id]);
   }
   return undefined;
+}
+
+/**
+ * Registers a CSV layer in memory (for tests or dynamic extensions).
+ */
+export function registerMockCsvLayer(layer: RegisteredCsvLayer): void {
+  if (!cachedLayersById) cachedLayersById = new Map();
+  if (!cachedLayers) cachedLayers = [];
+  cachedLayersById.set(layer.id, layer);
+  cachedLayers.push(layer);
 }
 
 /**
