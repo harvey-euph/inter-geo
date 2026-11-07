@@ -27,6 +27,10 @@ export interface RegisteredCsvLayer {
   accentColor: string;
   /** Default layer color if specified */
   defaultColor?: string;
+  /** Default layer interior/fill color if specified */
+  defaultColorInterior?: string;
+  /** Default layer boundary/stroke color if specified */
+  defaultColorBoundary?: string;
   /** Default text style if specified (CSS string or preset) */
   defaultStyle?: string;
   /** Description in Traditional Chinese */
@@ -118,6 +122,8 @@ function metaToRegisteredLayer(lm: LayerMeta): RegisteredCsvLayer {
     shortBadge: lm.shortBadge || lm.nameZh,
     accentColor: lm.accentColor || '#38bdf8',
     defaultColor: lm.defaultColor || undefined,
+    defaultColorInterior: lm.defaultColorInterior || lm.defaultColor || undefined,
+    defaultColorBoundary: lm.defaultColorBoundary || undefined,
     defaultStyle: lm.defaultStyle || undefined,
     descriptionZh: lm.descriptionZh || lm.nameZh,
     effectiveRange,
@@ -368,6 +374,56 @@ export function getCsvLayerValue(layerId: string, regionId: string): string | nu
 }
 
 /**
+ * Looks up a region's boundary color in a registered CSV layer (O(1) Map lookup).
+ */
+export function getCsvLayerBoundaryColor(layerId: string, regionId: string): string | null {
+  if (!regionId) return null;
+  const layer = getCsvLayerById(layerId);
+  if (!layer || !layer.data) return null;
+
+  const upper = regionId.trim().toUpperCase();
+  const direct = layer.data.boundaryMap.get(upper);
+  if (direct !== undefined) return direct;
+
+  for (const key of layer.assignableList.normalizeId(upper)) {
+    const val = layer.data.boundaryMap.get(key);
+    if (val !== undefined) return val;
+  }
+
+  const row = getCsvLayerRow(layerId, regionId);
+  if (row?.colorBoundary) return row.colorBoundary;
+  return layer.defaultColorBoundary || (layer.meta.defaultColorBoundary as string) || null;
+}
+
+/**
+ * Looks up a region's interior color in a registered CSV layer (O(1) Map lookup).
+ */
+export function getCsvLayerInteriorColor(layerId: string, regionId: string): string | null {
+  if (!regionId) return null;
+  const layer = getCsvLayerById(layerId);
+  if (!layer || !layer.data) return null;
+
+  const upper = regionId.trim().toUpperCase();
+  const direct = layer.data.interiorMap.get(upper);
+  if (direct !== undefined) return direct;
+
+  for (const key of layer.assignableList.normalizeId(upper)) {
+    const val = layer.data.interiorMap.get(key);
+    if (val !== undefined) return val;
+  }
+
+  const row = getCsvLayerRow(layerId, regionId);
+  if (row?.colorInterior) return row.colorInterior;
+  return (
+    layer.defaultColorInterior ||
+    layer.defaultColor ||
+    (layer.meta.defaultColorInterior as string) ||
+    (layer.meta.defaultColor as string) ||
+    null
+  );
+}
+
+/**
  * Returns the full CsvLayerKVRow object with all custom column attributes.
  */
 export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow | undefined {
@@ -484,6 +540,55 @@ export function getCsvSubdivisionRow(
     }
   }
   return undefined;
+}
+
+/**
+ * Looks up an L2 subdivision's boundary color in a Nationwide CSV layer.
+ */
+export function getCsvSubdivisionBoundaryColor(
+  layerId: string,
+  sub: {
+    id?: string | number;
+    iso2?: string;
+    code?: string;
+    postal?: string;
+    name?: string;
+    nameEn?: string;
+    nameZh?: string;
+  }
+): string | null {
+  const row = getCsvSubdivisionRow(layerId, sub);
+  if (row?.colorBoundary) return row.colorBoundary;
+  const layer = getCsvLayerById(layerId);
+  return layer?.defaultColorBoundary || (layer?.meta.defaultColorBoundary as string) || null;
+}
+
+/**
+ * Looks up an L2 subdivision's interior color in a Nationwide CSV layer.
+ */
+export function getCsvSubdivisionInteriorColor(
+  layerId: string,
+  sub: {
+    id?: string | number;
+    iso2?: string;
+    code?: string;
+    postal?: string;
+    name?: string;
+    nameEn?: string;
+    nameZh?: string;
+  }
+): string | null {
+  const row = getCsvSubdivisionRow(layerId, sub);
+  if (row?.colorInterior) return row.colorInterior;
+  if (row?.color && !row.color.includes(':')) return row.color;
+  const layer = getCsvLayerById(layerId);
+  return (
+    layer?.defaultColorInterior ||
+    layer?.defaultColor ||
+    (layer?.meta.defaultColorInterior as string) ||
+    (layer?.meta.defaultColor as string) ||
+    null
+  );
 }
 
 /**
@@ -605,6 +710,14 @@ export async function loadOnDemandCsvLayer(
       if (parsed.meta.defaultColor) {
         layer.defaultColor = parsed.meta.defaultColor;
         layer.meta.defaultColor = parsed.meta.defaultColor;
+      }
+      if (parsed.meta.defaultColorInterior) {
+        layer.defaultColorInterior = parsed.meta.defaultColorInterior;
+        layer.meta.defaultColorInterior = parsed.meta.defaultColorInterior;
+      }
+      if (parsed.meta.defaultColorBoundary) {
+        layer.defaultColorBoundary = parsed.meta.defaultColorBoundary;
+        layer.meta.defaultColorBoundary = parsed.meta.defaultColorBoundary;
       }
       if (parsed.meta.legend) {
         layer.legend = parsed.meta.legend;

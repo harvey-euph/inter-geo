@@ -31,6 +31,8 @@ export interface CsvLayerMetadata {
   loadedTiming?: CsvLoadedTiming;
   order?: number;
   defaultColor?: string;
+  defaultColorInterior?: string;
+  defaultColorBoundary?: string;
   defaultStyle?: string;
   /** Multiplier for the layer's label glyphs. 1 keeps the current size. */
   labelSize?: number;
@@ -90,6 +92,10 @@ export interface CsvLayerKVRow {
   target?: string;
   /** Explicit color specified in row (from 'Color') */
   color?: string;
+  /** Explicit interior/fill color specified in row (from 'ColorInterior' or 'Color') */
+  colorInterior?: string;
+  /** Explicit boundary/stroke color specified in row (from 'ColorBoundary' or 'Color') */
+  colorBoundary?: string;
   /** Explicit label (text string, image path, etc.) */
   label?: string;
   /** Label display method (e.g. 'badge', 'plain', 'image', 'grid-letter', 'shield') */
@@ -122,6 +128,10 @@ export interface ParsedCsvLayerData {
   rows: CsvLayerKVRow[];
   /** O(1) lookup map from normalized region-id (and its aliases) to value */
   valueMap: Map<string, string>;
+  /** O(1) lookup map from normalized region-id to boundary color */
+  boundaryMap: Map<string, string>;
+  /** O(1) lookup map from normalized region-id to interior fill color */
+  interiorMap: Map<string, string>;
   /** O(1) lookup map from normalized region-id to optional 3rd-column label */
   labelMap: Map<string, string>;
   /** O(1) lookup map from normalized region-id to full row object with all attributes */
@@ -269,6 +279,8 @@ export function parseLayerDataCsv(
   const meta: CsvLayerMetadata = {};
   const rows: CsvLayerKVRow[] = [];
   const valueMap = new Map<string, string>();
+  const boundaryMap = new Map<string, string>();
+  const interiorMap = new Map<string, string>();
   const labelMap = new Map<string, string>();
   const rowMap = new Map<string, CsvLayerKVRow>();
   const invalidRegionIds: string[] = [];
@@ -276,6 +288,8 @@ export function parseLayerDataCsv(
   let columns: string[] = [];
   let regionIdCol = 0;
   let colorCol = -1;
+  let colorBoundaryCol = -1;
+  let colorInteriorCol = -1;
   let labelCol = -1;
   let displayMethodCol = -1;
   let valueCol = 1;
@@ -298,8 +312,15 @@ export function parseLayerDataCsv(
         else if (key === 'nameEn') meta.nameEn = val;
         else if (key === 'shortBadge') meta.shortBadge = val;
         else if (key === 'accentColor') meta.accentColor = val;
-        else if (key === 'default-color' || key === 'defaultcolor') meta.defaultColor = val;
-        else if (key === 'defaultStyle' || key === 'default-style') meta.defaultStyle = val;
+        else if (key === 'default-color-interior' || key === 'defaultcolorinterior') {
+          meta.defaultColorInterior = val;
+          if (!meta.defaultColor) meta.defaultColor = val;
+        } else if (key === 'default-color-boundary' || key === 'defaultcolorboundary') {
+          meta.defaultColorBoundary = val;
+        } else if (key === 'default-color' || key === 'defaultcolor') {
+          meta.defaultColor = val;
+          if (!meta.defaultColorInterior) meta.defaultColorInterior = val;
+        } else if (key === 'defaultStyle' || key === 'default-style') meta.defaultStyle = val;
         else if (key === 'goto') meta.goto = val;
         else if (key === 'group') meta.group = val;
         else if (key === 'fgb') meta.fgb = val;
@@ -352,6 +373,12 @@ export function parseLayerDataCsv(
           [
             'target',
             'color',
+            'colorboundary',
+            'colorinterior',
+            'boundarycolor',
+            'interiorcolor',
+            'bordercolor',
+            'fillcolor',
             'label',
             'labeldisplaymethod',
             'displaymethod',
@@ -383,6 +410,24 @@ export function parseLayerDataCsv(
           ) {
             regionIdCol = cIdx;
             foundRegionCol = true;
+          } else if (
+            normCol === 'colorboundary' ||
+            normCol === 'boundarycolor' ||
+            normCol === 'bordercolor' ||
+            normCol === 'colorborder' ||
+            normCol === 'outercolor' ||
+            normCol === 'outerline'
+          ) {
+            colorBoundaryCol = cIdx;
+          } else if (
+            normCol === 'colorinterior' ||
+            normCol === 'interiorcolor' ||
+            normCol === 'fillcolor' ||
+            normCol === 'colorfill' ||
+            normCol === 'centercolor' ||
+            normCol === 'centerline'
+          ) {
+            colorInteriorCol = cIdx;
           } else if (normCol === 'color' || normCol === 'colour') {
             colorCol = cIdx;
           } else if (normCol === 'labeldisplaymethod' || normCol === 'displaymethod') {
@@ -449,6 +494,47 @@ export function parseLayerDataCsv(
       .replace(/^"|"$/g, '')
       .trim();
 
+    let rowColorBoundary = (
+      (colorBoundaryCol !== -1 ? cells[colorBoundaryCol] : '') ||
+      attributes.colorBoundary ||
+      attributes.ColorBoundary ||
+      attributes.boundaryColor ||
+      attributes.BoundaryColor ||
+      attributes.borderColor ||
+      attributes.BorderColor ||
+      attributes.outerColor ||
+      attributes.OuterColor ||
+      ''
+    )
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    let rowColorInterior = (
+      (colorInteriorCol !== -1 ? cells[colorInteriorCol] : '') ||
+      attributes.colorInterior ||
+      attributes.ColorInterior ||
+      attributes.interiorColor ||
+      attributes.InteriorColor ||
+      attributes.fillColor ||
+      attributes.FillColor ||
+      attributes.centerColor ||
+      attributes.CenterColor ||
+      ''
+    )
+      .replace(/^"|"$/g, '')
+      .trim();
+
+    // Composite Color backwards compatibility (e.g. `#f1f5f9:#f59e0b` or `#334155`)
+    if (!rowColorBoundary && !rowColorInterior && rowColor) {
+      if (rowColor.includes(':')) {
+        const parts = rowColor.split(':');
+        rowColorBoundary = parts[0].trim();
+        rowColorInterior = (parts[1] || parts[0]).trim();
+      } else {
+        rowColorInterior = rowColor;
+      }
+    }
+
     const rowLabel = (
       (labelCol !== -1 ? cells[labelCol] : '') ||
       attributes.label ||
@@ -484,13 +570,17 @@ export function parseLayerDataCsv(
       .trim();
 
     // Canonical value resolution:
-    // If Color exists, value is Color.
+    // If ColorInterior or Color exists, value is that color.
     // If Label exists and is text/image, value is Label.
     // Otherwise fallback to legacy valueCol.
     let rawValue = (cells[valueCol] || '').replace(/^"|"$/g, '').trim();
     if (!rawValue) {
-      if (rowColor) {
+      if (rowColorInterior) {
+        rawValue = rowColorInterior;
+      } else if (rowColor) {
         rawValue = rowColor;
+      } else if (rowColorBoundary) {
+        rawValue = rowColorBoundary;
       } else if (rowLabel) {
         rawValue = rowLabel;
       } else if (cells[1]) {
@@ -533,10 +623,18 @@ export function parseLayerDataCsv(
     const rowText = rowLabel || attributes.text || rawValue;
     const canonicalRegionId = unionParts.join('|') || rawRegionId;
 
+    const effectiveColor =
+      rowColor ||
+      (rowColorBoundary && rowColorInterior
+        ? `${rowColorBoundary}:${rowColorInterior}`
+        : rowColorInterior || rowColorBoundary || undefined);
+
     const row: CsvLayerKVRow = {
       regionId: canonicalRegionId,
       target: canonicalRegionId,
-      color: rowColor || undefined,
+      color: effectiveColor,
+      colorInterior: rowColorInterior || undefined,
+      colorBoundary: rowColorBoundary || undefined,
       label: rowLabel || undefined,
       labelDisplayMethod: rowDisplayMethod || undefined,
       unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
@@ -552,24 +650,50 @@ export function parseLayerDataCsv(
 
     // Map lookups:
     // 1. valueMap (returns primary value: color or label or rawValue)
-    // 2. labelMap (returns description/tooltip if present, else label or value)
-    // 3. rowMap (returns full CsvLayerKVRow)
+    // 2. boundaryMap (returns explicit boundary color or defaultColorBoundary)
+    // 3. interiorMap (returns explicit interior color or defaultColorInterior)
+    // 4. labelMap (returns description/tooltip if present, else label or value)
+    // 5. rowMap (returns full CsvLayerKVRow)
     const mapLabel = rowDesc || rowLabel || rawValue;
+    const resolvedBoundary = rowColorBoundary || meta.defaultColorBoundary;
+    const resolvedInterior = rowColorInterior || (rowColor && !rowColor.includes(':') ? rowColor : undefined) || meta.defaultColorInterior || meta.defaultColor;
 
     valueMap.set(rawRegionId, rawValue);
     valueMap.set(rawRegionId.toUpperCase(), rawValue);
+    if (resolvedBoundary) {
+      boundaryMap.set(rawRegionId, resolvedBoundary);
+      boundaryMap.set(rawRegionId.toUpperCase(), resolvedBoundary);
+    }
+    if (resolvedInterior) {
+      interiorMap.set(rawRegionId, resolvedInterior);
+      interiorMap.set(rawRegionId.toUpperCase(), resolvedInterior);
+    }
     rowMap.set(rawRegionId, row);
     rowMap.set(rawRegionId.toUpperCase(), row);
 
     for (const part of unionParts) {
       valueMap.set(part, rawValue);
       valueMap.set(part.toUpperCase(), rawValue);
+      if (resolvedBoundary) {
+        boundaryMap.set(part, resolvedBoundary);
+        boundaryMap.set(part.toUpperCase(), resolvedBoundary);
+      }
+      if (resolvedInterior) {
+        interiorMap.set(part, resolvedInterior);
+        interiorMap.set(part.toUpperCase(), resolvedInterior);
+      }
       rowMap.set(part, row);
       rowMap.set(part.toUpperCase(), row);
 
       const normalizedKeys = assignableList.normalizeId(part);
       for (const k of normalizedKeys) {
         valueMap.set(k, rawValue);
+        if (resolvedBoundary) {
+          boundaryMap.set(k, resolvedBoundary);
+        }
+        if (resolvedInterior) {
+          interiorMap.set(k, resolvedInterior);
+        }
         if (mapLabel) {
           labelMap.set(k, mapLabel);
         }
@@ -583,6 +707,8 @@ export function parseLayerDataCsv(
     columns,
     rows,
     valueMap,
+    boundaryMap,
+    interiorMap,
     labelMap,
     rowMap,
     invalidRegionIds

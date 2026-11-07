@@ -68,7 +68,53 @@ export const administrativeLayers: LayerSpecification[] = [
     }
   },
 
-  // 4. ADM2 Municipality Boundaries
+  // 4. ADM2 Municipality Inner Boundary (Dual-sided inner stroke)
+  {
+    id: 'adm2-boundary-inner',
+    type: 'line',
+    source: 'adm2-source',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['boolean', ['feature-state', 'hover'], false],
+        '#ffffff',
+        ['to-color', ['get', 'boundaryColor'], 'transparent']
+      ],
+      'line-width': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          6,
+          2.0,
+          10,
+          3.6
+        ],
+        0
+      ],
+      'line-offset': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          6,
+          1.0,
+          10,
+          1.8
+        ],
+        0
+      ],
+      'line-opacity': 1.0
+    }
+  },
+
+  // 5. ADM2 Municipality Boundaries (Center Hairline)
   {
     id: 'adm2-boundary',
     type: 'line',
@@ -94,7 +140,53 @@ export const administrativeLayers: LayerSpecification[] = [
     }
   },
 
-  // 5. ADM1 Subdivision Boundaries
+  // 6. ADM1 Subdivision Inner Boundary (Dual-sided inner stroke)
+  {
+    id: 'adm1-boundary-inner',
+    type: 'line',
+    source: 'adm1-source',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['boolean', ['feature-state', 'hover'], false],
+        '#ffffff',
+        ['to-color', ['get', 'boundaryColor'], 'transparent']
+      ],
+      'line-width': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          3,
+          2.2,
+          8,
+          4.4
+        ],
+        0
+      ],
+      'line-offset': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          3,
+          1.1,
+          8,
+          2.2
+        ],
+        0
+      ],
+      'line-opacity': 1.0
+    }
+  },
+
+  // 7. ADM1 Subdivision Boundaries (Center Hairline)
   {
     id: 'adm1-boundary',
     type: 'line',
@@ -120,7 +212,57 @@ export const administrativeLayers: LayerSpecification[] = [
     }
   },
 
-  // 6. ADM0 Country Boundaries
+  // 8. ADM0 Country Inner Boundary (Dual-sided inner stroke)
+  {
+    id: 'adm0-boundary-inner',
+    type: 'line',
+    source: 'adm0-source',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['boolean', ['feature-state', 'hover'], false],
+        '#ffffff',
+        ['to-color', ['get', 'boundaryColor'], 'transparent']
+      ],
+      'line-width': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          1,
+          2.6,
+          4,
+          4.0,
+          8,
+          5.5
+        ],
+        0
+      ],
+      'line-offset': [
+        'case',
+        ['!=', ['coalesce', ['get', 'boundaryColor'], ''], ''],
+        [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          1,
+          1.3,
+          4,
+          2.0,
+          8,
+          2.75
+        ],
+        0
+      ],
+      'line-opacity': 1.0
+    }
+  },
+
+  // 9. ADM0 Country Boundaries (Center Hairline)
   {
     id: 'adm0-boundary',
     type: 'line',
@@ -140,7 +282,7 @@ export const administrativeLayers: LayerSpecification[] = [
         3.0,
         ['boolean', ['feature-state', 'hover'], false],
         2.5,
-        1.5
+        1.4
       ],
       'line-opacity': 1.0
     }

@@ -34,15 +34,17 @@ export function getCountryRoadMarking(iso2: string): CountryRoadMarking {
     const row = layer.data.rowMap.get(upper);
     if (row) {
       const colorSpec = String(row.color || row.value || '');
-      let outerColor = ROAD_COLOR_WHITE;
-      let centerColor = ROAD_COLOR_WHITE;
-      if (colorSpec.includes(':')) {
-        const parts = colorSpec.split(':');
-        outerColor = parts[0].trim();
-        centerColor = (parts[1] || parts[0]).trim();
-      } else if (colorSpec) {
-        outerColor = colorSpec.trim();
-        centerColor = colorSpec.trim();
+      let outerColor = row.colorBoundary || ROAD_COLOR_WHITE;
+      let centerColor = row.colorInterior || ROAD_COLOR_WHITE;
+      if (!row.colorBoundary && !row.colorInterior) {
+        if (colorSpec.includes(':')) {
+          const parts = colorSpec.split(':');
+          outerColor = parts[0].trim();
+          centerColor = (parts[1] || parts[0]).trim();
+        } else if (colorSpec) {
+          outerColor = colorSpec.trim();
+          centerColor = colorSpec.trim();
+        }
       }
 
       const outerType =

@@ -7,7 +7,9 @@ import { AdministrativeHierarchy, cleanAdminText } from './AdministrativeHierarc
 import {
   getCsvLayerById,
   getCsvLayerValue,
+  getCsvLayerRow,
   getCsvSubdivisionValue,
+  getCsvSubdivisionRow,
   getCsvSubdivisionCode,
   loadOnDemandCsvLayer,
   type RegisteredCsvLayer
@@ -354,12 +356,29 @@ export class GeographicDataManager {
     const p = feature.properties;
     const iso2 = p.country_code;
 
-    const extractColor = (csvLayer: RegisteredCsvLayer, raw: string | null | undefined): string | null => {
+    const extractColor = (
+      csvLayer: RegisteredCsvLayer,
+      raw: string | null | undefined,
+      explicitInterior?: string
+    ): string | null => {
+      if (explicitInterior) {
+        if (explicitInterior.startsWith('#') || explicitInterior.startsWith('rgb')) return explicitInterior;
+        if (csvLayer.legend && csvLayer.legend.length > 0) {
+          const match = csvLayer.legend.find((l) => l.key.toLowerCase() === explicitInterior.toLowerCase());
+          if (match && match.color) return match.color;
+        }
+        return explicitInterior;
+      }
       if (!raw) return null;
       const trimmed = raw.trim();
       if (trimmed.includes(':')) {
         const parts = trimmed.split(':');
-        return (parts[1] || parts[0]).trim();
+        const col = (parts[1] || parts[0]).trim();
+        if (csvLayer.legend && csvLayer.legend.length > 0) {
+          const match = csvLayer.legend.find((l) => l.key.toLowerCase() === col.toLowerCase());
+          if (match && match.color) return match.color;
+        }
+        return col;
       }
       if (trimmed.startsWith('#') || trimmed.startsWith('rgb')) {
         return trimmed;
@@ -375,23 +394,24 @@ export class GeographicDataManager {
     const csvLayer = getCsvLayerById(this.activeFilterId);
     if (csvLayer && csvLayer.data) {
       if (p.admin_level === 0) {
-        const val = getCsvLayerValue(csvLayer.id, iso2);
-        const col = extractColor(csvLayer, val);
+        const row = getCsvLayerRow(csvLayer.id, iso2);
+        const col = extractColor(csvLayer, row?.value || getCsvLayerValue(csvLayer.id, iso2), row?.colorInterior);
         if (col) return col;
       } else if (p.admin_level === 1) {
         const subId = p.code || p.postal || String(p.pref_id || '');
-        const val =
-          getCsvSubdivisionValue(csvLayer.id, {
-            id: subId,
-            iso2,
-            code: subId,
-            postal: p.postal,
-            name: p.name,
-            nameEn: p.name_en,
-            nameZh: p.name_zh
-          }) ||
-          getCsvLayerValue(csvLayer.id, iso2);
-        const col = extractColor(csvLayer, val);
+        const subRow = getCsvSubdivisionRow(csvLayer.id, {
+          id: subId,
+          iso2,
+          code: subId,
+          postal: p.postal,
+          name: p.name,
+          nameEn: p.name_en,
+          nameZh: p.name_zh
+        });
+        const countryRow = getCsvLayerRow(csvLayer.id, iso2);
+        const val = subRow?.value || countryRow?.value || getCsvLayerValue(csvLayer.id, iso2);
+        const explicit = subRow?.colorInterior || countryRow?.colorInterior;
+        const col = extractColor(csvLayer, val, explicit);
         if (col) return col;
       } else if (p.admin_level === 2) {
         const muniCode = p.code || String(p.id || '');
@@ -401,34 +421,46 @@ export class GeographicDataManager {
           parentFeature?.properties?.code ||
           parentFeature?.properties?.postal ||
           (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
+
+        const muniRow = getCsvSubdivisionRow(csvLayer.id, {
+          id: muniCode,
+          iso2,
+          code: muniCode,
+          name: p.name,
+          nameEn: p.name_en,
+          nameZh: p.name_zh
+        });
+        const parentRow = parentSubId
+          ? getCsvSubdivisionRow(csvLayer.id, {
+              id: parentSubId,
+              iso2,
+              code: parentSubId,
+              postal: parentFeature?.properties?.postal,
+              name: parentFeature?.properties?.name,
+              nameEn: parentFeature?.properties?.name_en,
+              nameZh: parentFeature?.properties?.name_zh
+            })
+          : undefined;
+        const countryRow = getCsvLayerRow(csvLayer.id, iso2);
+
         const val =
-          getCsvSubdivisionValue(csvLayer.id, {
-            id: muniCode,
-            iso2,
-            code: muniCode,
-            name: p.name,
-            nameEn: p.name_en,
-            nameZh: p.name_zh
-          }) ||
-          getCsvSubdivisionValue(csvLayer.id, {
-            id: parentSubId,
-            iso2,
-            code: parentSubId,
-            postal: parentFeature?.properties?.postal,
-            name: parentFeature?.properties?.name,
-            nameEn: parentFeature?.properties?.name_en,
-            nameZh: parentFeature?.properties?.name_zh
-          }) ||
+          muniRow?.value ||
+          parentRow?.value ||
+          countryRow?.value ||
           getCsvLayerValue(csvLayer.id, iso2);
-        const col = extractColor(csvLayer, val);
+        const explicit = muniRow?.colorInterior || parentRow?.colorInterior || countryRow?.colorInterior;
+        const col = extractColor(csvLayer, val, explicit);
         if (col) return col;
         if (parentFeature?.properties?.fillColor && parentFeature.properties.fillColor !== MAP_COLORS.defaultFill) {
           return parentFeature.properties.fillColor;
         }
       }
       const defCol =
+        csvLayer.defaultColorInterior ||
+        csvLayer.meta.defaultColorInterior ||
         csvLayer.meta.defaultColor ||
         csvLayer.defaultColor ||
+        ((csvLayer.meta as Record<string, unknown>)['default-color-interior'] as string | undefined) ||
         ((csvLayer.meta as Record<string, unknown>)['default-color'] as string | undefined);
       if (defCol) return defCol;
     }
@@ -439,22 +471,24 @@ export class GeographicDataManager {
         const regLayer = getCsvLayerById(regId);
         if (regLayer && regLayer.data && regLayer.type === 'FillWithColor') {
           if (p.admin_level === 0) {
-            const val = getCsvLayerValue(regId, iso2) || regLayer.data.rowMap.get(iso2)?.value;
-            const col = extractColor(regLayer, val);
+            const row = getCsvLayerRow(regId, iso2);
+            const val = row?.value || getCsvLayerValue(regId, iso2) || regLayer.data.rowMap.get(iso2)?.value;
+            const col = extractColor(regLayer, val, row?.colorInterior);
             if (col) return col;
           } else if (p.admin_level === 1) {
             const subId = p.code || p.postal || String(p.pref_id || '');
-            const val =
-              getCsvSubdivisionValue(regId, {
-                id: subId,
-                iso2,
-                code: subId,
-                postal: p.postal,
-                name: p.name,
-                nameEn: p.name_en,
-                nameZh: p.name_zh
-              }) || getCsvLayerValue(regId, iso2);
-            const col = extractColor(regLayer, val);
+            const subRow = getCsvSubdivisionRow(regId, {
+              id: subId,
+              iso2,
+              code: subId,
+              postal: p.postal,
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            });
+            const countryRow = getCsvLayerRow(regId, iso2);
+            const val = subRow?.value || countryRow?.value || getCsvLayerValue(regId, iso2);
+            const col = extractColor(regLayer, val, subRow?.colorInterior || countryRow?.colorInterior);
             if (col) return col;
           } else if (p.admin_level === 2) {
             const muniCode = p.code || String(p.id || '');
@@ -464,26 +498,35 @@ export class GeographicDataManager {
               parentFeature?.properties?.code ||
               parentFeature?.properties?.postal ||
               (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
+
+            const muniRow = getCsvSubdivisionRow(regId, {
+              id: muniCode,
+              iso2,
+              code: muniCode,
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            });
+            const parentRow = parentSubId
+              ? getCsvSubdivisionRow(regId, {
+                  id: parentSubId,
+                  iso2,
+                  code: parentSubId,
+                  postal: parentFeature?.properties?.postal,
+                  name: parentFeature?.properties?.name,
+                  nameEn: parentFeature?.properties?.name_en,
+                  nameZh: parentFeature?.properties?.name_zh
+                })
+              : undefined;
+            const countryRow = getCsvLayerRow(regId, iso2);
+
             const val =
-              getCsvSubdivisionValue(regId, {
-                id: muniCode,
-                iso2,
-                code: muniCode,
-                name: p.name,
-                nameEn: p.name_en,
-                nameZh: p.name_zh
-              }) ||
-              getCsvSubdivisionValue(regId, {
-                id: parentSubId,
-                iso2,
-                code: parentSubId,
-                postal: parentFeature?.properties?.postal,
-                name: parentFeature?.properties?.name,
-                nameEn: parentFeature?.properties?.name_en,
-                nameZh: parentFeature?.properties?.name_zh
-              }) ||
+              muniRow?.value ||
+              parentRow?.value ||
+              countryRow?.value ||
               getCsvLayerValue(regId, iso2);
-            const col = extractColor(regLayer, val);
+            const explicit = muniRow?.colorInterior || parentRow?.colorInterior || countryRow?.colorInterior;
+            const col = extractColor(regLayer, val, explicit);
             if (col) return col;
             if (parentFeature?.properties?.fillColor && parentFeature.properties.fillColor !== MAP_COLORS.defaultFill) {
               return parentFeature.properties.fillColor;
@@ -495,6 +538,178 @@ export class GeographicDataManager {
 
     // Default base fill color matching main branch MAP_COLORS.defaultFill
     return MAP_COLORS.defaultFill;
+  }
+
+  /**
+   * Resolves boundary stroke color for a feature based on active filter.
+   * Supports ColorBoundary and @default-color-boundary directives.
+   * If not defined by active filter, returns undefined so standard hairline boundary draws.
+   */
+  private resolveBoundaryColor(feature: CanonicalFeature): string | undefined {
+    const p = feature.properties;
+    const iso2 = p.country_code;
+
+    const extractBoundary = (
+      csvLayer: RegisteredCsvLayer,
+      rowVal: string | null | undefined,
+      explicitBoundary?: string
+    ): string | null => {
+      if (explicitBoundary) {
+        if (explicitBoundary.startsWith('#') || explicitBoundary.startsWith('rgb')) return explicitBoundary;
+        if (csvLayer.legend && csvLayer.legend.length > 0) {
+          const match = csvLayer.legend.find((l) => l.key.toLowerCase() === explicitBoundary.toLowerCase());
+          if (match && match.color) return match.color;
+        }
+        return explicitBoundary;
+      }
+      if (!rowVal) return null;
+      const trimmed = rowVal.trim();
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':');
+        const b = parts[0].trim();
+        if (b.startsWith('#') || b.startsWith('rgb')) return b;
+        if (csvLayer.legend && csvLayer.legend.length > 0) {
+          const match = csvLayer.legend.find((l) => l.key.toLowerCase() === b.toLowerCase());
+          if (match && match.color) return match.color;
+        }
+        return b;
+      }
+      return null;
+    };
+
+    // 1. Check primary activeFilterId
+    const csvLayer = getCsvLayerById(this.activeFilterId);
+    if (csvLayer && csvLayer.data) {
+      if (p.admin_level === 0) {
+        const row = getCsvLayerRow(csvLayer.id, iso2);
+        const col = extractBoundary(csvLayer, row?.value, row?.colorBoundary);
+        if (col) return col;
+      } else if (p.admin_level === 1) {
+        const subId = p.code || p.postal || String(p.pref_id || '');
+        const subRow = getCsvSubdivisionRow(csvLayer.id, {
+          id: subId,
+          iso2,
+          code: subId,
+          postal: p.postal,
+          name: p.name,
+          nameEn: p.name_en,
+          nameZh: p.name_zh
+        });
+        const countryRow = getCsvLayerRow(csvLayer.id, iso2);
+        const col =
+          extractBoundary(csvLayer, subRow?.value, subRow?.colorBoundary) ||
+          extractBoundary(csvLayer, countryRow?.value, countryRow?.colorBoundary);
+        if (col) return col;
+      } else if (p.admin_level === 2) {
+        const muniCode = p.code || String(p.id || '');
+        const parentFeature = p.parent_id ? this.registry.getById(p.parent_id) : undefined;
+        const parentSubId =
+          String(p.pref_id || p.parent_code || '') ||
+          parentFeature?.properties?.code ||
+          parentFeature?.properties?.postal ||
+          (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
+
+        const muniRow = getCsvSubdivisionRow(csvLayer.id, {
+          id: muniCode,
+          iso2,
+          code: muniCode,
+          name: p.name,
+          nameEn: p.name_en,
+          nameZh: p.name_zh
+        });
+        const parentRow = parentSubId
+          ? getCsvSubdivisionRow(csvLayer.id, {
+              id: parentSubId,
+              iso2,
+              code: parentSubId,
+              postal: parentFeature?.properties?.postal,
+              name: parentFeature?.properties?.name,
+              nameEn: parentFeature?.properties?.name_en,
+              nameZh: parentFeature?.properties?.name_zh
+            })
+          : undefined;
+        const countryRow = getCsvLayerRow(csvLayer.id, iso2);
+
+        const col =
+          extractBoundary(csvLayer, muniRow?.value, muniRow?.colorBoundary) ||
+          extractBoundary(csvLayer, parentRow?.value, parentRow?.colorBoundary) ||
+          extractBoundary(csvLayer, countryRow?.value, countryRow?.colorBoundary);
+        if (col) return col;
+      }
+
+      const defBoundary =
+        csvLayer.defaultColorBoundary ||
+        csvLayer.meta.defaultColorBoundary ||
+        ((csvLayer.meta as Record<string, unknown>)['default-color-boundary'] as string | undefined);
+      if (defBoundary) return defBoundary;
+    }
+
+    // 2. Check activeRegionalFilters for fill layers with boundary definitions
+    if (this.activeRegionalFilters.size > 0) {
+      for (const regId of this.activeRegionalFilters) {
+        const regLayer = getCsvLayerById(regId);
+        if (regLayer && regLayer.data && regLayer.type === 'FillWithColor') {
+          if (p.admin_level === 0) {
+            const row = getCsvLayerRow(regId, iso2);
+            const col = extractBoundary(regLayer, row?.value, row?.colorBoundary);
+            if (col) return col;
+          } else if (p.admin_level === 1) {
+            const subId = p.code || p.postal || String(p.pref_id || '');
+            const subRow = getCsvSubdivisionRow(regId, {
+              id: subId,
+              iso2,
+              code: subId,
+              postal: p.postal,
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            });
+            const countryRow = getCsvLayerRow(regId, iso2);
+            const col =
+              extractBoundary(regLayer, subRow?.value, subRow?.colorBoundary) ||
+              extractBoundary(regLayer, countryRow?.value, countryRow?.colorBoundary);
+            if (col) return col;
+          } else if (p.admin_level === 2) {
+            const muniCode = p.code || String(p.id || '');
+            const parentFeature = p.parent_id ? this.registry.getById(p.parent_id) : undefined;
+            const parentSubId =
+              String(p.pref_id || p.parent_code || '') ||
+              parentFeature?.properties?.code ||
+              parentFeature?.properties?.postal ||
+              (p.parent_id ? p.parent_id.split('_').slice(2).join('_') : '');
+
+            const muniRow = getCsvSubdivisionRow(regId, {
+              id: muniCode,
+              iso2,
+              code: muniCode,
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            });
+            const parentRow = parentSubId
+              ? getCsvSubdivisionRow(regId, {
+                  id: parentSubId,
+                  iso2,
+                  code: parentSubId,
+                  postal: parentFeature?.properties?.postal,
+                  name: parentFeature?.properties?.name,
+                  nameEn: parentFeature?.properties?.name_en,
+                  nameZh: parentFeature?.properties?.name_zh
+                })
+              : undefined;
+            const countryRow = getCsvLayerRow(regId, iso2);
+
+            const col =
+              extractBoundary(regLayer, muniRow?.value, muniRow?.colorBoundary) ||
+              extractBoundary(regLayer, parentRow?.value, parentRow?.colorBoundary) ||
+              extractBoundary(regLayer, countryRow?.value, countryRow?.colorBoundary);
+            if (col) return col;
+          }
+        }
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -637,7 +852,8 @@ export class GeographicDataManager {
       ...f,
       properties: {
         ...f.properties,
-        fillColor: this.resolveFillColor(f)
+        fillColor: this.resolveFillColor(f),
+        boundaryColor: this.resolveBoundaryColor(f)
       }
     }));
 

@@ -87,6 +87,8 @@ export interface LayerMeta {
   order: number;
   accentColor: string | null;
   defaultColor: string | null;
+  defaultColorInterior?: string | null;
+  defaultColorBoundary?: string | null;
   defaultStyle?: string | null;
   labelSize?: number | null;
   textSize?: number | null;
