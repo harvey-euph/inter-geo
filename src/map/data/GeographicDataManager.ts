@@ -44,6 +44,7 @@ export class GeographicDataManager {
   private loadedRoadFeatures = new Map<string, Feature[]>();
   private loadedImageIcons = new Set<string>();
   private onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
+  private onLayersChanged?: () => void;
 
   constructor(options?: DataManagerOptions) {
     this.loader = new FlatGeobufLoader();
@@ -250,6 +251,26 @@ export class GeographicDataManager {
     }
   }
 
+  public setOnLayersChanged(cb: () => void): void {
+    this.onLayersChanged = cb;
+  }
+
+  public getActiveFilterId(): string {
+    return this.activeFilterId;
+  }
+
+  public getActiveTextFilters(): Set<string> {
+    return this.activeTextFilters;
+  }
+
+  public getActiveRegionalFilters(): Set<string> {
+    return this.activeRegionalFilters;
+  }
+
+  public getActiveInternationalImageFilter(): string | null {
+    return this.activeInternationalImageFilter;
+  }
+
   /**
    * Sets active filter id and updates fill colors.
    */
@@ -263,6 +284,7 @@ export class GeographicDataManager {
       }
     }
     this.refreshAllSources();
+    this.onLayersChanged?.();
   }
 
   /**
@@ -278,6 +300,7 @@ export class GeographicDataManager {
       }
     }
     await this.updateTextMarkers();
+    this.onLayersChanged?.();
   }
 
   /**
@@ -294,6 +317,7 @@ export class GeographicDataManager {
     }
     this.refreshAllSources();
     await this.updateTextMarkers();
+    this.onLayersChanged?.();
   }
 
   /**
@@ -309,6 +333,7 @@ export class GeographicDataManager {
       }
     }
     await this.updateImageMarkers();
+    this.onLayersChanged?.();
   }
 
   /**
@@ -401,17 +426,35 @@ export class GeographicDataManager {
       for (const regId of this.activeRegionalFilters) {
         const regLayer = getCsvLayerById(regId);
         if (regLayer && regLayer.data && regLayer.type === 'FillWithColor') {
-          if (p.admin_level === 1) {
+          if (p.admin_level === 0) {
+            const val = getCsvLayerValue(regId, iso2) || regLayer.data.rowMap.get(iso2)?.value;
+            const col = extractColor(regLayer, val);
+            if (col) return col;
+          } else if (p.admin_level === 1) {
             const subId = p.code || p.postal || String(p.pref_id || '');
-            const val = getCsvSubdivisionValue(regId, {
-              id: subId,
-              iso2,
-              code: subId,
-              postal: p.postal,
-              name: p.name,
-              nameEn: p.name_en,
-              nameZh: p.name_zh
-            });
+            const val =
+              getCsvSubdivisionValue(regId, {
+                id: subId,
+                iso2,
+                code: subId,
+                postal: p.postal,
+                name: p.name,
+                nameEn: p.name_en,
+                nameZh: p.name_zh
+              }) || getCsvLayerValue(regId, iso2);
+            const col = extractColor(regLayer, val);
+            if (col) return col;
+          } else if (p.admin_level === 2) {
+            const muniCode = p.code || String(p.id || '');
+            const val =
+              getCsvSubdivisionValue(regId, {
+                id: muniCode,
+                iso2,
+                code: muniCode,
+                name: p.name,
+                nameEn: p.name_en,
+                nameZh: p.name_zh
+              }) || getCsvLayerValue(regId, iso2);
             const col = extractColor(regLayer, val);
             if (col) return col;
           }
@@ -680,13 +723,49 @@ export class GeographicDataManager {
       }
     }
 
-    // 2. Regional / Area Code Filters on Subdivisions (e.g. jp-area-codes, us-area-codes)
+    // 2. Regional / Area Code Filters on Entities (e.g. india-scripts, jp-area-codes, us-area-codes)
     if (this.activeRegionalFilters.size > 0) {
       for (const regId of this.activeRegionalFilters) {
         const layer = getCsvLayerById(regId);
         if (!layer || !layer.data) continue;
 
         if (layer.type === 'Text' || layer.type === 'TextWithStyle' || layer.type === 'ExtObject') {
+          // 2a. ADM0 Countries (e.g. LK, BD in india-scripts)
+          const countries = this.registry
+            .getByLevel(0)
+            .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
+          for (const c of countries) {
+            const iso2 = c.properties.country_code;
+            const row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
+            const code =
+              row?.label ||
+              row?.value ||
+              getCsvLayerValue(regId, iso2) ||
+              layer.data.labelMap?.get(iso2) ||
+              layer.data.valueMap?.get(iso2);
+
+            if (code) {
+              const center = resolveAdminCenter(c, this.registry);
+              if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+              markerFeatures.push({
+                type: 'Feature',
+                id: c.properties.numeric_id,
+                geometry: {
+                  type: 'Point',
+                  coordinates: center
+                },
+                properties: {
+                  id: c.properties.feature_id,
+                  text: code,
+                  textColor: layer.accentColor || '#10b981',
+                  adminLevel: 0
+                }
+              });
+            }
+          }
+
+          // 2b. ADM1 Subdivisions (e.g. IN::TN in india-scripts, JP::13 in jp-area-codes)
           const subs = this.registry
             .getByLevel(1)
             .filter(
@@ -700,6 +779,7 @@ export class GeographicDataManager {
               id: String(p.code || p.id || ''),
               iso2: p.country_code,
               code: String(p.code || ''),
+              postal: p.postal,
               name: p.name,
               nameEn: p.name_en,
               nameZh: p.name_zh
@@ -724,6 +804,45 @@ export class GeographicDataManager {
                   adminLevel: 1
                 }
               });
+            }
+          }
+
+          // 2c. ADM2 Municipalities (if any active)
+          if (this.activeAdm2ParentIds.size > 0) {
+            const munis = this.registry
+              .getByLevel(2)
+              .filter((f) => Boolean(f.properties.parent_id && this.activeAdm2ParentIds.has(f.properties.parent_id)));
+            for (const m of munis) {
+              const p = m.properties;
+              const muniParam = {
+                id: String(p.code || p.id || ''),
+                iso2: p.country_code,
+                code: String(p.code || ''),
+                name: p.name,
+                nameEn: p.name_en,
+                nameZh: p.name_zh
+              };
+              const code = getCsvSubdivisionCode(regId, muniParam) || getCsvSubdivisionValue(regId, muniParam);
+
+              if (code) {
+                const center = resolveAdminCenter(m, this.registry);
+                if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+                markerFeatures.push({
+                  type: 'Feature',
+                  id: p.numeric_id,
+                  geometry: {
+                    type: 'Point',
+                    coordinates: center
+                  },
+                  properties: {
+                    id: p.feature_id,
+                    text: code,
+                    textColor: layer.accentColor || '#10b981',
+                    adminLevel: 2
+                  }
+                });
+              }
             }
           }
         }

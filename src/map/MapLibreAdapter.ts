@@ -41,6 +41,7 @@ export class MapLibreAdapter {
       options.callbacks
     );
     this.lodController = new LODController(this.dataManager);
+    this.dataManager.setOnLayersChanged(() => this.lodController.scheduleSync(10));
 
     const mapOptions: MapOptions = {
       container: options.container,

@@ -1,8 +1,9 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { GeographicDataManager } from '../data/GeographicDataManager';
-import { FeatureRegistry } from '../data/FeatureRegistry';
+import { FeatureRegistry, type CanonicalFeatureProperties } from '../data/FeatureRegistry';
 import { hasCountryL2Sync } from '../../data/geoIndexClient';
 import { hasL3ForSubdivision, isSouthAmerica } from '../../data/l3Manifest';
+import { getCsvLayerById } from '../../layers/csvLayerRegistry';
 import { AdministrativeLODManager } from './AdministrativeLODManager';
 
 /**
@@ -57,6 +58,200 @@ export function bboxIntersectsViewport(
   }
 
   return false;
+}
+
+export interface ActiveEntityConstraints {
+  lockedAdm0Countries: Set<string>;
+  lockedAdm1Subdivisions: Set<string>;
+  lockedAdm2Municipalities: Set<string>;
+}
+
+/**
+ * Parses all active layers (activeFilterId, activeTextFilters, activeRegionalFilters, activeInternationalImageFilter)
+ * and resolves per-entity level lock constraints.
+ *
+ * User rule:
+ * "當我們用 AMD{x} 的標籤時 (要注意，同一組標籤所顯示的層級可能不同，要以各自的單體角度去思考)
+ * 當放大時不可以切換到 AMD{y} 其中 y > x ，這樣我要看的 layer 才會保持顯示"
+ *
+ * - An entity targeted at ADM0 (e.g. LK, BD in india-scripts, or TW, US in flags) must NOT switch to ADM1 or ADM2 (y > 0) upon zooming in.
+ * - An entity targeted at ADM1 (e.g. IN::TN in india-scripts, or JP::13 in jp-area-codes) allows its parent to expand to ADM1,
+ *   but must NOT switch to ADM2 (y > 1) upon zooming in.
+ */
+export function resolveActiveLayerConstraints(
+  activeFilterId: string,
+  activeTextFilters: Set<string>,
+  activeRegionalFilters: Set<string>,
+  activeImageFilter: string | null
+): ActiveEntityConstraints {
+  const lockedAdm0Countries = new Set<string>();
+  const lockedAdm1Subdivisions = new Set<string>();
+  const lockedAdm2Municipalities = new Set<string>();
+
+  const activeLayerIds = new Set<string>();
+  if (activeFilterId && activeFilterId !== 'base' && activeFilterId !== 'none') {
+    activeLayerIds.add(activeFilterId);
+  }
+  if (activeTextFilters) {
+    for (const id of activeTextFilters) activeLayerIds.add(id);
+  }
+  if (activeRegionalFilters) {
+    for (const id of activeRegionalFilters) activeLayerIds.add(id);
+  }
+  if (activeImageFilter) {
+    activeLayerIds.add(activeImageFilter);
+  }
+
+  for (const layerId of activeLayerIds) {
+    const layer = getCsvLayerById(layerId);
+    if (!layer) continue;
+
+    // Collect all raw targets from loaded CSV rows or pre-indexed targetKeys
+    const rawTargets: string[] = [];
+    if (layer.data && layer.data.rows && layer.data.rows.length > 0) {
+      for (const row of layer.data.rows) {
+        if (row.unionMembers && row.unionMembers.length > 0) {
+          rawTargets.push(...row.unionMembers);
+        } else if (row.regionId) {
+          rawTargets.push(row.regionId);
+        }
+      }
+    } else if (layer.targetKeys && layer.targetKeys.length > 0) {
+      for (const k of layer.targetKeys) {
+        if (k.includes('|')) {
+          rawTargets.push(...k.split('|').map((s) => s.trim()).filter(Boolean));
+        } else {
+          rawTargets.push(k.trim());
+        }
+      }
+    }
+
+    for (const raw of rawTargets) {
+      const clean = raw.trim().replace(/\*+$/, '').trim();
+      if (!clean) continue;
+
+      const colonCount = (clean.match(/::/g) || []).length;
+
+      if (colonCount === 0) {
+        // Check if this is an ADM0 country code or a nationwide subdivision
+        const upper = clean.toUpperCase();
+        if (/^[A-Z]{2}$/.test(upper)) {
+          // If the layer is Nationwide for another country (e.g. US), and key is CA (California),
+          // it's an ADM1 subdivision of US.
+          if (
+            layer.rangeKind === 'Nationwide' &&
+            layer.targetIso2 &&
+            layer.targetIso2 !== '*' &&
+            layer.targetIso2 !== upper
+          ) {
+            const iso = layer.targetIso2.toUpperCase();
+            lockedAdm1Subdivisions.add(`${iso}::${upper}`);
+            lockedAdm1Subdivisions.add(`${iso}-${upper}`);
+            lockedAdm1Subdivisions.add(upper);
+            lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, upper));
+          } else {
+            // It is an ADM0 country (e.g. LK, BD, TW, US)
+            lockedAdm0Countries.add(upper);
+          }
+        } else if (layer.targetIso2 && layer.targetIso2 !== '*') {
+          // Non-2-letter code in a nationwide layer (e.g. numeric "13" in JP) -> ADM1
+          const iso = layer.targetIso2.toUpperCase();
+          lockedAdm1Subdivisions.add(`${iso}::${upper}`);
+          lockedAdm1Subdivisions.add(`${iso}-${upper}`);
+          lockedAdm1Subdivisions.add(upper);
+          lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, upper));
+        }
+      } else if (colonCount === 1) {
+        // ADM1 subdivision: e.g. IN::TN or JP::01
+        const [targetIso, rawSub] = clean.split('::');
+        const iso = targetIso.trim().toUpperCase();
+        const sub = rawSub.trim();
+        const upperSub = sub.toUpperCase();
+
+        lockedAdm1Subdivisions.add(`${iso}::${sub}`);
+        lockedAdm1Subdivisions.add(`${iso}::${upperSub}`);
+        lockedAdm1Subdivisions.add(`${iso}-${sub}`);
+        lockedAdm1Subdivisions.add(`${iso}-${upperSub}`);
+        lockedAdm1Subdivisions.add(sub);
+        lockedAdm1Subdivisions.add(upperSub);
+        lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, sub));
+        lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, upperSub));
+
+        // If sub is code like "IN-TN", also add stripped "TN"
+        if (upperSub.startsWith(`${iso}-`)) {
+          const stripped = upperSub.slice(iso.length + 1);
+          lockedAdm1Subdivisions.add(`${iso}::${stripped}`);
+          lockedAdm1Subdivisions.add(stripped);
+          lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, stripped));
+        } else {
+          // If sub is "TN", also add prefixed "IN-TN"
+          const prefixed = `${iso}-${upperSub}`;
+          lockedAdm1Subdivisions.add(prefixed);
+          lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, prefixed));
+        }
+
+        // Numeric padding variants (e.g. 1 vs 01)
+        if (/^\d+$/.test(sub)) {
+          const num = String(parseInt(sub, 10));
+          const padded = num.padStart(2, '0');
+          for (const variant of [num, padded]) {
+            lockedAdm1Subdivisions.add(`${iso}::${variant}`);
+            lockedAdm1Subdivisions.add(`${iso}-${variant}`);
+            lockedAdm1Subdivisions.add(variant);
+            lockedAdm1Subdivisions.add(FeatureRegistry.createId(1, iso, variant));
+          }
+        }
+      } else if (colonCount >= 2) {
+        // ADM2 municipality: e.g. ISO::SUB::MUNI
+        lockedAdm2Municipalities.add(clean);
+      }
+    }
+  }
+
+  return {
+    lockedAdm0Countries,
+    lockedAdm1Subdivisions,
+    lockedAdm2Municipalities
+  };
+}
+
+/**
+ * Checks whether an ADM1 feature has active features/labels locking it to ADM1,
+ * which prevents it from expanding to ADM2 (y > 1) upon zooming in.
+ */
+export function isAdm1SubdivisionLocked(
+  iso: string,
+  p: CanonicalFeatureProperties,
+  lockedAdm1Subdivisions: Set<string>
+): boolean {
+  if (lockedAdm1Subdivisions.size === 0) return false;
+
+  const candidates: string[] = [];
+  if (p.feature_id) candidates.push(p.feature_id);
+  if (p.code) {
+    candidates.push(p.code);
+    candidates.push(`${iso}::${p.code}`);
+    candidates.push(p.code.toUpperCase());
+    candidates.push(`${iso}::${p.code.toUpperCase()}`);
+  }
+  if (p.postal) {
+    candidates.push(p.postal);
+    candidates.push(`${iso}::${p.postal}`);
+    candidates.push(p.postal.toUpperCase());
+    candidates.push(`${iso}::${p.postal.toUpperCase()}`);
+  }
+  if (p.id) {
+    const sId = String(p.id);
+    candidates.push(sId);
+    candidates.push(`${iso}::${sId}`);
+  }
+  if (p.pref_id) {
+    const sPref = String(p.pref_id);
+    candidates.push(sPref);
+    candidates.push(`${iso}::${sPref}`);
+  }
+
+  return candidates.some((c) => lockedAdm1Subdivisions.has(c));
 }
 
 /**
@@ -196,6 +391,14 @@ export class LODController {
       const activeAdm1Set = new Set<string>();
       const activeAdm2ParentSet = new Set<string>();
 
+      // Resolve per-entity level lock constraints from active layers
+      const { lockedAdm0Countries, lockedAdm1Subdivisions } = resolveActiveLayerConstraints(
+        this.dataManager.getActiveFilterId(),
+        this.dataManager.getActiveTextFilters(),
+        this.dataManager.getActiveRegionalFilters(),
+        this.dataManager.getActiveInternationalImageFilter()
+      );
+
       // 1. Zoom >= ADM1 threshold: expand visible countries in buffered viewport to ADM1
       const adm1Threshold = this.wasAdm1Active
         ? ADM1_ZOOM_THRESHOLD - ADM1_ZOOM_HYSTERESIS
@@ -208,6 +411,11 @@ export class LODController {
         for (const f of adm0List) {
           const iso = f.properties.country_code;
           if (!hasCountryL2Sync(iso)) continue;
+
+          // Clamping: If this country has active ADM0 labels/features,
+          // do NOT switch it to ADM1 (y > 0) upon zooming in.
+          if (lockedAdm0Countries.has(iso)) continue;
+
           if (bboxIntersectsViewport(f.properties.bbox, west, bufferedSouth, east, bufferedNorth)) {
             visibleIso2s.push(iso);
             activeAdm1Set.add(iso);
@@ -236,6 +444,10 @@ export class LODController {
           const subId = String(p.code || p.postal || p.id || '');
           if (!subId) continue;
 
+          // Clamping: If this subdivision has active ADM1 labels/features,
+          // do NOT switch it to ADM2 (y > 1) upon zooming in.
+          if (isAdm1SubdivisionLocked(iso, p, lockedAdm1Subdivisions)) continue;
+
           if (bboxIntersectsViewport(p.bbox, west, bufferedSouth, east, bufferedNorth)) {
             if (
               hasL3ForSubdivision(iso, {
@@ -260,13 +472,19 @@ export class LODController {
       }
 
       // 3. Selection focus pins: if user explicitly selected a country or subdivision, ensure it stays expanded
-      if (this.focusedCountryIso && hasCountryL2Sync(this.focusedCountryIso)) {
+      // unless locked at a coarser level by an active layer
+      if (this.focusedCountryIso && hasCountryL2Sync(this.focusedCountryIso) && !lockedAdm0Countries.has(this.focusedCountryIso)) {
         activeAdm1Set.add(this.focusedCountryIso);
         await this.dataManager.ensureAdm1(this.focusedCountryIso);
       }
       if (this.focusedCountryIso && this.focusedSubdivisionCode) {
         const parentId = FeatureRegistry.createId(1, this.focusedCountryIso, this.focusedSubdivisionCode);
+        const subMockProps = {
+          code: this.focusedSubdivisionCode,
+          feature_id: parentId
+        } as CanonicalFeatureProperties;
         if (
+          !isAdm1SubdivisionLocked(this.focusedCountryIso, subMockProps, lockedAdm1Subdivisions) &&
           hasL3ForSubdivision(this.focusedCountryIso, {
             id: this.focusedSubdivisionCode,
             code: this.focusedSubdivisionCode
