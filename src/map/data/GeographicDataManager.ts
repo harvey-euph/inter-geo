@@ -1,5 +1,7 @@
 import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
 import type { Feature, FeatureCollection, Point, Geometry, LineString } from 'geojson';
+import { topology } from 'topojson-server';
+import { merge } from 'topojson-client';
 import * as flatgeobuf from 'flatgeobuf';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
@@ -15,6 +17,7 @@ import {
   loadOnDemandCsvLayer,
   type RegisteredCsvLayer
 } from '../../layers/csvLayerRegistry';
+import type { CsvLayerKVRow } from '../../layers/csvLayerParser';
 import { findCountry } from '../../data/countries';
 import { isSouthAmerica, resolveExtObjectFile } from '../../data/geoIndexClient';
 import { getCombinedTextOverlay } from '../../data/globalLayers';
@@ -73,6 +76,7 @@ export class GeographicDataManager {
   private activeExtPolygons: CanonicalFeature[] = [];
   private activeExtInnerGrids: Feature<LineString>[] = [];
   private activeExtLabels: Feature<Point>[] = [];
+  private unionGeometryCache = new Map<string, Geometry>();
   private onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
   private onLayersChanged?: () => void;
 
@@ -850,6 +854,190 @@ export class GeographicDataManager {
   }
 
   /**
+   * Applies CSV union definitions to ADM1 subdivisions, dissolving internal borders
+   * between subdivisions belonging to the same union group into a single high-resolution feature.
+   */
+  public applySubdivisionUnions(subs: CanonicalFeature[]): CanonicalFeature[] {
+    if (subs.length === 0) return subs;
+
+    // Collect all active layers that have parsed union rows
+    const activeLayerIds = new Set<string>();
+    if (this.activeFilterId && this.activeFilterId !== 'base' && this.activeFilterId !== 'none') {
+      activeLayerIds.add(this.activeFilterId);
+    }
+    for (const id of this.activeRegionalFilters) activeLayerIds.add(id);
+    for (const id of this.activeTextFilters) activeLayerIds.add(id);
+    if (this.activeInternationalImageFilter) activeLayerIds.add(this.activeInternationalImageFilter);
+
+    if (activeLayerIds.size === 0) return subs;
+
+    const layersWithUnions = Array.from(activeLayerIds)
+      .map((id) => getCsvLayerById(id))
+      .filter(
+        (l): l is NonNullable<typeof l> =>
+          Boolean(l && l.data && l.data.rows && l.data.rows.some((r) => Boolean(r.unionGroupId)))
+      );
+
+    if (layersWithUnions.length === 0) return subs;
+
+    const unionGroupMap = new Map<
+      string,
+      {
+        layerId: string;
+        unionGroupId: string;
+        row: CsvLayerKVRow;
+        features: CanonicalFeature[];
+      }
+    >();
+
+    const standaloneFeatures: CanonicalFeature[] = [];
+
+    for (const f of subs) {
+      const p = f.properties;
+      const subParam = {
+        id: String(p.code || p.id || ''),
+        iso2: p.country_code,
+        code: String(p.code || ''),
+        postal: p.postal,
+        name: p.name,
+        nameEn: p.name_en,
+        nameZh: p.name_zh
+      };
+
+      let matchedRow: CsvLayerKVRow | undefined;
+      let matchedLayerId: string | undefined;
+
+      for (const layer of layersWithUnions) {
+        const r = getCsvSubdivisionRow(layer.id, subParam);
+        if (r && r.unionGroupId) {
+          matchedRow = r;
+          matchedLayerId = layer.id;
+          break;
+        }
+      }
+
+      if (matchedRow && matchedRow.unionGroupId && matchedLayerId) {
+        const groupKey = `${matchedLayerId}:${matchedRow.unionGroupId}`;
+        let g = unionGroupMap.get(groupKey);
+        if (!g) {
+          g = {
+            layerId: matchedLayerId,
+            unionGroupId: matchedRow.unionGroupId,
+            row: matchedRow,
+            features: []
+          };
+          unionGroupMap.set(groupKey, g);
+        }
+        g.features.push(f);
+      } else {
+        standaloneFeatures.push(f);
+      }
+    }
+
+    const resultFeatures = [...standaloneFeatures];
+
+    for (const group of unionGroupMap.values()) {
+      if (group.features.length <= 1) {
+        resultFeatures.push(...group.features);
+        continue;
+      }
+
+      // Multi-feature union group: dissolve internal boundaries
+      const iso = group.features[0].properties.country_code;
+      const cacheKey = `${group.layerId}:${group.unionGroupId}:${group.features
+        .map((f) => f.properties.feature_id)
+        .sort()
+        .join(',')}`;
+
+      let mergedGeom = this.unionGeometryCache.get(cacheKey);
+      if (!mergedGeom) {
+        try {
+          const topo = topology({ items: { type: 'FeatureCollection', features: group.features } });
+          mergedGeom = merge(topo, topo.objects.items.geometries) as Geometry;
+          if (mergedGeom) {
+            this.unionGeometryCache.set(cacheKey, mergedGeom);
+          }
+        } catch (err) {
+          console.warn('[GeographicDataManager] Failed to merge union geometry:', err);
+          mergedGeom = undefined;
+        }
+      }
+
+      if (!mergedGeom) {
+        resultFeatures.push(...group.features);
+        continue;
+      }
+
+      // Pick anchor feature
+      let anchorFeature: CanonicalFeature | undefined;
+      if (group.row.unionAnchorMember) {
+        const rawAnchor = group.row.unionAnchorMember.toUpperCase();
+        const colonIdx = rawAnchor.indexOf('::');
+        const anchorLocal = colonIdx >= 0 ? rawAnchor.slice(colonIdx + 2) : rawAnchor;
+        const anchorPrefixed =
+          colonIdx >= 0 ? `${rawAnchor.slice(0, colonIdx)}-${anchorLocal}` : `${iso}-${anchorLocal}`;
+
+        anchorFeature = group.features.find((f) => {
+          const p = f.properties;
+          const codeUpper = (p.code || '').toUpperCase();
+          const postalUpper = (p.postal || '').toUpperCase();
+          const idUpper = String(p.id || '').toUpperCase();
+          const featIdUpper = p.feature_id.toUpperCase();
+          const nameUpper = (p.name || '').toUpperCase();
+          const nameEnUpper = (p.name_en || '').toUpperCase();
+
+          return (
+            codeUpper === rawAnchor ||
+            codeUpper === anchorLocal ||
+            codeUpper === anchorPrefixed ||
+            postalUpper === rawAnchor ||
+            postalUpper === anchorLocal ||
+            idUpper === rawAnchor ||
+            idUpper === anchorLocal ||
+            featIdUpper === rawAnchor ||
+            featIdUpper.endsWith(`_${anchorLocal}`) ||
+            `${iso}::${p.code}`.toUpperCase() === rawAnchor ||
+            `${iso}::${p.postal}`.toUpperCase() === rawAnchor ||
+            nameUpper === anchorLocal ||
+            nameEnUpper === anchorLocal
+          );
+        });
+      }
+
+      if (!anchorFeature) {
+        anchorFeature = group.features[0];
+      }
+
+      const country = findCountry(iso);
+      const totalCountrySubs = this.registry.getByLevel(1).filter((s) => s.properties.country_code === iso).length;
+      const isWholeCountry = totalCountrySubs > 0 && group.features.length >= totalCountrySubs;
+
+      const mergedFeature: CanonicalFeature = {
+        type: 'Feature',
+        id: anchorFeature.id,
+        geometry: mergedGeom,
+        properties: {
+          ...anchorFeature.properties,
+          feature_id: isWholeCountry
+            ? `ADM1_${iso}_UNION_ALL`
+            : `ADM1_${iso}_UNION_${anchorFeature.properties.code || anchorFeature.properties.id}`,
+          name: isWholeCountry ? country?.name || anchorFeature.properties.name : anchorFeature.properties.name,
+          name_zh: isWholeCountry ? country?.nameZh || anchorFeature.properties.name_zh : anchorFeature.properties.name_zh,
+          name_en: isWholeCountry ? country?.name || anchorFeature.properties.name_en : anchorFeature.properties.name_en,
+          is_union: true,
+          union_group_id: group.unionGroupId,
+          union_member_count: group.features.length
+        }
+      };
+
+      this.registry.register(mergedFeature);
+      resultFeatures.push(mergedFeature);
+    }
+
+    return resultFeatures;
+  }
+
+  /**
    * Updates a specific administrative polygon source in MapLibre.
    */
   public updateSource(sourceId: string, level: 0 | 1 | 2): void {
@@ -872,6 +1060,7 @@ export class GeographicDataManager {
             this.activeAdm1Countries.has(f.properties.country_code) &&
             !this.isAdm2DisplayedForSubdivision(f)
         );
+      rawFeatures = this.applySubdivisionUnions(rawFeatures);
     } else if (level === 2) {
       rawFeatures = this.registry
         .getByLevel(2)
@@ -906,13 +1095,15 @@ export class GeographicDataManager {
     const adm0 = this.registry
       .getByLevel(0)
       .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
-    const adm1 = this.registry
-      .getByLevel(1)
-      .filter(
-        (f) =>
-          this.activeAdm1Countries.has(f.properties.country_code) &&
-          !this.isAdm2DisplayedForSubdivision(f)
-      );
+    const adm1 = this.applySubdivisionUnions(
+      this.registry
+        .getByLevel(1)
+        .filter(
+          (f) =>
+            this.activeAdm1Countries.has(f.properties.country_code) &&
+            !this.isAdm2DisplayedForSubdivision(f)
+        )
+    );
     const adm2 = this.registry
       .getByLevel(2)
       .filter((f) => Boolean(f.properties.parent_id && this.activeAdm2ParentIds.has(f.properties.parent_id)));
@@ -1013,7 +1204,13 @@ export class GeographicDataManager {
             .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
           for (const c of countries) {
             const iso2 = c.properties.country_code;
-            const row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
+            let row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
+            if (!row && layer.data.rows) {
+              row = layer.data.rows.find((r) => {
+                if (!r.unionMembers || r.unionMembers.length === 0) return false;
+                return r.unionMembers.every((m) => m.toUpperCase().startsWith(`${iso2.toUpperCase()}::`));
+              });
+            }
             const code =
               row?.label ||
               row?.value ||
@@ -1050,6 +1247,7 @@ export class GeographicDataManager {
                 this.activeAdm1Countries.has(f.properties.country_code) &&
                 !this.isAdm2DisplayedForSubdivision(f)
             );
+          const emittedUnionGroups = new Set<string>();
           for (const s of subs) {
             const p = s.properties;
             const subParam = {
@@ -1061,9 +1259,50 @@ export class GeographicDataManager {
               nameEn: p.name_en,
               nameZh: p.name_zh
             };
-            const code = getCsvSubdivisionCode(regId, subParam) || getCsvSubdivisionValue(regId, subParam);
+            const row = getCsvSubdivisionRow(regId, subParam);
+            const code =
+              row?.label ||
+              row?.value ||
+              getCsvSubdivisionCode(regId, subParam) ||
+              getCsvSubdivisionValue(regId, subParam);
 
             if (code) {
+              if (row && row.unionGroupId) {
+                // If union has an explicit anchor member (*), only place badge on that anchor member
+                if (row.unionAnchorMember) {
+                  const rawAnchor = row.unionAnchorMember.toUpperCase();
+                  const colonIdx = rawAnchor.indexOf('::');
+                  const anchorLocal = colonIdx >= 0 ? rawAnchor.slice(colonIdx + 2) : rawAnchor;
+                  const anchorPrefixed =
+                    colonIdx >= 0 ? `${rawAnchor.slice(0, colonIdx)}-${anchorLocal}` : `${p.country_code}-${anchorLocal}`;
+
+                  const codeUpper = (p.code || '').toUpperCase();
+                  const postalUpper = (p.postal || '').toUpperCase();
+                  const idUpper = String(p.id || '').toUpperCase();
+                  const featIdUpper = p.feature_id.toUpperCase();
+
+                  const isAnchor =
+                    codeUpper === rawAnchor ||
+                    codeUpper === anchorLocal ||
+                    codeUpper === anchorPrefixed ||
+                    postalUpper === rawAnchor ||
+                    postalUpper === anchorLocal ||
+                    idUpper === rawAnchor ||
+                    idUpper === anchorLocal ||
+                    featIdUpper === rawAnchor ||
+                    featIdUpper.endsWith(`_${anchorLocal}`) ||
+                    `${p.country_code}::${p.code}`.toUpperCase() === rawAnchor ||
+                    `${p.country_code}::${p.postal}`.toUpperCase() === rawAnchor;
+
+                  if (!isAnchor) {
+                    continue;
+                  }
+                } else if (emittedUnionGroups.has(row.unionGroupId)) {
+                  continue;
+                }
+                emittedUnionGroups.add(row.unionGroupId);
+              }
+
               const center = resolveAdminCenter(s, this.registry);
               if (!center || (center[0] === 0 && center[1] === 0)) continue;
 
