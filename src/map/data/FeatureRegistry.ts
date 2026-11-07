@@ -54,11 +54,24 @@ export class FeatureRegistry {
    * Registers a canonical feature in the registry.
    */
   public register(feature: CanonicalFeature): void {
-    const id = feature.properties.feature_id;
+    let id = feature.properties.feature_id;
     if (!feature.properties.numeric_id) {
       feature.properties.numeric_id = FeatureRegistry.nextNumericId++;
     }
     feature.id = feature.properties.numeric_id;
+
+    if (this.featuresById.has(id)) {
+      const existing = this.featuresById.get(id)!;
+      if (existing !== feature) {
+        // Disambiguate ID to guarantee that no geographic feature is ever overwritten and lost
+        const disambiguator =
+          feature.properties.id !== undefined && String(feature.properties.id) !== String(existing.properties.id)
+            ? String(feature.properties.id)
+            : String(feature.properties.numeric_id);
+        id = `${id}_${disambiguator}`;
+        feature.properties.feature_id = id;
+      }
+    }
 
     this.featuresById.set(id, feature);
     this.numericIdToFeatureId.set(feature.properties.numeric_id, id);

@@ -8,6 +8,37 @@ import { AdministrativeHierarchy, cleanAdminText } from './AdministrativeHierarc
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
 import { ADM0_CENTER_ANCHORS } from '../geo/adminCenterAnchors';
 
+function isValidGeometry(geom: Geometry | null | undefined): boolean {
+  if (!geom) return false;
+  if (geom.type === 'Polygon') {
+    if (!geom.coordinates || geom.coordinates.length === 0) return false;
+    const ext = geom.coordinates[0];
+    return Array.isArray(ext) && ext.length >= 3;
+  }
+  if (geom.type === 'MultiPolygon') {
+    if (!geom.coordinates || geom.coordinates.length === 0) return false;
+    geom.coordinates = geom.coordinates.filter(
+      (poly) => Array.isArray(poly) && poly.length > 0 && Array.isArray(poly[0]) && poly[0].length >= 3
+    );
+    return geom.coordinates.length > 0;
+  }
+  if (geom.type === 'LineString') {
+    return Array.isArray(geom.coordinates) && geom.coordinates.length >= 2;
+  }
+  if (geom.type === 'MultiLineString') {
+    return Array.isArray(geom.coordinates) && geom.coordinates.some((line) => Array.isArray(line) && line.length >= 2);
+  }
+  if (geom.type === 'Point') {
+    return (
+      Array.isArray(geom.coordinates) &&
+      geom.coordinates.length >= 2 &&
+      !isNaN(geom.coordinates[0]) &&
+      !isNaN(geom.coordinates[1])
+    );
+  }
+  return true;
+}
+
 /**
  * FlatGeobufLoader handles fetching, parsing, and normalizing FlatGeobuf (.fgb) files
  * into WGS84 GeoJSON CanonicalFeature objects.
@@ -101,10 +132,11 @@ export class FlatGeobufLoader {
         const buffer = await res.arrayBuffer();
         const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
         const canonicalList: CanonicalFeature[] = [];
+        const seenFeatureIds = new Set<string>();
 
         for await (const rawFeature of it) {
           const f = rawFeature as Feature<Geometry, Record<string, unknown>>;
-          if (!f || !f.geometry) continue;
+          if (!f || !f.geometry || !isValidGeometry(f.geometry)) continue;
 
           const props = f.properties || {};
           let cc = countryCode || (props.iso2 as string) || (props.country_code as string) || '';
@@ -122,12 +154,21 @@ export class FlatGeobufLoader {
 
           const resolvedIso2 = cc || (countryMeta?.iso2) || 'XX';
           const subId = String(props.code || props.postal || props.id || f.id || '');
-          const featureId =
+          const baseFeatureId =
             adminLevel === 0
               ? FeatureRegistry.createId(0, resolvedIso2, '')
               : adminLevel === 1
                 ? FeatureRegistry.createId(1, resolvedIso2, subId)
                 : FeatureRegistry.createId(2, resolvedIso2, String(props.code || props.id || ''));
+
+          let featureId = baseFeatureId;
+          if (seenFeatureIds.has(featureId)) {
+            // Collision: multiple features in this dataset share the same code/subId (e.g. AU-NSW or GL-UO).
+            // Disambiguate using props.id or incremental index so no feature is ever overwritten or dropped.
+            const disambiguator = props.id !== undefined ? String(props.id) : String(canonicalList.length + 1);
+            featureId = `${baseFeatureId}_${disambiguator}`;
+          }
+          seenFeatureIds.add(featureId);
 
           const rawName = cleanAdminText(props.name);
           const rawNameEn = cleanAdminText(props.name_en) || cleanAdminText(countryMeta?.name);
