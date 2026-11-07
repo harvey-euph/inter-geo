@@ -5,7 +5,7 @@ export type AdminLevel = 0 | 1 | 2;
 export interface CanonicalFeatureProperties {
   feature_id: string;
   numeric_id: number;
-  admin_level: AdminLevel;
+  admin_level: AdminLevel | -1;
   country_code: string;
   parent_id?: string;
   name: string;
@@ -78,7 +78,9 @@ export class FeatureRegistry {
     this.numericIdToFeatureId.set(feature.properties.numeric_id, id);
 
     const level = feature.properties.admin_level;
-    this.featuresByLevel.get(level)?.add(id);
+    if (level === 0 || level === 1 || level === 2) {
+      this.featuresByLevel.get(level)?.add(id);
+    }
 
     const parentId = feature.properties.parent_id;
     if (parentId) {
@@ -86,6 +88,26 @@ export class FeatureRegistry {
         this.childrenByParentId.set(parentId, new Set());
       }
       this.childrenByParentId.get(parentId)!.add(id);
+    }
+  }
+
+  /**
+   * Unregisters a canonical feature by ID.
+   */
+  public unregister(id: string): void {
+    const feature = this.featuresById.get(id);
+    if (!feature) return;
+    this.featuresById.delete(id);
+    if (feature.properties.numeric_id) {
+      this.numericIdToFeatureId.delete(feature.properties.numeric_id);
+    }
+    const level = feature.properties.admin_level;
+    if (level === 0 || level === 1 || level === 2) {
+      this.featuresByLevel.get(level)?.delete(id);
+    }
+    const parentId = feature.properties.parent_id;
+    if (parentId && this.childrenByParentId.has(parentId)) {
+      this.childrenByParentId.get(parentId)!.delete(id);
     }
   }
 

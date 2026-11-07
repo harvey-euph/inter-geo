@@ -1362,6 +1362,11 @@ export class GeographicDataManager {
     });
 
     if (activeExtLayerIds.length === 0) {
+      if (this.activeExtPolygons.length > 0) {
+        for (const p of this.activeExtPolygons) {
+          this.registry.unregister(p.properties.feature_id);
+        }
+      }
       this.activeExtPolygons = [];
       this.activeExtInnerGrids = [];
       this.activeExtLabels = [];
@@ -1523,7 +1528,7 @@ export class GeographicDataManager {
           properties: {
             feature_id: objectTag,
             numeric_id: 0,
-            admin_level: 1,
+            admin_level: -1,
             country_code: samplePrefix.split('-')[0] || 'TW',
             objectTag,
             name: nameZh,

@@ -159,9 +159,18 @@ export class AdministrativeHierarchy {
 
   /**
    * Calculates centroid of a coordinate ring, handling antimeridian wrapping cleanly.
+   * Excludes the duplicate closing vertex in GeoJSON rings to prevent biasing towards the starting point.
    */
   private static calculateRingCentroid(ring: number[][]): [number, number] {
     if (!ring || ring.length === 0) return [0, 0];
+
+    // GeoJSON closed rings duplicate the first vertex as the last vertex.
+    // Exclude the duplicate closing point to avoid double-weighting the start vertex (e.g. producing 0.4 instead of 0.5).
+    const isClosed =
+      ring.length > 1 &&
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1];
+    const pts = isClosed ? ring.slice(0, -1) : ring;
 
     let totalX = 0;
     let totalY = 0;
@@ -169,13 +178,13 @@ export class AdministrativeHierarchy {
 
     let hasFarNegative = false;
     let hasFarPositive = false;
-    for (const pt of ring) {
+    for (const pt of pts) {
       if (pt[0] < -90) hasFarNegative = true;
       if (pt[0] > 90) hasFarPositive = true;
     }
     const cross180 = hasFarNegative && hasFarPositive;
 
-    for (const pt of ring) {
+    for (const pt of pts) {
       let x = pt[0];
       const y = pt[1];
       if (cross180 && x < 0) {
