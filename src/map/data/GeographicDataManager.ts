@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
-import type { Feature, FeatureCollection, Point } from 'geojson';
+import type { Feature, FeatureCollection, Point, Geometry, LineString } from 'geojson';
+import * as flatgeobuf from 'flatgeobuf';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
@@ -15,12 +16,32 @@ import {
   type RegisteredCsvLayer
 } from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
-import { isSouthAmerica } from '../../data/geoIndexClient';
+import { isSouthAmerica, resolveExtObjectFile } from '../../data/geoIndexClient';
 import { getCombinedTextOverlay } from '../../data/globalLayers';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
 import { getDataUrl } from '../../data/dataSource';
 import { resolveAdminCenter } from '../geo/adminCenterAnchors';
 import { MAP_COLORS } from '../theme';
+
+function hexToRgba(hex: string, alpha: number): string {
+  if (hex.startsWith('rgba') || hex.startsWith('rgb')) {
+    return hex;
+  }
+  const clean = hex.replace('#', '').trim();
+  if (clean.length === 6) {
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(56, 189, 248, ${alpha})`;
+}
 
 export interface DataManagerOptions {
   onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
@@ -45,6 +66,13 @@ export class GeographicDataManager {
   private showRoads = false;
   private loadedRoadFeatures = new Map<string, Feature[]>();
   private loadedImageIcons = new Set<string>();
+  private loadedExtFeatures = new Map<
+    string,
+    { polygons: CanonicalFeature[]; innerGrids: Feature<LineString>[]; labels: Feature<Point>[] }
+  >();
+  private activeExtPolygons: CanonicalFeature[] = [];
+  private activeExtInnerGrids: Feature<LineString>[] = [];
+  private activeExtLabels: Feature<Point>[] = [];
   private onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
   private onLayersChanged?: () => void;
 
@@ -58,6 +86,7 @@ export class GeographicDataManager {
     this.map = map;
     if (this.map) {
       this.refreshAllSources();
+      this.updateExtSources();
       void this.updateTextMarkers();
       void this.updateImageMarkers();
     }
@@ -317,6 +346,7 @@ export class GeographicDataManager {
         console.warn(`[GeographicDataManager] Failed to load regional filter CSV for ${id}:`, err);
       }
     }
+    await this.updateExtFeatures();
     this.refreshAllSources();
     await this.updateTextMarkers();
     this.onLayersChanged?.();
@@ -1313,6 +1343,318 @@ export class GeographicDataManager {
     } catch (err) {
       console.warn(`[GeographicDataManager] Failed to load icon ${iconId} from ${url}:`, err);
       return false;
+    }
+  }
+
+  /**
+   * Loads and updates external overlay features (e.g. Taiwan Taipower Grid TW-powerpoles.fgb).
+   */
+  public async updateExtFeatures(): Promise<void> {
+    const activeExtLayerIds = Array.from(this.activeRegionalFilters).filter((id) => {
+      const layer = getCsvLayerById(id);
+      if (!layer || layer.meta.fgb?.includes('-roads.fgb')) return false;
+      return (
+        layer.id === 'taiwan-power-poles' ||
+        layer.type === 'ExtObject' ||
+        (layer.type === 'TextWithStyle' && (Boolean(layer.meta.fgb) || Boolean(layer.meta.targetKeys?.some((k) => k.includes('::'))))) ||
+        Boolean(layer.meta.fgb)
+      );
+    });
+
+    if (activeExtLayerIds.length === 0) {
+      this.activeExtPolygons = [];
+      this.activeExtInnerGrids = [];
+      this.activeExtLabels = [];
+      this.updateExtSources();
+      return;
+    }
+
+    const allPolygons: CanonicalFeature[] = [];
+    const allInnerGrids: Feature<LineString>[] = [];
+    const allLabels: Feature<Point>[] = [];
+
+    for (const layerId of activeExtLayerIds) {
+      const csvLayer = getCsvLayerById(layerId);
+      if (!csvLayer) continue;
+
+      let cached = this.loadedExtFeatures.get(layerId);
+      if (!cached) {
+        cached = (await this.loadExtObjectDataset(csvLayer)) || undefined;
+        if (cached) {
+          this.loadedExtFeatures.set(layerId, cached);
+        }
+      }
+
+      if (cached) {
+        allPolygons.push(...cached.polygons);
+        allInnerGrids.push(...cached.innerGrids);
+        allLabels.push(...cached.labels);
+      }
+    }
+
+    this.activeExtPolygons = allPolygons;
+    this.activeExtInnerGrids = allInnerGrids;
+    this.activeExtLabels = allLabels;
+    this.updateExtSources();
+  }
+
+  private async loadExtObjectDataset(
+    csvLayer: RegisteredCsvLayer
+  ): Promise<{ polygons: CanonicalFeature[]; innerGrids: Feature<LineString>[]; labels: Feature<Point>[] } | null> {
+    try {
+      if (!csvLayer.loaded) {
+        await loadOnDemandCsvLayer(csvLayer.id);
+      }
+
+      let fgbRelPath =
+        csvLayer.meta.fgb ||
+        ((csvLayer as unknown as Record<string, unknown>).fgb as string | undefined);
+
+      if (!fgbRelPath) {
+        if (csvLayer.id === 'taiwan-power-poles') {
+          fgbRelPath = 'data/TW-powerpoles.fgb';
+        } else {
+          const sampleTag =
+            csvLayer.data?.rows?.[0]?.regionId ||
+            csvLayer.meta.targetKeys?.[0];
+          if (sampleTag && sampleTag.includes('::')) {
+            fgbRelPath = (await resolveExtObjectFile(sampleTag)) || undefined;
+          }
+        }
+      }
+
+      if (!fgbRelPath) return null;
+
+      const url = getDataUrl(fgbRelPath);
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn(`[GeographicDataManager] HTTP ${res.status} when fetching ${url}`);
+        return null;
+      }
+
+      const buffer = await res.arrayBuffer();
+      const it = flatgeobuf.geojson.deserialize(new Uint8Array(buffer));
+
+      const polygons: CanonicalFeature[] = [];
+      const innerGrids: Feature<LineString>[] = [];
+      const labels: Feature<Point>[] = [];
+
+      const sampleTag =
+        csvLayer.data?.rows?.[0]?.regionId ||
+        csvLayer.meta.targetKeys?.[0] ||
+        '';
+      const samplePrefix = sampleTag.includes('::')
+        ? sampleTag.split('::')[0]
+        : (csvLayer.id === 'taiwan-power-poles' ? 'TW-powerpoles' : '');
+
+      const isPercentageGrid =
+        csvLayer.meta.innerGrid === 'percentage' ||
+        (csvLayer.meta as Record<string, unknown>)['inner-grid'] === 'percentage';
+
+      for await (const rawFeature of it) {
+        const f = rawFeature as Feature<Geometry, Record<string, unknown>>;
+        if (!f || !f.geometry) continue;
+
+        const props = (f.properties || {}) as Record<string, unknown>;
+        const rawId = String(props.id ?? props.code ?? props.name ?? f.id ?? '').trim();
+        if (!rawId) continue;
+
+        const subId = rawId.includes('::') ? rawId.split('::').pop()!.trim() : rawId;
+        const objectTag = rawId.includes('::')
+          ? rawId
+          : (samplePrefix ? `${samplePrefix}::${subId}` : rawId);
+
+        const row =
+          csvLayer.data?.rowMap.get(rawId.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(subId.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(objectTag.toUpperCase()) ||
+          csvLayer.data?.rowMap.get(rawId) ||
+          csvLayer.data?.rowMap.get(subId);
+
+        const nameZh =
+          row?.attributes?.NameZh ||
+          row?.attributes?.nameZh ||
+          (props.nameZh as string) ||
+          (props.name as string) ||
+          subId;
+
+        const nameEn =
+          row?.attributes?.NameEn ||
+          row?.attributes?.nameEn ||
+          (props.nameEn as string) ||
+          subId;
+
+        const color =
+          row?.color ||
+          row?.value ||
+          (props.color as string) ||
+          csvLayer.accentColor ||
+          '#38bdf8';
+
+        const fillColor = hexToRgba(color, 0.22);
+        const hoverFillColor = hexToRgba(color, 0.45);
+        const borderColor = color;
+
+        const labelText = row?.label || subId;
+
+        const geometry = normalizeAntimeridianGeometry(f.geometry);
+        const center = AdministrativeHierarchy.calculateCenter(geometry);
+        const bbox = AdministrativeHierarchy.calculateBBox(geometry);
+
+        const examplePoleCode =
+          row?.attributes?.ExamplePoleCode ||
+          row?.attributes?.examplePoleCode ||
+          (props.examplePoleCode as string);
+
+        const subdivisions =
+          row?.attributes?.Subdivisions ||
+          row?.attributes?.subdivisions ||
+          (props.subdivisions as string);
+
+        const description =
+          row?.attributes?.Description ||
+          row?.attributes?.description ||
+          (props.description as string);
+
+        const canonical: CanonicalFeature = {
+          type: 'Feature',
+          id: undefined,
+          geometry,
+          properties: {
+            feature_id: objectTag,
+            numeric_id: 0,
+            admin_level: 1,
+            country_code: samplePrefix.split('-')[0] || 'TW',
+            objectTag,
+            name: nameZh,
+            name_zh: nameZh,
+            name_en: nameEn,
+            code: subId,
+            label: labelText,
+            color,
+            fillColor,
+            hoverFillColor,
+            borderColor,
+            examplePoleCode,
+            subdivisions,
+            description,
+            layerId: csvLayer.id,
+            bbox,
+            center,
+            attributes: {
+              ...row?.attributes,
+              examplePoleCode,
+              subdivisions,
+              description
+            }
+          }
+        };
+
+        this.registry.register(canonical);
+        polygons.push(canonical);
+
+        // Generate inner percentage grid lines if specified (20%, 40%, 60%, 80%)
+        if (isPercentageGrid && geometry.type === 'Polygon') {
+          const coords = geometry.coordinates[0];
+          if (coords && coords.length >= 4) {
+            const pSW = coords[0];
+            const pSE = coords[1];
+            const pNE = coords[2];
+            const pNW = coords[3];
+
+            for (const pct of [0.2, 0.4, 0.6, 0.8]) {
+              const bX = (1 - pct) * pSW[0] + pct * pSE[0];
+              const bY = (1 - pct) * pSW[1] + pct * pSE[1];
+              const tX = (1 - pct) * pNW[0] + pct * pNE[0];
+              const tY = (1 - pct) * pNW[1] + pct * pNE[1];
+
+              innerGrids.push({
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [
+                    [bX, bY],
+                    [tX, tY]
+                  ]
+                },
+                properties: {
+                  parent_id: objectTag
+                }
+              });
+
+              const lX = (1 - pct) * pSW[0] + pct * pNW[0];
+              const lY = (1 - pct) * pSW[1] + pct * pNW[1];
+              const rX = (1 - pct) * pSE[0] + pct * pNE[0];
+              const rY = (1 - pct) * pSE[1] + pct * pNE[1];
+
+              innerGrids.push({
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [
+                    [lX, lY],
+                    [rX, rY]
+                  ]
+                },
+                properties: {
+                  parent_id: objectTag
+                }
+              });
+            }
+          }
+        }
+
+        // Generate center label point
+        if (center && (center[0] !== 0 || center[1] !== 0)) {
+          labels.push({
+            type: 'Feature',
+            id: canonical.properties.numeric_id,
+            geometry: {
+              type: 'Point',
+              coordinates: center
+            },
+            properties: {
+              feature_id: objectTag,
+              label: labelText,
+              color,
+              textColor: '#ffffff'
+            }
+          });
+        }
+      }
+
+      return { polygons, innerGrids, labels };
+    } catch (err) {
+      console.warn(`[GeographicDataManager] Failed to load ext dataset for ${csvLayer.id}:`, err);
+      return null;
+    }
+  }
+
+  private updateExtSources(): void {
+    if (!this.map) return;
+
+    const fillSource = this.map.getSource('ext-fill-source') as GeoJSONSource | undefined;
+    if (fillSource) {
+      fillSource.setData({
+        type: 'FeatureCollection',
+        features: this.activeExtPolygons
+      });
+    }
+
+    const gridSource = this.map.getSource('ext-inner-grid-source') as GeoJSONSource | undefined;
+    if (gridSource) {
+      gridSource.setData({
+        type: 'FeatureCollection',
+        features: this.activeExtInnerGrids
+      });
+    }
+
+    const labelsSource = this.map.getSource('ext-labels-source') as GeoJSONSource | undefined;
+    if (labelsSource) {
+      labelsSource.setData({
+        type: 'FeatureCollection',
+        features: this.activeExtLabels
+      });
     }
   }
 }

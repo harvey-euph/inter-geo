@@ -46,8 +46,23 @@ export const baseMapStyle: StyleSpecification = {
     'image-markers-source': {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] }
+    },
+    'ext-fill-source': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      promoteId: 'feature_id'
+    },
+    'ext-inner-grid-source': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    },
+    'ext-labels-source': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      promoteId: 'feature_id'
     }
   },
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sky: {
     'sky-color': '#030712',
     'horizon-color': MAP_COLORS.oceanBg,

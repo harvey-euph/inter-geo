@@ -23,6 +23,7 @@ export class InteractionController {
   private boundClick = this.handleClick.bind(this);
 
   private readonly INTERACTIVE_LAYERS = [
+    'ext-fill',
     'adm2-fill',
     'adm1-fill',
     'adm0-fill',

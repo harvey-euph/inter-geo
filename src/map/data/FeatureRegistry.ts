@@ -19,6 +19,7 @@ export interface CanonicalFeatureProperties {
   fillColor?: string;
   bbox?: [number, number, number, number];
   center?: [number, number];
+  objectTag?: string;
   [key: string]: unknown;
 }
 

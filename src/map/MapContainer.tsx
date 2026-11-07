@@ -140,6 +140,15 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const handleFeatureSelect = useCallback(
     (feature: CanonicalFeature) => {
       const p = feature.properties;
+      if (
+        (typeof p.objectTag === 'string' && p.objectTag.startsWith('TW-powerpoles::')) ||
+        p.feature_id?.startsWith('TW-powerpoles::')
+      ) {
+        if (p.bbox) {
+          adapterRef.current?.fitBounds(p.bbox);
+        }
+        return;
+      }
       if (p.admin_level === 0) {
         const country = AdministrativeHierarchy.toCountryData(feature);
         if (country) {

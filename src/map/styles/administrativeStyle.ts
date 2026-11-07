@@ -288,7 +288,54 @@ export const administrativeLayers: LayerSpecification[] = [
     }
   },
 
-  // 7. Roads
+  // 9. External Feature Overlay (e.g. Taiwan Taipower Grid)
+  {
+    id: 'ext-fill',
+    type: 'fill',
+    source: 'ext-fill-source',
+    paint: {
+      'fill-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        ['to-color', ['get', 'hoverFillColor'], 'rgba(56, 189, 248, 0.45)'],
+        ['to-color', ['get', 'fillColor'], 'rgba(56, 189, 248, 0.22)']
+      ],
+      'fill-opacity': 1.0
+    }
+  },
+  {
+    id: 'ext-inner-grid',
+    type: 'line',
+    source: 'ext-inner-grid-source',
+    minzoom: 6.0,
+    paint: {
+      'line-color': 'rgba(255, 255, 255, 0.35)',
+      'line-width': 0.9,
+      'line-dasharray': [3, 3]
+    }
+  },
+  {
+    id: 'ext-boundary',
+    type: 'line',
+    source: 'ext-fill-source',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#ffffff',
+        ['to-color', ['get', 'borderColor'], '#38bdf8']
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        2.8,
+        1.6
+      ],
+      'line-opacity': 0.95
+    }
+  },
+
+  // 10. Roads
   {
     id: 'roads-line',
     type: 'line',
@@ -408,6 +455,47 @@ export const administrativeLayers: LayerSpecification[] = [
       'text-color': ['to-color', ['get', 'textColor'], '#f8fafc'],
       'text-halo-color': '#020617',
       'text-halo-width': 2.5,
+      'text-halo-blur': 0.5
+    }
+  },
+
+  // 14. External Feature Labels (e.g. Taiwan Taipower Grid Letters A, B, C...)
+  {
+    id: 'ext-labels-layer',
+    type: 'symbol',
+    source: 'ext-labels-source',
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        14,
+        6,
+        22,
+        8,
+        34,
+        10,
+        48,
+        13,
+        64
+      ],
+      'text-anchor': 'center',
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+      'text-padding': 2
+    },
+    paint: {
+      'text-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#ffffff',
+        ['to-color', ['get', 'textColor'], '#ffffff']
+      ],
+      'text-halo-color': 'rgba(15, 23, 42, 0.92)',
+      'text-halo-width': 3.0,
       'text-halo-blur': 0.5
     }
   }
