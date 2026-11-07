@@ -91,7 +91,7 @@ export const ADM0_CENTER_ANCHORS: Record<string, AdminCenterAnchor> = {
   LV: { coordinates: [24.6032, 56.8796] },
   LT: { coordinates: [23.8813, 55.1694] },
   MD: { coordinates: [28.3699, 47.4116] },
-  RU: { subdivisionCode: 'RU-NVS', subdivisionName: 'Novosibirsk', coordinates: [82.9357, 55.0084] }, // Visual center of Russian landmass
+  RU: { subdivisionCode: 'RU-MOW', subdivisionName: 'Moscow', coordinates: [37.6173, 55.7558] }, // Moscow
 
   // --- Balkans ---
   HR: { subdivisionCode: 'HR-04', subdivisionName: 'Karlovac', coordinates: [15.55, 45.49] },
