@@ -9,7 +9,8 @@ import {
   getCsvLayerValue,
   getCsvSubdivisionValue,
   getCsvSubdivisionCode,
-  loadOnDemandCsvLayer
+  loadOnDemandCsvLayer,
+  type RegisteredCsvLayer
 } from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
 import { isSouthAmerica } from '../../data/geoIndexClient';
@@ -17,6 +18,7 @@ import { getCombinedTextOverlay } from '../../data/globalLayers';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
 import { getDataUrl } from '../../data/dataSource';
 import { resolveAdminCenter } from '../geo/adminCenterAnchors';
+import { MAP_COLORS } from '../theme';
 
 export interface DataManagerOptions {
   onDataLoaded?: (level: 0 | 1 | 2, count: number) => void;
@@ -321,31 +323,71 @@ export class GeographicDataManager {
 
   /**
    * Resolves fill color for a feature based on active filter.
+   * Matches main branch theme: solid color with MAP_COLORS.defaultFill (#232a38).
    */
   private resolveFillColor(feature: CanonicalFeature): string {
     const p = feature.properties;
     const iso2 = p.country_code;
+
+    const extractColor = (csvLayer: RegisteredCsvLayer, raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const trimmed = raw.trim();
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':');
+        return (parts[1] || parts[0]).trim();
+      }
+      if (trimmed.startsWith('#') || trimmed.startsWith('rgb')) {
+        return trimmed;
+      }
+      if (csvLayer.legend && csvLayer.legend.length > 0) {
+        const match = csvLayer.legend.find((l) => l.key.toLowerCase() === trimmed.toLowerCase());
+        if (match && match.color) return match.color;
+      }
+      return trimmed;
+    };
 
     // 1. Check primary activeFilterId
     const csvLayer = getCsvLayerById(this.activeFilterId);
     if (csvLayer && csvLayer.data) {
       if (p.admin_level === 0) {
         const val = getCsvLayerValue(csvLayer.id, iso2);
-        if (val) return val;
+        const col = extractColor(csvLayer, val);
+        if (col) return col;
       } else if (p.admin_level === 1) {
         const subId = p.code || p.postal || String(p.pref_id || '');
         const val =
-          getCsvSubdivisionValue(csvLayer.id, { id: subId, iso2, code: subId }) ||
+          getCsvSubdivisionValue(csvLayer.id, {
+            id: subId,
+            iso2,
+            code: subId,
+            postal: p.postal,
+            name: p.name,
+            nameEn: p.name_en,
+            nameZh: p.name_zh
+          }) ||
           getCsvLayerValue(csvLayer.id, iso2);
-        if (val) return val;
+        const col = extractColor(csvLayer, val);
+        if (col) return col;
       } else if (p.admin_level === 2) {
         const muniCode = p.code || String(p.id || '');
         const parentCode = String(p.pref_id || p.parent_code || '');
         const val =
-          getCsvSubdivisionValue(csvLayer.id, { id: muniCode, iso2, code: muniCode }) ||
-          getCsvSubdivisionValue(csvLayer.id, { id: parentCode, iso2, code: parentCode }) ||
+          getCsvSubdivisionValue(csvLayer.id, {
+            id: muniCode,
+            iso2,
+            code: muniCode,
+            name: p.name,
+            nameEn: p.name_en,
+            nameZh: p.name_zh
+          }) ||
+          getCsvSubdivisionValue(csvLayer.id, {
+            id: parentCode,
+            iso2,
+            code: parentCode
+          }) ||
           getCsvLayerValue(csvLayer.id, iso2);
-        if (val) return val;
+        const col = extractColor(csvLayer, val);
+        if (col) return col;
       }
       const defCol =
         csvLayer.meta.defaultColor ||
@@ -361,15 +403,24 @@ export class GeographicDataManager {
         if (regLayer && regLayer.data && regLayer.type === 'FillWithColor') {
           if (p.admin_level === 1) {
             const subId = p.code || p.postal || String(p.pref_id || '');
-            const val = getCsvSubdivisionValue(regId, { id: subId, iso2, code: subId });
-            if (val) return val;
+            const val = getCsvSubdivisionValue(regId, {
+              id: subId,
+              iso2,
+              code: subId,
+              postal: p.postal,
+              name: p.name,
+              nameEn: p.name_en,
+              nameZh: p.name_zh
+            });
+            const col = extractColor(regLayer, val);
+            if (col) return col;
           }
         }
       }
     }
 
-    // Default base fill color
-    return '#1e293b'; // slate-800
+    // Default base fill color matching main branch MAP_COLORS.defaultFill
+    return MAP_COLORS.defaultFill;
   }
 
   /**

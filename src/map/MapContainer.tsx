@@ -18,6 +18,7 @@ import { hasL3ForSubdivision, isSouthAmerica } from '../data/l3Manifest';
 import { isRoadLayerActiveForCountry } from '../data/roadsManifest';
 import { NATIONWIDE_LAYERS } from '../data/nationwideLayers';
 import { getCsvLayerById, getCsvLayerValue } from '../layers/csvLayerRegistry';
+import { MAP_COLORS } from './theme';
 
 export interface MapContainerProps {
   activeFilterId: string;
@@ -467,7 +468,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         style={{
           width: '100%',
           height: '100%',
-          background: '#090d16'
+          background: MAP_COLORS.oceanBg
         }}
       />
 

@@ -1,8 +1,17 @@
 import type { LayerSpecification } from 'maplibre-gl';
+import { MAP_COLORS } from '../theme';
 
 /**
  * Administrative Layer Styles for MapLibre GL JS.
  * Shared across 2D and 3D Globe modes.
+ *
+ * Strict parity with InterGeo main theme colors:
+ * - Solid 1.0 opacity fill for all landmass polygons & layer colors
+ * - MAP_COLORS.defaultFill (#232a38)
+ * - MAP_COLORS.hovered (#f97316)
+ * - MAP_COLORS.selected (#38bdf8)
+ * - Crisp black (#000000) ADM0 country borders
+ * - Subtle white (rgba(255, 255, 255, 0.22)) ADM1 subdivision borders
  */
 export const administrativeLayers: LayerSpecification[] = [
   // 1. ADM0 Country Fill
@@ -13,20 +22,13 @@ export const administrativeLayers: LayerSpecification[] = [
     paint: {
       'fill-color': [
         'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        '#f59e0b',
         ['boolean', ['feature-state', 'hover'], false],
-        '#38bdf8',
-        ['to-color', ['get', 'fillColor'], '#1e293b']
+        MAP_COLORS.hovered,
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['to-color', ['get', 'fillColor'], MAP_COLORS.defaultFill]
       ],
-      'fill-opacity': [
-        'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        0.75,
-        ['boolean', ['feature-state', 'hover'], false],
-        0.6,
-        0.45
-      ]
+      'fill-opacity': 1.0
     }
   },
 
@@ -38,20 +40,13 @@ export const administrativeLayers: LayerSpecification[] = [
     paint: {
       'fill-color': [
         'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        '#f59e0b',
         ['boolean', ['feature-state', 'hover'], false],
-        '#38bdf8',
-        ['to-color', ['get', 'fillColor'], '#1e293b']
+        MAP_COLORS.hovered,
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['to-color', ['get', 'fillColor'], MAP_COLORS.defaultFill]
       ],
-      'fill-opacity': [
-        'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        0.75,
-        ['boolean', ['feature-state', 'hover'], false],
-        0.6,
-        0.45
-      ]
+      'fill-opacity': 1.0
     }
   },
 
@@ -63,20 +58,13 @@ export const administrativeLayers: LayerSpecification[] = [
     paint: {
       'fill-color': [
         'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        '#f59e0b',
         ['boolean', ['feature-state', 'hover'], false],
-        '#38bdf8',
-        ['to-color', ['get', 'fillColor'], '#1e293b']
+        MAP_COLORS.hovered,
+        ['boolean', ['feature-state', 'selected'], false],
+        MAP_COLORS.selected,
+        ['to-color', ['get', 'fillColor'], MAP_COLORS.defaultFill]
       ],
-      'fill-opacity': [
-        'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        0.8,
-        ['boolean', ['feature-state', 'hover'], false],
-        0.65,
-        0.5
-      ]
+      'fill-opacity': 1.0
     }
   },
 
@@ -89,20 +77,20 @@ export const administrativeLayers: LayerSpecification[] = [
       'line-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        '#fbbf24',
+        MAP_COLORS.selected,
         ['boolean', ['feature-state', 'hover'], false],
-        '#67e8f9',
-        '#64748b'
+        '#ffffff',
+        'rgba(255, 255, 255, 0.15)'
       ],
       'line-width': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        2.0,
+        1.8,
         ['boolean', ['feature-state', 'hover'], false],
-        1.5,
+        1.4,
         0.8
       ],
-      'line-opacity': 0.7
+      'line-opacity': 1.0
     }
   },
 
@@ -115,20 +103,20 @@ export const administrativeLayers: LayerSpecification[] = [
       'line-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        '#fbbf24',
+        MAP_COLORS.selected,
         ['boolean', ['feature-state', 'hover'], false],
-        '#67e8f9',
-        '#94a3b8'
+        '#ffffff',
+        'rgba(255, 255, 255, 0.22)'
       ],
       'line-width': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        2.5,
-        ['boolean', ['feature-state', 'hover'], false],
         2.0,
-        1.2
+        ['boolean', ['feature-state', 'hover'], false],
+        1.8,
+        1.0
       ],
-      'line-opacity': 0.85
+      'line-opacity': 1.0
     }
   },
 
@@ -141,10 +129,10 @@ export const administrativeLayers: LayerSpecification[] = [
       'line-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        '#fbbf24',
+        MAP_COLORS.selected,
         ['boolean', ['feature-state', 'hover'], false],
-        '#67e8f9',
-        '#cbd5e1'
+        '#ffffff',
+        '#000000'
       ],
       'line-width': [
         'case',
@@ -154,7 +142,7 @@ export const administrativeLayers: LayerSpecification[] = [
         2.5,
         1.5
       ],
-      'line-opacity': 0.95
+      'line-opacity': 1.0
     }
   },
 
@@ -169,7 +157,7 @@ export const administrativeLayers: LayerSpecification[] = [
         ['boolean', ['feature-state', 'selected'], false],
         '#f43f5e',
         ['==', ['get', 'class'], 'Interstate'],
-        '#38bdf8',
+        MAP_COLORS.selected,
         '#fbbf24'
       ],
       'line-width': [
@@ -177,15 +165,15 @@ export const administrativeLayers: LayerSpecification[] = [
         ['linear'],
         ['zoom'],
         2,
-        0.8,
+        1.0,
         5,
-        1.5,
+        1.8,
         8,
-        2.2,
+        2.5,
         12,
-        3.5
+        3.8
       ],
-      'line-opacity': 0.85
+      'line-opacity': 0.95
     }
   },
 
@@ -217,7 +205,7 @@ export const administrativeLayers: LayerSpecification[] = [
     },
     paint: {
       'text-color': '#f8fafc',
-      'text-halo-color': '#090d16',
+      'text-halo-color': MAP_COLORS.oceanBg,
       'text-halo-width': 1.5
     }
   },

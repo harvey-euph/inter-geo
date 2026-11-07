@@ -1,4 +1,5 @@
 import type { StyleSpecification } from 'maplibre-gl';
+import { MAP_COLORS } from '../theme';
 
 /**
  * Baseline MapLibre Style Specification for InterGeo.
@@ -49,15 +50,15 @@ export const baseMapStyle: StyleSpecification = {
   },
   sky: {
     'sky-color': '#030712',
-    'horizon-color': '#0f172a',
-    'fog-color': '#020617'
+    'horizon-color': MAP_COLORS.oceanBg,
+    'fog-color': MAP_COLORS.oceanBg
   },
   layers: [
     {
       id: 'background',
       type: 'background',
       paint: {
-        'background-color': '#090d16'
+        'background-color': MAP_COLORS.oceanBg
       }
     }
   ]
