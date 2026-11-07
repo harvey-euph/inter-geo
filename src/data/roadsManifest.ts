@@ -1,13 +1,12 @@
 import {
   getRoadsManifestSync,
-  hasCountryRoadsSync,
   isRoadLayerActiveForCountry,
   onDataIndexLoaded,
   type RoadCountryManifest
 } from './geoIndexClient';
 
 export type { RoadCountryManifest };
-export { hasCountryRoadsSync, isRoadLayerActiveForCountry };
+export { isRoadLayerActiveForCountry };
 
 export const ROADS_MANIFEST: Record<string, RoadCountryManifest> = {};
 
