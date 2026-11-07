@@ -91,9 +91,11 @@ export class GeographicDataManager {
       const features = await this.loader.loadAdm1(cleanIso);
       this.registry.registerAll(features);
       this.loadedAdm1Countries.add(cleanIso);
+      this.updateSource('adm0-source', 0);
       this.updateSource('adm1-source', 1);
       this.updateLabelSource();
       void this.updateTextMarkers();
+      void this.updateImageMarkers();
       this.onDataLoaded?.(1, features.length);
       return features;
     } catch (err) {
@@ -119,6 +121,7 @@ export class GeographicDataManager {
       this.loadedAdm2Subdivisions.add(key);
       if (features.length > 0) {
         this.registry.registerAll(features);
+        this.updateSource('adm1-source', 1);
         this.updateSource('adm2-source', 2);
         this.updateLabelSource();
         void this.updateTextMarkers();
@@ -381,10 +384,58 @@ export class GeographicDataManager {
       }
     }
 
+    this.updateSource('adm0-source', 0);
     this.updateSource('adm1-source', 1);
     this.updateSource('adm2-source', 2);
     this.updateLabelSource();
     await this.updateTextMarkers();
+    await this.updateImageMarkers();
+  }
+
+  /**
+   * Checks whether ADM1 subdivisions are actively loaded and displayed for a country.
+   */
+  public isAdm1DisplayedForCountry(countryCode: string): boolean {
+    const cc = countryCode.toUpperCase();
+    if (!this.activeAdm1Countries.has(cc)) return false;
+    const adm0Id = FeatureRegistry.createId(0, cc, '');
+    return this.registry.hasChildren(adm0Id);
+  }
+
+  /**
+   * Finds the active ADM2 parentId that matches an ADM1 feature, if any.
+   */
+  private getMatchingActiveAdm2ParentId(f: CanonicalFeature): string | null {
+    if (this.activeAdm2ParentIds.size === 0) return null;
+    const p = f.properties;
+    if (this.activeAdm2ParentIds.has(p.feature_id)) {
+      return p.feature_id;
+    }
+    const iso = (p.country_code || '').toUpperCase();
+    const candidates = [p.code, p.postal, p.id, p.pref_id].filter(
+      (v): v is string | number => v !== undefined && v !== null && String(v).trim().length > 0
+    );
+    for (const c of candidates) {
+      const str = String(c).trim();
+      const id1 = FeatureRegistry.createId(1, iso, str);
+      if (this.activeAdm2ParentIds.has(id1)) return id1;
+      if (/^\d+$/.test(str)) {
+        const id2 = FeatureRegistry.createId(1, iso, str.padStart(2, '0'));
+        if (this.activeAdm2ParentIds.has(id2)) return id2;
+        const id3 = FeatureRegistry.createId(1, iso, String(parseInt(str, 10)));
+        if (this.activeAdm2ParentIds.has(id3)) return id3;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Checks whether ADM2 municipalities are actively loaded and displayed for an ADM1 subdivision.
+   */
+  public isAdm2DisplayedForSubdivision(f: CanonicalFeature): boolean {
+    const parentId = this.getMatchingActiveAdm2ParentId(f);
+    if (!parentId) return false;
+    return this.registry.hasChildren(parentId) || this.registry.hasChildren(f.properties.feature_id);
   }
 
   /**
@@ -397,11 +448,17 @@ export class GeographicDataManager {
 
     let rawFeatures: CanonicalFeature[] = [];
     if (level === 0) {
-      rawFeatures = this.registry.getByLevel(0);
+      rawFeatures = this.registry
+        .getByLevel(0)
+        .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
     } else if (level === 1) {
       rawFeatures = this.registry
         .getByLevel(1)
-        .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
+        .filter(
+          (f) =>
+            this.activeAdm1Countries.has(f.properties.country_code) &&
+            !this.isAdm2DisplayedForSubdivision(f)
+        );
     } else if (level === 2) {
       rawFeatures = this.registry
         .getByLevel(2)
@@ -432,10 +489,16 @@ export class GeographicDataManager {
     const source = this.map.getSource('admin-labels-source') as GeoJSONSource | undefined;
     if (!source) return;
 
-    const adm0 = this.registry.getByLevel(0);
+    const adm0 = this.registry
+      .getByLevel(0)
+      .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
     const adm1 = this.registry
       .getByLevel(1)
-      .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
+      .filter(
+        (f) =>
+          this.activeAdm1Countries.has(f.properties.country_code) &&
+          !this.isAdm2DisplayedForSubdivision(f)
+      );
     const adm2 = this.registry
       .getByLevel(2)
       .filter((f) => Boolean(f.properties.parent_id && this.activeAdm2ParentIds.has(f.properties.parent_id)));
@@ -492,7 +555,9 @@ export class GeographicDataManager {
 
     // 1. Global Text Filters on ADM0 Countries (e.g. callingCode, tld, currency)
     if (this.activeTextFilters.size > 0) {
-      const countries = this.registry.getByLevel(0);
+      const countries = this.registry
+        .getByLevel(0)
+        .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
       for (const f of countries) {
         const country = AdministrativeHierarchy.toCountryData(f);
         if (!country) continue;
@@ -529,7 +594,11 @@ export class GeographicDataManager {
         if (layer.type === 'Text' || layer.type === 'TextWithStyle' || layer.type === 'ExtObject') {
           const subs = this.registry
             .getByLevel(1)
-            .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
+            .filter(
+              (f) =>
+                this.activeAdm1Countries.has(f.properties.country_code) &&
+                !this.isAdm2DisplayedForSubdivision(f)
+            );
           for (const s of subs) {
             const p = s.properties;
             const subParam = {
@@ -588,7 +657,9 @@ export class GeographicDataManager {
 
       if (isCrossing) {
         await loadOnDemandCsvLayer('pedestrian-crossing');
-        const countries = this.registry.getByLevel(0);
+        const countries = this.registry
+          .getByLevel(0)
+          .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
         for (const f of countries) {
           const iso2 = f.properties.country_code;
           const sign = getCrossingSign(iso2);

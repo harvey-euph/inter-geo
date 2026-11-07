@@ -104,6 +104,11 @@ export class FeatureRegistry {
     return list;
   }
 
+  public hasChildren(parentId: string): boolean {
+    const ids = this.childrenByParentId.get(parentId);
+    return Boolean(ids && ids.size > 0);
+  }
+
   public getByLevel(level: AdminLevel): CanonicalFeature[] {
     const ids = this.featuresByLevel.get(level);
     if (!ids) return [];
