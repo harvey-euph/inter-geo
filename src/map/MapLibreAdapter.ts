@@ -45,8 +45,8 @@ export class MapLibreAdapter {
     const mapOptions: MapOptions = {
       container: options.container,
       style: baseMapStyle,
-      center: options.initialCenter || [138, 38], // Default to Japan region
-      zoom: options.initialZoom || 2,
+      center: options.initialCenter || [15, 20], // Global overview
+      zoom: options.initialZoom || 1.8,
       renderWorldCopies: true,
       attributionControl: false
     };

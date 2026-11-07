@@ -54,7 +54,7 @@ export class AdministrativeHierarchy {
    */
   public static toMunicipalityDetail(feature: CanonicalFeature): MunicipalityDetail {
     const p = feature.properties;
-    const iso2 = p.country_code || (p.iso2 as string) || 'JP';
+    const iso2 = p.country_code || (p.iso2 as string) || '';
     const code = String(p.code || p.id || '');
     const prefName = (p.parent_name as string) || (p.pref as string) || '';
     const prefCode = String(p.parent_code || p.pref_id || '');

@@ -30,6 +30,8 @@ export class GeographicDataManager {
   private map: MapLibreMap | null = null;
   private loadedAdm1Countries = new Set<string>();
   private loadedAdm2Subdivisions = new Set<string>();
+  private activeAdm1Countries = new Set<string>();
+  private activeAdm2ParentIds = new Set<string>();
   private activeFilterId = 'base';
   private activeTextFilters = new Set<string>();
   private activeInternationalImageFilter: string | null = null;
@@ -335,6 +337,54 @@ export class GeographicDataManager {
   }
 
   /**
+   * Sets which administrative levels are actively displayed in MapLibre sources.
+   * - ADM0 is always displayed.
+   * - ADM1 displays features for countries in activeAdm1Countries.
+   * - ADM2 displays features for subdivisions in activeAdm2ParentIds.
+   */
+  public async setActiveDisplayLevels(activeAdm1: string[], activeAdm2Parents: string[]): Promise<void> {
+    const nextAdm1 = new Set(activeAdm1.map((c) => c.toUpperCase()));
+    const nextAdm2 = new Set(activeAdm2Parents);
+
+    const adm1Same =
+      nextAdm1.size === this.activeAdm1Countries.size &&
+      [...nextAdm1].every((c) => this.activeAdm1Countries.has(c));
+    const adm2Same =
+      nextAdm2.size === this.activeAdm2ParentIds.size &&
+      [...nextAdm2].every((p) => this.activeAdm2ParentIds.has(p));
+
+    if (adm1Same && adm2Same) return;
+
+    this.activeAdm1Countries = nextAdm1;
+    this.activeAdm2ParentIds = nextAdm2;
+
+    // Ensure any newly active ADM1 countries are loaded
+    for (const iso of this.activeAdm1Countries) {
+      if (!this.loadedAdm1Countries.has(iso)) {
+        await this.ensureAdm1(iso);
+      }
+    }
+
+    // Ensure any newly active ADM2 parent subdivisions are loaded
+    for (const parentId of this.activeAdm2ParentIds) {
+      const parts = parentId.split('_');
+      if (parts.length >= 3) {
+        const iso = parts[1];
+        const sub = parts.slice(2).join('_');
+        const key = `${iso}_${sub}`;
+        if (!this.loadedAdm2Subdivisions.has(key)) {
+          await this.ensureAdm2(iso, sub);
+        }
+      }
+    }
+
+    this.updateSource('adm1-source', 1);
+    this.updateSource('adm2-source', 2);
+    this.updateLabelSource();
+    await this.updateTextMarkers();
+  }
+
+  /**
    * Updates a specific administrative polygon source in MapLibre.
    */
   public updateSource(sourceId: string, level: 0 | 1 | 2): void {
@@ -342,7 +392,19 @@ export class GeographicDataManager {
     const source = this.map.getSource(sourceId) as GeoJSONSource | undefined;
     if (!source) return;
 
-    const rawFeatures = this.registry.getByLevel(level);
+    let rawFeatures: CanonicalFeature[] = [];
+    if (level === 0) {
+      rawFeatures = this.registry.getByLevel(0);
+    } else if (level === 1) {
+      rawFeatures = this.registry
+        .getByLevel(1)
+        .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
+    } else if (level === 2) {
+      rawFeatures = this.registry
+        .getByLevel(2)
+        .filter((f) => Boolean(f.properties.parent_id && this.activeAdm2ParentIds.has(f.properties.parent_id)));
+    }
+
     const decoratedFeatures = rawFeatures.map((f) => ({
       ...f,
       properties: {
@@ -367,11 +429,15 @@ export class GeographicDataManager {
     const source = this.map.getSource('admin-labels-source') as GeoJSONSource | undefined;
     if (!source) return;
 
-    const allFeatures = [
-      ...this.registry.getByLevel(0),
-      ...this.registry.getByLevel(1),
-      ...this.registry.getByLevel(2)
-    ];
+    const adm0 = this.registry.getByLevel(0);
+    const adm1 = this.registry
+      .getByLevel(1)
+      .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
+    const adm2 = this.registry
+      .getByLevel(2)
+      .filter((f) => Boolean(f.properties.parent_id && this.activeAdm2ParentIds.has(f.properties.parent_id)));
+
+    const allFeatures = [...adm0, ...adm1, ...adm2];
 
     const labelFeatures = allFeatures
       .map((f) => {
@@ -460,7 +526,9 @@ export class GeographicDataManager {
         if (!layer || !layer.data) continue;
 
         if (layer.type === 'Text' || layer.type === 'TextWithStyle' || layer.type === 'ExtObject') {
-          const subs = this.registry.getByLevel(1);
+          const subs = this.registry
+            .getByLevel(1)
+            .filter((f) => this.activeAdm1Countries.has(f.properties.country_code));
           for (const s of subs) {
             const p = s.properties;
             const subParam = {

@@ -144,6 +144,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           // Focus and expand country to load ADM1 & Roads
           adapterRef.current?.getLODController().getAdminLODManager().setFocusedCountry(country.iso2);
           void adapterRef.current?.getDataManager().ensureRoads(country.iso2);
+          void adapterRef.current?.getDataManager().setActiveDisplayLevels([country.iso2], []);
           if (p.bbox) {
             adapterRef.current?.fitBounds(p.bbox);
           }
@@ -155,7 +156,9 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           ?.getLODController()
           .getAdminLODManager()
           .setFocusedSubdivision(sub.iso2, sub.id);
+        const parentId = `ADM1_${sub.iso2.toUpperCase()}_${sub.id}`;
         void adapterRef.current?.getDataManager().ensureRoads(sub.iso2);
+        void adapterRef.current?.getDataManager().setActiveDisplayLevels([sub.iso2], [parentId]);
         if (p.bbox) {
           adapterRef.current?.fitBounds(p.bbox);
         }
@@ -180,8 +183,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     const adapter = new MapLibreAdapter({
       container: containerRef.current,
       initialMode: projectionMode || '2d',
-      initialCenter: [138, 38], // Default Japan
-      initialZoom: 4,
+      initialCenter: [15, 20], // Global overview
+      initialZoom: 1.8,
       callbacks: {
         onHover: (feat, screenPos) => {
           setHoveredFeature(feat);
@@ -217,15 +220,13 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           inst.getDataManager().setShowRoads(true);
         }
 
-        // Preload Japan ADM1 and ADM2 for instant demo capability
-        void inst.getDataManager().ensureAdm1('JP').then(() => {
-          void inst.getDataManager().ensureAdm2('JP', '22'); // Preload Shizuoka / Hamamatsu
-        });
-
-        // Ensure roads if a country is already active
+        // Initialize display levels: default is strictly ADM0 (empty ADM1 & ADM2)
         const activeIso = selectedCountry?.iso2 || selectedSubdivision?.iso2 || selectedMunicipality?.iso2;
         if (activeIso) {
+          void inst.getDataManager().setActiveDisplayLevels([activeIso], []);
           void inst.getDataManager().ensureRoads(activeIso);
+        } else {
+          void inst.getDataManager().setActiveDisplayLevels([], []);
         }
 
         // Initial regional filters notification
@@ -277,6 +278,68 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     }
   }, [projectionMode]);
 
+  // Sync active administrative levels (ADM0 -> ADM1 -> ADM2) based on selected and hovered features
+  useEffect(() => {
+    const adapter = adapterRef.current;
+    if (!adapter) return;
+
+    const activeAdm1: string[] = [];
+    const activeAdm2Parents: string[] = [];
+
+    // 1. Pinned by selection
+    if (selectedCountry?.iso2) {
+      activeAdm1.push(selectedCountry.iso2);
+    }
+    if (selectedSubdivision?.iso2) {
+      activeAdm1.push(selectedSubdivision.iso2);
+      const subId = String(selectedSubdivision.id ?? selectedSubdivision.code ?? '');
+      if (subId) {
+        activeAdm2Parents.push(`ADM1_${selectedSubdivision.iso2.toUpperCase()}_${subId}`);
+      }
+    }
+    if (selectedMunicipality?.iso2) {
+      activeAdm1.push(selectedMunicipality.iso2);
+      if (selectedMunicipality.parentCode) {
+        activeAdm2Parents.push(`ADM1_${selectedMunicipality.iso2.toUpperCase()}_${selectedMunicipality.parentCode}`);
+      }
+    }
+
+    // 2. Expanded by hover
+    if (hoveredFeature) {
+      const p = hoveredFeature.properties;
+      const hIso = p.country_code;
+      if (hIso) {
+        activeAdm1.push(hIso);
+      }
+      if (p.admin_level === 1) {
+        const subId = String(p.code || p.postal || p.id || '');
+        if (hIso && subId) {
+          activeAdm2Parents.push(`ADM1_${hIso.toUpperCase()}_${subId}`);
+        }
+      } else if (p.admin_level === 2) {
+        if (p.parent_id) {
+          activeAdm2Parents.push(p.parent_id);
+        } else if (hIso && (p.parent_code || p.pref_id)) {
+          activeAdm2Parents.push(`ADM1_${hIso.toUpperCase()}_${String(p.parent_code || p.pref_id)}`);
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      void adapter.getDataManager().setActiveDisplayLevels(activeAdm1, activeAdm2Parents);
+    }, hoveredFeature ? 80 : 30);
+
+    return () => clearTimeout(timer);
+  }, [
+    selectedCountry?.iso2,
+    selectedSubdivision?.iso2,
+    selectedSubdivision?.id,
+    selectedSubdivision?.code,
+    selectedMunicipality?.iso2,
+    selectedMunicipality?.parentCode,
+    hoveredFeature
+  ]);
+
   // Load and show roads when country/subdivision/municipality info card is open
   useEffect(() => {
     const activeIso = selectedCountry?.iso2 || selectedSubdivision?.iso2 || selectedMunicipality?.iso2;
@@ -318,7 +381,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       } else if (target.kind === 'country') {
         const iso = target.iso2.toUpperCase();
         adapter.getLODController().getAdminLODManager().setFocusedCountry(iso);
-        void adapter.getDataManager().ensureAdm1(iso);
+        void adapter.getDataManager().setActiveDisplayLevels([iso], []);
         void adapter.getDataManager().ensureRoads(iso);
 
         // Find country feature in registry
@@ -328,7 +391,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         } else {
           const c = findCountry(iso);
           if (c?.id) {
-            // Fly toward approximate center
             if (iso === 'JP') adapter.flyTo(138.2, 36.2, 5);
             else if (iso === 'US') adapter.flyTo(-98.5, 39.8, 4);
             else if (iso === 'TW') adapter.flyTo(120.9, 23.8, 7.5);
@@ -337,20 +399,20 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       } else if (target.kind === 'subdivision') {
         const iso = target.iso2.toUpperCase();
         const id = String(target.id);
+        const parentId = `ADM1_${iso}_${id}`;
         adapter.getLODController().getAdminLODManager().setFocusedSubdivision(iso, id);
-        void adapter.getDataManager().ensureAdm2(iso, id);
+        void adapter.getDataManager().setActiveDisplayLevels([iso], [parentId]);
         void adapter.getDataManager().ensureRoads(iso);
 
-        const subFeat = adapter.getDataManager().getRegistry().getById(`ADM1_${iso}_${id}`);
+        const subFeat = adapter.getDataManager().getRegistry().getById(parentId);
         if (subFeat?.properties.bbox) {
           adapter.fitBounds(subFeat.properties.bbox);
-        } else if (iso === 'JP' && id === '22') {
-          // Shizuoka prefecture bounds
-          adapter.fitBounds([137.4, 34.5, 139.1, 35.7]);
         }
       } else if (target.kind === 'municipality') {
         if (target.parentCode && target.iso2) {
-          void adapter.getDataManager().ensureAdm2(target.iso2, target.parentCode);
+          const iso = target.iso2.toUpperCase();
+          const parentId = `ADM1_${iso}_${target.parentCode}`;
+          void adapter.getDataManager().setActiveDisplayLevels([iso], [parentId]);
           void adapter.getDataManager().ensureRoads(target.iso2);
         }
       } else if (target.kind === 'bbox' && target.boxes && target.boxes.length > 0) {
@@ -413,7 +475,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       <MapControls
         onZoomIn={() => adapterRef.current?.getMap().zoomIn()}
         onZoomOut={() => adapterRef.current?.getMap().zoomOut()}
-        onResetZoom={() => adapterRef.current?.flyTo(138, 38, 3)}
+        onResetZoom={() => adapterRef.current?.flyTo(15, 20, 1.8)}
         onSelectCountry={(c) => onSelectCountry(c)}
         panelOpen={Boolean(selectedCountry || selectedSubdivision || selectedMunicipality || selectedRoad)}
         panelWidth={detailPanelWidth}
