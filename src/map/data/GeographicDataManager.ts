@@ -3,7 +3,7 @@ import type { Feature, FeatureCollection, Point } from 'geojson';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
-import { AdministrativeHierarchy } from './AdministrativeHierarchy';
+import { AdministrativeHierarchy, cleanAdminText } from './AdministrativeHierarchy';
 import {
   getCsvLayerById,
   getCsvLayerValue,
@@ -12,6 +12,7 @@ import {
   loadOnDemandCsvLayer
 } from '../../layers/csvLayerRegistry';
 import { findCountry } from '../../data/countries';
+import { isSouthAmerica } from '../../data/geoIndexClient';
 import { getCombinedTextOverlay } from '../../data/globalLayers';
 import { getCrossingSign } from '../../data/pedestrianCrossing';
 import { getDataUrl } from '../../data/dataSource';
@@ -109,6 +110,7 @@ export class GeographicDataManager {
    */
   public async ensureAdm2(iso2: string, subIdOrCode: string | number): Promise<CanonicalFeature[]> {
     const cleanIso = iso2.toUpperCase();
+    if (isSouthAmerica(cleanIso)) return [];
     const sub = String(subIdOrCode).trim();
     const key = `${cleanIso}_${sub}`;
     if (this.loadedAdm2Subdivisions.has(key)) {
@@ -376,6 +378,7 @@ export class GeographicDataManager {
       const parts = parentId.split('_');
       if (parts.length >= 3) {
         const iso = parts[1];
+        if (isSouthAmerica(iso)) continue;
         const sub = parts.slice(2).join('_');
         const key = `${iso}_${sub}`;
         if (!this.loadedAdm2Subdivisions.has(key)) {
@@ -509,11 +512,12 @@ export class GeographicDataManager {
       .map((f) => {
         const p = f.properties;
         const country = findCountry(p.country_code);
-        const nameZh = p.name_zh || country?.nameZh || p.name || '';
-        const nameEn = p.name_en || country?.name || p.name || '';
+        const nameZh = cleanAdminText(p.name_zh) || cleanAdminText(country?.nameZh) || cleanAdminText(p.name);
+        const nameEn = cleanAdminText(p.name_en) || cleanAdminText(country?.name) || cleanAdminText(p.name);
+        const displayName = nameZh || nameEn;
 
         const center = resolveAdminCenter(f, this.registry);
-        if (!center || (center[0] === 0 && center[1] === 0)) return null;
+        if (!center || (center[0] === 0 && center[1] === 0) || !displayName) return null;
 
         return {
           type: 'Feature' as const,
@@ -529,7 +533,7 @@ export class GeographicDataManager {
             country_code: p.country_code,
             nameZh,
             nameEn,
-            displayName: nameZh || nameEn
+            displayName
           }
         };
       })

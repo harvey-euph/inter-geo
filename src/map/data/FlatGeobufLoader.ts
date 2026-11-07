@@ -2,9 +2,9 @@ import * as flatgeobuf from 'flatgeobuf';
 import type { Feature, Geometry } from 'geojson';
 import { getDataUrl } from '../../data/dataSource';
 import { findCountry } from '../../data/countries';
-import { findL3Partition, hasCountryL2Sync, resolveSubdivisionFileSync } from '../../data/geoIndexClient';
+import { findL3Partition, hasCountryL2Sync, resolveSubdivisionFileSync, isSouthAmerica } from '../../data/geoIndexClient';
 import { FeatureRegistry, type CanonicalFeature, type AdminLevel } from './FeatureRegistry';
-import { AdministrativeHierarchy } from './AdministrativeHierarchy';
+import { AdministrativeHierarchy, cleanAdminText } from './AdministrativeHierarchy';
 import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
 import { ADM0_CENTER_ANCHORS } from '../geo/adminCenterAnchors';
 
@@ -45,6 +45,9 @@ export class FlatGeobufLoader {
     extraParts?: { name?: string; nameEn?: string; nameZh?: string }
   ): Promise<CanonicalFeature[]> {
     const cleanIso = iso2.toUpperCase();
+    if (isSouthAmerica(cleanIso)) {
+      return [];
+    }
     const sub = String(subIdOrCode).trim();
     const parentId = FeatureRegistry.createId(1, cleanIso, sub);
 
@@ -126,16 +129,13 @@ export class FlatGeobufLoader {
                 ? FeatureRegistry.createId(1, resolvedIso2, subId)
                 : FeatureRegistry.createId(2, resolvedIso2, String(props.code || props.id || ''));
 
-          const name = String(
-            props.name_zh ||
-            props.name ||
-            props.name_en ||
-            countryMeta?.nameZh ||
-            countryMeta?.name ||
-            ''
-          );
-          const nameEn = String(props.name_en || countryMeta?.name || props.name || '');
-          const nameZh = String(props.name_zh || countryMeta?.nameZh || props.name || '');
+          const rawName = cleanAdminText(props.name);
+          const rawNameEn = cleanAdminText(props.name_en) || cleanAdminText(countryMeta?.name);
+          const rawNameZh = cleanAdminText(props.name_zh) || cleanAdminText(countryMeta?.nameZh);
+
+          const nameEn = rawNameEn || rawName;
+          const nameZh = rawNameZh || nameEn || rawName;
+          const name = nameZh || nameEn || rawName;
 
           const geometry = normalizeAntimeridianGeometry(f.geometry);
           const center =
@@ -165,11 +165,11 @@ export class FlatGeobufLoader {
               name,
               name_en: nameEn,
               name_zh: nameZh,
-              code: String(props.code || subId),
-              postal: String(props.postal || ''),
+              code: cleanAdminText(props.code) || cleanAdminText(subId),
+              postal: cleanAdminText(props.postal),
               pref_id: props.pref_id as number | string | undefined,
-              city: (props.city as string) || undefined,
-              pref: (props.pref as string) || (props.parent_name as string) || undefined,
+              city: cleanAdminText(props.city) || undefined,
+              pref: cleanAdminText(props.pref) || cleanAdminText(props.parent_name) || undefined,
               center,
               bbox
             }

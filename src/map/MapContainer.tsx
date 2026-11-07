@@ -14,7 +14,7 @@ import type { NationwideLayerDef } from '../data/nationwideLayers';
 import type { RoadPathData } from '../data/roadsMeta';
 import type { LayerDefinition } from '../data/layers';
 import { findCountry } from '../data/countries';
-import { hasL3ForSubdivision } from '../data/l3Manifest';
+import { hasL3ForSubdivision, isSouthAmerica } from '../data/l3Manifest';
 import { NATIONWIDE_LAYERS } from '../data/nationwideLayers';
 import { getCsvLayerById, getCsvLayerValue } from '../layers/csvLayerRegistry';
 
@@ -301,7 +301,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         }
       }
     }
-    if (selectedMunicipality?.iso2) {
+    if (selectedMunicipality?.iso2 && !isSouthAmerica(selectedMunicipality.iso2)) {
       activeAdm1.push(selectedMunicipality.iso2);
       if (selectedMunicipality.parentCode) {
         activeAdm2Parents.push(`ADM1_${selectedMunicipality.iso2.toUpperCase()}_${selectedMunicipality.parentCode}`);
@@ -425,7 +425,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           adapter.fitBounds(subFeat.properties.bbox);
         }
       } else if (target.kind === 'municipality') {
-        if (target.parentCode && target.iso2) {
+        if (target.parentCode && target.iso2 && !isSouthAmerica(target.iso2)) {
           const iso = target.iso2.toUpperCase();
           const parentId = `ADM1_${iso}_${target.parentCode}`;
           void adapter.getDataManager().setActiveDisplayLevels([iso], [parentId]);

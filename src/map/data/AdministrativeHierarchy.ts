@@ -5,6 +5,25 @@ import { makeUnknownCountry } from '../types';
 import type { CanonicalFeature } from './FeatureRegistry';
 
 /**
+ * Cleans text from raw GeoJSON properties, treating placeholder strings ('NA', 'N/A', 'null') as empty.
+ */
+export function cleanAdminText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  const str = String(value).trim();
+  const upper = str.toUpperCase();
+  if (
+    str === '' ||
+    upper === 'NA' ||
+    upper === 'N/A' ||
+    upper === 'NULL' ||
+    upper === 'UNDEFINED'
+  ) {
+    return '';
+  }
+  return str;
+}
+
+/**
  * AdministrativeHierarchy handles administrative relations and conversions
  * between canonical features and UI domain objects (CountryData, L2SubdivisionDetail, MunicipalityDetail).
  */
@@ -18,8 +37,8 @@ export class AdministrativeHierarchy {
     if (country) return country;
 
     const id = String(feature.properties.numeric_id || feature.properties.country_code || '');
-    const name = feature.properties.name || 'Unknown';
-    const nameZh = feature.properties.name_zh || feature.properties.name || '未知國家';
+    const name = cleanAdminText(feature.properties.name) || 'Unknown';
+    const nameZh = cleanAdminText(feature.properties.name_zh) || name || '未知國家';
 
     return makeUnknownCountry(id, iso2 || 'XX', name, nameZh);
   }
@@ -32,17 +51,27 @@ export class AdministrativeHierarchy {
     const iso2 = p.country_code || (p.iso2 as string) || '';
     const parentCountry = findCountry(iso2);
 
-    const subId = String(p.code || p.postal || p.id || p.pref_id || p.feature_id.split('_')[2] || '');
+    const subId =
+      cleanAdminText(p.code) ||
+      cleanAdminText(p.postal) ||
+      cleanAdminText(p.id) ||
+      cleanAdminText(p.pref_id) ||
+      cleanAdminText(p.feature_id.split('_')[2]) ||
+      '';
+
+    const name = cleanAdminText(p.name);
+    const nameEn = cleanAdminText(p.name_en) || name;
+    const nameZh = cleanAdminText(p.name_zh) || nameEn || name;
 
     return {
       id: subId,
       iso2,
-      name: p.name || '',
-      nameEn: p.name_en || p.name || '',
-      nameZh: p.name_zh || p.name || '',
-      typeEn: (p.type_en as string) || (p.type as string) || 'Subdivision',
-      code: String(p.code || subId),
-      postal: String(p.postal || subId),
+      name,
+      nameEn,
+      nameZh,
+      typeEn: cleanAdminText(p.type_en) || cleanAdminText(p.type) || 'Subdivision',
+      code: cleanAdminText(p.code) || subId,
+      postal: cleanAdminText(p.postal) || subId,
       countryName: parentCountry?.name || iso2,
       countryNameZh: parentCountry?.nameZh || iso2,
       countryFlag: parentCountry?.flag || '🌐'
@@ -55,16 +84,19 @@ export class AdministrativeHierarchy {
   public static toMunicipalityDetail(feature: CanonicalFeature): MunicipalityDetail {
     const p = feature.properties;
     const iso2 = p.country_code || (p.iso2 as string) || '';
-    const code = String(p.code || p.id || '');
-    const prefName = (p.parent_name as string) || (p.pref as string) || '';
-    const prefCode = String(p.parent_code || p.pref_id || '');
+    const code = cleanAdminText(p.code) || cleanAdminText(p.id);
+    const prefName = cleanAdminText(p.parent_name) || cleanAdminText(p.pref);
+    const prefCode = cleanAdminText(p.parent_code) || cleanAdminText(p.pref_id);
+    const name = cleanAdminText(p.name);
+    const city = cleanAdminText(p.city) || name;
+    const nameZh = cleanAdminText(p.name_zh) || cleanAdminText(p.name_en) || city;
 
     return {
       code,
       pref: prefName,
-      city: (p.city as string) || p.name || '',
-      nameZh: p.name_zh || p.name || '',
-      gun: (p.gun as string) || '',
+      city,
+      nameZh,
+      gun: cleanAdminText(p.gun),
       iso2,
       parentName: prefName,
       parentCode: prefCode

@@ -3,13 +3,15 @@ import {
   getL3PartitionsByKeySync,
   findL3Partition,
   hasL3ForSubdivision,
+  SOUTH_AMERICAN_COUNTRIES,
+  isSouthAmerica,
   onDataIndexLoaded,
   type L3PartitionMeta,
   type L3CountryMeta
 } from './geoIndexClient';
 
 export type { L3PartitionMeta, L3CountryMeta };
-export { findL3Partition, hasL3ForSubdivision };
+export { findL3Partition, hasL3ForSubdivision, SOUTH_AMERICAN_COUNTRIES, isSouthAmerica };
 
 export const L3_MANIFEST: L3CountryMeta[] = [];
 export const L3_PARTITIONS_BY_KEY: Record<string, L3PartitionMeta> = {};

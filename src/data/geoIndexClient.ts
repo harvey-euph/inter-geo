@@ -325,12 +325,33 @@ export function getRoadsManifestSync(): Record<string, RoadCountryManifest> {
   return cachedRoadsManifest;
 }
 
+export const SOUTH_AMERICAN_COUNTRIES = new Set([
+  'AR',
+  'BO',
+  'BR',
+  'CL',
+  'CO',
+  'EC',
+  'FK',
+  'GF',
+  'GY',
+  'PE',
+  'PY',
+  'SR',
+  'UY',
+  'VE'
+]);
+
+export function isSouthAmerica(iso2: string): boolean {
+  return SOUTH_AMERICAN_COUNTRIES.has((iso2 || '').toUpperCase());
+}
+
 export function findL3Partition(
   iso2: string,
   parts: { id?: string | number; code?: string; name?: string; nameEn?: string; nameZh?: string }
 ): L3PartitionMeta | undefined {
   const upper = (iso2 || '').toUpperCase();
-  if (!upper || !cachedL3PartitionsByCountry[upper]) return undefined;
+  if (!upper || isSouthAmerica(upper) || !cachedL3PartitionsByCountry[upper]) return undefined;
   const raw = [parts.code, parts.id, parts.name, parts.nameEn, parts.nameZh];
   for (const value of raw) {
     if (value === undefined || value === null || String(value) === '') continue;
@@ -346,6 +367,7 @@ export function hasL3ForSubdivision(
   iso2: string,
   parts: { id?: string | number; code?: string; name?: string; nameEn?: string; nameZh?: string }
 ): boolean {
+  if (isSouthAmerica(iso2)) return false;
   return findL3Partition(iso2, parts) !== undefined;
 }
 
@@ -363,6 +385,7 @@ export function hasCountryL2Sync(iso2: string): boolean {
  */
 export function resolveSubdivisionFileSync(parentPath: string, childId: string): string | null {
   if (!cachedDataIndex) return null;
+  if (isSouthAmerica(parentPath)) return null;
   const target1 = `data/${parentPath}/${childId}.fgb`.toLowerCase();
   const target2 = `data/${parentPath}/${parentPath}-${childId}.fgb`.toLowerCase();
   for (const f of cachedDataIndex.files) {
