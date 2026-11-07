@@ -602,6 +602,8 @@ export class GeographicDataManager {
             if (loaded) this.loadedImageIcons.add(iconId);
           }
 
+          if (!this.loadedImageIcons.has(iconId)) continue;
+
           const override = COUNTRY_LABEL_CENTROIDS[iso2];
           const center = override || f.properties.center || AdministrativeHierarchy.calculateCenter(f.geometry);
           if (!center || (center[0] === 0 && center[1] === 0)) continue;
@@ -635,73 +637,101 @@ export class GeographicDataManager {
    */
   private async loadIconToMap(iconId: string, url: string): Promise<boolean> {
     if (!this.map || this.map.hasImage(iconId)) return true;
+    if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+
     try {
-      const res = await this.map.loadImage(url);
-      if (!this.map || this.map.hasImage(iconId)) return true;
-      if (res && res.data) {
-        if (typeof document !== 'undefined') {
-          const TARGET_SIZE = 64; // Logical 32px at pixelRatio: 2
-          const canvas = document.createElement('canvas');
-          canvas.width = TARGET_SIZE;
-          canvas.height = TARGET_SIZE;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            const rawImg = res.data as HTMLImageElement | ImageBitmap;
-            const w = rawImg.width || TARGET_SIZE;
-            const h = rawImg.height || TARGET_SIZE;
-            const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
-            const dw = Math.max(1, Math.round(w * scale));
-            const dh = Math.max(1, Math.round(h * scale));
-            const dx = Math.round((TARGET_SIZE - dw) / 2);
-            const dy = Math.round((TARGET_SIZE - dh) / 2);
-            ctx.drawImage(rawImg as CanvasImageSource, dx, dy, dw, dh);
-            const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-            this.map.addImage(iconId, imgData, { pixelRatio: 2 });
-            return true;
-          }
-        }
-        this.map.addImage(iconId, res.data, { pixelRatio: 2 });
-        return true;
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) {
+        console.warn(`[GeographicDataManager] Failed to fetch icon ${iconId} from ${url}: HTTP ${resp.status}`);
+        return false;
       }
-    } catch {
-      // Fallback: load using HTMLImageElement
-      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-        try {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = url;
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = reject;
-          });
-          if (!this.map || this.map.hasImage(iconId)) return true;
-          const TARGET_SIZE = 64;
-          const canvas = document.createElement('canvas');
-          canvas.width = TARGET_SIZE;
-          canvas.height = TARGET_SIZE;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            const w = img.naturalWidth || TARGET_SIZE;
-            const h = img.naturalHeight || TARGET_SIZE;
-            const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
-            const dw = Math.max(1, Math.round(w * scale));
-            const dh = Math.max(1, Math.round(h * scale));
-            const dx = Math.round((TARGET_SIZE - dw) / 2);
-            const dy = Math.round((TARGET_SIZE - dh) / 2);
-            ctx.drawImage(img, dx, dy, dw, dh);
-            const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-            this.map.addImage(iconId, imgData, { pixelRatio: 2 });
-            return true;
-          } else {
-            this.map.addImage(iconId, img, { pixelRatio: 2 });
-            return true;
+
+      const contentType = resp.headers.get('content-type') || '';
+      const isSvg = url.toLowerCase().endsWith('.svg') || contentType.includes('svg');
+
+      let blob: Blob;
+      if (isSvg) {
+        let svgText = await resp.text();
+        // Remove foreignObject tags that could taint canvas in Blink/WebKit
+        svgText = svgText.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
+
+        // Ensure viewBox exists so SVG scales cleanly to target canvas size
+        const svgMatch = svgText.match(/<svg([^>]*?)>/i);
+        if (svgMatch) {
+          const attrs = svgMatch[1];
+          const hasViewBox = /viewBox\s*=/i.test(attrs);
+          const widthMatch = attrs.match(/\bwidth\s*=\s*["']?(\d+(?:\.\d+)?)/i);
+          const heightMatch = attrs.match(/\bheight\s*=\s*["']?(\d+(?:\.\d+)?)/i);
+          let newAttrs = attrs;
+
+          if (!hasViewBox && widthMatch && heightMatch) {
+            newAttrs += ` viewBox="0 0 ${widthMatch[1]} ${heightMatch[1]}"`;
           }
-        } catch (e) {
-          console.warn(`[GeographicDataManager] Failed to load icon ${iconId} from ${url}:`, e);
+          // Set explicit width and height on root <svg> to TARGET_SIZE (64)
+          newAttrs = newAttrs.replace(/\bwidth\s*=\s*["'][^"']*["']/gi, '').replace(/\bheight\s*=\s*["'][^"']*["']/gi, '');
+          newAttrs += ' width="64" height="64"';
+          svgText = svgText.replace(svgMatch[0], `<svg${newAttrs}>`);
+        }
+
+        blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      } else {
+        blob = await resp.blob();
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = blobUrl;
+
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = (e) => reject(e);
+        });
+
+        if (!this.map || this.map.hasImage(iconId)) return true;
+
+        const TARGET_SIZE = 64; // Logical 32px at pixelRatio: 2
+        const canvas = document.createElement('canvas');
+        canvas.width = TARGET_SIZE;
+        canvas.height = TARGET_SIZE;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return false;
+
+        const w = img.naturalWidth || TARGET_SIZE;
+        const h = img.naturalHeight || TARGET_SIZE;
+        const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
+        const dw = Math.max(1, Math.round(w * scale));
+        const dh = Math.max(1, Math.round(h * scale));
+        const dx = Math.round((TARGET_SIZE - dw) / 2);
+        const dy = Math.round((TARGET_SIZE - dh) / 2);
+
+        ctx.drawImage(img, dx, dy, dw, dh);
+
+        try {
+          const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+          if (!this.map || this.map.hasImage(iconId)) return true;
+          this.map.addImage(iconId, imgData, { pixelRatio: 2 });
+          return true;
+        } catch (taintErr) {
+          console.warn(`[GeographicDataManager] getImageData failed for ${iconId}:`, taintErr);
+          if (this.map && !this.map.hasImage(iconId)) {
+            try {
+              this.map.addImage(iconId, img, { pixelRatio: (w || 64) / 32 });
+              return true;
+            } catch {
+              this.map.addImage(iconId, { width: 1, height: 1, data: new Uint8Array(4) });
+              return false;
+            }
+          }
           return false;
         }
+      } finally {
+        URL.revokeObjectURL(blobUrl);
       }
+    } catch (err) {
+      console.warn(`[GeographicDataManager] Failed to load icon ${iconId} from ${url}:`, err);
+      return false;
     }
-    return false;
   }
 }
