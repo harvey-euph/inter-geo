@@ -649,11 +649,17 @@ export class GeographicDataManager {
       const contentType = resp.headers.get('content-type') || '';
       const isSvg = url.toLowerCase().endsWith('.svg') || contentType.includes('svg');
 
-      let blob: Blob;
+      let dataUri: string;
       if (isSvg) {
         let svgText = await resp.text();
-        // Remove foreignObject tags that could taint canvas in Blink/WebKit
-        svgText = svgText.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
+        // Remove external DOCTYPE declarations (prevents DTD fetch blocking in be.svg / at.svg)
+        svgText = svgText.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
+        // Remove XML declaration if present
+        svgText = svgText.replace(/<\?xml[\s\S]*?\?>/gi, '');
+        // Remove foreignObject tags (both block and self-closing, prevents canvas taint in bg.svg / mk.svg)
+        svgText = svgText.replace(/<foreignObject\b[\s\S]*?(?:<\/foreignObject>|\/>)/gi, '');
+        // Remove script tags
+        svgText = svgText.replace(/<script\b[\s\S]*?(?:<\/script>|\/>)/gi, '');
 
         // Ensure viewBox exists so SVG scales cleanly to target canvas size
         const svgMatch = svgText.match(/<svg([^>]*?)>/i);
@@ -673,61 +679,60 @@ export class GeographicDataManager {
           svgText = svgText.replace(svgMatch[0], `<svg${newAttrs}>`);
         }
 
-        blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+        // Use base64 data URI instead of blob: URL to prevent Chrome canvas taint
+        const base64 = btoa(unescape(encodeURIComponent(svgText)));
+        dataUri = `data:image/svg+xml;base64,${base64}`;
       } else {
-        blob = await resp.blob();
+        const buffer = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          const chunk = bytes.subarray(i, i + chunkSize);
+          binary += String.fromCharCode(...chunk);
+        }
+        const mime = contentType || 'image/png';
+        dataUri = `data:${mime};base64,${btoa(binary)}`;
       }
 
-      const blobUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      img.src = dataUri;
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => reject(e);
+      });
+
+      if (!this.map || this.map.hasImage(iconId)) return true;
+
+      const TARGET_SIZE = 64; // Logical 32px at pixelRatio: 2
+      const canvas = document.createElement('canvas');
+      canvas.width = TARGET_SIZE;
+      canvas.height = TARGET_SIZE;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+
+      const w = img.naturalWidth || TARGET_SIZE;
+      const h = img.naturalHeight || TARGET_SIZE;
+      const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
+      const dw = Math.max(1, Math.round(w * scale));
+      const dh = Math.max(1, Math.round(h * scale));
+      const dx = Math.round((TARGET_SIZE - dw) / 2);
+      const dy = Math.round((TARGET_SIZE - dh) / 2);
+
+      ctx.drawImage(img, dx, dy, dw, dh);
+
       try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = blobUrl;
-
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = (e) => reject(e);
-        });
-
+        const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
         if (!this.map || this.map.hasImage(iconId)) return true;
-
-        const TARGET_SIZE = 64; // Logical 32px at pixelRatio: 2
-        const canvas = document.createElement('canvas');
-        canvas.width = TARGET_SIZE;
-        canvas.height = TARGET_SIZE;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return false;
-
-        const w = img.naturalWidth || TARGET_SIZE;
-        const h = img.naturalHeight || TARGET_SIZE;
-        const scale = Math.min(TARGET_SIZE / w, TARGET_SIZE / h);
-        const dw = Math.max(1, Math.round(w * scale));
-        const dh = Math.max(1, Math.round(h * scale));
-        const dx = Math.round((TARGET_SIZE - dw) / 2);
-        const dy = Math.round((TARGET_SIZE - dh) / 2);
-
-        ctx.drawImage(img, dx, dy, dw, dh);
-
-        try {
-          const imgData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-          if (!this.map || this.map.hasImage(iconId)) return true;
-          this.map.addImage(iconId, imgData, { pixelRatio: 2 });
-          return true;
-        } catch (taintErr) {
-          console.warn(`[GeographicDataManager] getImageData failed for ${iconId}:`, taintErr);
-          if (this.map && !this.map.hasImage(iconId)) {
-            try {
-              this.map.addImage(iconId, img, { pixelRatio: (w || 64) / 32 });
-              return true;
-            } catch {
-              this.map.addImage(iconId, { width: 1, height: 1, data: new Uint8Array(4) });
-              return false;
-            }
-          }
-          return false;
+        this.map.addImage(iconId, imgData, { pixelRatio: 2 });
+        return true;
+      } catch (taintErr) {
+        console.warn(`[GeographicDataManager] getImageData failed for ${iconId}:`, taintErr);
+        if (this.map && !this.map.hasImage(iconId)) {
+          this.map.addImage(iconId, { width: 1, height: 1, data: new Uint8Array(4) });
         }
-      } finally {
-        URL.revokeObjectURL(blobUrl);
+        return false;
       }
     } catch (err) {
       console.warn(`[GeographicDataManager] Failed to load icon ${iconId} from ${url}:`, err);
