@@ -786,6 +786,52 @@ export class GeographicDataManager {
             }
           });
         }
+      } else {
+        // Generic CSV Image layer (e.g. flag or any external image layer)
+        await loadOnDemandCsvLayer(filterId);
+        const layer = getCsvLayerById(filterId);
+        if (layer && layer.data) {
+          const countries = this.registry
+            .getByLevel(0)
+            .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
+          for (const f of countries) {
+            const iso2 = f.properties.country_code;
+            const imagePath =
+              layer.data.labelMap?.get(iso2) ||
+              layer.data.valueMap?.get(iso2) ||
+              layer.data.rowMap?.get(iso2)?.label ||
+              layer.data.rowMap?.get(iso2)?.value;
+            if (!imagePath) continue;
+
+            const iconId = `${filterId}-${iso2.toLowerCase()}`;
+            if (!this.loadedImageIcons.has(iconId)) {
+              const url = imagePath.startsWith('http://') || imagePath.startsWith('https://')
+                ? imagePath
+                : getDataUrl(imagePath);
+              const loaded = await this.loadIconToMap(iconId, url);
+              if (loaded) this.loadedImageIcons.add(iconId);
+            }
+
+            if (!this.loadedImageIcons.has(iconId)) continue;
+
+            const center = resolveAdminCenter(f, this.registry);
+            if (!center || (center[0] === 0 && center[1] === 0)) continue;
+
+            imageFeatures.push({
+              type: 'Feature',
+              id: f.properties.numeric_id,
+              geometry: {
+                type: 'Point',
+                coordinates: center
+              },
+              properties: {
+                id: `image-${iso2}`,
+                icon: iconId,
+                name: f.properties.name
+              }
+            });
+          }
+        }
       }
     }
 

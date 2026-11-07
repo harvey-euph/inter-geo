@@ -41,6 +41,7 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   activeTextFilters,
   onToggleTextFilter,
   activeInternationalImageFilter,
+  onToggleInternationalImageFilter,
   activeRegionalFilters,
   onResetAll,
   isExpanded,
@@ -167,8 +168,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
   const isBaseActive = activeFilterId === 'none' || activeFilterId === 'base';
 
   // Active counts for header
-  const activeGlobalCount = filteredGlobalLabel.filter((f) => activeTextFilters.has(f.id)).length;
-  const activeAreaFeatureCount = activeRegionalFilters.size + (activeInternationalImageFilter ? 1 : 0);
+  const activeGlobalCount = filteredGlobalLabel.filter(
+    (f) => f.type === 'Image' ? activeInternationalImageFilter === f.id : activeTextFilters.has(f.id)
+  ).length;
+  const activeAreaFeatureCount = activeRegionalFilters.size + (activeInternationalImageFilter && !categorized.globalLabel.some((l) => l.id === activeInternationalImageFilter) ? 1 : 0);
 
   const totalActiveCount = activeAreaFeatureCount + activeGlobalCount;
 
@@ -270,7 +273,10 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
             <div className="fsw-group-children">
               <div className="fsw-item-list">
                 {filteredGlobalLabel.map((f) => {
-                  const checked = activeTextFilters.has(f.id);
+                  const isImage = f.type === 'Image';
+                  const checked = isImage
+                    ? activeInternationalImageFilter === f.id
+                    : activeTextFilters.has(f.id);
                   return (
                     <label
                       key={f.id}
@@ -278,7 +284,11 @@ export const LayerBar: React.FC<LayerBarProps> = React.memo(({
                       title={f.descriptionZh || f.nameZh}
                       onClick={(e) => {
                         e.preventDefault();
-                        onToggleTextFilter(f.id);
+                        if (isImage) {
+                          onToggleInternationalImageFilter(f.id);
+                        } else {
+                          onToggleTextFilter(f.id);
+                        }
                       }}
                     >
                       <span className={`fsw-checkbox ${checked ? 'checked' : ''}`}>
