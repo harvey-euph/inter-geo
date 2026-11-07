@@ -70,8 +70,10 @@ export class MapLibreAdapter {
       this.interactionController.setMap(this.map);
       this.lodController.setMap(this.map);
 
-      // Start by loading ADM0 data
-      void this.dataManager.loadAdm0();
+      // Start by loading ADM0 data, then sync LOD with initial camera view
+      void this.dataManager.loadAdm0().then(() => {
+        this.lodController.scheduleSync(50);
+      });
 
       options.onReady?.(this);
     });

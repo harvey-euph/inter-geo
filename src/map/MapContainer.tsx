@@ -14,7 +14,7 @@ import type { NationwideLayerDef } from '../data/nationwideLayers';
 import type { RoadPathData } from '../data/roadsMeta';
 import type { LayerDefinition } from '../data/layers';
 import { findCountry } from '../data/countries';
-import { hasL3ForSubdivision, isSouthAmerica } from '../data/l3Manifest';
+import { isSouthAmerica } from '../data/l3Manifest';
 import { isRoadLayerActiveForCountry } from '../data/roadsManifest';
 import { NATIONWIDE_LAYERS } from '../data/nationwideLayers';
 import { getCsvLayerById, getCsvLayerValue } from '../layers/csvLayerRegistry';
@@ -144,9 +144,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const country = AdministrativeHierarchy.toCountryData(feature);
         if (country) {
           onSelectCountry(country);
-          // Focus and expand country to load ADM1
-          adapterRef.current?.getLODController().getAdminLODManager().setFocusedCountry(country.iso2);
-          void adapterRef.current?.getDataManager().setActiveDisplayLevels([country.iso2], []);
+          adapterRef.current?.getLODController().setFocusedCountry(country.iso2);
           if (p.bbox) {
             adapterRef.current?.fitBounds(p.bbox);
           }
@@ -154,13 +152,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       } else if (p.admin_level === 1) {
         const sub = AdministrativeHierarchy.toSubdivisionDetail(feature);
         onSelectSubdivision?.(sub);
-        adapterRef.current
-          ?.getLODController()
-          .getAdminLODManager()
-          .setFocusedSubdivision(sub.iso2, sub.id);
-        const parentId = `ADM1_${sub.iso2.toUpperCase()}_${sub.id}`;
-        const hasL3 = hasL3ForSubdivision(sub.iso2, sub);
-        void adapterRef.current?.getDataManager().setActiveDisplayLevels([sub.iso2], hasL3 ? [parentId] : []);
+        adapterRef.current?.getLODController().setFocusedSubdivision(sub.iso2, sub.id);
         if (p.bbox) {
           adapterRef.current?.fitBounds(p.bbox);
         }
@@ -276,80 +268,19 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     }
   }, [projectionMode]);
 
-  // Sync active administrative levels (ADM0 -> ADM1 -> ADM2) based on selected and hovered features
+  // Sync selected focus with LODController (pinned levels)
   useEffect(() => {
     const adapter = adapterRef.current;
     if (!adapter) return;
 
-    const activeAdm1: string[] = [];
-    const activeAdm2Parents: string[] = [];
-
-    // 1. Pinned by selection
-    if (selectedCountry?.iso2) {
-      activeAdm1.push(selectedCountry.iso2);
+    if (selectedSubdivision) {
+      adapter.getLODController().setFocusedSubdivision(selectedSubdivision.iso2, selectedSubdivision.id);
+    } else if (selectedCountry) {
+      adapter.getLODController().setFocusedCountry(selectedCountry.iso2);
+    } else {
+      adapter.getLODController().clearFocus();
     }
-    if (selectedSubdivision?.iso2) {
-      activeAdm1.push(selectedSubdivision.iso2);
-      if (hasL3ForSubdivision(selectedSubdivision.iso2, selectedSubdivision)) {
-        const subId = String(selectedSubdivision.id ?? selectedSubdivision.code ?? '');
-        if (subId) {
-          activeAdm2Parents.push(`ADM1_${selectedSubdivision.iso2.toUpperCase()}_${subId}`);
-        }
-      }
-    }
-    if (selectedMunicipality?.iso2 && !isSouthAmerica(selectedMunicipality.iso2)) {
-      activeAdm1.push(selectedMunicipality.iso2);
-      if (selectedMunicipality.parentCode) {
-        activeAdm2Parents.push(`ADM1_${selectedMunicipality.iso2.toUpperCase()}_${selectedMunicipality.parentCode}`);
-      }
-    }
-
-    // 2. Expanded by hover
-    if (hoveredFeature) {
-      const p = hoveredFeature.properties;
-      const hIso = p.country_code;
-      if (hIso) {
-        activeAdm1.push(hIso);
-      }
-      if (p.admin_level === 1) {
-        const subId = String(p.code || p.postal || p.id || '');
-        if (
-          hIso &&
-          subId &&
-          hasL3ForSubdivision(hIso, {
-            id: p.id as string | number | undefined,
-            code: p.code,
-            name: p.name,
-            nameEn: p.name_en,
-            nameZh: p.name_zh
-          })
-        ) {
-          activeAdm2Parents.push(`ADM1_${hIso.toUpperCase()}_${subId}`);
-        }
-      } else if (p.admin_level === 2) {
-        if (p.parent_id) {
-          activeAdm2Parents.push(p.parent_id);
-        } else if (hIso && (p.parent_code || p.pref_id)) {
-          activeAdm2Parents.push(`ADM1_${hIso.toUpperCase()}_${String(p.parent_code || p.pref_id)}`);
-        }
-      }
-    }
-
-    const timer = setTimeout(() => {
-      void adapter.getDataManager().setActiveDisplayLevels(activeAdm1, activeAdm2Parents);
-    }, hoveredFeature ? 80 : 30);
-
-    return () => clearTimeout(timer);
-  }, [
-    selectedCountry?.iso2,
-    selectedSubdivision,
-    selectedSubdivision?.iso2,
-    selectedSubdivision?.id,
-    selectedSubdivision?.code,
-    selectedMunicipality?.iso2,
-    selectedMunicipality?.parentCode,
-    hoveredFeature
-  ]);
+  }, [selectedCountry?.iso2, selectedSubdivision?.iso2, selectedSubdivision?.id]);
 
   // Load and show roads ONLY when road layer for the active country is enabled in info card
   useEffect(() => {
@@ -368,23 +299,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     }
   }, [selectedCountry?.iso2, selectedSubdivision?.iso2, selectedMunicipality?.iso2, activeRegionalFilters]);
 
-  // Handle selectedCountry change
-  useEffect(() => {
-    if (selectedCountry && adapterRef.current) {
-      adapterRef.current.getLODController().getAdminLODManager().setFocusedCountry(selectedCountry.iso2);
-    }
-  }, [selectedCountry]);
-
-  // Handle selectedSubdivision change
-  useEffect(() => {
-    if (selectedSubdivision && adapterRef.current) {
-      adapterRef.current
-        .getLODController()
-        .getAdminLODManager()
-        .setFocusedSubdivision(selectedSubdivision.iso2, selectedSubdivision.id);
-    }
-  }, [selectedSubdivision]);
-
   // Bind focusMapRef
   useEffect(() => {
     if (!focusMapRef) return;
@@ -398,8 +312,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         adapter.flyTo(target.lon, target.lat, zoom);
       } else if (target.kind === 'country') {
         const iso = target.iso2.toUpperCase();
-        adapter.getLODController().getAdminLODManager().setFocusedCountry(iso);
-        void adapter.getDataManager().setActiveDisplayLevels([iso], []);
+        adapter.getLODController().setFocusedCountry(iso);
 
         // Find country feature in registry
         const feat = adapter.getDataManager().getRegistry().getById(`ADM0_${iso}`);
@@ -417,9 +330,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const iso = target.iso2.toUpperCase();
         const id = String(target.id);
         const parentId = `ADM1_${iso}_${id}`;
-        const hasL3 = hasL3ForSubdivision(iso, { id, code: id });
-        adapter.getLODController().getAdminLODManager().setFocusedSubdivision(iso, id);
-        void adapter.getDataManager().setActiveDisplayLevels([iso], hasL3 ? [parentId] : []);
+        adapter.getLODController().setFocusedSubdivision(iso, id);
 
         const subFeat = adapter.getDataManager().getRegistry().getById(parentId);
         if (subFeat?.properties.bbox) {
@@ -428,8 +339,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       } else if (target.kind === 'municipality') {
         if (target.parentCode && target.iso2 && !isSouthAmerica(target.iso2)) {
           const iso = target.iso2.toUpperCase();
-          const parentId = `ADM1_${iso}_${target.parentCode}`;
-          void adapter.getDataManager().setActiveDisplayLevels([iso], [parentId]);
+          adapter.getLODController().setFocusedSubdivision(iso, target.parentCode);
         }
       } else if (target.kind === 'bbox' && target.boxes && target.boxes.length > 0) {
         const b = target.boxes[0];
