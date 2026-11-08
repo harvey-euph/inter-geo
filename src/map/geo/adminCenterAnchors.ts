@@ -131,6 +131,7 @@ export const ADM0_CENTER_ANCHORS: Record<string, AdminCenterAnchor> = {
   LK: { coordinates: [80.7718, 7.8731] },
   NP: { coordinates: [84.1240, 28.3949] },
   BT: { coordinates: [90.4336, 27.5142] },
+  KAS: { coordinates: [77.2889, 35.3792], subdivisionName: 'Siachen Glacier' },
   KZ: { subdivisionCode: 'KZ-KAR', subdivisionName: 'Karaganda', coordinates: [71.5, 49.0] }, // Central Kazakh Steppe
   UZ: { coordinates: [64.5853, 41.3775] },
   TM: { coordinates: [59.5563, 38.9697] },
