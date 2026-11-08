@@ -360,7 +360,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               .filter(
                 (l): l is NonNullable<typeof l> =>
                   !!l &&
-                  l.rangeKind === 'Nationwide' &&
+                  (l.rangeKind === 'Nationwide' || l.targetIso2s.length > 0) &&
                   (l.type === 'ExtObject' || l.type === 'Text' || l.type === 'TextWithStyle') &&
                   l.id !== 'taiwan-power-poles' &&
                   !l.meta.fgb
@@ -503,7 +503,7 @@ const MapTooltipComponent: React.FC<MapTooltipProps> = ({
               .filter(
                 (l): l is NonNullable<typeof l> =>
                   !!l &&
-                  l.rangeKind === 'Nationwide' &&
+                  (l.rangeKind === 'Nationwide' || l.targetIso2s.length > 0) &&
                   (l.type === 'ExtObject' || l.type === 'Text' || l.type === 'TextWithStyle') &&
                   l.id !== 'taiwan-power-poles' &&
                   !l.meta.fgb

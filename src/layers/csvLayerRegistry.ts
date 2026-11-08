@@ -466,9 +466,11 @@ export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow
   const direct = layer.data.rowMap.get(upper);
   if (direct !== undefined) return direct;
 
-  for (const key of layer.assignableList.normalizeId(upper)) {
-    const r = layer.data.rowMap.get(key);
-    if (r !== undefined) return r;
+  if (layer.assignableList) {
+    for (const key of layer.assignableList.normalizeId(upper)) {
+      const r = layer.data.rowMap.get(key);
+      if (r !== undefined) return r;
+    }
   }
   return undefined;
 }
@@ -570,6 +572,17 @@ export function getCsvSubdivisionRow(
       return row;
     }
   }
+
+  // 3. Fallback to country subdivision wildcard (e.g. "IN::*", "IN-*")
+  if (subIso) {
+    const wildcardRow =
+      getCsvLayerRow(layerId, `${subIso}::*`) ??
+      getCsvLayerRow(layerId, `${subIso}-*`);
+    if (wildcardRow !== undefined && doesRowBelongToSubdivisionCountry(wildcardRow, subIso)) {
+      return wildcardRow;
+    }
+  }
+
   return undefined;
 }
 

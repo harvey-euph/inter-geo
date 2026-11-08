@@ -161,8 +161,16 @@ export function resolveActiveLayerConstraints(
     }
 
     for (const raw of rawTargets) {
-      const clean = raw.trim().replace(/\*+$/, '').trim();
+      const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(raw.trim());
+      const clean = isWildcard ? raw.trim().toUpperCase() : raw.trim().replace(/\*+$/, '').trim();
       if (!clean) continue;
+
+      if (isWildcard) {
+        const iso = clean.slice(0, 2);
+        lockedAdm1Subdivisions.add(`${iso}::*`);
+        lockedAdm1Subdivisions.add(`${iso}-*`);
+        continue;
+      }
 
       const colonCount = (clean.match(/::/g) || []).length;
 
@@ -291,6 +299,14 @@ export function isAdm1SubdivisionLocked(
   lockedAdm1Subdivisions: Set<string>
 ): boolean {
   if (lockedAdm1Subdivisions.size === 0) return false;
+
+  const upperIso = iso?.toUpperCase();
+  if (
+    upperIso &&
+    (lockedAdm1Subdivisions.has(`${upperIso}::*`) || lockedAdm1Subdivisions.has(`${upperIso}-*`))
+  ) {
+    return true;
+  }
 
   const candidates: string[] = [];
   if (p.feature_id) candidates.push(p.feature_id);

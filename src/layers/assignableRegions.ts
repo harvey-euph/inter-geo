@@ -31,6 +31,12 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
   if (colonsIdx > 0) {
     const iso = upper.slice(0, colonsIdx);
     const local = upper.slice(colonsIdx + 2);
+    if (local === '*') {
+      keys.clear();
+      keys.add(`${iso}::*`);
+      keys.add(`${iso}-*`);
+      return Array.from(keys);
+    }
     keys.add(local);
     keys.add(`${iso}-${local}`);
     if (/^\d+$/.test(local)) {
@@ -46,11 +52,17 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
     return Array.from(keys);
   }
 
-  // Check for `XX-LOCAL` (e.g. `JP-01` or `TW-TPE`)
-  const dashMatch = upper.match(/^([A-Z]{2})-([A-Za-z0-9_-]+)$/);
+  // Check for `XX-LOCAL` (e.g. `JP-01` or `TW-TPE` or `IN-*`)
+  const dashMatch = upper.match(/^([A-Z]{2})-([A-Za-z0-9_*-]+)$/);
   if (dashMatch) {
     const iso = dashMatch[1];
     const local = dashMatch[2];
+    if (local === '*') {
+      keys.clear();
+      keys.add(`${iso}::*`);
+      keys.add(`${iso}-*`);
+      return Array.from(keys);
+    }
     keys.add(local);
     keys.add(`${iso}::${local}`);
     if (/^\d+$/.test(local)) {
@@ -63,6 +75,15 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
       keys.add(num);
       keys.add(padded);
     }
+    return Array.from(keys);
+  }
+
+  // Wildcard with defaultIso2 context (e.g. '*' in Nationwide:IN)
+  if (upper === '*' && defaultIso2 && defaultIso2 !== '*') {
+    const iso = defaultIso2.toUpperCase();
+    keys.clear();
+    keys.add(`${iso}::*`);
+    keys.add(`${iso}-*`);
     return Array.from(keys);
   }
 
@@ -212,6 +233,10 @@ export function getAssignableRegionList(rawEffectiveRange: string): AssignableRe
       if (colonsIdx > 0) {
         const prefix = upper.slice(0, colonsIdx);
         return targetIso2s.includes(prefix);
+      }
+      const dashMatch = upper.match(/^([A-Z]{2})-/);
+      if (dashMatch) {
+        return targetIso2s.includes(dashMatch[1]);
       }
       return true;
     }

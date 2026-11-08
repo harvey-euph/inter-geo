@@ -599,11 +599,17 @@ export function parseLayerDataCsv(
 
     const unionParts: string[] = [];
     for (const token of rawTokens) {
-      const hasStar = token.startsWith('*') || token.endsWith('*');
-      const cleaned = token.replace(/^\*+|\*+$/g, '').trim();
-      if (!cleaned) continue;
-      if (hasStar && !unionAnchorMember) {
-        unionAnchorMember = cleaned;
+      const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(token.trim());
+      let cleaned: string;
+      if (isWildcard) {
+        cleaned = token.trim().toUpperCase();
+      } else {
+        const hasStar = token.startsWith('*') || token.endsWith('*');
+        cleaned = token.replace(/^\*+|\*+$/g, '').trim();
+        if (!cleaned) continue;
+        if (hasStar && !unionAnchorMember) {
+          unionAnchorMember = cleaned;
+        }
       }
       unionParts.push(cleaned);
     }
