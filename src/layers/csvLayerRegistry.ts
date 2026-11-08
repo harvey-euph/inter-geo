@@ -502,6 +502,10 @@ function doesRowBelongToSubdivisionCountry(row: CsvLayerKVRow, subIso2?: string)
     if (/^[A-Z]{2}$/.test(upper) || upper === '*') {
       return false;
     }
+    // Global ADM1 wildcard "*::*" belongs to any subdivision across all countries
+    if (upper === '*::*') {
+      return true;
+    }
     if (!targetIso) continue;
 
     const colonIdx = upper.indexOf('::');
@@ -597,6 +601,12 @@ export function getCsvSubdivisionRow(
     if (wildcardRow !== undefined && doesRowBelongToSubdivisionCountry(wildcardRow, subIso)) {
       return wildcardRow;
     }
+  }
+
+  // 4. Fallback to global ADM1 subdivision wildcard "*::*"
+  const globalAdm1Row = getCsvLayerRow(layerId, '*::*');
+  if (globalAdm1Row !== undefined && doesRowBelongToSubdivisionCountry(globalAdm1Row, subIso)) {
+    return globalAdm1Row;
   }
 
   return undefined;

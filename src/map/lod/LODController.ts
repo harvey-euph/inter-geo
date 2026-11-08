@@ -166,6 +166,10 @@ export function resolveActiveLayerConstraints(
         lockedAdm0Countries.add('*');
         continue;
       }
+      if (trimmed === '*::*') {
+        lockedAdm1Subdivisions.add('*::*');
+        continue;
+      }
       const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(trimmed);
       const clean = isWildcard ? trimmed.toUpperCase() : trimmed.replace(/\*+$/, '').trim();
       if (!clean) continue;
@@ -304,6 +308,10 @@ export function isAdm1SubdivisionLocked(
   lockedAdm1Subdivisions: Set<string>
 ): boolean {
   if (lockedAdm1Subdivisions.size === 0) return false;
+
+  if (lockedAdm1Subdivisions.has('*::*')) {
+    return true;
+  }
 
   const upperIso = iso?.toUpperCase();
   if (
@@ -504,6 +512,7 @@ export class LODController {
           // Note: If lockedAdm0Countries has '*', all ADM0 countries are clamped,
           // unless this country explicitly has active ADM1 targets (e.g. IN::* or IN-TN).
           const hasCountryAdm1Target =
+            lockedAdm1Subdivisions.has('*::*') ||
             lockedAdm1Subdivisions.has(`${iso}::*`) ||
             lockedAdm1Subdivisions.has(`${iso}-*`) ||
             Array.from(lockedAdm1Subdivisions).some(
@@ -576,7 +585,8 @@ export class LODController {
       // unless locked at a coarser level by an active layer
       const focusedHasAdm1Target =
         Boolean(this.focusedCountryIso) &&
-        (lockedAdm1Subdivisions.has(`${this.focusedCountryIso}::*`) ||
+        (lockedAdm1Subdivisions.has('*::*') ||
+          lockedAdm1Subdivisions.has(`${this.focusedCountryIso}::*`) ||
           lockedAdm1Subdivisions.has(`${this.focusedCountryIso}-*`) ||
           Array.from(lockedAdm1Subdivisions).some(
             (s) =>

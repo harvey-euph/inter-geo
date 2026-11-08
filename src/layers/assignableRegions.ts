@@ -26,11 +26,16 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
   const upper = trimmed.toUpperCase();
   const keys = new Set<string>([upper]);
 
-  // Check for `XX::LOCAL`
+  // Check for `*::*` or `XX::LOCAL`
   const colonsIdx = upper.indexOf('::');
   if (colonsIdx > 0) {
     const iso = upper.slice(0, colonsIdx);
     const local = upper.slice(colonsIdx + 2);
+    if (iso === '*' && local === '*') {
+      keys.clear();
+      keys.add('*::*');
+      return Array.from(keys);
+    }
     if (local === '*') {
       keys.clear();
       keys.add(`${iso}::*`);
@@ -220,6 +225,7 @@ export function getAssignableRegionList(rawEffectiveRange: string): AssignableRe
       const trimmed = rawId.trim();
       if (!trimmed) return false;
       const upper = trimmed.toUpperCase();
+      if (upper === '*' || upper === '*::*') return true;
       const colonsIdx = upper.indexOf('::');
       if (colonsIdx > 0) {
         const prefix = upper.slice(0, colonsIdx);

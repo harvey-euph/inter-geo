@@ -601,10 +601,13 @@ export function parseLayerDataCsv(
     for (const token of rawTokens) {
       const trimmed = token.trim();
       const isAdm0Wildcard = trimmed === '*';
+      const isAdm1GlobalWildcard = trimmed === '*::*';
       const isAdm1Wildcard = /^[A-Z]{2}(::|-)\*$/i.test(trimmed);
       let cleaned: string;
       if (isAdm0Wildcard) {
         cleaned = '*';
+      } else if (isAdm1GlobalWildcard) {
+        cleaned = '*::*';
       } else if (isAdm1Wildcard) {
         cleaned = trimmed.toUpperCase();
       } else {
