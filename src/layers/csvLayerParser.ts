@@ -653,7 +653,7 @@ export function parseLayerDataCsv(
       labelDisplayMethod: rowDisplayMethod || undefined,
       unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
       unionMembers: unionParts.length > 1 ? unionParts : undefined,
-      unionAnchorMember,
+      unionAnchorMember: unionParts.length > 1 ? unionAnchorMember : undefined,
       value: rawValue,
       text: rowText,
       style: rawStyle,

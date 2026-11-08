@@ -1299,6 +1299,8 @@ export class GeographicDataManager {
                   const postalUpper = (p.postal || '').toUpperCase();
                   const idUpper = String(p.id || '').toUpperCase();
                   const featIdUpper = p.feature_id.toUpperCase();
+                  const nameUpper = (p.name || '').toUpperCase();
+                  const nameEnUpper = (p.name_en || '').toUpperCase();
 
                   const isAnchor =
                     codeUpper === rawAnchor ||
@@ -1311,7 +1313,9 @@ export class GeographicDataManager {
                     featIdUpper === rawAnchor ||
                     featIdUpper.endsWith(`_${anchorLocal}`) ||
                     `${p.country_code}::${p.code}`.toUpperCase() === rawAnchor ||
-                    `${p.country_code}::${p.postal}`.toUpperCase() === rawAnchor;
+                    `${p.country_code}::${p.postal}`.toUpperCase() === rawAnchor ||
+                    nameUpper === anchorLocal ||
+                    nameEnUpper === anchorLocal;
 
                   if (!isAnchor) {
                     continue;

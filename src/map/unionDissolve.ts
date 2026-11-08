@@ -126,7 +126,7 @@ function doesSubdivisionMatchAnchor(
   const upperAnchor = anchorMember.trim().toUpperCase();
   if (!upperAnchor) return false;
 
-  const anchorKeys = new Set<string>(layer.assignableList.normalizeId(upperAnchor));
+  const anchorKeys = new Set<string>(layer.assignableList?.normalizeId(upperAnchor) || []);
   anchorKeys.add(upperAnchor);
 
   const subIso = sub.iso2?.trim().toUpperCase();
