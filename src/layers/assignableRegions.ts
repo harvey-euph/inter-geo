@@ -42,7 +42,7 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
       keys.add(`${iso}-*`);
       return Array.from(keys);
     }
-    keys.add(local);
+    // Strict namespace isolation: namespaced `XX::LOCAL` must NEVER leak naked `local` into global namespace
     keys.add(`${iso}-${local}`);
     if (/^\d+$/.test(local)) {
       const num = String(parseInt(local, 10));
@@ -51,8 +51,6 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
       keys.add(`${iso}::${padded}`);
       keys.add(`${iso}-${num}`);
       keys.add(`${iso}-${padded}`);
-      keys.add(num);
-      keys.add(padded);
     }
     return Array.from(keys);
   }
@@ -68,7 +66,7 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
       keys.add(`${iso}-*`);
       return Array.from(keys);
     }
-    keys.add(local);
+    // Strict namespace isolation: namespaced `XX-LOCAL` must NEVER leak naked `local` into global namespace
     keys.add(`${iso}::${local}`);
     if (/^\d+$/.test(local)) {
       const num = String(parseInt(local, 10));
@@ -77,8 +75,6 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
       keys.add(`${iso}::${padded}`);
       keys.add(`${iso}-${num}`);
       keys.add(`${iso}-${padded}`);
-      keys.add(num);
-      keys.add(padded);
     }
     return Array.from(keys);
   }

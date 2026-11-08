@@ -15,6 +15,7 @@ import {
   getCsvSubdivisionRow,
   getCsvSubdivisionCode,
   loadOnDemandCsvLayer,
+  doesRowBelongToAdm0Country,
   type RegisteredCsvLayer
 } from '../../layers/csvLayerRegistry';
 import type { CsvLayerKVRow } from '../../layers/csvLayerParser';
@@ -1220,7 +1221,7 @@ export class GeographicDataManager {
             .filter((f) => !this.isAdm1DisplayedForCountry(f.properties.country_code));
           for (const c of countries) {
             const iso2 = c.properties.country_code;
-            let row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
+            let row = getCsvLayerRow(regId, iso2);
             if (!row && layer.data.rows) {
               row = layer.data.rows.find((r) => {
                 if (!r.unionMembers || r.unionMembers.length === 0) return false;
@@ -1230,12 +1231,13 @@ export class GeographicDataManager {
             if (!row) {
               row = layer.data.rowMap.get('*');
             }
+            if (row && !doesRowBelongToAdm0Country(row, iso2)) {
+              row = undefined;
+            }
             const code =
               row?.label ||
               row?.value ||
-              getCsvLayerValue(regId, iso2) ||
-              layer.data.labelMap?.get(iso2) ||
-              layer.data.valueMap?.get(iso2);
+              (row ? getCsvLayerValue(regId, iso2) : null);
 
             if (code) {
               const center = resolveAdminCenter(c, this.registry);

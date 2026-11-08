@@ -473,12 +473,12 @@ export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow
 
   const upper = regionId.trim().toUpperCase();
   const direct = layer.data.rowMap.get(upper);
-  if (direct !== undefined) return direct;
+  if (direct !== undefined && doesRowBelongToAdm0Country(direct, upper)) return direct;
 
   if (layer.assignableList) {
     for (const key of layer.assignableList.normalizeId(upper)) {
       const r = layer.data.rowMap.get(key);
-      if (r !== undefined) return r;
+      if (r !== undefined && doesRowBelongToAdm0Country(r, upper)) return r;
     }
   }
 
@@ -489,6 +489,40 @@ export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow
   }
 
   return undefined;
+}
+
+/**
+ * Verifies whether a CSV row belongs to an ADM0 country query (2-letter ISO).
+ * Prevents ADM1 subdivisions (e.g. "IN::BR" for Bihar) from ever matching ADM0 countries (e.g. "BR" for Brazil).
+ */
+export function doesRowBelongToAdm0Country(row: CsvLayerKVRow, countryIso2: string): boolean {
+  if (!/^[A-Z]{2}$/.test(countryIso2)) {
+    return true; // Not an ADM0 country query, allow
+  }
+  const iso = countryIso2.toUpperCase();
+  // Global ADM0 wildcard '*' matches all ADM0 countries
+  if (row.regionId === '*') return true;
+
+  const members = row.unionMembers || [row.regionId];
+  for (const m of members) {
+    const upper = m.trim().toUpperCase();
+    if (upper === iso) return true;
+
+    const colonIdx = upper.indexOf('::');
+    if (colonIdx > 0) {
+      const prefix = upper.slice(0, colonIdx);
+      if (prefix !== iso) return false;
+    }
+    const dashMatch = upper.match(/^([A-Z]{2})-/);
+    if (dashMatch && dashMatch[1] !== 'TP') {
+      if (dashMatch[1] !== iso) return false;
+    }
+  }
+
+  return members.some((m) => {
+    const u = m.trim().toUpperCase();
+    return u === iso || u.startsWith(`${iso}::`) || u.startsWith(`${iso}-`);
+  });
 }
 
 function doesRowBelongToSubdivisionCountry(row: CsvLayerKVRow, subIso2?: string): boolean {
