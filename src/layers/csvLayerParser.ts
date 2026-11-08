@@ -1,5 +1,6 @@
 import {
   getAssignableRegionList,
+  normalizeRegionKeys,
   type AssignableRegionList
 } from './assignableRegions';
 
@@ -637,7 +638,7 @@ export function parseLayerDataCsv(
       colorBoundary: rowColorBoundary || undefined,
       label: rowLabel || undefined,
       labelDisplayMethod: rowDisplayMethod || undefined,
-      unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
+      unionGroupId: unionParts.length > 1 && unionAnchorMember ? canonicalRegionId : undefined,
       unionMembers: unionParts.length > 1 ? unionParts : undefined,
       unionAnchorMember,
       value: rawValue,
@@ -685,7 +686,10 @@ export function parseLayerDataCsv(
       rowMap.set(part, row);
       rowMap.set(part.toUpperCase(), row);
 
-      const normalizedKeys = assignableList.normalizeId(part);
+      const normalizedKeys = new Set<string>([
+        ...assignableList.normalizeId(part),
+        ...normalizeRegionKeys(part)
+      ]);
       for (const k of normalizedKeys) {
         valueMap.set(k, rawValue);
         if (resolvedBoundary) {

@@ -937,7 +937,7 @@ export class GeographicDataManager {
     const resultFeatures = [...standaloneFeatures];
 
     for (const group of unionGroupMap.values()) {
-      if (group.features.length <= 1) {
+      if (group.features.length <= 1 || !group.row.unionAnchorMember) {
         resultFeatures.push(...group.features);
         continue;
       }
@@ -1207,7 +1207,7 @@ export class GeographicDataManager {
             let row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
             if (!row && layer.data.rows) {
               row = layer.data.rows.find((r) => {
-                if (!r.unionMembers || r.unionMembers.length === 0) return false;
+                if (!r.unionMembers || r.unionMembers.length === 0 || !r.unionAnchorMember) return false;
                 return r.unionMembers.every((m) => m.toUpperCase().startsWith(`${iso2.toUpperCase()}::`));
               });
             }
@@ -1267,7 +1267,7 @@ export class GeographicDataManager {
               getCsvSubdivisionValue(regId, subParam);
 
             if (code) {
-              if (row && row.unionGroupId) {
+              if (row && row.unionGroupId && row.unionAnchorMember) {
                 // If union has an explicit anchor member (*), only place badge on that anchor member
                 if (row.unionAnchorMember) {
                   const rawAnchor = row.unionAnchorMember.toUpperCase();
