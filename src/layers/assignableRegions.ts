@@ -78,17 +78,8 @@ export function normalizeRegionKeys(rawId: string, defaultIso2?: string): string
     return Array.from(keys);
   }
 
-  // Wildcard with defaultIso2 context (e.g. '*' in Nationwide:IN)
-  if (upper === '*' && defaultIso2 && defaultIso2 !== '*') {
-    const iso = defaultIso2.toUpperCase();
-    keys.clear();
-    keys.add(`${iso}::*`);
-    keys.add(`${iso}-*`);
-    return Array.from(keys);
-  }
-
   // Country-scoped shorthand (e.g. `26` for Japan or `CA` for US)
-  if (defaultIso2 && defaultIso2 !== '*') {
+  if (defaultIso2 && defaultIso2 !== '*' && upper !== '*') {
     const iso = defaultIso2.toUpperCase();
     keys.add(`${iso}::${upper}`);
     keys.add(`${iso}-${upper}`);

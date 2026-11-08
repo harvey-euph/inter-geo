@@ -599,13 +599,17 @@ export function parseLayerDataCsv(
 
     const unionParts: string[] = [];
     for (const token of rawTokens) {
-      const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(token.trim());
+      const trimmed = token.trim();
+      const isAdm0Wildcard = trimmed === '*';
+      const isAdm1Wildcard = /^[A-Z]{2}(::|-)\*$/i.test(trimmed);
       let cleaned: string;
-      if (isWildcard) {
-        cleaned = token.trim().toUpperCase();
+      if (isAdm0Wildcard) {
+        cleaned = '*';
+      } else if (isAdm1Wildcard) {
+        cleaned = trimmed.toUpperCase();
       } else {
-        const hasStar = token.startsWith('*') || token.endsWith('*');
-        cleaned = token.replace(/^\*+|\*+$/g, '').trim();
+        const hasStar = trimmed.startsWith('*') || trimmed.endsWith('*');
+        cleaned = trimmed.replace(/^\*+|\*+$/g, '').trim();
         if (!cleaned) continue;
         if (hasStar && !unionAnchorMember) {
           unionAnchorMember = cleaned;

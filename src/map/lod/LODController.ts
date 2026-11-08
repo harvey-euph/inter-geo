@@ -161,8 +161,13 @@ export function resolveActiveLayerConstraints(
     }
 
     for (const raw of rawTargets) {
-      const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(raw.trim());
-      const clean = isWildcard ? raw.trim().toUpperCase() : raw.trim().replace(/\*+$/, '').trim();
+      const trimmed = raw.trim();
+      if (trimmed === '*') {
+        lockedAdm0Countries.add('*');
+        continue;
+      }
+      const isWildcard = /^[A-Z]{2}(::|-)\*$/i.test(trimmed);
+      const clean = isWildcard ? trimmed.toUpperCase() : trimmed.replace(/\*+$/, '').trim();
       if (!clean) continue;
 
       if (isWildcard) {
@@ -496,7 +501,21 @@ export class LODController {
 
           // Clamping: If this country has active ADM0 labels/features,
           // do NOT switch it to ADM1 (y > 0) upon zooming in.
-          if (lockedAdm0Countries.has(iso)) continue;
+          // Note: If lockedAdm0Countries has '*', all ADM0 countries are clamped,
+          // unless this country explicitly has active ADM1 targets (e.g. IN::* or IN-TN).
+          const hasCountryAdm1Target =
+            lockedAdm1Subdivisions.has(`${iso}::*`) ||
+            lockedAdm1Subdivisions.has(`${iso}-*`) ||
+            Array.from(lockedAdm1Subdivisions).some(
+              (s) => s.startsWith(`${iso}::`) || s.startsWith(`${iso}-`)
+            );
+
+          if (
+            lockedAdm0Countries.has(iso) ||
+            (lockedAdm0Countries.has('*') && !hasCountryAdm1Target)
+          ) {
+            continue;
+          }
 
           if (bboxIntersectsViewport(f.properties.bbox, west, bufferedSouth, east, bufferedNorth)) {
             visibleIso2s.push(iso);
@@ -555,7 +574,25 @@ export class LODController {
 
       // 3. Selection focus pins: if user explicitly selected a country or subdivision, ensure it stays expanded
       // unless locked at a coarser level by an active layer
-      if (this.focusedCountryIso && hasCountryL2Sync(this.focusedCountryIso) && !lockedAdm0Countries.has(this.focusedCountryIso)) {
+      const focusedHasAdm1Target =
+        Boolean(this.focusedCountryIso) &&
+        (lockedAdm1Subdivisions.has(`${this.focusedCountryIso}::*`) ||
+          lockedAdm1Subdivisions.has(`${this.focusedCountryIso}-*`) ||
+          Array.from(lockedAdm1Subdivisions).some(
+            (s) =>
+              s.startsWith(`${this.focusedCountryIso}::`) ||
+              s.startsWith(`${this.focusedCountryIso}-`)
+          ));
+      const focusedAdm0Locked =
+        Boolean(this.focusedCountryIso) &&
+        (lockedAdm0Countries.has(this.focusedCountryIso!) ||
+          (lockedAdm0Countries.has('*') && !focusedHasAdm1Target));
+
+      if (
+        this.focusedCountryIso &&
+        hasCountryL2Sync(this.focusedCountryIso) &&
+        !focusedAdm0Locked
+      ) {
         activeAdm1Set.add(this.focusedCountryIso);
         await this.dataManager.ensureAdm1(this.focusedCountryIso);
       }

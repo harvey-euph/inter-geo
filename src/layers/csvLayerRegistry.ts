@@ -397,9 +397,17 @@ export function getCsvLayerValue(layerId: string, regionId: string): string | nu
   const direct = layer.data.valueMap.get(upper);
   if (direct !== undefined) return direct;
 
-  for (const key of layer.assignableList.normalizeId(upper)) {
-    const val = layer.data.valueMap.get(key);
-    if (val !== undefined) return val;
+  if (layer.assignableList) {
+    for (const key of layer.assignableList.normalizeId(upper)) {
+      const val = layer.data.valueMap.get(key);
+      if (val !== undefined) return val;
+    }
+  }
+
+  // Fallback to global ADM0 wildcard '*' for 2-letter country ISOs
+  if (/^[A-Z]{2}$/.test(upper)) {
+    const globalVal = layer.data.valueMap.get('*');
+    if (globalVal !== undefined) return globalVal;
   }
   return null;
 }
@@ -445,6 +453,7 @@ export function getCsvLayerInteriorColor(layerId: string, regionId: string): str
 
   const row = getCsvLayerRow(layerId, regionId);
   if (row?.colorInterior) return row.colorInterior;
+  if (row?.color && !row.color.includes(':')) return row.color;
   return (
     layer.defaultColorInterior ||
     layer.defaultColor ||
@@ -472,6 +481,13 @@ export function getCsvLayerRow(layerId: string, regionId: string): CsvLayerKVRow
       if (r !== undefined) return r;
     }
   }
+
+  // Fallback to global ADM0 wildcard '*' for 2-letter country ISOs
+  if (/^[A-Z]{2}$/.test(upper)) {
+    const globalRow = layer.data.rowMap.get('*');
+    if (globalRow !== undefined) return globalRow;
+  }
+
   return undefined;
 }
 
@@ -482,8 +498,8 @@ function doesRowBelongToSubdivisionCountry(row: CsvLayerKVRow, subIso2?: string)
 
   for (const m of members) {
     const upper = m.trim().toUpperCase();
-    // A 2-letter ISO country code row (e.g. "BD" or "LK") is a country-level entry, never an L2 subdivision
-    if (/^[A-Z]{2}$/.test(upper)) {
+    // A 2-letter ISO country code row (e.g. "BD" or "LK") or global "*" is a country-level entry, never an L2 subdivision
+    if (/^[A-Z]{2}$/.test(upper) || upper === '*') {
       return false;
     }
     if (!targetIso) continue;

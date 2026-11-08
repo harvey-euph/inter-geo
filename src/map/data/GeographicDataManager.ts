@@ -1227,6 +1227,9 @@ export class GeographicDataManager {
                 return r.unionMembers.every((m) => m.toUpperCase().startsWith(`${iso2.toUpperCase()}::`));
               });
             }
+            if (!row) {
+              row = layer.data.rowMap.get('*');
+            }
             const code =
               row?.label ||
               row?.value ||
