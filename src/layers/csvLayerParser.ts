@@ -638,7 +638,7 @@ export function parseLayerDataCsv(
       colorBoundary: rowColorBoundary || undefined,
       label: rowLabel || undefined,
       labelDisplayMethod: rowDisplayMethod || undefined,
-      unionGroupId: unionParts.length > 1 && unionAnchorMember ? canonicalRegionId : undefined,
+      unionGroupId: unionParts.length > 1 ? canonicalRegionId : undefined,
       unionMembers: unionParts.length > 1 ? unionParts : undefined,
       unionAnchorMember,
       value: rawValue,

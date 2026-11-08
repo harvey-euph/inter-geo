@@ -286,3 +286,46 @@ export function normalizeAntimeridianGeometry(geometry: Geometry): Geometry {
       return geometry;
   }
 }
+
+function ringSignedArea(ring: number[][]): number {
+  let area = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    area += (ring[i + 1][0] - ring[i][0]) * (ring[i + 1][1] + ring[i][1]);
+  }
+  return area;
+}
+
+/**
+ * Enforces RFC 7946 winding order (right-hand rule):
+ * - Exterior rings MUST be counterclockwise (signedArea < 0 in lon/lat)
+ * - Interior rings (holes) MUST be clockwise (signedArea > 0 in lon/lat)
+ *
+ * This prevents WebGL / MapLibre from misinterpreting exterior rings as holes (blackout / clipping).
+ */
+export function rewindGeometry(geometry: Geometry): Geometry {
+  if (geometry.type === 'Polygon') {
+    const coordinates = geometry.coordinates.map((ring, idx) => {
+      const area = ringSignedArea(ring);
+      if (idx === 0) {
+        return area > 0 ? [...ring].reverse() : ring;
+      } else {
+        return area < 0 ? [...ring].reverse() : ring;
+      }
+    });
+    return { type: 'Polygon', coordinates };
+  } else if (geometry.type === 'MultiPolygon') {
+    const coordinates = geometry.coordinates.map((poly) =>
+      poly.map((ring, idx) => {
+        const area = ringSignedArea(ring);
+        if (idx === 0) {
+          return area > 0 ? [...ring].reverse() : ring;
+        } else {
+          return area < 0 ? [...ring].reverse() : ring;
+        }
+      })
+    );
+    return { type: 'MultiPolygon', coordinates };
+  }
+  return geometry;
+}
+

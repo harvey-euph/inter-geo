@@ -5,7 +5,7 @@ import { merge } from 'topojson-client';
 import * as flatgeobuf from 'flatgeobuf';
 import { FlatGeobufLoader } from './FlatGeobufLoader';
 import { FeatureRegistry, type CanonicalFeature } from './FeatureRegistry';
-import { normalizeAntimeridianGeometry } from '../geo/antimeridian';
+import { normalizeAntimeridianGeometry, rewindGeometry } from '../geo/antimeridian';
 import { AdministrativeHierarchy, cleanAdminText } from './AdministrativeHierarchy';
 import {
   getCsvLayerById,
@@ -937,7 +937,7 @@ export class GeographicDataManager {
     const resultFeatures = [...standaloneFeatures];
 
     for (const group of unionGroupMap.values()) {
-      if (group.features.length <= 1 || !group.row.unionAnchorMember) {
+      if (group.features.length <= 1) {
         resultFeatures.push(...group.features);
         continue;
       }
@@ -953,8 +953,9 @@ export class GeographicDataManager {
       if (!mergedGeom) {
         try {
           const topo = topology({ items: { type: 'FeatureCollection', features: group.features } });
-          mergedGeom = merge(topo, topo.objects.items.geometries) as Geometry;
-          if (mergedGeom) {
+          const raw = merge(topo, topo.objects.items.geometries) as Geometry;
+          if (raw) {
+            mergedGeom = rewindGeometry(raw);
             this.unionGeometryCache.set(cacheKey, mergedGeom);
           }
         } catch (err) {
@@ -1005,12 +1006,27 @@ export class GeographicDataManager {
       }
 
       if (!anchorFeature) {
-        anchorFeature = group.features[0];
+        // Pick feature with most geometry detail as visual representative
+        anchorFeature = group.features.reduce((largest, f) => {
+          const countL = (largest.geometry as any)?.coordinates?.[0]?.length || 0;
+          const countF = (f.geometry as any)?.coordinates?.[0]?.length || 0;
+          return countF > countL ? f : largest;
+        }, group.features[0]);
       }
 
       const country = findCountry(iso);
       const totalCountrySubs = this.registry.getByLevel(1).filter((s) => s.properties.country_code === iso).length;
       const isWholeCountry = totalCountrySubs > 0 && group.features.length >= totalCountrySubs;
+
+      const mergedName = isWholeCountry
+        ? country?.name || anchorFeature.properties.name
+        : group.row.label || anchorFeature.properties.name;
+      const mergedNameZh = isWholeCountry
+        ? country?.nameZh || anchorFeature.properties.name_zh
+        : group.row.label || anchorFeature.properties.name_zh;
+      const mergedNameEn = isWholeCountry
+        ? country?.name || anchorFeature.properties.name_en
+        : anchorFeature.properties.name_en;
 
       const mergedFeature: CanonicalFeature = {
         type: 'Feature',
@@ -1021,16 +1037,16 @@ export class GeographicDataManager {
           feature_id: isWholeCountry
             ? `ADM1_${iso}_UNION_ALL`
             : `ADM1_${iso}_UNION_${anchorFeature.properties.code || anchorFeature.properties.id}`,
-          name: isWholeCountry ? country?.name || anchorFeature.properties.name : anchorFeature.properties.name,
-          name_zh: isWholeCountry ? country?.nameZh || anchorFeature.properties.name_zh : anchorFeature.properties.name_zh,
-          name_en: isWholeCountry ? country?.name || anchorFeature.properties.name_en : anchorFeature.properties.name_en,
+          name: mergedName,
+          name_zh: mergedNameZh,
+          name_en: mergedNameEn,
           is_union: true,
           union_group_id: group.unionGroupId,
           union_member_count: group.features.length
         }
       };
 
-      this.registry.register(mergedFeature);
+      this.registry.registerDerivedFeature(mergedFeature);
       resultFeatures.push(mergedFeature);
     }
 
@@ -1207,7 +1223,7 @@ export class GeographicDataManager {
             let row = layer.data.rowMap.get(iso2) || layer.data.rowMap.get(iso2.toLowerCase());
             if (!row && layer.data.rows) {
               row = layer.data.rows.find((r) => {
-                if (!r.unionMembers || r.unionMembers.length === 0 || !r.unionAnchorMember) return false;
+                if (!r.unionMembers || r.unionMembers.length === 0) return false;
                 return r.unionMembers.every((m) => m.toUpperCase().startsWith(`${iso2.toUpperCase()}::`));
               });
             }
@@ -1267,7 +1283,7 @@ export class GeographicDataManager {
               getCsvSubdivisionValue(regId, subParam);
 
             if (code) {
-              if (row && row.unionGroupId && row.unionAnchorMember) {
+              if (row && row.unionGroupId) {
                 // If union has an explicit anchor member (*), only place badge on that anchor member
                 if (row.unionAnchorMember) {
                   const rawAnchor = row.unionAnchorMember.toUpperCase();

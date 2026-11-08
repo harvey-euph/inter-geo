@@ -92,6 +92,20 @@ export class FeatureRegistry {
   }
 
   /**
+   * Registers a derived / union feature by ID for hover / click lookup,
+   * without polluting the raw level collections (featuresByLevel).
+   */
+  public registerDerivedFeature(feature: CanonicalFeature): void {
+    const id = feature.properties.feature_id;
+    if (!feature.properties.numeric_id) {
+      feature.properties.numeric_id = FeatureRegistry.nextNumericId++;
+    }
+    feature.id = feature.properties.numeric_id;
+    this.featuresById.set(id, feature);
+    this.numericIdToFeatureId.set(feature.properties.numeric_id, id);
+  }
+
+  /**
    * Unregisters a canonical feature by ID.
    */
   public unregister(id: string): void {
